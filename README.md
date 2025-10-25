@@ -16,30 +16,46 @@ Unlike other solutions that use clipboard manipulation or keyboard simulation, t
 
 ## 🚀 How It Works
 
-1. **Hold** a letter key (a, o, u, or s)
-2. Press **Space** within the time window
-3. → Get the umlaut! (ä, ö, ü, ß)
+### Gesture Flow
 
-**Timing:**
-- **Lowercase letters** (a, o, u, s): 400ms window
-- **Uppercase letters** (A, O, U): 700ms window (longer for Shift coordination)
-
+```mermaid
+stateDiagram-v2
+    [*] --> Waiting: Press 'a'
+    Waiting --> Umlaut: Space within 400ms
+    Waiting --> Normal: Release or timeout
+    Umlaut --> [*]: ä ✨
+    Normal --> [*]: a
 ```
-Example: Type ä
-┌─────────────────────────────────┐
-│ 1. Hold 'a' (nothing appears)   │
-│ 2. Press Space (within 400ms)   │
-│ 3. → ä appears instantly!       │
-└─────────────────────────────────┘
 
-Example: Type Ä
-┌──────────────────────────────────────┐
-│ 1. Hold Shift+A (both keys down)    │
-│ 2. Press Space (within 700ms)       │
-│    (Shift can stay pressed!)        │
-│ 3. → Ä appears instantly!            │
-└──────────────────────────────────────┘
+### Step-by-Step Guide
+
+#### 🔤 Lowercase Umlauts (400ms)
+
+```mermaid
+graph LR
+    A["① Hold 'a'"] --> B["② Tap Space<br/>(within 400ms)"]
+    B --> C["③ ä appears ✨"]
+
+    style A fill:#64b5f6,stroke:#1976d2,stroke-width:3px,color:#000
+    style B fill:#ffd54f,stroke:#f57f17,stroke-width:3px,color:#000
+    style C fill:#81c784,stroke:#388e3c,stroke-width:3px,color:#000
 ```
+
+**Works for:** `a`→`ä` | `o`→`ö` | `u`→`ü` | `s`→`ß`
+
+#### 🔠 Uppercase Umlauts (700ms - longer for coordination)
+
+```mermaid
+graph LR
+    A["① Hold Shift+A"] --> B["② Tap Space<br/>(within 700ms)<br/>Shift stays pressed!"]
+    B --> C["③ Ä appears ✨"]
+
+    style A fill:#64b5f6,stroke:#1976d2,stroke-width:3px,color:#000
+    style B fill:#ffd54f,stroke:#f57f17,stroke-width:3px,color:#000
+    style C fill:#81c784,stroke:#388e3c,stroke-width:3px,color:#000
+```
+
+**Works for:** `A`→`Ä` | `O`→`Ö` | `U`→`Ü`
 
 ## 📋 Requirements
 
