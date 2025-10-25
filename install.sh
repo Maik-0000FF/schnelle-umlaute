@@ -20,6 +20,20 @@ if ! command -v pacman >/dev/null 2>&1; then
     exit 1
 fi
 
+# Check if running with sudo (should NOT be)
+if [ "$EUID" -eq 0 ]; then
+    echo -e "${RED}Error: Do not run this script with sudo!${NC}"
+    echo "Run as regular user. Sudo will be requested when needed."
+    exit 1
+fi
+
+# Warn about sudo requirement
+echo -e "${YELLOW}Note: This script will require sudo access for:${NC}"
+echo "  - Installing dependencies (if missing)"
+echo "  - Installing the addon to system directories"
+echo "You may be prompted for your password."
+echo
+
 # Function to check if package is installed
 is_installed() {
     pacman -Q "$1" >/dev/null 2>&1
@@ -27,7 +41,7 @@ is_installed() {
 
 # Check dependencies
 MISSING_DEPS=()
-DEPS=(fcitx5 fcitx5-configtool cmake extra-cmake-modules gcc)
+DEPS=(fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc)
 
 echo -e "${YELLOW}Checking dependencies...${NC}"
 for dep in "${DEPS[@]}"; do
@@ -88,9 +102,9 @@ if [ -f "$ENV_FILE" ]; then
     else
         mkdir -p "$HOME/.config/environment.d"
         cat > "$ENV_FILE" << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
+GTK_IM_MODULE=fcitx5
+QT_IM_MODULE=fcitx5
+XMODIFIERS=@im=fcitx5
 GLFW_IM_MODULE=ibus
 EOF
         echo -e "${GREEN}✓ Environment variables configured${NC}"
@@ -98,9 +112,9 @@ EOF
 else
     mkdir -p "$HOME/.config/environment.d"
     cat > "$ENV_FILE" << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
+GTK_IM_MODULE=fcitx5
+QT_IM_MODULE=fcitx5
+XMODIFIERS=@im=fcitx5
 GLFW_IM_MODULE=ibus
 EOF
     echo -e "${GREEN}✓ Environment variables configured${NC}"
@@ -108,10 +122,45 @@ fi
 echo
 
 # Restart Fcitx5
-echo -e "${BLUE}Restarting Fcitx5...${NC}"
-fcitx5 -r 2>/dev/null || {
-    echo -e "${YELLOW}Note: Fcitx5 not running yet. It will start on next login.${NC}"
-}
+echo -e "${BLUE}Checking Fcitx5 status...${NC}"
+if pgrep -x fcitx5 > /dev/null; then
+    echo -e "${YELLOW}Fcitx5 is running, restarting...${NC}"
+    fcitx5 -r > /dev/null 2>&1 &
+    sleep 2
+    echo -e "${GREEN}✓ Fcitx5 restarted${NC}"
+else
+    echo -e "${YELLOW}Note: Fcitx5 not running yet.${NC}"
+    echo -e "${YELLOW}It will start automatically on next login.${NC}"
+fi
+echo
+
+# Fix Shift+L conflict
+echo -e "${BLUE}Configuring Fcitx5 to avoid Shift conflicts...${NC}"
+CONFIG_DIR="$HOME/.config/fcitx5"
+CONFIG_FILE="$CONFIG_DIR/config"
+
+mkdir -p "$CONFIG_DIR"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    # Create new config with only Ctrl+Space
+    cat > "$CONFIG_FILE" << 'EOF'
+[Hotkey]
+TriggerKeys=Control+space
+
+[Behavior]
+ShareInputState=No
+EOF
+    echo -e "${GREEN}✓ Fcitx5 configured (Shift_L disabled)${NC}"
+else
+    # Check if TriggerKeys contains Shift_L
+    if grep -q "TriggerKeys.*Shift" "$CONFIG_FILE"; then
+        # Remove Shift from TriggerKeys, keep only Control+space
+        sed -i 's/^TriggerKeys=.*/TriggerKeys=Control+space/' "$CONFIG_FILE"
+        echo -e "${GREEN}✓ Shift conflict resolved (switched to Ctrl+Space only)${NC}"
+    else
+        echo -e "${GREEN}✓ No Shift conflict detected${NC}"
+    fi
+fi
 echo
 
 # Final instructions

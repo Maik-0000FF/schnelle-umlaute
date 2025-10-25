@@ -46,11 +46,18 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 # Remove files
-echo -e "${BLUE}Removing files...${NC}"
-for file in "${FOUND_FILES[@]}"; do
-    sudo rm -f "$file"
-    echo -e "  ${GREEN}✓${NC} Removed: $file"
-done
+echo -e "${BLUE}Removing files (requires sudo)...${NC}"
+if [ ${#FOUND_FILES[@]} -gt 0 ]; then
+    sudo rm -f "${FOUND_FILES[@]}"
+    if [ $? -eq 0 ]; then
+        for file in "${FOUND_FILES[@]}"; do
+            echo -e "  ${GREEN}✓${NC} Removed: $file"
+        done
+    else
+        echo -e "${RED}Error removing files${NC}"
+        exit 1
+    fi
+fi
 echo
 
 # Ask about environment variables

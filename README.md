@@ -101,7 +101,7 @@ If you prefer manual installation:
 **1. Install Dependencies**
 
 ```bash
-sudo pacman -S fcitx5 fcitx5-configtool cmake extra-cmake-modules gcc
+sudo pacman -S fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc
 ```
 
 **2. Build the Addon**
@@ -125,9 +125,9 @@ For the addon to work in ALL applications (GTK, Qt, browsers, terminals, etc.), 
 ```bash
 mkdir -p ~/.config/environment.d
 cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
+GTK_IM_MODULE=fcitx5
+QT_IM_MODULE=fcitx5
+XMODIFIERS=@im=fcitx5
 GLFW_IM_MODULE=ibus
 EOF
 ```
@@ -230,9 +230,10 @@ You need to set environment variables and **logout/login**:
 ```bash
 mkdir -p ~/.config/environment.d
 cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
+GTK_IM_MODULE=fcitx5
+QT_IM_MODULE=fcitx5
+XMODIFIERS=@im=fcitx5
+GLFW_IM_MODULE=ibus
 EOF
 ```
 
@@ -243,7 +244,36 @@ Then **logout and login again** for changes to take effect.
 1. Make sure you're switched to "Schnelle Umlaute" input method (Ctrl+Space)
 2. Check Fcitx5 is running: `ps aux | grep fcitx5`
 3. Try holding the key longer before pressing Space
-4. Verify environment variables are set: `echo $GTK_IM_MODULE` (should output "fcitx")
+4. Verify environment variables are set: `echo $GTK_IM_MODULE` (should output "fcitx5")
+
+### Addon is visible but not activatable / Fcitx5 not responding
+
+If you can see "Schnelle Umlaute" in fcitx5-config-qt but cannot activate it, or if Fcitx5 stopped working after a system crash:
+
+1. **Check Fcitx5 status:**
+   ```bash
+   fcitx5-remote
+   ```
+   - Should show: `1` (inactive) or `2` (active)
+   - If it shows: `0` → Fcitx5 not initialized
+
+2. **Restart Fcitx5:**
+   ```bash
+   fcitx5 -r
+   ```
+
+3. **Activate addon:**
+   ```bash
+   fcitx5-remote -s schnelle-umlaute
+   ```
+
+4. **Verify:**
+   ```bash
+   fcitx5-remote -n  # Should show: schnelle-umlaute
+   fcitx5-remote     # Should show: 2 (active)
+   ```
+
+This is common after system crashes or unexpected shutdowns.
 
 ### KDE Wayland users: "Fcitx should be launched by KWin" warning
 

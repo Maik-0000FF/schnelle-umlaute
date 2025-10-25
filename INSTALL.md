@@ -25,12 +25,14 @@ Complete step-by-step installation guide for **Schnelle Umlaute** Fcitx5 addon.
 Before installation, ensure you have the following packages installed:
 
 ```bash
-sudo pacman -S fcitx5 fcitx5-configtool cmake extra-cmake-modules gcc
+sudo pacman -S fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc
 ```
 
 **Package Breakdown:**
 - `fcitx5` - Input Method Framework (core)
 - `fcitx5-configtool` - GUI configuration tool
+- `fcitx5-qt` - Qt integration (required for Qt/KDE apps)
+- `fcitx5-gtk` - GTK integration (required for Wayland and GTK apps)
 - `cmake` - Build system
 - `extra-cmake-modules` - KDE CMake modules (required by Fcitx5)
 - `gcc` - C++ compiler with C++20 support
@@ -99,16 +101,18 @@ For the addon to work in **all applications** (not just terminals), you must set
 ```bash
 mkdir -p ~/.config/environment.d
 cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
+GTK_IM_MODULE=fcitx5
+QT_IM_MODULE=fcitx5
+XMODIFIERS=@im=fcitx5
+GLFW_IM_MODULE=ibus
 EOF
 ```
 
 **What these do:**
-- `GTK_IM_MODULE=fcitx` - Enables Fcitx5 in GTK apps (Firefox, GNOME apps)
-- `QT_IM_MODULE=fcitx` - Enables Fcitx5 in Qt apps (Kate, Dolphin, KDE apps)
-- `XMODIFIERS=@im=fcitx` - Enables Fcitx5 in X11 apps (legacy support)
+- `GTK_IM_MODULE=fcitx5` - Enables Fcitx5 in GTK apps (Firefox, GNOME apps)
+- `QT_IM_MODULE=fcitx5` - Enables Fcitx5 in Qt apps (Kate, Dolphin, KDE apps)
+- `XMODIFIERS=@im=fcitx5` - Enables Fcitx5 in X11 apps (legacy support)
+- `GLFW_IM_MODULE=ibus` - Enables Fcitx5 in GLFW apps (Kitty terminal, etc.)
 
 ### Step 5: Logout and Login
 
@@ -201,9 +205,9 @@ echo $XMODIFIERS
 
 **Expected output:**
 ```
-fcitx
-fcitx
-@im=fcitx
+fcitx5
+fcitx5
+@im=fcitx5
 ```
 
 If empty, you need to **logout and login again**.
@@ -271,9 +275,10 @@ If both are empty, environment variables are not set.
    ```bash
    mkdir -p ~/.config/environment.d
    cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-   GTK_IM_MODULE=fcitx
-   QT_IM_MODULE=fcitx
-   XMODIFIERS=@im=fcitx
+   GTK_IM_MODULE=fcitx5
+   QT_IM_MODULE=fcitx5
+   XMODIFIERS=@im=fcitx5
+   GLFW_IM_MODULE=ibus
    EOF
    ```
 
@@ -281,7 +286,7 @@ If both are empty, environment variables are not set.
 
 3. Verify after login:
    ```bash
-   echo $GTK_IM_MODULE  # Should output: fcitx
+   echo $GTK_IM_MODULE  # Should output: fcitx5
    ```
 
 ### Problem: Umlauts not appearing
@@ -314,6 +319,35 @@ Try:
 1. Press and hold `a`
 2. **Immediately** press `Space` (don't wait!)
 3. Release both keys
+
+### Problem: Addon is visible but not activatable / Fcitx5 not responding
+
+If you can see "Schnelle Umlaute" in fcitx5-config-qt but cannot activate it, or if Fcitx5 stopped working after a system crash:
+
+1. **Check Fcitx5 status:**
+   ```bash
+   fcitx5-remote
+   ```
+   - Should show: `1` (inactive) or `2` (active)
+   - If it shows: `0` → Fcitx5 not initialized
+
+2. **Restart Fcitx5:**
+   ```bash
+   fcitx5 -r
+   ```
+
+3. **Activate addon:**
+   ```bash
+   fcitx5-remote -s schnelle-umlaute
+   ```
+
+4. **Verify:**
+   ```bash
+   fcitx5-remote -n  # Should show: schnelle-umlaute
+   fcitx5-remote     # Should show: 2 (active)
+   ```
+
+This is common after system crashes or unexpected shutdowns.
 
 ### Problem: Build fails with C++ errors
 

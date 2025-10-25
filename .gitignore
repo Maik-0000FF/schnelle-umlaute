@@ -57,3 +57,4 @@ test-results/
 
 # Development context (not for public repo)
 CLAUDE.md
+private/
