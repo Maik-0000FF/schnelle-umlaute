@@ -1,0 +1,59 @@
+# CMake Build
+build/
+*/build/
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+install_manifest.txt
+
+# AUR Build (if building locally)
+pkg/
+/src/
+*.tar.gz
+*.tar.xz
+*.pkg.tar.zst
+*.pkg.tar.zst.sig
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vim/
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Debug
+debug/
+*.dSYM/
+*.core
+
+# Backup files
+*.bak
+*.orig
+*.rej
+
+# Compiled Python (if added later)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# Test artifacts
+*.test
+test-results/
+
+# Development context (not for public repo)
+CLAUDE.md

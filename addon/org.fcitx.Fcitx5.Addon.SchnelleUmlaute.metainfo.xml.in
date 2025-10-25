@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component type="addon">
+  <id>org.fcitx.Fcitx5.Addon.SchnelleUmlaute</id>
+  <extends>org.fcitx.Fcitx5</extends>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0+</project_license>
+  <name>Schnelle Umlaute</name>
+  <summary>Quick German umlaut input</summary>
+  <description>
+    <p>
+      Input German umlauts (ä, ö, ü, ß) by holding the base letter and pressing Space.
+      Hold 'a' + Space → ä
+      Hold 'o' + Space → ö
+      Hold 'u' + Space → ü
+      Hold 's' + Space → ß
+
+      Works in X11 and Wayland without clipboard or root permissions.
+    </p>
+  </description>
+  <url type="homepage">https://github.com/yourusername/schnelle-umlaute</url>
+  <url type="bugtracker">https://github.com/yourusername/schnelle-umlaute/issues</url>
+  <developer_name>Maik-0000FF</developer_name>
+  <update_contact>https://github.com/Maik-0000FF</update_contact>
+  <releases>
+    <release version="0.1.0" date="2025-10-24"/>
+  </releases>
+</component>
