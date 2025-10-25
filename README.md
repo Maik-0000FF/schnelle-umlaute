@@ -310,6 +310,46 @@ Contributions welcome! This addon is:
 - Uses **Fcitx5 InputMethodEngineV2 API**
 - Built with **CMake**
 
+## 🍺 Support
+
+Help keep Schnelle Umlaute awesome! Here's how you can contribute:
+
+```mermaid
+graph TB
+    Start["🍺 Ways to Support<br/>Schnelle Umlaute"]
+
+    subgraph one["💰 Financial"]
+        Bitcoin["₿ Bitcoin Donation<br/><code>bc1q6gmpgfn4wx2hx2c3njgpep9tl00etma9k7w6d4</code><br/><i>Every ä, ö, ü counts!</i>"]
+    end
+
+    subgraph two["🌟 Community"]
+        Star["⭐ Star the Repository<br/><i>Show your appreciation</i>"]
+        Share["📢 Share with Others<br/><i>Spread the word</i>"]
+        Report["🐛 Report Bugs<br/><i>Help improve quality</i>"]
+    end
+
+    subgraph three["🛠️ Development"]
+        Code["🔧 Contribute Code<br/><i>Add features or fixes</i>"]
+        Docs["📝 Improve Documentation<br/><i>Help others learn</i>"]
+        Ideas["💡 Suggest Features<br/><i>Shape the roadmap</i>"]
+    end
+
+    Start --> one
+    Start --> two
+    Start --> three
+
+    style Start fill:#64b5f6,stroke:#1976d2,stroke-width:3px,color:#000
+    style Bitcoin fill:#ff8a65,stroke:#d84315,stroke-width:2px,color:#000
+    style Star fill:#81c784,stroke:#388e3c,stroke-width:2px,color:#000
+    style Share fill:#81c784,stroke:#388e3c,stroke-width:2px,color:#000
+    style Report fill:#81c784,stroke:#388e3c,stroke-width:2px,color:#000
+    style Code fill:#ba68c8,stroke:#7b1fa2,stroke-width:2px,color:#000
+    style Docs fill:#ba68c8,stroke:#7b1fa2,stroke-width:2px,color:#000
+    style Ideas fill:#ba68c8,stroke:#7b1fa2,stroke-width:2px,color:#000
+```
+
+_Because every umlaut saved is a keystroke earned - and keystrokes fuel open source!_ ⌨️✨
+
 ## 📄 License
 
 GPL-3.0+
