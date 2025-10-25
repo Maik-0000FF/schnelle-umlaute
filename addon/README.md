@@ -13,10 +13,12 @@ Quick German umlaut input using Fcitx5 native addon.
 ## How it works
 
 1. Hold a letter key (a, o, u, s)
-2. Press Space within 400ms
-3. → Get the umlaut! (ä, ö, ü, ß)
+2. Press Space within the time window:
+   - **400ms** for lowercase letters (a, o, u, s)
+   - **700ms** for uppercase letters (A, O, U)
+3. → Get the umlaut! (ä, ö, ü, ß, Ä, Ö, Ü)
 
-With Shift: A + Space → Ä
+**Note:** You can keep Shift pressed while pressing Space for uppercase umlauts
 
 ## Build Requirements
 

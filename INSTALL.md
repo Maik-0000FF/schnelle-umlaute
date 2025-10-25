@@ -449,5 +449,5 @@ For issues, please:
 
 ---
 
-**Last Updated:** 2025-10-24
-**Version:** 0.1.0
+**Last Updated:** 2025-10-25
+**Version:** 0.1.1

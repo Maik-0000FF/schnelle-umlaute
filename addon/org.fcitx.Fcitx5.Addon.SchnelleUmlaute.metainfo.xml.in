@@ -17,11 +17,11 @@
       Works in X11 and Wayland without clipboard or root permissions.
     </p>
   </description>
-  <url type="homepage">https://github.com/yourusername/schnelle-umlaute</url>
-  <url type="bugtracker">https://github.com/yourusername/schnelle-umlaute/issues</url>
+  <url type="homepage">https://github.com/Maik-0000FF/schnelle-umlaute</url>
+  <url type="bugtracker">https://github.com/Maik-0000FF/schnelle-umlaute/issues</url>
   <developer_name>Maik-0000FF</developer_name>
   <update_contact>https://github.com/Maik-0000FF</update_contact>
   <releases>
-    <release version="0.1.0" date="2025-10-24"/>
+    <release version="0.1.1" date="2025-10-25"/>
   </releases>
 </component>
