@@ -302,7 +302,6 @@ fcitx5 -r
 
 - **[INSTALL.md](INSTALL.md)** - Complete installation guide with troubleshooting
 - **[addon/README.md](addon/README.md)** - Detailed addon documentation
-- **[CLAUDE.md](CLAUDE.md)** - Developer context and design decisions
 
 ## 🤝 Contributing
 

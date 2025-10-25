@@ -8,12 +8,10 @@ This document contains the steps to publish a new release.
 - [ ] No open critical bugs
 - [ ] Documentation updated
   - [ ] README.md reflects current version
-  - [ ] CLAUDE.md updated with lessons learned
   - [ ] addon/README.md in sync
 - [ ] Version numbers updated
   - [ ] README.md (bottom)
   - [ ] PKGBUILD (pkgver)
-  - [ ] CLAUDE.md (bottom)
 
 ## GitHub Release Steps
 
