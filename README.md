@@ -27,35 +27,82 @@ stateDiagram-v2
     Normal --> [*]: a
 ```
 
-### Step-by-Step Guide
+### Why Does Typing Feel Different?
 
-#### 🔤 Lowercase Umlauts (400ms)
-
-```mermaid
-graph LR
-    A["① Hold 'a'"] --> B["② Tap Space<br/>(within 400ms)"]
-    B --> C["③ ä appears ✨"]
-
-    style A fill:#64b5f6,stroke:#1976d2,stroke-width:3px,color:#000
-    style B fill:#ffd54f,stroke:#f57f17,stroke-width:3px,color:#000
-    style C fill:#81c784,stroke:#388e3c,stroke-width:3px,color:#000
-```
-
-**Works for:** `a`→`ä` | `o`→`ö` | `u`→`ü` | `s`→`ß`
-
-#### 🔠 Uppercase Umlauts (700ms - longer for coordination)
+This addon works differently than normal typing. Understanding this helps you adapt faster:
 
 ```mermaid
-graph LR
-    A["① Hold Shift+A"] --> B["② Tap Space<br/>(within 700ms)<br/>Shift stays pressed!"]
-    B --> C["③ Ä appears ✨"]
+graph TD
+    subgraph "Normal Letter (e.g. 'b', 'c', 'd')"
+        N1[Key Press] --> N2[System outputs 'b']
+        N2 --> N3[Appears on screen]
+        N4[Key Release] --> N5[Ignored]
+        style N1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
+        style N2 fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000
+        style N3 fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000
+        style N4 fill:#f5f5f5,stroke:#757575,stroke-width:2px,color:#000
+        style N5 fill:#f5f5f5,stroke:#757575,stroke-width:2px,color:#000
+    end
 
-    style A fill:#64b5f6,stroke:#1976d2,stroke-width:3px,color:#000
-    style B fill:#ffd54f,stroke:#f57f17,stroke-width:3px,color:#000
-    style C fill:#81c784,stroke:#388e3c,stroke-width:3px,color:#000
+    subgraph "Addon Letter (a, o, u, s) - Quick Release"
+        A1[Key Press] --> A2[Addon filters event]
+        A2 --> A3[Waiting...]
+        A3 --> A4[Key Release < 400ms]
+        A4 --> A5[commitString in release handler]
+        A5 --> A6[Appears on screen]
+        style A1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
+        style A2 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,color:#000
+        style A3 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,color:#000
+        style A4 fill:#ffecb3,stroke:#f57f17,stroke-width:2px,color:#000
+        style A5 fill:#ffccbc,stroke:#d84315,stroke-width:2px,color:#000
+        style A6 fill:#ffccbc,stroke:#d84315,stroke-width:2px,color:#000
+    end
+
+    subgraph "Addon Letter - With Space"
+        S1[Key Press] --> S2[Addon filters event]
+        S2 --> S3[Waiting...]
+        S3 --> S4[Space Press < 400ms]
+        S4 --> S5[commitString in space handler]
+        S5 --> S6[Umlaut 'ö' appears]
+        style S1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
+        style S2 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,color:#000
+        style S3 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,color:#000
+        style S4 fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#000
+        style S5 fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000
+        style S6 fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000
+    end
 ```
 
-**Works for:** `A`→`Ä` | `O`→`Ö` | `U`→`Ü`
+#### Critical UX Difference
+
+| Action | Normal Letter | Addon Letter (a,o,u,s) |
+|--------|--------------|------------------------|
+| **Output Trigger** | Key **Press** | Key **Release** or Space |
+| **Timing** | Instant (0ms) | Delayed (100-400ms) |
+| **Feel** | Direct feedback | Slight "lag" |
+| **Muscle Memory** | Confirmed ✓ | Takes adjustment ⚠ |
+
+**Why is it different?**
+- Normal typing: Press = Output (rising edge)
+- With addon: Press is filtered, we must wait for **decision**
+  - Release → normal letter
+  - Space → umlaut
+  - Timeout → normal letter
+
+**What this means:**
+```
+User expects:  [Press 'o'] → instant 'o' on screen
+Addon delivers: [Press 'o'] → [wait] → [Release 'o'] → 'o' on screen
+                              └─ 100-300ms delay!
+```
+
+### Supported Characters
+
+**Lowercase (400ms delay):** `a`→`ä` | `o`→`ö` | `u`→`ü` | `s`→`ß`
+
+**Uppercase (700ms delay, longer for coordination):** `A`→`Ä` | `O`→`Ö` | `U`→`Ü`
+
+**Note:** The uppercase delay is longer because typing Shift+Letter+Space requires more finger coordination.
 
 ## 📋 Requirements
 
