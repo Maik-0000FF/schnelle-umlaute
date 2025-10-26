@@ -29,51 +29,96 @@ stateDiagram-v2
 
 ### Why Does Typing Feel Different?
 
-This addon works differently than normal typing. Understanding this helps you adapt faster:
+This addon works differently than normal typing. Understanding this helps you adapt faster.
+
+#### Scenario 1: Normal Letter (e.g. 'b', 'c', 'd')
 
 ```mermaid
-graph TD
-    subgraph "Normal Letter (e.g. 'b', 'c', 'd')"
-        N1[Key Press] --> N2[System outputs 'b']
-        N2 --> N3[Appears on screen]
-        N4[Key Release] --> N5[Ignored]
-        style N1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
-        style N2 fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000
-        style N3 fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000
-        style N4 fill:#f5f5f5,stroke:#757575,stroke-width:2px,color:#000
-        style N5 fill:#f5f5f5,stroke:#757575,stroke-width:2px,color:#000
-    end
+graph LR
+    N1[Key Press] --> N2[System outputs 'b'<br/>INSTANTLY]
+    N2 --> N3[Appears on screen]
+    N4[Key Release] --> N5[Ignored by system]
 
-    subgraph "Addon Letter (a, o, u, s) - Quick Release"
-        A1[Key Press] --> A2[Addon filters event]
-        A2 --> A3[Waiting...]
-        A3 --> A4[Key Release < 400ms]
-        A4 --> A5[commitString in release handler]
-        A5 --> A6[Appears on screen]
-        style A1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
-        style A2 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,color:#000
-        style A3 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,color:#000
-        style A4 fill:#ffecb3,stroke:#f57f17,stroke-width:2px,color:#000
-        style A5 fill:#ffccbc,stroke:#d84315,stroke-width:2px,color:#000
-        style A6 fill:#ffccbc,stroke:#d84315,stroke-width:2px,color:#000
-    end
-
-    subgraph "Addon Letter - With Space"
-        S1[Key Press] --> S2[Addon filters event]
-        S2 --> S3[Waiting...]
-        S3 --> S4[Space Press < 400ms]
-        S4 --> S5[commitString in space handler]
-        S5 --> S6[Umlaut 'ö' appears]
-        style S1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
-        style S2 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,color:#000
-        style S3 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,color:#000
-        style S4 fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#000
-        style S5 fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000
-        style S6 fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000
-    end
+    style N1 fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000
+    style N2 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
+    style N3 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
+    style N4 fill:#f5f5f5,stroke:#757575,stroke-width:2px,color:#000
+    style N5 fill:#f5f5f5,stroke:#757575,stroke-width:2px,color:#000
 ```
 
-#### Critical UX Difference
+**Timing:** 0ms delay - Output on **Press** ✓
+
+---
+
+#### Scenario 2: Addon Letter (a, o, u, s) - Quick Release
+
+```mermaid
+graph LR
+    A1[Key Press] --> A2[Addon filters event<br/>START WAITING]
+    A2 --> A3[Waiting...]
+    A3 --> A4[Key Release<br/>within 400ms]
+    A4 --> A5[Output normal letter<br/>DELAYED]
+    A5 --> A6[Appears on screen]
+
+    style A1 fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000
+    style A2 fill:#fff9c4,stroke:#f57f17,stroke-width:3px,color:#000
+    style A3 fill:#fff9c4,stroke:#f57f17,stroke-width:3px,color:#000
+    style A4 fill:#ffecb3,stroke:#f57f17,stroke-width:3px,color:#000
+    style A5 fill:#ffccbc,stroke:#d84315,stroke-width:3px,color:#000
+    style A6 fill:#ffccbc,stroke:#d84315,stroke-width:3px,color:#000
+```
+
+**Timing:** 100-300ms delay - Output on **Release** ⚠
+
+---
+
+#### Scenario 3: Addon Letter - With Space (Umlaut)
+
+```mermaid
+graph LR
+    S1[Key Press] --> S2[Addon filters event<br/>START WAITING]
+    S2 --> S3[Waiting...]
+    S3 --> S4[Space Press<br/>within 400ms]
+    S4 --> S5[Output umlaut 'ö'<br/>SUCCESS]
+    S5 --> S6[Appears on screen]
+
+    style S1 fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000
+    style S2 fill:#fff9c4,stroke:#f57f17,stroke-width:3px,color:#000
+    style S3 fill:#fff9c4,stroke:#f57f17,stroke-width:3px,color:#000
+    style S4 fill:#e1f5fe,stroke:#0288d1,stroke-width:3px,color:#000
+    style S5 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
+    style S6 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
+```
+
+**Timing:** 100-400ms delay - Output on **Space** ✓
+
+---
+
+#### The Critical Difference: Timing Expectation
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Keyboard
+    participant Screen
+
+    Note over User,Screen: What Users EXPECT (Normal Typing)
+    User->>Keyboard: Press 'o'
+    Keyboard->>Screen: 'o' appears INSTANTLY
+    Note right of Screen: ✓ 0ms delay<br/>Direct feedback
+
+    Note over User,Screen: ━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Note over User,Screen: What Addon DELIVERS
+    User->>Keyboard: Press 'o'
+    Note right of Keyboard: Filtered, waiting...
+    Keyboard->>Keyboard: Wait 100-300ms...
+    User->>Keyboard: Release 'o'
+    Keyboard->>Screen: 'o' appears DELAYED
+    Note right of Screen: ⚠ 100-300ms delay<br/>Feels like "lag"
+```
+
+#### Quick Comparison
 
 | Action | Normal Letter | Addon Letter (a,o,u,s) |
 |--------|--------------|------------------------|
@@ -83,18 +128,11 @@ graph TD
 | **Muscle Memory** | Confirmed ✓ | Takes adjustment ⚠ |
 
 **Why is it different?**
-- Normal typing: Press = Output (rising edge)
-- With addon: Press is filtered, we must wait for **decision**
+- **Normal typing:** Press = Output (rising edge)
+- **With addon:** Press is filtered, we must wait for **decision**
   - Release → normal letter
   - Space → umlaut
   - Timeout → normal letter
-
-**What this means:**
-```
-User expects:  [Press 'o'] → instant 'o' on screen
-Addon delivers: [Press 'o'] → [wait] → [Release 'o'] → 'o' on screen
-                              └─ 100-300ms delay!
-```
 
 ### Supported Characters
 
