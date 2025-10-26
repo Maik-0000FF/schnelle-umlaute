@@ -158,7 +158,7 @@ A GUI window will open.
 4. A search dialog will open
 5. Type **"Schnelle"** or **"Umlaute"** in the search field
 6. You should see **"Schnelle Umlaute"** with:
-   - **Label:** ä
+   - **Label:** Ää
    - **Language:** de (German)
 7. Select it and click **"OK"**
 8. **"Schnelle Umlaute"** should now appear in your "Current Input Method" list
@@ -167,10 +167,10 @@ A GUI window will open.
 ### Step 3: Switch Between Input Methods
 
 Use `Ctrl+Space` (default hotkey) to cycle between input methods:
-- Keyboard (normal typing)
-- Schnelle Umlaute (umlaut mode)
+- Keyboard (normal typing) - Shows "En" or "US" in tray
+- Schnelle Umlaute (umlaut mode) - Shows "Ää" in tray
 
-You can see which input method is active in the Fcitx5 system tray icon.
+The Fcitx5 system tray icon displays the current input method label.
 
 ---
 

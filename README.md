@@ -165,6 +165,8 @@ fcitx5 -r
 ### Using the Addon
 
 1. **Switch to Schnelle Umlaute** input method (default: `Ctrl+Space`)
+   - When active, the Fcitx5 tray icon will show **"Ää"**
+   - When using normal keyboard, it shows "En" or "US"
 
 2. **Type umlauts:**
 
@@ -288,7 +290,22 @@ This enables the native Wayland input method protocol and eliminates the warning
 
 ### Kitty terminal not working
 
-If the addon doesn't work in Kitty terminal, make sure you have set `GLFW_IM_MODULE=ibus` in your environment variables (see step 4 of Installation), then **logout and login**.
+**Symptom:** The input method indicator doesn't change when pressing Ctrl+Space in Kitty, or the indicator appears in other windows instead of Kitty.
+
+**Cause:** Kitty's Wayland text-input implementation doesn't properly register the input context with Fcitx5, causing Fcitx5 to not recognize the Kitty window.
+
+**Solution:** Configure Kitty to use X11 (XWayland) instead of native Wayland:
+
+1. Add to `~/.config/kitty/kitty.conf`:
+   ```
+   linux_display_server x11
+   ```
+
+2. Restart all Kitty windows (close and reopen)
+
+3. Test: Press Ctrl+Space in Kitty - the input method indicator should now appear in Kitty
+
+**Note:** Make sure you also have `GLFW_IM_MODULE=ibus` set in your environment variables (see step 4 of Installation).
 
 ### Build errors
 
