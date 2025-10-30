@@ -13,6 +13,8 @@ Unlike other solutions that use clipboard manipulation or keyboard simulation, t
 ✅ **Works on X11 AND Wayland** - Native support for both
 ✅ **Zero latency** - Hold & Wait pattern, no backspace needed
 ✅ **Perfect integration** - Part of Fcitx5, not a background daemon
+✅ **Fully customizable** - 20 configurable character mappings
+✅ **Flexible activation** - Choose Space, Arrow keys, or combinations as leader key
 
 ## 🚀 How It Works
 
@@ -138,11 +140,15 @@ sequenceDiagram
 
 ### Supported Characters
 
+**Default mappings (configurable):**
+
 **Lowercase (400ms delay):** `a`→`ä` | `o`→`ö` | `u`→`ü` | `s`→`ß`
 
 **Uppercase (700ms delay, longer for coordination):** `A`→`Ä` | `O`→`Ö` | `U`→`Ü`
 
 **Note:** The uppercase delay is longer because typing Shift+Letter+Space requires more finger coordination.
+
+**All character mappings are fully customizable!** You can configure up to 20 custom input→output mappings via `fcitx5-config-qt`. See the "Customizing Character Mappings" section below for details.
 
 ## 📋 Requirements
 
@@ -353,6 +359,77 @@ You can customize which key activates the umlaut transformation. This feature is
 - **Space** works well for most users and feels natural
 - **Arrow keys** can be useful if you want to combine umlaut input with cursor movement
 - **Combinations** (e.g., SpaceOrRight) give you flexibility without committing to one key
+
+### Customizing Character Mappings (Advanced)
+
+You can customize which input characters produce which outputs! The addon provides **20 mapping slots** that you can configure freely.
+
+**Default mappings** (first 7 slots):
+| Input | Output | Description |
+|-------|--------|-------------|
+| a     | ä      | German lowercase umlaut |
+| o     | ö      | German lowercase umlaut |
+| u     | ü      | German lowercase umlaut |
+| s     | ß      | German sharp S |
+| A     | Ä      | German uppercase umlaut |
+| O     | Ö      | German uppercase umlaut |
+| U     | Ü      | German uppercase umlaut |
+
+**How to customize:**
+
+1. **Via GUI** (recommended):
+   ```bash
+   fcitx5-config-qt
+   ```
+   - Select "Schnelle Umlaute" in the Input Method list
+   - Click the **Configure** button (wrench icon)
+   - Scroll down to see mapping fields:
+     - **Input 1** / **Output 1** (default: a → ä)
+     - **Input 2** / **Output 2** (default: o → ö)
+     - ...and so on up to slot 20
+   - Edit any Input/Output pair you want
+   - Empty slots are ignored
+   - Click **"Defaults"** button to restore German umlauts
+   - Click **Apply**
+
+2. **Via config file** (alternative):
+   ```bash
+   nano ~/.config/fcitx5/conf/schnelle-umlaute.conf
+   ```
+   ```ini
+   # Custom mapping example
+   Mapping1Input=a
+   Mapping1Output=ä
+
+   Mapping2Input=o
+   Mapping2Output=ö
+
+   # Add your own mappings
+   Mapping8Input=e
+   Mapping8Output=é
+
+   Mapping9Input=n
+   Mapping9Output=ñ
+   ```
+
+3. **Restart Fcitx5** to apply changes:
+   ```bash
+   fcitx5 -r
+   ```
+
+**Example use cases:**
+- **French accents**: Add mappings for é, è, ê, à, ç, etc.
+- **Spanish characters**: ñ, á, í, ó, ú
+- **Custom shortcuts**: Map `j` → `Hallo` for quick text expansion
+- **Math symbols**: Map `p` → `π`, `d` → `∂`, etc.
+- **Emoji**: Map `h` → `❤️`, `s` → `😊`, `b` → `🍺`
+
+**Tips:**
+- Use the first 7 slots for your most common characters
+- Empty slots (both Input and Output empty) are ignored
+- Input can be any single character
+- Output can be any string (including multi-character strings!)
+- Changes take effect immediately after `fcitx5 -r`
 
 ## 🏗️ Architecture
 
