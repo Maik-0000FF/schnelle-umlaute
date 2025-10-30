@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<!-- GitHub Pages Landing Page -->
 <url>
 <loc>https://maik-0000ff.github.io/schnelle-umlaute/</loc>
+<lastmod>2025-10-30</lastmod>
+<changefreq>weekly</changefreq>
+<priority>1.0</priority>
 </url>
 </urlset>
