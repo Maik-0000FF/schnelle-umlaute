@@ -79,9 +79,17 @@ fi
 
 # Restart Fcitx5
 echo -e "${BLUE}Restarting Fcitx5...${NC}"
-fcitx5 -r 2>/dev/null || {
-    echo -e "${YELLOW}Note: Fcitx5 not running${NC}"
-}
+if pgrep -x fcitx5 > /dev/null; then
+    fcitx5 -r 2>/dev/null
+    sleep 1
+    if pgrep -x fcitx5 > /dev/null; then
+        echo -e "${GREEN}✓ Fcitx5 restarted successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠ Fcitx5 stopped (will start on next login)${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠ Fcitx5 not running (will start on next login)${NC}"
+fi
 echo
 
 echo -e "${GREEN}========================================${NC}"

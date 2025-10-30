@@ -151,10 +151,14 @@ if pgrep -x fcitx5 > /dev/null; then
     echo -e "${YELLOW}Fcitx5 is running, restarting...${NC}"
     fcitx5 -r > /dev/null 2>&1 &
     sleep 2
-    echo -e "${GREEN}✓ Fcitx5 restarted${NC}"
+    if pgrep -x fcitx5 > /dev/null; then
+        echo -e "${GREEN}✓ Fcitx5 restarted successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠ Fcitx5 stopped (will start on next login)${NC}"
+    fi
 else
-    echo -e "${YELLOW}Note: Fcitx5 not running yet.${NC}"
-    echo -e "${YELLOW}It will start automatically on next login.${NC}"
+    echo -e "${YELLOW}⚠ Fcitx5 not running yet${NC}"
+    echo -e "${YELLOW}  It will start automatically on next login${NC}"
 fi
 echo
 
