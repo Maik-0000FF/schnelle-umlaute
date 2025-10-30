@@ -267,6 +267,45 @@ fcitx5 -r
 
 3. **Type normally:** If you don't press Space within the time window, the normal letter appears
 
+### Configuring Delays (Advanced)
+
+You can customize the timing delays to match your typing speed:
+
+1. **Via GUI** (recommended):
+   ```bash
+   fcitx5-config-qt
+   ```
+   - Select "Schnelle Umlaute" in the Input Method list
+   - Click the **Configure** button (wrench icon)
+   - Adjust **DelayLowercase** (default: 400ms) and **DelayUppercase** (default: 700ms)
+   - Valid range: 50-2000ms
+   - Enter any exact value - no rounding applied
+
+2. **Via config file** (alternative):
+   ```bash
+   nano ~/.config/fcitx5/conf/schnelle-umlaute.conf
+   ```
+   ```ini
+   [DelayLowercase]
+   # Range: 50-2000ms, any exact value accepted
+   Value=400
+
+   [DelayUppercase]
+   # Range: 50-2000ms, any exact value accepted
+   Value=700
+   ```
+
+3. **Restart Fcitx5** to apply changes:
+   ```bash
+   fcitx5 -r
+   ```
+
+**Tips:**
+- Start with defaults (400ms/700ms) and adjust if needed
+- Faster typists may prefer shorter delays (300ms/600ms)
+- Slower, more deliberate typing benefits from longer delays (500ms/800ms)
+- Uppercase delay should be ~300ms longer than lowercase (harder to coordinate Shift+Letter+Space)
+
 ## 🏗️ Architecture
 
 This is a **native Fcitx5 addon** written in **C++**, using the Fcitx5 InputMethodEngineV2 API.
@@ -300,6 +339,7 @@ Check if all files are installed:
 ```bash
 ls /usr/lib/fcitx5/schnelle-umlaute.so
 ls /usr/share/fcitx5/addon/schnelle-umlaute.conf
+ls /usr/share/fcitx5/addon/schnelle-umlaute.conf.in  # For GUI config options
 ls /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf  # This is important!
 ```
 
@@ -309,6 +349,20 @@ cd addon/build
 sudo make install
 fcitx5 -r
 ```
+
+### Configuration options not visible in GUI
+
+If the addon appears but you can't see DelayLowercase/DelayUppercase settings:
+
+1. Check if the config descriptor is installed:
+   ```bash
+   ls /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
+   ```
+
+2. If missing, reinstall the addon:
+   ```bash
+   cd addon && ./build.sh && cd build && sudo make install && fcitx5 -r
+   ```
 
 ### Works in terminal but not in other apps (Firefox, Kate, etc.)
 
@@ -424,6 +478,7 @@ Or remove files manually:
 ```bash
 sudo rm /usr/lib/fcitx5/schnelle-umlaute.so
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf
+sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
 sudo rm /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
 sudo rm /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf
 rm ~/.config/environment.d/fcitx5.conf  # Optional: remove environment config
