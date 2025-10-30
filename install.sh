@@ -121,6 +121,30 @@ EOF
 fi
 echo
 
+# Check for old configuration format
+CONFIG_FILE="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
+
+echo -e "${BLUE}Checking configuration...${NC}"
+
+# Check if old config format exists (SubConfiguration structure)
+if [ -f "$CONFIG_FILE" ] && grep -q "^\[Mapping1\]" "$CONFIG_FILE"; then
+    echo -e "${YELLOW}Detected old configuration format (SubConfiguration structure)${NC}"
+    echo -e "${YELLOW}The new version uses flat option structure for better compatibility${NC}"
+    read -p "Remove old config and regenerate defaults? [Y/n] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        mv "$CONFIG_FILE" "$CONFIG_FILE.backup"
+        echo -e "${GREEN}✓ Old config backed up to: $CONFIG_FILE.backup${NC}"
+        echo -e "${GREEN}✓ Fcitx5 will auto-generate config with German umlaut defaults on next start${NC}"
+    else
+        echo -e "${RED}Warning: Old config format may not work correctly with new version!${NC}"
+        echo -e "${YELLOW}Please manually delete $CONFIG_FILE and restart fcitx5${NC}"
+    fi
+else
+    echo -e "${GREEN}✓ Configuration looks good${NC}"
+fi
+echo
+
 # Restart Fcitx5
 echo -e "${BLUE}Checking Fcitx5 status...${NC}"
 if pgrep -x fcitx5 > /dev/null; then

@@ -25,3 +25,203 @@ Enum3=SpaceOrLeft
 Enum4=SpaceOrRight
 Enum5=LeftOrRight
 Enum6=All
+
+[Mapping1Input]
+Type=String
+DefaultValue=a
+Description=Input 1
+
+[Mapping1Output]
+Type=String
+DefaultValue=ä
+Description=Output 1
+
+[Mapping2Input]
+Type=String
+DefaultValue=o
+Description=Input 2
+
+[Mapping2Output]
+Type=String
+DefaultValue=ö
+Description=Output 2
+
+[Mapping3Input]
+Type=String
+DefaultValue=u
+Description=Input 3
+
+[Mapping3Output]
+Type=String
+DefaultValue=ü
+Description=Output 3
+
+[Mapping4Input]
+Type=String
+DefaultValue=s
+Description=Input 4
+
+[Mapping4Output]
+Type=String
+DefaultValue=ß
+Description=Output 4
+
+[Mapping5Input]
+Type=String
+DefaultValue=A
+Description=Input 5
+
+[Mapping5Output]
+Type=String
+DefaultValue=Ä
+Description=Output 5
+
+[Mapping6Input]
+Type=String
+DefaultValue=O
+Description=Input 6
+
+[Mapping6Output]
+Type=String
+DefaultValue=Ö
+Description=Output 6
+
+[Mapping7Input]
+Type=String
+DefaultValue=U
+Description=Input 7
+
+[Mapping7Output]
+Type=String
+DefaultValue=Ü
+Description=Output 7
+
+[Mapping8Input]
+Type=String
+DefaultValue=
+Description=Input 8
+
+[Mapping8Output]
+Type=String
+DefaultValue=
+Description=Output 8
+
+[Mapping9Input]
+Type=String
+DefaultValue=
+Description=Input 9
+
+[Mapping9Output]
+Type=String
+DefaultValue=
+Description=Output 9
+
+[Mapping10Input]
+Type=String
+DefaultValue=
+Description=Input 10
+
+[Mapping10Output]
+Type=String
+DefaultValue=
+Description=Output 10
+
+[Mapping11Input]
+Type=String
+DefaultValue=
+Description=Input 11
+
+[Mapping11Output]
+Type=String
+DefaultValue=
+Description=Output 11
+
+[Mapping12Input]
+Type=String
+DefaultValue=
+Description=Input 12
+
+[Mapping12Output]
+Type=String
+DefaultValue=
+Description=Output 12
+
+[Mapping13Input]
+Type=String
+DefaultValue=
+Description=Input 13
+
+[Mapping13Output]
+Type=String
+DefaultValue=
+Description=Output 13
+
+[Mapping14Input]
+Type=String
+DefaultValue=
+Description=Input 14
+
+[Mapping14Output]
+Type=String
+DefaultValue=
+Description=Output 14
+
+[Mapping15Input]
+Type=String
+DefaultValue=
+Description=Input 15
+
+[Mapping15Output]
+Type=String
+DefaultValue=
+Description=Output 15
+
+[Mapping16Input]
+Type=String
+DefaultValue=
+Description=Input 16
+
+[Mapping16Output]
+Type=String
+DefaultValue=
+Description=Output 16
+
+[Mapping17Input]
+Type=String
+DefaultValue=
+Description=Input 17
+
+[Mapping17Output]
+Type=String
+DefaultValue=
+Description=Output 17
+
+[Mapping18Input]
+Type=String
+DefaultValue=
+Description=Input 18
+
+[Mapping18Output]
+Type=String
+DefaultValue=
+Description=Output 18
+
+[Mapping19Input]
+Type=String
+DefaultValue=
+Description=Input 19
+
+[Mapping19Output]
+Type=String
+DefaultValue=
+Description=Output 19
+
+[Mapping20Input]
+Type=String
+DefaultValue=
+Description=Input 20
+
+[Mapping20Output]
+Type=String
+DefaultValue=
+Description=Output 20
