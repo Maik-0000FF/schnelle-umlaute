@@ -17,6 +17,11 @@
 
 namespace fcitx {
 
+// Leader key options (matching PowerToys Quick Accents)
+// Using FCITX_CONFIG_ENUM to generate marshalling functions
+FCITX_CONFIG_ENUM(LeaderKey, Space, LeftArrow, RightArrow, SpaceOrLeft,
+                  SpaceOrRight, LeftOrRight, All);
+
 // Custom constrain for integer with step
 class IntConstrainWithStep {
 public:
@@ -40,6 +45,7 @@ FCITX_CONFIGURATION(
     SchnelleUmlauteConfig,
     Option<int, IntConstrainWithStep> delayLowercase{this, "DelayLowercase", "Delay für Kleinbuchstaben (ms)", 400, IntConstrainWithStep(50, 2000, 25)};
     Option<int, IntConstrainWithStep> delayUppercase{this, "DelayUppercase", "Delay für Großbuchstaben (ms)", 700, IntConstrainWithStep(50, 2000, 25)};
+    Option<LeaderKey> leaderKey{this, "LeaderKey", "Aktivierungstaste (Leader Key)", LeaderKey::Space};
 );
 
 class SchnelleUmlauteEngine : public InputMethodEngineV2 {
@@ -78,8 +84,21 @@ public:
 
     void reloadConfig() override {
         readAsIni(config_, "conf/schnelle-umlaute.conf");
+
+        const char* leaderKeyName = "Unknown";
+        switch (*config_.leaderKey) {
+            case LeaderKey::Space: leaderKeyName = "Space"; break;
+            case LeaderKey::LeftArrow: leaderKeyName = "Left Arrow"; break;
+            case LeaderKey::RightArrow: leaderKeyName = "Right Arrow"; break;
+            case LeaderKey::SpaceOrLeft: leaderKeyName = "Space or Left"; break;
+            case LeaderKey::SpaceOrRight: leaderKeyName = "Space or Right"; break;
+            case LeaderKey::LeftOrRight: leaderKeyName = "Left or Right"; break;
+            case LeaderKey::All: leaderKeyName = "All (Space/Left/Right)"; break;
+        }
+
         FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=" << *config_.delayLowercase
-                     << "ms, DelayUppercase=" << *config_.delayUppercase << "ms";
+                     << "ms, DelayUppercase=" << *config_.delayUppercase
+                     << "ms, LeaderKey=" << leaderKeyName;
     }
 
     std::vector<InputMethodEntry> listInputMethods() override {
@@ -102,6 +121,21 @@ public:
 
         auto key = keyEvent.key();
         bool isPress = keyEvent.isRelease() == false;
+
+        // Check if Leader key is pressed FIRST (before checking keyChar)
+        // Arrow keys have no Unicode character, so we must check them before keyChar logic
+        if (waitingKey_ && isLeaderKey(key) && isPress) {
+            // Leader key pressed while waiting: check if within delay
+            if (!isTimeoutExpired()) {
+                // Commit umlaut
+                auto umlaut = umlautMap_[*waitingKey_];
+                keyEvent.inputContext()->commitString(umlaut);
+                waitingKey_.reset();
+                cancelTimeout();
+                keyEvent.filterAndAccept();
+                return;
+            }
+        }
 
         // Get character from key - convert uint32_t to string
         uint32_t unicode = Key::keySymToUnicode(key.sym());
@@ -134,20 +168,6 @@ public:
             scheduleTimeout();
             keyEvent.filterAndAccept();
             return;
-        }
-
-        // Check if Space key is pressed (ignore modifiers like Shift)
-        if (waitingKey_ && key.sym() == FcitxKey_space && isPress) {
-            // Space pressed while waiting: check if within delay
-            if (!isTimeoutExpired()) {
-                // Commit umlaut
-                auto umlaut = umlautMap_[*waitingKey_];
-                keyEvent.inputContext()->commitString(umlaut);
-                waitingKey_.reset();
-                cancelTimeout();
-                keyEvent.filterAndAccept();
-                return;
-            }
         }
 
         // Key released or timeout
@@ -188,6 +208,30 @@ public:
     }
 
 private:
+    bool isLeaderKey(const Key &key) const {
+        KeySym sym = key.sym();
+        LeaderKey leader = *config_.leaderKey;
+
+        switch (leader) {
+            case LeaderKey::Space:
+                return sym == FcitxKey_space;
+            case LeaderKey::LeftArrow:
+                return sym == FcitxKey_Left;
+            case LeaderKey::RightArrow:
+                return sym == FcitxKey_Right;
+            case LeaderKey::SpaceOrLeft:
+                return sym == FcitxKey_space || sym == FcitxKey_Left;
+            case LeaderKey::SpaceOrRight:
+                return sym == FcitxKey_space || sym == FcitxKey_Right;
+            case LeaderKey::LeftOrRight:
+                return sym == FcitxKey_Left || sym == FcitxKey_Right;
+            case LeaderKey::All:
+                return sym == FcitxKey_space || sym == FcitxKey_Left || sym == FcitxKey_Right;
+            default:
+                return sym == FcitxKey_space; // Fallback to Space
+        }
+    }
+
     bool isTimeoutExpired() const {
         if (!waitingKey_) return false;
 

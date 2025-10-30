@@ -13,3 +13,15 @@ Description=Delay for uppercase letters (ms)
 Min=50
 Max=2000
 IntStep=25
+
+[LeaderKey]
+Type=Enum
+DefaultValue=Space
+Description=Activation key (Leader Key)
+Enum0=Space
+Enum1=LeftArrow
+Enum2=RightArrow
+Enum3=SpaceOrLeft
+Enum4=SpaceOrRight
+Enum5=LeftOrRight
+Enum6=All

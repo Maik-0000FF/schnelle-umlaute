@@ -2,7 +2,7 @@
 
 > **Quick German Umlaut Input for Linux** - The clipboard-free solution!
 
-Type German umlauts (ä, ö, ü, ß) on US keyboard layouts with a simple **hold + space** gesture, powered by Fcitx5.
+Type German umlauts (ä, ö, ü, ß) on US keyboard layouts with a simple **hold + leader key** gesture, powered by Fcitx5. Default leader key is **Space**, but you can configure Left/Right Arrow or combinations in the settings.
 
 ## 🎯 What Makes This Special?
 
@@ -21,11 +21,13 @@ Unlike other solutions that use clipboard manipulation or keyboard simulation, t
 ```mermaid
 stateDiagram-v2
     [*] --> Waiting: Press 'a'
-    Waiting --> Umlaut: Space within 400ms
+    Waiting --> Umlaut: Leader key within 400ms
     Waiting --> Normal: Release or timeout
     Umlaut --> [*]: ä ✨
     Normal --> [*]: a
 ```
+
+**Note:** Leader key is **Space** by default. You can configure it to Left/Right Arrow or combinations in `fcitx5-config-qt`.
 
 ### Why Does Typing Feel Different?
 
@@ -72,13 +74,13 @@ graph LR
 
 ---
 
-#### Scenario 3: Addon Letter - With Space (Umlaut)
+#### Scenario 3: Addon Letter - With Leader Key (Umlaut)
 
 ```mermaid
 graph LR
     S1[Key Press] --> S2[Addon filters event<br/>START WAITING]
     S2 --> S3[Waiting...]
-    S3 --> S4[Space Press<br/>within 400ms]
+    S3 --> S4[Leader Key Press<br/>within 400ms]
     S4 --> S5[Output umlaut 'ö'<br/>SUCCESS]
     S5 --> S6[Appears on screen]
 
@@ -90,7 +92,7 @@ graph LR
     style S6 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
 ```
 
-**Timing:** 100-400ms delay - Output on **Space** ✓
+**Timing:** 100-400ms delay - Output on **Leader Key** ✓
 
 ---
 
@@ -255,17 +257,19 @@ fcitx5 -r
 
 2. **Type umlauts:**
 
-| Want | Hold        | Press | Result |
-|------|-------------|-------|--------|
-| ä    | a           | Space | ä      |
-| ö    | o           | Space | ö      |
-| ü    | u           | Space | ü      |
-| ß    | s           | Space | ß      |
-| Ä    | A (Shift+a) | Space | Ä      |
-| Ö    | O (Shift+o) | Space | Ö      |
-| Ü    | U (Shift+u) | Space | Ü      |
+| Want | Hold        | Press Leader Key | Result |
+|------|-------------|------------------|--------|
+| ä    | a           | Space (default)  | ä      |
+| ö    | o           | Space (default)  | ö      |
+| ü    | u           | Space (default)  | ü      |
+| ß    | s           | Space (default)  | ß      |
+| Ä    | A (Shift+a) | Space (default)  | Ä      |
+| Ö    | O (Shift+o) | Space (default)  | Ö      |
+| Ü    | U (Shift+u) | Space (default)  | Ü      |
 
-3. **Type normally:** If you don't press Space within the time window, the normal letter appears
+   **Note:** Leader key is **Space** by default, but can be configured to Left/Right Arrow or combinations (see below).
+
+3. **Type normally:** If you don't press the leader key within the time window, the normal letter appears
 
 ### Configuring Delays (Advanced)
 
@@ -305,6 +309,50 @@ You can customize the timing delays to match your typing speed:
 - Faster typists may prefer shorter delays (300ms/600ms)
 - Slower, more deliberate typing benefits from longer delays (500ms/800ms)
 - Uppercase delay should be ~300ms longer than lowercase (harder to coordinate Shift+Letter+Space)
+
+### Configuring Leader Key (Advanced)
+
+You can customize which key activates the umlaut transformation. This feature is inspired by PowerToys Quick Accents on Windows.
+
+**Available Options:**
+- **Space** (Default) - Simple and intuitive
+- **LeftArrow** - Cursor moves back, convenient for continued typing
+- **RightArrow** - Cursor moves forward
+- **SpaceOrLeft** - Either Space or Left Arrow works
+- **SpaceOrRight** - Either Space or Right Arrow works
+- **LeftOrRight** - Either Left or Right Arrow works
+- **All** - All three keys work (Space, Left Arrow, Right Arrow)
+
+**How to configure:**
+
+1. **Via GUI** (recommended):
+   ```bash
+   fcitx5-config-qt
+   ```
+   - Select "Schnelle Umlaute" in the Input Method list
+   - Click the **Configure** button (wrench icon)
+   - Find **"Activation key (Leader Key)"** dropdown
+   - Select your preferred option
+   - Click Apply
+
+2. **Via config file** (alternative):
+   ```bash
+   nano ~/.config/fcitx5/conf/schnelle-umlaute.conf
+   ```
+   ```ini
+   # Options: Space, LeftArrow, RightArrow, SpaceOrLeft, SpaceOrRight, LeftOrRight, All
+   LeaderKey=Space
+   ```
+
+3. **Restart Fcitx5** to apply changes:
+   ```bash
+   fcitx5 -r
+   ```
+
+**Tips:**
+- **Space** works well for most users and feels natural
+- **Arrow keys** can be useful if you want to combine umlaut input with cursor movement
+- **Combinations** (e.g., SpaceOrRight) give you flexibility without committing to one key
 
 ## 🏗️ Architecture
 
