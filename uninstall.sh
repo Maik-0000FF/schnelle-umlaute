@@ -16,6 +16,7 @@ echo
 FILES=(
     "/usr/lib/fcitx5/schnelle-umlaute.so"
     "/usr/share/fcitx5/addon/schnelle-umlaute.conf"
+    "/usr/share/fcitx5/addon/schnelle-umlaute.conf.in"
     "/usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml"
     "/usr/share/fcitx5/inputmethod/schnelle-umlaute.conf"
 )

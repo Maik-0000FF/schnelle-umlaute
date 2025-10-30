@@ -64,21 +64,13 @@ public:
     void setConfig(const RawConfig &config) override {
         config_.load(config);
 
-        // Validate and clamp values to valid range (50-2000ms) and round to 25ms steps
-        auto clampAndRound = [](int value, int min, int max, int step) {
-            value = std::max(min, std::min(max, value));
-            // Round to nearest step
-            int remainder = value % step;
-            if (remainder < step / 2) {
-                value -= remainder;
-            } else {
-                value += (step - remainder);
-            }
-            return value;
+        // Validate and clamp values to valid range (50-2000ms)
+        auto clamp = [](int value, int min, int max) {
+            return std::max(min, std::min(max, value));
         };
 
-        config_.delayLowercase.setValue(clampAndRound(*config_.delayLowercase, 50, 2000, 25));
-        config_.delayUppercase.setValue(clampAndRound(*config_.delayUppercase, 50, 2000, 25));
+        config_.delayLowercase.setValue(clamp(*config_.delayLowercase, 50, 2000));
+        config_.delayUppercase.setValue(clamp(*config_.delayUppercase, 50, 2000));
 
         safeSaveAsIni(config_, "conf/schnelle-umlaute.conf");
         reloadConfig();

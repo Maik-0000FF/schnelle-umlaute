@@ -1,0 +1,15 @@
+[DelayLowercase]
+Type=Integer
+DefaultValue=400
+Description=Delay for lowercase letters (ms)
+Min=50
+Max=2000
+IntStep=25
+
+[DelayUppercase]
+Type=Integer
+DefaultValue=700
+Description=Delay for uppercase letters (ms)
+Min=50
+Max=2000
+IntStep=25

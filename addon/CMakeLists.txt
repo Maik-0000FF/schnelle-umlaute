@@ -37,6 +37,10 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/org.fcitx.Fcitx5.Addon.SchnelleUmlaut
 install(FILES data/schnelle-umlaute.conf
         DESTINATION "${CMAKE_INSTALL_DATADIR}/fcitx5/addon")
 
+# Install configuration descriptor
+install(FILES data/schnelle-umlaute.conf.in
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/fcitx5/addon")
+
 # Install input method configuration
 install(FILES data/schnelle-umlaute-inputmethod.conf
         DESTINATION "${CMAKE_INSTALL_DATADIR}/fcitx5/inputmethod"
