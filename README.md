@@ -1,8 +1,19 @@
-# Schnelle Umlaute - Fcitx5 Edition
+# Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux
 
-> **Quick German Umlaut Input for Linux** - The clipboard-free solution!
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://www.linux.org/)
+[![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
 
-Type German umlauts (ä, ö, ü, ß) on US keyboard layouts with a simple **hold + leader key** gesture, powered by Fcitx5. Default leader key is **Space**, but you can configure Left/Right Arrow or combinations in the settings.
+> **Linux Alternative to Windows PowerToys Quick Accent** - Type German umlauts the same way!
+
+Missing **PowerToys Quick Accent** on Linux? This is the solution! Type German umlauts (ä, ö, ü, ß) on US/English keyboard layouts using the exact same hold + space gesture you know from Windows. Native Fcitx5 input method addon with clipboard-free operation, works on X11 and Wayland.
+
+**Like PowerToys Quick Accent, but better:**
+- Same intuitive gesture (hold letter + space/arrow keys)
+- Configurable activation keys (just like PowerToys)
+- No clipboard interference (unlike many Linux alternatives)
+- Works system-wide on X11 and Wayland
+- 20 customizable character mappings
 
 ## 🎯 What Makes This Special?
 
