@@ -41,6 +41,7 @@
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
+            contain: layout style paint;
         }
 
         header {
@@ -109,10 +110,12 @@
             font-weight: 600;
             font-size: 1.1em;
             transition: transform 0.2s, box-shadow 0.2s;
+            will-change: transform;
+            transform: translateZ(0);
         }
 
         .btn:hover {
-            transform: translateY(-2px);
+            transform: translateY(-2px) translateZ(0);
             box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
 
@@ -132,6 +135,7 @@
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 25px;
             margin: 40px 0;
+            content-visibility: auto;
         }
 
         .feature {
@@ -139,6 +143,7 @@
             background: #f8f9fa;
             border-radius: 10px;
             border-left: 4px solid #667eea;
+            contain: layout paint;
         }
 
         .feature h3 {
@@ -189,6 +194,7 @@
 
         .how-it-works {
             margin: 40px 0;
+            content-visibility: auto;
         }
 
         .how-it-works h2 {
@@ -206,6 +212,7 @@
         .step {
             text-align: center;
             padding: 20px;
+            contain: layout paint;
         }
 
         .step-number {
