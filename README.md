@@ -187,17 +187,7 @@ The script will:
 
 **After installation:** Logout and login, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
 
-### Install via AUR (Coming Soon)
-
-For Arch Linux users, the package will be available on AUR:
-
-```bash
-yay -S schnelle-umlaute-fcitx5
-# or
-paru -S schnelle-umlaute-fcitx5
-```
-
-### Manual Installation
+### 🔧 Manual Installation
 
 If you prefer manual installation:
 
