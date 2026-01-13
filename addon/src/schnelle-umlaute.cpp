@@ -11,6 +11,7 @@
 #include <chrono>
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include <memory>
 #include <time.h>
 #include <algorithm>
@@ -162,16 +163,47 @@ public:
 
         // Check if Leader key is pressed FIRST (before checking keyChar)
         // Arrow keys have no Unicode character, so we must check them before keyChar logic
-        if (waitingKey_ && isLeaderKey(key) && isPress) {
-            // Leader key pressed while waiting: check if within delay
-            if (!isTimeoutExpired()) {
-                // Commit umlaut
-                auto umlaut = umlautMap_[*waitingKey_];
-                keyEvent.inputContext()->commitString(umlaut);
-                waitingKey_.reset();
-                cancelTimeout();
-                keyEvent.filterAndAccept();
-                return;
+        if (isLeaderKey(key) && isPress) {
+            // CASE 1: Currently cycling - advance to next output
+            if (cyclingInput_) {
+                auto it = umlautMap_.find(*cyclingInput_);
+                if (it != umlautMap_.end() && it->second.size() > 1) {
+                    // Move to next output (wrap around)
+                    cyclingIndex_ = (cyclingIndex_ + 1) % it->second.size();
+                    const std::string& nextOutput = it->second[cyclingIndex_];
+
+                    // Delete previous character by sending backspace key events
+                    const std::string& prevOutput = it->second[(cyclingIndex_ + it->second.size() - 1) % it->second.size()];
+                    size_t prevLen = utf8::length(prevOutput);
+                    for (size_t i = 0; i < prevLen; ++i) {
+                        keyEvent.inputContext()->forwardKey(Key(FcitxKey_BackSpace));
+                    }
+
+                    keyEvent.inputContext()->commitString(nextOutput);
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+            }
+
+            // CASE 2: First leader key press after holding input key
+            if (waitingKey_ && !isTimeoutExpired()) {
+                auto it = umlautMap_.find(*waitingKey_);
+                if (it != umlautMap_.end() && !it->second.empty()) {
+                    // Commit first output
+                    const std::string& firstOutput = it->second[0];
+                    keyEvent.inputContext()->commitString(firstOutput);
+
+                    // Start cycling if multiple outputs exist
+                    if (it->second.size() > 1) {
+                        cyclingInput_ = *waitingKey_;
+                        cyclingIndex_ = 0;
+                    }
+
+                    waitingKey_.reset();
+                    cancelTimeout();
+                    keyEvent.filterAndAccept();
+                    return;
+                }
             }
         }
 
@@ -200,6 +232,9 @@ public:
                 return;
             }
 
+            // New accent key pressed - reset cycling state
+            resetCycling();
+
             // Accent key pressed: suppress and start timer
             waitingKey_ = keyChar;
             startTime_ = std::chrono::steady_clock::now();
@@ -222,9 +257,19 @@ public:
             }
         }
 
-        // Other key pressed while waiting: output waiting key first, then pass through
-        if (waitingKey_ && isPress && keyChar != *waitingKey_) {
-            commitWaitingKey(keyEvent.inputContext());
+        // End cycling when the cycling input key is released
+        if (cyclingInput_ && !isPress && keyChar == *cyclingInput_) {
+            resetCycling();
+            return;
+        }
+
+        // Other key pressed while waiting or cycling: reset state and pass through
+        if (isPress && keyChar != (waitingKey_ ? *waitingKey_ : "")) {
+            if (waitingKey_) {
+                commitWaitingKey(keyEvent.inputContext());
+            }
+            // Any other key press ends cycling
+            resetCycling();
             // Don't filter - let the new key pass through normally
         }
     }
@@ -233,6 +278,7 @@ public:
         // Reset state when switching input method or focus changes
         waitingKey_.reset();
         cancelTimeout();
+        resetCycling();
     }
 
     void enable() {
@@ -243,17 +289,59 @@ public:
         enabled_ = false;
         waitingKey_.reset();
         cancelTimeout();
+        resetCycling();
     }
 
 private:
+    void resetCycling() {
+        cyclingInput_.reset();
+        cyclingIndex_ = 0;
+    }
+    // Helper function to split comma-separated string into vector
+    std::vector<std::string> splitOutputs(const std::string& output) {
+        std::vector<std::string> outputs;
+        if (output.empty()) return outputs;
+
+        std::string current;
+        for (size_t i = 0; i < output.length(); ) {
+            // Get UTF-8 character length
+            unsigned char c = output[i];
+            size_t charLen = 1;
+            if ((c & 0x80) == 0) charLen = 1;
+            else if ((c & 0xE0) == 0xC0) charLen = 2;
+            else if ((c & 0xF0) == 0xE0) charLen = 3;
+            else if ((c & 0xF8) == 0xF0) charLen = 4;
+
+            std::string ch = output.substr(i, charLen);
+
+            if (ch == ",") {
+                if (!current.empty()) {
+                    outputs.push_back(current);
+                    current.clear();
+                }
+            } else {
+                current += ch;
+            }
+            i += charLen;
+        }
+        if (!current.empty()) {
+            outputs.push_back(current);
+        }
+        return outputs;
+    }
+
     void loadMappingsFromConfig() {
         // Clear existing mappings
         umlautMap_.clear();
 
         // Helper lambda to add mapping if both input and output are non-empty
+        // Output can be comma-separated for cycling (e.g., "é,è,ê,ë")
         auto addMapping = [this](const std::string& input, const std::string& output) {
             if (!input.empty() && !output.empty()) {
-                umlautMap_[input] = output;
+                auto outputs = splitOutputs(output);
+                if (!outputs.empty()) {
+                    umlautMap_[input] = outputs;
+                }
             }
         };
 
@@ -376,8 +464,12 @@ private:
     std::chrono::steady_clock::time_point startTime_;
     std::unique_ptr<EventSourceTime> timeoutEvent_;
 
-    // Umlaut mapping
-    std::unordered_map<std::string, std::string> umlautMap_;
+    // Umlaut mapping - now supports multiple outputs for cycling
+    std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
+
+    // Cycling state
+    std::optional<std::string> cyclingInput_;  // Which input is being cycled
+    size_t cyclingIndex_ = 0;                   // Current position in outputs array
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {
