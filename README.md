@@ -4,28 +4,27 @@
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://www.linux.org/)
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
 
-> **Linux Alternative to Windows PowerToys Quick Accent** - Type German umlauts the same way!
+**Linux Alternative to Windows PowerToys Quick Accent** - Type German umlauts (and more) with the same intuitive gestures.
 
-Missing **PowerToys Quick Accent** on Linux? This is the solution! Type German umlauts (ä, ö, ü, ß) on US/English keyboard layouts using the exact same hold + space gesture you know from Windows. Native Fcitx5 input method addon with clipboard-free operation, works on X11 and Wayland.
+Missing **PowerToys Quick Accent** on Linux? This is the solution. Type German umlauts on US/English keyboard layouts using hold + space gestures. Native Fcitx5 addon with clipboard-free operation for X11 and Wayland.
 
-**Like PowerToys Quick Accent, but better:**
-- Same intuitive gesture (hold letter + space/arrow keys)
-- Configurable activation keys (just like PowerToys)
-- No clipboard interference (unlike many Linux alternatives)
+**Features:**
+- Hold letter + space/arrow keys for accent characters
+- Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã)
+- Snippets: Map single keys to entire text phrases
+- Configurable activation keys and 20 mapping slots
+- No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
-- 20 customizable character mappings
 
 ## 🎯 What Makes This Special?
 
-Unlike other solutions that use clipboard manipulation or keyboard simulation, this Fcitx5 addon uses **direct text insertion** (`commitString()`), which means:
+Unlike clipboard-based or keyboard simulation solutions, this Fcitx5 addon uses **direct text insertion** (`commitString()`):
 
-✅ **NO clipboard interference** - Your clipboard stays untouched
-✅ **NO root permissions** - Runs as normal user
-✅ **Works on X11 AND Wayland** - Native support for both
-✅ **Zero latency** - Hold & Wait pattern, no backspace needed
-✅ **Perfect integration** - Part of Fcitx5, not a background daemon
-✅ **Fully customizable** - 20 configurable character mappings
-✅ **Flexible activation** - Choose Space, Arrow keys, or combinations as leader key
+- **Clipboard stays untouched** - No interference with copy/paste
+- **No root permissions required** - Runs as normal user
+- **Native X11 and Wayland support** - No compatibility layers
+- **Hold & Wait pattern** - Zero latency, no backspace needed
+- **Part of Fcitx5** - Not a background daemon
 
 ## 🚀 How It Works
 
@@ -428,19 +427,107 @@ You can customize which input characters produce which outputs! The addon provid
    fcitx5 -r
    ```
 
-**Example use cases:**
-- **French accents**: Add mappings for é, è, ê, à, ç, etc.
-- **Spanish characters**: ñ, á, í, ó, ú
-- **Custom shortcuts**: Map `j` → `Hallo` for quick text expansion
-- **Math symbols**: Map `p` → `π`, `d` → `∂`, etc.
-- **Emoji**: Map `h` → `❤️`, `s` → `😊`, `b` → `🍺`
+**Quick examples:** French accents (é, è, ê), Spanish (ñ, á), Math symbols (π, ∂). See sections below for Accent Cycling, Snippets, and Emoji mappings.
+
+### Accent Cycling
+
+Cycle through multiple accent variants by pressing the leader key repeatedly. Instead of creating separate mappings for each variant, define all variants in a single Output field separated by commas.
+
+**How it works:**
+1. Hold the input key (e.g., `e`)
+2. Press leader key (Space) → first variant appears (e.g., `é`)
+3. Press leader key again → next variant (e.g., `è`)
+4. Keep pressing → cycles through all variants (è → ê → ë → é → ...)
+5. Release input key → cycling stops, current selection is kept
+
+**Configuration via GUI:**
+
+1. Open `fcitx5-config-qt`
+2. Select "Schnelle Umlaute" and click Configure
+3. In any Output field, enter comma-separated variants:
+   - Output 8: `é,è,ê,ë` (for Input 8: `e`)
+   - Output 9: `á,à,â,ã` (for Input 9: `a`)
+4. Click Apply and restart with `fcitx5 -r`
+
+**Configuration via config file:**
+
+```ini
+# ~/.config/fcitx5/conf/schnelle-umlaute.conf
+
+# Single output (no cycling)
+Mapping1Input=a
+Mapping1Output=ä
+
+# Multiple outputs with cycling
+Mapping8Input=e
+Mapping8Output=é,è,ê,ë
+
+Mapping9Input=a
+Mapping9Output=á,à,â,ã,å
+
+Mapping10Input=c
+Mapping10Output=ç,ć,č
+```
+
+**Example cycling mappings:**
+
+| Input | Output | Cycling sequence |
+|-------|--------|------------------|
+| e | é,è,ê,ë | é → è → ê → ë → é → ... |
+| a | á,à,â,ã,å | á → à → â → ã → å → á → ... |
+| n | ñ,ń,ň | ñ → ń → ň → ñ → ... |
+| o | ó,ò,ô,õ,ø | ó → ò → ô → õ → ø → ó → ... |
+
+### Snippets (Text Expansion)
+
+Map a single key to an entire phrase or longer text. Useful for frequently typed words, signatures, or boilerplate text.
+
+**Examples:**
+
+| Input | Output | Use case |
+|-------|--------|----------|
+| g | Guten Tag | German greeting |
+| m | Mit freundlichen Grüßen | Email signature |
+| @ | name@example.com | Email address |
+| t | TODO: | Code annotation |
+
+**Configuration:**
+
+```ini
+# ~/.config/fcitx5/conf/schnelle-umlaute.conf
+Mapping11Input=g
+Mapping11Output=Guten Tag
+
+Mapping12Input=m
+Mapping12Output=Mit freundlichen Grüßen
+
+Mapping13Input=@
+Mapping13Output=name@example.com
+```
+
+Hold `g` + press Space → "Guten Tag" is inserted.
+
+### Emoji Mappings
+
+Map keys to emoji for quick insertion without opening an emoji picker.
+
+**Examples:**
+
+| Input | Output | Description |
+|-------|--------|-------------|
+| h | ❤️ | Heart |
+| t | 👍 | Thumbs up |
+| s | 😊 | Smile |
+| c | ✓ | Checkmark |
+
+Emoji cycling also works: `Mapping14Output=😊,😀,😁,🙂` cycles through smileys.
 
 **Tips:**
-- Use the first 7 slots for your most common characters
-- Empty slots (both Input and Output empty) are ignored
 - Input can be any single character
-- Output can be any string (including multi-character strings!)
-- Changes take effect immediately after `fcitx5 -r`
+- Output can be any string (single char, multi-char, emoji, or full phrases)
+- Comma-separated outputs enable cycling
+- Empty slots are ignored
+- Changes take effect after `fcitx5 -r`
 
 ## 🏗️ Architecture
 
