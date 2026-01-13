@@ -507,6 +507,8 @@ Mapping13Output=name@example.com
 
 Hold `g` + press Space → "Guten Tag" is inserted.
 
+**Important:** Snippets cannot contain commas, as commas are used as the separator for cycling. Use snippets only for text without commas.
+
 ### Emoji Mappings
 
 Map keys to emoji for quick insertion without opening an emoji picker.
