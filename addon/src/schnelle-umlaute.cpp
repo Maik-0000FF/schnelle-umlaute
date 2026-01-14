@@ -17,6 +17,7 @@
 #include <memory>
 #include <time.h>
 #include <algorithm>
+#include <thread>
 
 namespace fcitx {
 
@@ -164,9 +165,18 @@ public:
         if (!isPress) {
             // Check if releasing the cycling input key
             if (cyclingInput_ && keyChar == *cyclingInput_) {
-                FCITX_INFO() << "Input key released - ending cycling completely";
+
+                // Commit the current preedit value
+                auto it = umlautMap_.find(*cyclingInput_);
+                if (it != umlautMap_.end() && cyclingIndex_ < it->second.size()) {
+                    auto* ic = keyEvent.inputContext();
+                    ic->inputPanel().reset();
+                    ic->commitString(it->second[cyclingIndex_]);
+                    ic->updatePreedit();
+                }
+
                 inputKeyPressed_ = false;
-                resetCycling();  // Reset cycling completely so new 'e' press works
+                resetCycling();
                 return;
             }
 
@@ -189,16 +199,10 @@ public:
         // HANDLE LEADER KEY (Space/Arrows)
         // =========================================
         if (isLeaderKey(key)) {
-            FCITX_INFO() << "Leader key pressed - waitingKey_="
-                         << (waitingKey_ ? *waitingKey_ : "none")
-                         << ", cyclingInput_=" << (cyclingInput_ ? *cyclingInput_ : "none")
-                         << ", timeoutExpired=" << (waitingKey_ ? (isTimeoutExpired() ? "YES" : "NO") : "N/A");
-
             // CASE 1: Currently in cycling mode
             if (cyclingInput_) {
                 // Check if input key is still pressed
                 if (!inputKeyPressed_) {
-                    FCITX_INFO() << "Leader pressed but input key released - exiting cycling";
                     resetCycling();
                     return;  // Let Space through
                 }
@@ -209,36 +213,40 @@ public:
                     cyclingIndex_ = (cyclingIndex_ + 1) % it->second.size();
                     const std::string& nextOutput = it->second[cyclingIndex_];
 
-                    FCITX_INFO() << "Cycling to index " << cyclingIndex_ << ": " << nextOutput;
+                    // Update preedit with new variant (no deletion needed!)
+                    auto* ic = keyEvent.inputContext();
+                    Text preedit(nextOutput);
+                    preedit.setCursor(preedit.textLength());
+                    ic->inputPanel().setClientPreedit(preedit);
+                    ic->updatePreedit();
 
-                    // Delete previous character
-                    const std::string& prevOutput = it->second[(cyclingIndex_ + it->second.size() - 1) % it->second.size()];
-                    size_t prevLen = utf8::length(prevOutput);
-                    deleteCharacters(keyEvent.inputContext(), prevLen);
-
-                    keyEvent.inputContext()->commitString(nextOutput);
                     keyEvent.filterAndAccept();
                     return;
                 }
             }
 
             // CASE 2: First leader key press (start cycling)
-            // PREEDIT: Clear the preedit and commit the umlaut
+            // PREEDIT: Update preedit to show first umlaut (don't commit yet!)
             if (waitingKey_ && !isTimeoutExpired()) {
                 auto it = umlautMap_.find(*waitingKey_);
                 if (it != umlautMap_.end() && !it->second.empty()) {
-                    // Clear preedit (no deletion needed - character wasn't committed!)
                     auto* ic = keyEvent.inputContext();
-                    ic->inputPanel().reset();
-                    ic->updatePreedit();
 
-                    // Commit first output
-                    ic->commitString(it->second[0]);
-
-                    // Start cycling if multiple outputs
+                    // Start cycling if multiple outputs - stay in preedit
                     if (it->second.size() > 1) {
                         cyclingInput_ = *waitingKey_;
                         cyclingIndex_ = 0;
+
+                        // Update preedit with first variant
+                        Text preedit(it->second[0]);
+                        preedit.setCursor(preedit.textLength());
+                        ic->inputPanel().setClientPreedit(preedit);
+                        ic->updatePreedit();
+                    } else {
+                        // Single output - commit directly
+                        ic->inputPanel().reset();
+                        ic->updatePreedit();
+                        ic->commitString(it->second[0]);
                     }
 
                     waitingKey_.reset();
@@ -299,9 +307,6 @@ public:
         // OTHER KEYS - Reset state
         // PREEDIT: Commit the preedit as-is, then let the key through
         // =========================================
-        if (waitingKey_ || cyclingInput_) {
-            FCITX_INFO() << "Other key pressed (" << keyChar << ") - resetting state";
-        }
         if (waitingKey_) {
             // Commit the preedit as the original character
             auto* ic = keyEvent.inputContext();
@@ -319,15 +324,9 @@ public:
         // Don't clear state if input key is still pressed!
         // Some apps (Chromium, Neovide) call reset() after every commit.
         if (inputKeyPressed_) {
-            if (cyclingInput_ || waitingKey_) {
-                FCITX_INFO() << "RESET called but input key still pressed - keeping state";
-            }
             return;  // Keep all state intact
         }
 
-        if (waitingKey_ || cyclingInput_) {
-            FCITX_INFO() << "RESET called by app - clearing all state";
-        }
         waitingKey_.reset();
         inputKeyPressed_ = false;
         cancelTimeout();
@@ -351,18 +350,19 @@ private:
     }
 
     // Delete characters - uses the best available method for the current app
-    void deleteCharacters(InputContext *ic, size_t count) {
+    // Returns true if forwardKey was used (needs delay before commit)
+    bool deleteCharacters(InputContext *ic, size_t count) {
         // Check if surrounding text is available (GUI apps usually support this)
         const auto& surroundingText = ic->surroundingText();
         if (surroundingText.isValid()) {
-            FCITX_INFO() << "Using deleteSurroundingText for " << count << " chars";
             ic->deleteSurroundingText(-static_cast<int>(count), count);
+            return false;
         } else {
             // Fall back to BackSpace key events (for terminals)
-            FCITX_INFO() << "Using forwardKey BackSpace for " << count << " chars";
             for (size_t i = 0; i < count; ++i) {
                 ic->forwardKey(Key(FcitxKey_BackSpace));
             }
+            return true;  // Needs delay before commit
         }
     }
 
@@ -489,7 +489,6 @@ private:
             [this, savedKey](EventSourceTime *, uint64_t) {
                 // PREEDIT: Commit the preedit as-is when timeout expires
                 if (waitingKey_ && *waitingKey_ == savedKey) {
-                    FCITX_INFO() << "TIMEOUT expired for key: " << *waitingKey_;
                     // Commit the preedit as the original character
                     if (auto* ic = instance_->mostRecentInputContext()) {
                         ic->inputPanel().reset();

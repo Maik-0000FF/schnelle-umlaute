@@ -684,6 +684,20 @@ gcc --version  # Should be 11 or newer
 1. Using Firefox for text input tasks requiring umlauts
 2. Using the system clipboard with a separate umlaut input method
 
+### Cycling preview not visible in terminal emulators
+
+**Symptom:** When cycling through accent variants in terminal emulators, you don't see the current character changing. The cycling works, but the preview is not displayed.
+
+**Cause:** Terminal emulators often don't display preedit (composition) text visually. The cycling happens internally, but the preview is only shown after you release the input key.
+
+**Workaround:** Count your Space presses to reach the desired variant:
+- 1× Space = first variant (e.g., ä)
+- 2× Space = second variant (e.g., à)
+- 3× Space = third variant (e.g., â)
+- etc.
+
+The final character is committed when you release the input key. In GUI applications (Firefox, Kate, etc.), the cycling preview is displayed in real-time.
+
 ### General compatibility note
 
 Not all applications fully support Fcitx5's input method protocol. The addon relies on the application correctly handling:
