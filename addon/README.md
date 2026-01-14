@@ -212,6 +212,17 @@ Environment variables are not set. See [Environment Variables](#environment-vari
 
 **Remember:** You must logout and login after setting the variables!
 
+### Input method state is not shared across applications
+
+By default, Fcitx5 remembers the input method **per application**. If you switch to "Schnelle Umlaute" in Firefox, the terminal may still use US keyboard.
+
+To share the input method state globally:
+
+1. Open Fcitx5 configuration: `fcitx5-config-qt`
+2. Go to **Global Options**
+3. Set **Share Input State** to **All**
+4. Restart Fcitx5: `fcitx5 -r`
+
 ### Build errors
 
 Make sure all dependencies are installed:
