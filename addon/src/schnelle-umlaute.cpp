@@ -3,6 +3,8 @@
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/instance.h>
 #include <fcitx/inputcontext.h>
+#include <fcitx/inputpanel.h>
+#include <fcitx-utils/textformatflags.h>
 #include <fcitx-utils/utf8.h>
 #include <fcitx-utils/event.h>
 #include <fcitx-utils/log.h>
@@ -19,11 +21,9 @@
 namespace fcitx {
 
 // Leader key options (matching PowerToys Quick Accents)
-// Using FCITX_CONFIG_ENUM to generate marshalling functions
 FCITX_CONFIG_ENUM(LeaderKey, Space, LeftArrow, RightArrow, SpaceOrLeft,
                   SpaceOrRight, LeftOrRight, All);
 
-// Custom constrain for integer with step
 class IntConstrainWithStep {
 public:
     using Type = int;
@@ -35,7 +35,6 @@ public:
         marshallOption(config["IntMax"], max_);
         marshallOption(config["IntStep"], step_);
     }
-
 private:
     int min_;
     int max_;
@@ -47,8 +46,6 @@ FCITX_CONFIGURATION(
     Option<int, IntConstrainWithStep> delayLowercase{this, "DelayLowercase", "Delay für Kleinbuchstaben (ms)", 400, IntConstrainWithStep(50, 2000, 25)};
     Option<int, IntConstrainWithStep> delayUppercase{this, "DelayUppercase", "Delay für Großbuchstaben (ms)", 700, IntConstrainWithStep(50, 2000, 25)};
     Option<LeaderKey> leaderKey{this, "LeaderKey", "Aktivierungstaste (Leader Key)", LeaderKey::Space};
-
-    // 20 custom mapping slots - direct options for proper DefaultValue support
     Option<std::string> mapping1Input{this, "Mapping1Input", "Input 1", "a"};
     Option<std::string> mapping1Output{this, "Mapping1Output", "Output 1", "ä"};
     Option<std::string> mapping2Input{this, "Mapping2Input", "Input 2", "o"};
@@ -91,36 +88,36 @@ FCITX_CONFIGURATION(
     Option<std::string> mapping20Output{this, "Mapping20Output", "Output 20", ""};
 );
 
+// =============================================================================
+// VelocityAccents-Style Implementation
+// =============================================================================
+// Key insight: Track whether input key is PHYSICALLY PRESSED
+// - Cycling only works while input key is held down
+// - No timer during cycling - cycle as long as you want
+// - When input key is released, cycling ends
+// =============================================================================
+
 class SchnelleUmlauteEngine : public InputMethodEngineV2 {
 public:
     SchnelleUmlauteEngine(Instance *instance)
         : instance_(instance), enabled_(true) {
-
-        // Load configuration and build umlaut map from config
-        // Defaults are set in .conf.in file
         reloadConfig();
     }
 
     const Configuration *getConfig() const override { return &config_; }
     void setConfig(const RawConfig &config) override {
         config_.load(config);
-
-        // Validate and clamp values to valid range (50-2000ms)
         auto clamp = [](int value, int min, int max) {
             return std::max(min, std::min(max, value));
         };
-
         config_.delayLowercase.setValue(clamp(*config_.delayLowercase, 50, 2000));
         config_.delayUppercase.setValue(clamp(*config_.delayUppercase, 50, 2000));
-
         safeSaveAsIni(config_, "conf/schnelle-umlaute.conf");
         reloadConfig();
     }
 
     void reloadConfig() override {
         readAsIni(config_, "conf/schnelle-umlaute.conf");
-
-        // Load mappings from config
         loadMappingsFromConfig();
 
         const char* leaderKeyName = "Unknown";
@@ -142,42 +139,82 @@ public:
 
     std::vector<InputMethodEntry> listInputMethods() override {
         std::vector<InputMethodEntry> methods;
-
         InputMethodEntry entry("schnelle-umlaute", "Schnelle Umlaute", "de", "schnelle-umlaute");
-        entry.setIcon("input-keyboard")
-             .setLabel("ä")
-             .setConfigurable(false);
-
+        entry.setIcon("input-keyboard").setLabel("ä").setConfigurable(false);
         methods.push_back(std::move(entry));
-
         return methods;
     }
 
     void keyEvent(const InputMethodEntry &entry, KeyEvent &keyEvent) override {
-        if (!enabled_) {
-            return; // Pass through when disabled
-        }
+        if (!enabled_) return;
 
         auto key = keyEvent.key();
-        bool isPress = keyEvent.isRelease() == false;
+        bool isPress = !keyEvent.isRelease();
 
-        // Check if Leader key is pressed FIRST (before checking keyChar)
-        // Arrow keys have no Unicode character, so we must check them before keyChar logic
-        if (isLeaderKey(key) && isPress) {
-            // CASE 1: Currently cycling - advance to next output
+        // Get character from key
+        uint32_t unicode = Key::keySymToUnicode(key.sym());
+        std::string keyChar;
+        if (unicode > 0 && unicode < 0x10FFFF) {
+            keyChar = utf8::UCS4ToUTF8(unicode);
+        }
+
+        // =========================================
+        // HANDLE KEY RELEASE FIRST
+        // =========================================
+        if (!isPress) {
+            // Check if releasing the cycling input key
+            if (cyclingInput_ && keyChar == *cyclingInput_) {
+                FCITX_INFO() << "Input key released - ending cycling completely";
+                inputKeyPressed_ = false;
+                resetCycling();  // Reset cycling completely so new 'e' press works
+                return;
+            }
+
+            // Check if releasing waiting key (before first Space)
+            // PREEDIT: Commit the preedit as the original character
+            if (waitingKey_ && keyChar == *waitingKey_) {
+                auto* ic = keyEvent.inputContext();
+                ic->inputPanel().reset();
+                ic->commitString(*waitingKey_);
+                ic->updatePreedit();
+                waitingKey_.reset();
+                cancelTimeout();
+                inputKeyPressed_ = false;
+                return;
+            }
+            return;
+        }
+
+        // =========================================
+        // HANDLE LEADER KEY (Space/Arrows)
+        // =========================================
+        if (isLeaderKey(key)) {
+            FCITX_INFO() << "Leader key pressed - waitingKey_="
+                         << (waitingKey_ ? *waitingKey_ : "none")
+                         << ", cyclingInput_=" << (cyclingInput_ ? *cyclingInput_ : "none")
+                         << ", timeoutExpired=" << (waitingKey_ ? (isTimeoutExpired() ? "YES" : "NO") : "N/A");
+
+            // CASE 1: Currently in cycling mode
             if (cyclingInput_) {
+                // Check if input key is still pressed
+                if (!inputKeyPressed_) {
+                    FCITX_INFO() << "Leader pressed but input key released - exiting cycling";
+                    resetCycling();
+                    return;  // Let Space through
+                }
+
                 auto it = umlautMap_.find(*cyclingInput_);
                 if (it != umlautMap_.end() && it->second.size() > 1) {
-                    // Move to next output (wrap around)
+                    // Cycle to next variant
                     cyclingIndex_ = (cyclingIndex_ + 1) % it->second.size();
                     const std::string& nextOutput = it->second[cyclingIndex_];
 
-                    // Delete previous character by sending backspace key events
+                    FCITX_INFO() << "Cycling to index " << cyclingIndex_ << ": " << nextOutput;
+
+                    // Delete previous character
                     const std::string& prevOutput = it->second[(cyclingIndex_ + it->second.size() - 1) % it->second.size()];
                     size_t prevLen = utf8::length(prevOutput);
-                    for (size_t i = 0; i < prevLen; ++i) {
-                        keyEvent.inputContext()->forwardKey(Key(FcitxKey_BackSpace));
-                    }
+                    deleteCharacters(keyEvent.inputContext(), prevLen);
 
                     keyEvent.inputContext()->commitString(nextOutput);
                     keyEvent.filterAndAccept();
@@ -185,15 +222,20 @@ public:
                 }
             }
 
-            // CASE 2: First leader key press after holding input key
+            // CASE 2: First leader key press (start cycling)
+            // PREEDIT: Clear the preedit and commit the umlaut
             if (waitingKey_ && !isTimeoutExpired()) {
                 auto it = umlautMap_.find(*waitingKey_);
                 if (it != umlautMap_.end() && !it->second.empty()) {
-                    // Commit first output
-                    const std::string& firstOutput = it->second[0];
-                    keyEvent.inputContext()->commitString(firstOutput);
+                    // Clear preedit (no deletion needed - character wasn't committed!)
+                    auto* ic = keyEvent.inputContext();
+                    ic->inputPanel().reset();
+                    ic->updatePreedit();
 
-                    // Start cycling if multiple outputs exist
+                    // Commit first output
+                    ic->commitString(it->second[0]);
+
+                    // Start cycling if multiple outputs
                     if (it->second.size() > 1) {
                         cyclingInput_ = *waitingKey_;
                         cyclingIndex_ = 0;
@@ -205,89 +247,99 @@ public:
                     return;
                 }
             }
-        }
 
-        // Get character from key - convert uint32_t to string
-        uint32_t unicode = Key::keySymToUnicode(key.sym());
-        std::string keyChar;
-        if (unicode > 0 && unicode < 0x10FFFF) {
-            keyChar = utf8::UCS4ToUTF8(unicode);
-        }
-
-        if (keyChar.empty()) {
-            // Handle special case for waiting key timeout
-            if (waitingKey_ && isTimeoutExpired()) {
-                commitWaitingKey(keyEvent.inputContext());
-            }
+            // Not in gesture - let Space through
             return;
         }
 
-        // Check if this is an accent key (a, o, u, s, A, O, U)
+        // =========================================
+        // HANDLE ACCENT KEYS (a, o, u, etc.)
+        // Use PREEDIT mode - show character as preview, commit/change on Space
+        // =========================================
         bool isAccentKey = umlautMap_.find(keyChar) != umlautMap_.end();
 
-        if (isPress && isAccentKey) {
-            // Ignore key repeat - don't reset timer
-            if (waitingKey_ && *waitingKey_ == keyChar) {
+        if (isAccentKey) {
+            // Ignore key repeat while waiting or cycling
+            if ((waitingKey_ && *waitingKey_ == keyChar) ||
+                (cyclingInput_ && *cyclingInput_ == keyChar)) {
                 keyEvent.filterAndAccept();
                 return;
             }
 
-            // New accent key pressed - reset cycling state
+            // New accent key - commit any existing preedit first
+            if (waitingKey_) {
+                // Commit previous preedit as-is
+                auto* ic = keyEvent.inputContext();
+                ic->inputPanel().reset();
+                ic->commitString(*waitingKey_);
+                ic->updatePreedit();
+                waitingKey_.reset();
+                cancelTimeout();
+            }
             resetCycling();
 
-            // Accent key pressed: suppress and start timer
+            // Show character in PREEDIT (not committed yet - can be changed!)
             waitingKey_ = keyChar;
+            inputKeyPressed_ = true;
             startTime_ = std::chrono::steady_clock::now();
             scheduleTimeout();
+
+            // Set preedit text
+            auto* ic = keyEvent.inputContext();
+            Text preedit(keyChar);
+            preedit.setCursor(preedit.textLength());
+            ic->inputPanel().setClientPreedit(preedit);
+            ic->updatePreedit();
+
             keyEvent.filterAndAccept();
             return;
         }
 
-        // Key released or timeout
+        // =========================================
+        // OTHER KEYS - Reset state
+        // PREEDIT: Commit the preedit as-is, then let the key through
+        // =========================================
+        if (waitingKey_ || cyclingInput_) {
+            FCITX_INFO() << "Other key pressed (" << keyChar << ") - resetting state";
+        }
         if (waitingKey_) {
-            if (!isPress && keyChar == *waitingKey_) {
-                // Waiting key released: commit normal character
-                commitWaitingKey(keyEvent.inputContext());
-                // DON'T filter the release event - let it pass through
-                // This helps terminals like Ghostty handle the input correctly
-                return;
-            } else if (isTimeoutExpired()) {
-                // Timeout expired: commit normal character
-                commitWaitingKey(keyEvent.inputContext());
-            }
+            // Commit the preedit as the original character
+            auto* ic = keyEvent.inputContext();
+            ic->inputPanel().reset();
+            ic->commitString(*waitingKey_);
+            ic->updatePreedit();
+            waitingKey_.reset();
+            cancelTimeout();
         }
-
-        // End cycling when the cycling input key is released
-        if (cyclingInput_ && !isPress && keyChar == *cyclingInput_) {
-            resetCycling();
-            return;
-        }
-
-        // Other key pressed while waiting or cycling: reset state and pass through
-        if (isPress && keyChar != (waitingKey_ ? *waitingKey_ : "")) {
-            if (waitingKey_) {
-                commitWaitingKey(keyEvent.inputContext());
-            }
-            // Any other key press ends cycling
-            resetCycling();
-            // Don't filter - let the new key pass through normally
-        }
+        resetCycling();
+        // Let key through
     }
 
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
-        // Reset state when switching input method or focus changes
+        // Don't clear state if input key is still pressed!
+        // Some apps (Chromium, Neovide) call reset() after every commit.
+        if (inputKeyPressed_) {
+            if (cyclingInput_ || waitingKey_) {
+                FCITX_INFO() << "RESET called but input key still pressed - keeping state";
+            }
+            return;  // Keep all state intact
+        }
+
+        if (waitingKey_ || cyclingInput_) {
+            FCITX_INFO() << "RESET called by app - clearing all state";
+        }
         waitingKey_.reset();
+        inputKeyPressed_ = false;
         cancelTimeout();
         resetCycling();
     }
 
-    void enable() {
-        enabled_ = true;
-    }
+    void enable() { enabled_ = true; }
 
     void disable() {
         enabled_ = false;
         waitingKey_.reset();
+        inputKeyPressed_ = false;
         cancelTimeout();
         resetCycling();
     }
@@ -297,14 +349,29 @@ private:
         cyclingInput_.reset();
         cyclingIndex_ = 0;
     }
-    // Helper function to split comma-separated string into vector
+
+    // Delete characters - uses the best available method for the current app
+    void deleteCharacters(InputContext *ic, size_t count) {
+        // Check if surrounding text is available (GUI apps usually support this)
+        const auto& surroundingText = ic->surroundingText();
+        if (surroundingText.isValid()) {
+            FCITX_INFO() << "Using deleteSurroundingText for " << count << " chars";
+            ic->deleteSurroundingText(-static_cast<int>(count), count);
+        } else {
+            // Fall back to BackSpace key events (for terminals)
+            FCITX_INFO() << "Using forwardKey BackSpace for " << count << " chars";
+            for (size_t i = 0; i < count; ++i) {
+                ic->forwardKey(Key(FcitxKey_BackSpace));
+            }
+        }
+    }
+
     std::vector<std::string> splitOutputs(const std::string& output) {
         std::vector<std::string> outputs;
         if (output.empty()) return outputs;
 
         std::string current;
         for (size_t i = 0; i < output.length(); ) {
-            // Get UTF-8 character length
             unsigned char c = output[i];
             size_t charLen = 1;
             if ((c & 0x80) == 0) charLen = 1;
@@ -313,7 +380,6 @@ private:
             else if ((c & 0xF8) == 0xF0) charLen = 4;
 
             std::string ch = output.substr(i, charLen);
-
             if (ch == ",") {
                 if (!current.empty()) {
                     outputs.push_back(current);
@@ -331,11 +397,7 @@ private:
     }
 
     void loadMappingsFromConfig() {
-        // Clear existing mappings
         umlautMap_.clear();
-
-        // Helper lambda to add mapping if both input and output are non-empty
-        // Output can be comma-separated for cycling (e.g., "é,è,ê,ë")
         auto addMapping = [this](const std::string& input, const std::string& output) {
             if (!input.empty() && !output.empty()) {
                 auto outputs = splitOutputs(output);
@@ -345,7 +407,6 @@ private:
             }
         };
 
-        // Load all 20 mapping slots
         addMapping(*config_.mapping1Input, *config_.mapping1Output);
         addMapping(*config_.mapping2Input, *config_.mapping2Output);
         addMapping(*config_.mapping3Input, *config_.mapping3Output);
@@ -388,7 +449,7 @@ private:
             case LeaderKey::All:
                 return sym == FcitxKey_space || sym == FcitxKey_Left || sym == FcitxKey_Right;
             default:
-                return sym == FcitxKey_space; // Fallback to Space
+                return sym == FcitxKey_space;
         }
     }
 
@@ -399,7 +460,6 @@ private:
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             now - startTime_).count();
 
-        // Use longer delay for uppercase letters (requires holding Shift)
         bool isUpperCase = waitingKey_->length() == 1 && std::isupper((*waitingKey_)[0]);
         int effectiveDelay = isUpperCase ? *config_.delayUppercase : *config_.delayLowercase;
 
@@ -409,36 +469,37 @@ private:
     void scheduleTimeout() {
         if (!waitingKey_) return;
 
-        // Cancel existing timer
         timeoutEvent_.reset();
 
-        // Calculate delay based on uppercase
         bool isUpperCase = waitingKey_->length() == 1 && std::isupper((*waitingKey_)[0]);
         int effectiveDelay = isUpperCase ? *config_.delayUppercase : *config_.delayLowercase;
 
-        // Schedule timeout callback
         auto* eventLoop = &instance_->eventLoop();
 
-        // Get current time and add delay (addTimeEvent expects absolute timestamp)
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         uint64_t now_usec = static_cast<uint64_t>(ts.tv_sec) * 1000000 + ts.tv_nsec / 1000;
         uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * 1000;
 
+        auto savedKey = *waitingKey_;
         timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC,
-            target_usec,  // Absolute timestamp in microseconds
-            0,  // accuracy
-            [this](EventSourceTime *, uint64_t) {
-                // Timeout expired - commit the waiting key
-                if (waitingKey_) {
-                    if (auto *ic = instance_->lastFocusedInputContext()) {
+            target_usec,
+            0,
+            [this, savedKey](EventSourceTime *, uint64_t) {
+                // PREEDIT: Commit the preedit as-is when timeout expires
+                if (waitingKey_ && *waitingKey_ == savedKey) {
+                    FCITX_INFO() << "TIMEOUT expired for key: " << *waitingKey_;
+                    // Commit the preedit as the original character
+                    if (auto* ic = instance_->mostRecentInputContext()) {
+                        ic->inputPanel().reset();
                         ic->commitString(*waitingKey_);
-                        waitingKey_.reset();
+                        ic->updatePreedit();
                     }
+                    waitingKey_.reset();
                 }
-                timeoutEvent_.reset();  // Clean up timer
-                return false;  // One-shot timer
+                timeoutEvent_.reset();
+                return false;
             }
         );
     }
@@ -459,17 +520,20 @@ private:
     bool enabled_;
     SchnelleUmlauteConfig config_;
 
-    // Hold & Wait state
+    // Waiting state (before first Space)
     std::optional<std::string> waitingKey_;
     std::chrono::steady_clock::time_point startTime_;
     std::unique_ptr<EventSourceTime> timeoutEvent_;
 
-    // Umlaut mapping - now supports multiple outputs for cycling
-    std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
+    // KEY INSIGHT: Track if input key is physically pressed
+    bool inputKeyPressed_ = false;
 
-    // Cycling state
-    std::optional<std::string> cyclingInput_;  // Which input is being cycled
-    size_t cyclingIndex_ = 0;                   // Current position in outputs array
+    // Cycling state (after first Space, while input key held)
+    std::optional<std::string> cyclingInput_;
+    size_t cyclingIndex_ = 0;
+
+    // Mappings
+    std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {
