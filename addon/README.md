@@ -112,9 +112,9 @@ For the addon to work in **all applications** (Firefox, Kate, etc.), you must se
 ```bash
 mkdir -p ~/.config/environment.d
 cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
+GTK_IM_MODULE=fcitx5
+QT_IM_MODULE=fcitx5
+XMODIFIERS=@im=fcitx5
 EOF
 ```
 
@@ -122,7 +122,7 @@ EOF
 
 Verify after login:
 ```bash
-echo $GTK_IM_MODULE   # Should show: fcitx
+echo $GTK_IM_MODULE   # Should show: fcitx5
 ```
 
 ## Usage
