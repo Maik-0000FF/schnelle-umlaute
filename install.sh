@@ -95,10 +95,10 @@ if [ -f "$ENV_FILE" ]; then
     echo "Contents:"
     cat "$ENV_FILE"
     echo
-    read -p "Overwrite existing file? [y/N] " -n 1 -r
+    read -p "Overwrite with fcitx5 settings? [Y/n] " -n 1 -r
     echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "${YELLOW}Skipping environment setup. Make sure GTK_IM_MODULE, QT_IM_MODULE, and XMODIFIERS are set correctly.${NC}"
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        echo -e "${YELLOW}Skipping environment setup. Make sure GTK_IM_MODULE, QT_IM_MODULE, and XMODIFIERS are set to fcitx5.${NC}"
     else
         mkdir -p "$HOME/.config/environment.d"
         cat > "$ENV_FILE" << 'EOF'
