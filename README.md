@@ -182,7 +182,7 @@ cd schnelle-umlaute
 The script will:
 - Check and install dependencies
 - Build and install the addon
-- Configure environment variables automatically
+- Configure environment variables automatically (replaces old fcitx4 settings if present)
 - Guide you through the setup
 
 **After installation:** Logout and login, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
