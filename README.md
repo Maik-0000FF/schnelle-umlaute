@@ -668,22 +668,6 @@ Make sure you have C++20 support:
 gcc --version  # Should be 11 or newer
 ```
 
-### Not working in Chromium-based browsers or Neovide
-
-**Symptom:** Umlauts don't appear or only partial cycling works in Chromium, Chrome, Edge, Brave, or Neovide.
-
-**Cause:** These applications handle the Fcitx5 input method protocol differently. They may call `reset()` on the input context after each character commit, which can interfere with the addon's state management.
-
-**Current Status:** This is a known limitation. The addon works best in:
-- Firefox and Firefox-based browsers
-- Terminal emulators (Alacritty, Kitty with X11, Konsole, etc.)
-- GTK applications (Gedit, GNOME apps)
-- Many Qt applications (Kate, KDE apps)
-
-**Workaround for Chromium:** Some users report better results by:
-1. Using Firefox for text input tasks requiring umlauts
-2. Using the system clipboard with a separate umlaut input method
-
 ### Cycling preview not visible in terminal emulators
 
 **Symptom:** When cycling through accent variants in terminal emulators, you don't see the current character changing. The cycling works, but the preview is not displayed.
