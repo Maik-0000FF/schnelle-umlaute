@@ -164,7 +164,11 @@ public:
         // =========================================
         if (!isPress) {
             // Check if releasing the cycling input key
-            if (cyclingInput_ && keyChar == *cyclingInput_) {
+            // Note: Compare case-insensitively because user might release Shift
+            // before releasing the letter key
+            if (cyclingInput_ && inputKeyPressed_ && !keyChar.empty() &&
+                cyclingInput_->length() == 1 && keyChar.length() == 1 &&
+                std::tolower((*cyclingInput_)[0]) == std::tolower(keyChar[0])) {
 
                 // Commit the current preedit value
                 auto it = umlautMap_.find(*cyclingInput_);
@@ -182,7 +186,12 @@ public:
 
             // Check if releasing waiting key (before first Space)
             // PREEDIT: Commit the preedit as the original character
-            if (waitingKey_ && keyChar == *waitingKey_) {
+            // Note: Compare case-insensitively because user might release Shift
+            // before releasing the letter key (e.g., Shift+A pressed, Shift released,
+            // then 'a' release event comes but waitingKey_ is "A")
+            if (waitingKey_ && inputKeyPressed_ && !keyChar.empty() &&
+                waitingKey_->length() == 1 && keyChar.length() == 1 &&
+                std::tolower((*waitingKey_)[0]) == std::tolower(keyChar[0])) {
                 auto* ic = keyEvent.inputContext();
                 ic->inputPanel().reset();
                 ic->commitString(*waitingKey_);
