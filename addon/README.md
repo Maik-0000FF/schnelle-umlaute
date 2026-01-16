@@ -15,6 +15,12 @@ Quick German umlaut input using Fcitx5 native addon.
 
 ## How it works
 
+```
+┌───┐     ┌───────┐     ┌───┐
+│ a │  +  │ Space │  =  │ ä │
+└───┴─    └───────┴─    └───┘
+```
+
 1. Hold a letter key (a, o, u, s - configurable)
 2. Press leader key within the time window:
    - **Leader key**: Space by default (configurable to Arrow keys or combinations)
@@ -23,6 +29,26 @@ Quick German umlaut input using Fcitx5 native addon.
 3. → Get the umlaut! (ä, ö, ü, ß, Ä, Ö, Ü - or your custom output)
 
 **Note:** You can keep Shift pressed while pressing the leader key for uppercase umlauts
+
+## Important: Keyboard Layout Requirement
+
+This addon is **not a standalone keyboard layout** - it works **alongside** your existing keyboard layout.
+
+```
+Physical key → Base layout (US) → Addon → Application
+```
+
+**You always need a base keyboard layout** (e.g., US) in your Fcitx5 configuration. The addon:
+- Receives characters that are already translated by your base layout
+- Only modifies the configured keys (a, o, u, s, etc.)
+- Passes all other keys through unchanged
+
+**Example:**
+```
+┌───┐     ┌───────┐           ┌───┐
+│ a │  +  │ Space │  =  ä     │ b │  =  b (no mapping)
+└───┴─    └───────┴─          └───┴─
+```
 
 ## Accent Cycling
 
@@ -37,13 +63,13 @@ You can define multiple outputs per input using **comma-separated values** in a 
 - Output: `ä,à,â,æ`
 
 **Usage:**
-1. Hold the key (e.g. `a`)
-2. Press leader key (Space) → first character (`ä`)
-3. Press leader key again → next character (`à`)
-4. Press leader key again → next character (`â`)
-5. Keep pressing → cycles through all defined characters
+```
+Hold ┌───┐   Press ┌───────┐        Press ┌───────┐        Press ┌───────┐
+     │ a │    +    │ Space │  =  ä   +    │ Space │  =  à   +    │ Space │  =  â  ...
+     └───┴─        └───────┴─             └───────┴─             └───────┴─
+```
 
-The previous character gets replaced automatically when cycling.
+The character cycles through all defined outputs. Release the key to confirm.
 
 ## Emojis, Symbols and Snippets
 
@@ -134,13 +160,31 @@ echo $GTK_IM_MODULE   # Should show: fcitx5
 
 2. Add "Schnelle Umlaute" as input method
 
-3. Switch to it (default: Ctrl+Space)
+3. Switch to it (default):
+   ```
+   ┌──────┐     ┌───────┐
+   │ Ctrl │  +  │ Space │
+   └──────┴─    └───────┴─
+   ```
 
 4. Type umlauts:
-   - Hold `a` + Space → ä
-   - Hold `o` + Space → ö
-   - Hold `u` + Space → ü
-   - Hold `s` + Space → ß
+   ```
+   ┌───┐     ┌───────┐     ┌───┐
+   │ a │  +  │ Space │  =  │ ä │
+   └───┴─    └───────┴─    └───┘
+
+   ┌───┐     ┌───────┐     ┌───┐
+   │ o │  +  │ Space │  =  │ ö │
+   └───┴─    └───────┴─    └───┘
+
+   ┌───┐     ┌───────┐     ┌───┐
+   │ u │  +  │ Space │  =  │ ü │
+   └───┴─    └───────┴─    └───┘
+
+   ┌───┐     ┌───────┐     ┌───┐
+   │ s │  +  │ Space │  =  │ ß │
+   └───┴─    └───────┴─    └───┘
+   ```
 
 ## Advantages over evdev-rs approach
 
