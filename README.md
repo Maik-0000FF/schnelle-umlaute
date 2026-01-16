@@ -39,7 +39,7 @@ stateDiagram-v2
     Normal --> [*]: a
 ```
 
-**Note:** Leader key is **Space** by default. You can configure it to Left/Right Arrow or combinations in `fcitx5-config-qt`.
+**Note:** Leader key is <kbd>Space</kbd> by default. You can configure it to <kbd>←</kbd>/<kbd>→</kbd> Arrow or combinations in `fcitx5-config-qt`.
 
 ### Why Does Typing Feel Different?
 
@@ -152,11 +152,24 @@ sequenceDiagram
 
 **Default mappings (configurable):**
 
-**Lowercase (400ms delay):** `a`→`ä` | `o`→`ö` | `u`→`ü` | `s`→`ß`
+**Lowercase (400ms delay):**
 
-**Uppercase (700ms delay, longer for coordination):** `A`→`Ä` | `O`→`Ö` | `U`→`Ü`
+| Hold | + | Press | = | Result |
+|------|---|-------|---|--------|
+| <kbd>a</kbd> | + | <kbd>Space</kbd> | = | ä |
+| <kbd>o</kbd> | + | <kbd>Space</kbd> | = | ö |
+| <kbd>u</kbd> | + | <kbd>Space</kbd> | = | ü |
+| <kbd>s</kbd> | + | <kbd>Space</kbd> | = | ß |
 
-**Note:** The uppercase delay is longer because typing Shift+Letter+Space requires more finger coordination.
+**Uppercase (700ms delay, longer for coordination):**
+
+| Hold | + | Press | = | Result |
+|------|---|-------|---|--------|
+| <kbd>Shift</kbd> + <kbd>a</kbd> | + | <kbd>Space</kbd> | = | Ä |
+| <kbd>Shift</kbd> + <kbd>o</kbd> | + | <kbd>Space</kbd> | = | Ö |
+| <kbd>Shift</kbd> + <kbd>u</kbd> | + | <kbd>Space</kbd> | = | Ü |
+
+**Note:** The uppercase delay is longer because typing <kbd>Shift</kbd> + Letter + <kbd>Space</kbd> requires more finger coordination.
 
 **All character mappings are fully customizable!** You can configure up to 20 custom input→output mappings via `fcitx5-config-qt`. See the "Customizing Character Mappings" section below for details.
 
@@ -257,23 +270,23 @@ fcitx5 -r
 
 ### Using the Addon
 
-1. **Switch to Schnelle Umlaute** input method (default: `Ctrl+Space`)
+1. **Switch to Schnelle Umlaute** input method (default: <kbd>Ctrl</kbd> + <kbd>Space</kbd>)
    - When active, the Fcitx5 tray icon will show **"Ää"**
    - When using normal keyboard, it shows "En" or "US"
 
 2. **Type umlauts:**
 
-| Want | Hold        | Press Leader Key | Result |
-|------|-------------|------------------|--------|
-| ä    | a           | Space (default)  | ä      |
-| ö    | o           | Space (default)  | ö      |
-| ü    | u           | Space (default)  | ü      |
-| ß    | s           | Space (default)  | ß      |
-| Ä    | A (Shift+a) | Space (default)  | Ä      |
-| Ö    | O (Shift+o) | Space (default)  | Ö      |
-| Ü    | U (Shift+u) | Space (default)  | Ü      |
+| Want | Hold | Press Leader Key | Result |
+|------|------|------------------|--------|
+| ä | <kbd>a</kbd> | <kbd>Space</kbd> | ä |
+| ö | <kbd>o</kbd> | <kbd>Space</kbd> | ö |
+| ü | <kbd>u</kbd> | <kbd>Space</kbd> | ü |
+| ß | <kbd>s</kbd> | <kbd>Space</kbd> | ß |
+| Ä | <kbd>Shift</kbd> + <kbd>a</kbd> | <kbd>Space</kbd> | Ä |
+| Ö | <kbd>Shift</kbd> + <kbd>o</kbd> | <kbd>Space</kbd> | Ö |
+| Ü | <kbd>Shift</kbd> + <kbd>u</kbd> | <kbd>Space</kbd> | Ü |
 
-   **Note:** Leader key is **Space** by default, but can be configured to Left/Right Arrow or combinations (see below).
+   **Note:** Leader key is <kbd>Space</kbd> by default, but can be configured to <kbd>←</kbd>/<kbd>→</kbd> Arrow or combinations (see below).
 
 3. **Type normally:** If you don't press the leader key within the time window, the normal letter appears
 
@@ -314,20 +327,20 @@ You can customize the timing delays to match your typing speed:
 - Start with defaults (400ms/700ms) and adjust if needed
 - Faster typists may prefer shorter delays (300ms/600ms)
 - Slower, more deliberate typing benefits from longer delays (500ms/800ms)
-- Uppercase delay should be ~300ms longer than lowercase (harder to coordinate Shift+Letter+Space)
+- Uppercase delay should be ~300ms longer than lowercase (harder to coordinate <kbd>Shift</kbd> + Letter + <kbd>Space</kbd>)
 
 ### Configuring Leader Key (Advanced)
 
 You can customize which key activates the umlaut transformation. This feature is inspired by PowerToys Quick Accents on Windows.
 
 **Available Options:**
-- **Space** (Default) - Simple and intuitive
-- **LeftArrow** - Cursor moves back, convenient for continued typing
-- **RightArrow** - Cursor moves forward
-- **SpaceOrLeft** - Either Space or Left Arrow works
-- **SpaceOrRight** - Either Space or Right Arrow works
-- **LeftOrRight** - Either Left or Right Arrow works
-- **All** - All three keys work (Space, Left Arrow, Right Arrow)
+- <kbd>Space</kbd> (Default) - Simple and intuitive
+- <kbd>←</kbd> LeftArrow - Cursor moves back, convenient for continued typing
+- <kbd>→</kbd> RightArrow - Cursor moves forward
+- <kbd>Space</kbd> or <kbd>←</kbd> - Either Space or Left Arrow works
+- <kbd>Space</kbd> or <kbd>→</kbd> - Either Space or Right Arrow works
+- <kbd>←</kbd> or <kbd>→</kbd> - Either Left or Right Arrow works
+- **All** - All three keys work (<kbd>Space</kbd>, <kbd>←</kbd>, <kbd>→</kbd>)
 
 **How to configure:**
 
@@ -356,24 +369,25 @@ You can customize which key activates the umlaut transformation. This feature is
    ```
 
 **Tips:**
-- **Space** works well for most users and feels natural
-- **Arrow keys** can be useful if you want to combine umlaut input with cursor movement
-- **Combinations** (e.g., SpaceOrRight) give you flexibility without committing to one key
+- <kbd>Space</kbd> works well for most users and feels natural
+- Arrow keys can be useful if you want to combine umlaut input with cursor movement
+- Combinations (e.g., <kbd>Space</kbd> or <kbd>→</kbd>) give you flexibility without committing to one key
 
 ### Customizing Character Mappings (Advanced)
 
 You can customize which input characters produce which outputs! The addon provides **20 mapping slots** that you can configure freely.
 
 **Default mappings** (first 7 slots):
+
 | Input | Output | Description |
 |-------|--------|-------------|
-| a     | ä      | German lowercase umlaut |
-| o     | ö      | German lowercase umlaut |
-| u     | ü      | German lowercase umlaut |
-| s     | ß      | German sharp S |
-| A     | Ä      | German uppercase umlaut |
-| O     | Ö      | German uppercase umlaut |
-| U     | Ü      | German uppercase umlaut |
+| <kbd>a</kbd> | ä | German lowercase umlaut |
+| <kbd>o</kbd> | ö | German lowercase umlaut |
+| <kbd>u</kbd> | ü | German lowercase umlaut |
+| <kbd>s</kbd> | ß | German sharp S |
+| <kbd>A</kbd> | Ä | German uppercase umlaut |
+| <kbd>O</kbd> | Ö | German uppercase umlaut |
+| <kbd>U</kbd> | Ü | German uppercase umlaut |
 
 **How to customize:**
 
@@ -424,8 +438,8 @@ You can customize which input characters produce which outputs! The addon provid
 Cycle through multiple accent variants by pressing the leader key repeatedly. Instead of creating separate mappings for each variant, define all variants in a single Output field separated by commas.
 
 **How it works:**
-1. Hold the input key (e.g., `e`)
-2. Press leader key (Space) → first variant appears (e.g., `é`)
+1. Hold the input key (e.g., <kbd>e</kbd>)
+2. Press leader key (<kbd>Space</kbd>) → first variant appears (e.g., `é`)
 3. Press leader key again → next variant (e.g., `è`)
 4. Keep pressing → cycles through all variants (è → ê → ë → é → ...)
 5. Release input key → cycling stops, current selection is kept
@@ -463,10 +477,10 @@ Mapping10Output=ç,ć,č
 
 | Input | Output | Cycling sequence |
 |-------|--------|------------------|
-| e | é,è,ê,ë | é → è → ê → ë → é → ... |
-| a | á,à,â,ã,å | á → à → â → ã → å → á → ... |
-| n | ñ,ń,ň | ñ → ń → ň → ñ → ... |
-| o | ó,ò,ô,õ,ø | ó → ò → ô → õ → ø → ó → ... |
+| <kbd>e</kbd> | é,è,ê,ë | é → è → ê → ë → é → ... |
+| <kbd>a</kbd> | á,à,â,ã,å | á → à → â → ã → å → á → ... |
+| <kbd>n</kbd> | ñ,ń,ň | ñ → ń → ň → ñ → ... |
+| <kbd>o</kbd> | ó,ò,ô,õ,ø | ó → ò → ô → õ → ø → ó → ... |
 
 ### Snippets (Text Expansion)
 
@@ -476,10 +490,10 @@ Map a single key to an entire phrase or longer text. Useful for frequently typed
 
 | Input | Output | Use case |
 |-------|--------|----------|
-| g | Guten Tag | German greeting |
-| m | Mit freundlichen Grüßen | Email signature |
-| @ | name@example.com | Email address |
-| t | TODO: | Code annotation |
+| <kbd>g</kbd> | Guten Tag | German greeting |
+| <kbd>m</kbd> | Mit freundlichen Grüßen | Email signature |
+| <kbd>@</kbd> | name@example.com | Email address |
+| <kbd>t</kbd> | TODO: | Code annotation |
 
 **Configuration:**
 
@@ -495,7 +509,7 @@ Mapping13Input=@
 Mapping13Output=name@example.com
 ```
 
-Hold `g` + press Space → "Guten Tag" is inserted.
+Hold <kbd>g</kbd> + press <kbd>Space</kbd> → "Guten Tag" is inserted.
 
 **Important:** Snippets cannot contain commas, as commas are used as the separator for cycling. Use snippets only for text without commas.
 
@@ -507,10 +521,10 @@ Map keys to emoji for quick insertion without opening an emoji picker.
 
 | Input | Output | Description |
 |-------|--------|-------------|
-| h | ❤️ | Heart |
-| t | 👍 | Thumbs up |
-| s | 😊 | Smile |
-| c | ✓ | Checkmark |
+| <kbd>h</kbd> | ❤️ | Heart |
+| <kbd>t</kbd> | 👍 | Thumbs up |
+| <kbd>s</kbd> | 😊 | Smile |
+| <kbd>c</kbd> | ✓ | Checkmark |
 
 Emoji cycling also works: `Mapping14Output=😊,😀,😁,🙂` cycles through smileys.
 
@@ -597,7 +611,7 @@ Then **logout and login again** for changes to take effect.
 
 ### Umlauts not appearing
 
-1. Make sure you're switched to "Schnelle Umlaute" input method (Ctrl+Space)
+1. Make sure you're switched to "Schnelle Umlaute" input method (<kbd>Ctrl</kbd> + <kbd>Space</kbd>)
 2. Check Fcitx5 is running: `ps aux | grep fcitx5`
 3. Try holding the key longer before pressing Space
 4. Verify environment variables are set: `echo $GTK_IM_MODULE` (should output "fcitx5")
@@ -644,7 +658,7 @@ This enables the native Wayland input method protocol and eliminates the warning
 
 ### Kitty terminal not working
 
-**Symptom:** The input method indicator doesn't change when pressing Ctrl+Space in Kitty, or the indicator appears in other windows instead of Kitty.
+**Symptom:** The input method indicator doesn't change when pressing <kbd>Ctrl</kbd> + <kbd>Space</kbd> in Kitty, or the indicator appears in other windows instead of Kitty.
 
 **Cause:** Kitty's Wayland text-input implementation doesn't properly register the input context with Fcitx5, causing Fcitx5 to not recognize the Kitty window.
 
@@ -657,7 +671,7 @@ This enables the native Wayland input method protocol and eliminates the warning
 
 2. Restart all Kitty windows (close and reopen)
 
-3. Test: Press Ctrl+Space in Kitty - the input method indicator should now appear in Kitty
+3. Test: Press <kbd>Ctrl</kbd> + <kbd>Space</kbd> in Kitty - the input method indicator should now appear in Kitty
 
 **Note:** Make sure you also have `GLFW_IM_MODULE=ibus` set in your environment variables (see step 4 of Installation).
 
@@ -674,10 +688,10 @@ gcc --version  # Should be 11 or newer
 
 **Cause:** Terminal emulators often don't display preedit (composition) text visually. The cycling happens internally, but the preview is only shown after you release the input key.
 
-**Workaround:** Count your Space presses to reach the desired variant:
-- 1× Space = first variant (e.g., ä)
-- 2× Space = second variant (e.g., à)
-- 3× Space = third variant (e.g., â)
+**Workaround:** Count your <kbd>Space</kbd> presses to reach the desired variant:
+- 1× <kbd>Space</kbd> = first variant (e.g., ä)
+- 2× <kbd>Space</kbd> = second variant (e.g., à)
+- 3× <kbd>Space</kbd> = third variant (e.g., â)
 - etc.
 
 The final character is committed when you release the input key. In GUI applications (Firefox, Kate, etc.), the cycling preview is displayed in real-time.

@@ -15,20 +15,16 @@ Quick German umlaut input using Fcitx5 native addon.
 
 ## How it works
 
-```
-┌───┐     ┌───────┐     ┌───┐
-│ a │  +  │ Space │  =  │ ä │
-└───┴─    └───────┴─    └───┘
-```
+<kbd>a</kbd> + <kbd>Space</kbd> → <kbd>ä</kbd>
 
-1. Hold a letter key (a, o, u, s - configurable)
+1. Hold a letter key (<kbd>a</kbd>, <kbd>o</kbd>, <kbd>u</kbd>, <kbd>s</kbd> - configurable)
 2. Press leader key within the time window:
-   - **Leader key**: Space by default (configurable to Arrow keys or combinations)
-   - **400ms** for lowercase letters (a, o, u, s)
-   - **700ms** for uppercase letters (A, O, U)
-3. → Get the umlaut! (ä, ö, ü, ß, Ä, Ö, Ü - or your custom output)
+   - **Leader key**: <kbd>Space</kbd> by default (configurable to Arrow keys or combinations)
+   - **400ms** for lowercase letters
+   - **700ms** for uppercase letters
+3. → Get the umlaut!
 
-**Note:** You can keep Shift pressed while pressing the leader key for uppercase umlauts
+**Note:** You can keep <kbd>Shift</kbd> pressed while pressing the leader key for uppercase umlauts
 
 ## Important: Keyboard Layout Requirement
 
@@ -40,15 +36,15 @@ Physical key → Base layout (US) → Addon → Application
 
 **You always need a base keyboard layout** (e.g., US) in your Fcitx5 configuration. The addon:
 - Receives characters that are already translated by your base layout
-- Only modifies the configured keys (a, o, u, s, etc.)
+- Only modifies the configured keys (<kbd>a</kbd>, <kbd>o</kbd>, <kbd>u</kbd>, <kbd>s</kbd>, etc.)
 - Passes all other keys through unchanged
 
 **Example:**
-```
-┌───┐     ┌───────┐           ┌───┐
-│ a │  +  │ Space │  =  ä     │ b │  =  b (no mapping)
-└───┴─    └───────┴─          └───┴─
-```
+
+| You press | Result |
+|-----------|--------|
+| <kbd>a</kbd> + <kbd>Space</kbd> | ä |
+| <kbd>b</kbd> | b (no mapping) |
 
 ## Accent Cycling
 
@@ -63,11 +59,8 @@ You can define multiple outputs per input using **comma-separated values** in a 
 - Output: `ä,à,â,æ`
 
 **Usage:**
-```
-Hold ┌───┐   Press ┌───────┐        Press ┌───────┐        Press ┌───────┐
-     │ a │    +    │ Space │  =  ä   +    │ Space │  =  à   +    │ Space │  =  â  ...
-     └───┴─        └───────┴─             └───────┴─             └───────┴─
-```
+
+Hold <kbd>a</kbd> + <kbd>Space</kbd> → ä + <kbd>Space</kbd> → à + <kbd>Space</kbd> → â ...
 
 The character cycles through all defined outputs. Release the key to confirm.
 
@@ -76,23 +69,23 @@ The character cycles through all defined outputs. Release the key to confirm.
 Outputs are not limited to single characters. You can also use:
 
 **Emojis:**
-- Input: `h`
+- Input: <kbd>h</kbd>
 - Output: `❤️,💜,💙,💚`
 
 **Special symbols:**
-- Input: `p`
+- Input: <kbd>p</kbd>
 - Output: `π,φ,θ,Ω`
 
 **Math symbols:**
-- Input: `m`
+- Input: <kbd>m</kbd>
 - Output: `±,×,÷,≠,≈,∞`
 
 **Short text snippets:**
-- Input: `@`
+- Input: <kbd>@</kbd>
 - Output: `mail@example.com`
 
 **Common phrases:**
-- Input: `g`
+- Input: <kbd>g</kbd>
 - Output: `Good morning!,Good afternoon!,Good evening!`
 
 This makes the addon useful beyond accents - use it for any frequently typed text or symbols.
@@ -102,9 +95,9 @@ This makes the addon useful beyond accents - use it for any frequently typed tex
 All settings can be configured via `fcitx5-config-qt`:
 
 - **Delay times** (50-2000ms range)
-- **Leader key** (Space, Left/Right Arrow, or combinations)
+- **Leader key** (<kbd>Space</kbd>, <kbd>←</kbd>/<kbd>→</kbd> Arrow, or combinations)
 - **Character mappings** (20 slots: Input → Output)
-  - Default: German umlauts (a→ä, o→ö, u→ü, s→ß, A→Ä, O→Ö, U→Ü)
+  - Default: German umlauts (<kbd>a</kbd>→ä, <kbd>o</kbd>→ö, <kbd>u</kbd>→ü, <kbd>s</kbd>→ß, <kbd>A</kbd>→Ä, <kbd>O</kbd>→Ö, <kbd>U</kbd>→Ü)
   - Customize for other languages or shortcuts
   - Use comma-separated values for cycling (e.g. `ä,à,â,æ`)
   - Press "Defaults" button to restore German umlauts
@@ -160,31 +153,19 @@ echo $GTK_IM_MODULE   # Should show: fcitx5
 
 2. Add "Schnelle Umlaute" as input method
 
-3. Switch to it (default):
-   ```
-   ┌──────┐     ┌───────┐
-   │ Ctrl │  +  │ Space │
-   └──────┴─    └───────┴─
-   ```
+3. Switch to it (default: <kbd>Ctrl</kbd> + <kbd>Space</kbd>)
 
 4. Type umlauts:
-   ```
-   ┌───┐     ┌───────┐     ┌───┐
-   │ a │  +  │ Space │  =  │ ä │
-   └───┴─    └───────┴─    └───┘
 
-   ┌───┐     ┌───────┐     ┌───┐
-   │ o │  +  │ Space │  =  │ ö │
-   └───┴─    └───────┴─    └───┘
-
-   ┌───┐     ┌───────┐     ┌───┐
-   │ u │  +  │ Space │  =  │ ü │
-   └───┴─    └───────┴─    └───┘
-
-   ┌───┐     ┌───────┐     ┌───┐
-   │ s │  +  │ Space │  =  │ ß │
-   └───┴─    └───────┴─    └───┘
-   ```
+| Hold | Press | Result |
+|------|-------|--------|
+| <kbd>a</kbd> | <kbd>Space</kbd> | ä |
+| <kbd>o</kbd> | <kbd>Space</kbd> | ö |
+| <kbd>u</kbd> | <kbd>Space</kbd> | ü |
+| <kbd>s</kbd> | <kbd>Space</kbd> | ß |
+| <kbd>Shift</kbd> + <kbd>a</kbd> | <kbd>Space</kbd> | Ä |
+| <kbd>Shift</kbd> + <kbd>o</kbd> | <kbd>Space</kbd> | Ö |
+| <kbd>Shift</kbd> + <kbd>u</kbd> | <kbd>Space</kbd> | Ü |
 
 ## Advantages over evdev-rs approach
 
