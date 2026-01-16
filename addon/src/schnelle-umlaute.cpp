@@ -188,6 +188,7 @@ public:
                 ic->commitString(*waitingKey_);
                 ic->updatePreedit();
                 waitingKey_.reset();
+                savedContext_ = nullptr;
                 cancelTimeout();
                 inputKeyPressed_ = false;
                 return;
@@ -250,6 +251,7 @@ public:
                     }
 
                     waitingKey_.reset();
+                    savedContext_ = nullptr;
                     cancelTimeout();
                     keyEvent.filterAndAccept();
                     return;
@@ -282,6 +284,7 @@ public:
                 ic->commitString(*waitingKey_);
                 ic->updatePreedit();
                 waitingKey_.reset();
+                savedContext_ = nullptr;
                 cancelTimeout();
             }
             resetCycling();
@@ -290,10 +293,14 @@ public:
             waitingKey_ = keyChar;
             inputKeyPressed_ = true;
             startTime_ = std::chrono::steady_clock::now();
+
+            // Save the InputContext to use in timeout callback
+            auto* ic = keyEvent.inputContext();
+            savedContext_ = ic;
+
             scheduleTimeout();
 
             // Set preedit text
-            auto* ic = keyEvent.inputContext();
             Text preedit(keyChar);
             preedit.setCursor(preedit.textLength());
             ic->inputPanel().setClientPreedit(preedit);
@@ -314,6 +321,7 @@ public:
             ic->commitString(*waitingKey_);
             ic->updatePreedit();
             waitingKey_.reset();
+            savedContext_ = nullptr;
             cancelTimeout();
         }
         resetCycling();
@@ -328,6 +336,7 @@ public:
         }
 
         waitingKey_.reset();
+        savedContext_ = nullptr;
         inputKeyPressed_ = false;
         cancelTimeout();
         resetCycling();
@@ -338,6 +347,7 @@ public:
     void disable() {
         enabled_ = false;
         waitingKey_.reset();
+        savedContext_ = nullptr;
         inputKeyPressed_ = false;
         cancelTimeout();
         resetCycling();
@@ -482,20 +492,24 @@ private:
         uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * 1000;
 
         auto savedKey = *waitingKey_;
+        auto* savedCtx = savedContext_;
         timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC,
             target_usec,
             0,
-            [this, savedKey](EventSourceTime *, uint64_t) {
+            [this, savedKey, savedCtx](EventSourceTime *, uint64_t) {
                 // PREEDIT: Commit the preedit as-is when timeout expires
                 if (waitingKey_ && *waitingKey_ == savedKey) {
-                    // Commit the preedit as the original character
-                    if (auto* ic = instance_->mostRecentInputContext()) {
-                        ic->inputPanel().reset();
-                        ic->commitString(*waitingKey_);
-                        ic->updatePreedit();
+                    // Only commit to the ORIGINAL context where the key was pressed
+                    // This prevents sending text to the wrong window after focus change
+                    if (savedCtx && savedCtx == savedContext_ && savedCtx->hasFocus()) {
+                        savedCtx->inputPanel().reset();
+                        savedCtx->commitString(*waitingKey_);
+                        savedCtx->updatePreedit();
                     }
+                    // If focus changed, silently discard the pending key
                     waitingKey_.reset();
+                    savedContext_ = nullptr;
                 }
                 timeoutEvent_.reset();
                 return false;
@@ -511,6 +525,7 @@ private:
         if (waitingKey_) {
             ic->commitString(*waitingKey_);
             waitingKey_.reset();
+            savedContext_ = nullptr;
         }
         cancelTimeout();
     }
@@ -526,6 +541,9 @@ private:
 
     // KEY INSIGHT: Track if input key is physically pressed
     bool inputKeyPressed_ = false;
+
+    // Save the InputContext where waitingKey_ was set to avoid sending to wrong window
+    InputContext* savedContext_ = nullptr;
 
     // Cycling state (after first Space, while input key held)
     std::optional<std::string> cyclingInput_;
