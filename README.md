@@ -175,7 +175,10 @@ sequenceDiagram
 
 ## 📋 Requirements
 
-- **Arch Linux** (or compatible distro)
+- **Linux** with Fcitx5 support
+  - **Arch Linux** - Fully tested and supported
+  - **Debian/Ubuntu** - Experimental (packaging available)
+  - **Fedora/RHEL** - Experimental (packaging available)
 - **Fcitx5** - Input Method Framework
 - **CMake** and **extra-cmake-modules** - For building
 - **GCC with C++20 support** - For compilation
@@ -239,6 +242,36 @@ EOF
 ```
 
 **Note:** `GLFW_IM_MODULE=ibus` is required for Kitty terminal and other GLFW-based applications.
+
+### 🧪 Debian/Ubuntu (Experimental)
+
+> **Note:** Debian/Ubuntu packaging is experimental and has not been extensively tested. Please report any issues.
+
+```bash
+# Install build dependencies
+sudo apt install build-essential cmake extra-cmake-modules libfcitx5core-dev fcitx5-modules-dev gettext debhelper
+
+# Build the package
+dpkg-buildpackage -us -uc -b
+
+# Install
+sudo dpkg -i ../fcitx5-schnelle-umlaute_*.deb
+```
+
+### 🧪 Fedora/RHEL (Experimental)
+
+> **Note:** Fedora/RHEL packaging is experimental and has not been extensively tested. Please report any issues.
+
+```bash
+# Install build dependencies
+sudo dnf install cmake extra-cmake-modules gcc-c++ fcitx5-devel gettext rpm-build
+
+# Build the package
+rpmbuild -ba fcitx5-schnelle-umlaute.spec
+
+# Install
+sudo dnf install ~/rpmbuild/RPMS/x86_64/fcitx5-schnelle-umlaute-*.rpm
+```
 
 **5. Logout and Login**
 

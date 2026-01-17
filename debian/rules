@@ -1,0 +1,21 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	cd addon && cmake -B build \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH)
+
+override_dh_auto_build:
+	cmake --build addon/build
+
+override_dh_auto_install:
+	DESTDIR=$(CURDIR)/debian/fcitx5-schnelle-umlaute cmake --install addon/build
+
+override_dh_auto_test:
+	# No tests to run

@@ -1,0 +1,30 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]; then
+    echo ""
+    echo "=============================================="
+    echo "  Schnelle Umlaute installed successfully!"
+    echo "=============================================="
+    echo ""
+    echo "Setup required for full functionality:"
+    echo ""
+    echo "1. Configure environment variables:"
+    echo "   Add to ~/.profile or /etc/environment:"
+    echo "   GTK_IM_MODULE=fcitx"
+    echo "   QT_IM_MODULE=fcitx"
+    echo "   XMODIFIERS=@im=fcitx"
+    echo ""
+    echo "2. LOGOUT AND LOGIN for changes to take effect"
+    echo ""
+    echo "3. Add input method:"
+    echo "   fcitx5-config-qt"
+    echo "   -> Input Method -> Add -> Search 'Schnelle Umlaute'"
+    echo ""
+    echo "4. Test: Hold 'a' + press Space -> ä"
+    echo ""
+fi
+
+#DEBHELPER#
+
+exit 0
