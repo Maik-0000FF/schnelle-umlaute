@@ -770,6 +770,18 @@ rm ~/.config/environment.d/fcitx5.conf  # Optional: remove environment config
 fcitx5 -r
 ```
 
+### Debian/Ubuntu
+
+```bash
+sudo apt remove fcitx5-schnelle-umlaute
+```
+
+### Fedora/RHEL
+
+```bash
+sudo dnf remove fcitx5-schnelle-umlaute
+```
+
 ## 📚 Documentation
 
 - **[INSTALL.md](INSTALL.md)** - Complete installation guide with troubleshooting
