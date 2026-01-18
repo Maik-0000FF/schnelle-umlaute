@@ -177,17 +177,14 @@ sequenceDiagram
 
 - **Linux** with Fcitx5 support
   - **Arch Linux** - Fully tested and supported
-  - **Debian/Ubuntu** - Experimental (packaging available)
-  - **Fedora/RHEL** - Experimental (packaging available)
+  - **Ubuntu/Debian** - Experimental (via `install-ubuntu.sh`)
 - **Fcitx5** - Input Method Framework
 - **CMake** and **extra-cmake-modules** - For building
 - **GCC with C++20 support** - For compilation
 
 ## 📦 Installation
 
-### Quick Start (Recommended)
-
-The easiest way to install:
+### Arch Linux (Recommended)
 
 ```bash
 git clone https://github.com/Maik-0000FF/schnelle-umlaute.git
@@ -198,12 +195,33 @@ cd schnelle-umlaute
 The script will:
 - Check and install dependencies
 - Build and install the addon
-- Configure environment variables automatically (replaces old fcitx4 settings if present)
+- Configure environment variables automatically
 - Guide you through the setup
 
 **After installation:** Logout and login, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
 
-### 🔧 Manual Installation
+### Ubuntu / Debian (Experimental)
+
+> **Note:** Ubuntu/Debian support is experimental. Please report any issues.
+
+```bash
+git clone https://github.com/Maik-0000FF/schnelle-umlaute.git
+cd schnelle-umlaute
+./install-ubuntu.sh
+```
+
+The script will:
+- Install all required packages via `apt`
+- Build and install the addon
+- Configure Fcitx5 as default input method (replaces IBus)
+- Set up environment variables for GNOME
+- Configure autostart
+
+**After installation:** Logout and login, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
+
+**Note:** Make sure to uncheck "Only Show Current Language" when searching for the addon.
+
+### 🔧 Manual Installation (Arch Linux)
 
 If you prefer manual installation:
 
@@ -242,36 +260,6 @@ EOF
 ```
 
 **Note:** `GLFW_IM_MODULE=ibus` is required for Kitty terminal and other GLFW-based applications.
-
-### 🧪 Debian/Ubuntu (Experimental)
-
-> **Note:** Debian/Ubuntu packaging is experimental and has not been extensively tested. Please report any issues.
-
-```bash
-# Install build dependencies
-sudo apt install build-essential cmake extra-cmake-modules libfcitx5core-dev fcitx5-modules-dev gettext debhelper
-
-# Build the package
-dpkg-buildpackage -us -uc -b
-
-# Install
-sudo dpkg -i ../fcitx5-schnelle-umlaute_*.deb
-```
-
-### 🧪 Fedora/RHEL (Experimental)
-
-> **Note:** Fedora/RHEL packaging is experimental and has not been extensively tested. Please report any issues.
-
-```bash
-# Install build dependencies
-sudo dnf install cmake extra-cmake-modules gcc-c++ fcitx5-devel gettext rpm-build
-
-# Build the package
-rpmbuild -ba fcitx5-schnelle-umlaute.spec
-
-# Install
-sudo dnf install ~/rpmbuild/RPMS/x86_64/fcitx5-schnelle-umlaute-*.rpm
-```
 
 **5. Logout and Login**
 
@@ -768,18 +756,6 @@ sudo rm /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.
 sudo rm /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf
 rm ~/.config/environment.d/fcitx5.conf  # Optional: remove environment config
 fcitx5 -r
-```
-
-### Debian/Ubuntu
-
-```bash
-sudo apt remove fcitx5-schnelle-umlaute
-```
-
-### Fedora/RHEL
-
-```bash
-sudo dnf remove fcitx5-schnelle-umlaute
 ```
 
 ## 📚 Documentation

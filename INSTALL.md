@@ -2,6 +2,8 @@
 
 Complete step-by-step installation guide for **Schnelle Umlaute** Fcitx5 addon.
 
+> **Ubuntu/Debian Users:** Use `./install-ubuntu.sh` instead of following this guide. The script handles all dependencies and configuration automatically.
+
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
@@ -16,7 +18,7 @@ Complete step-by-step installation guide for **Schnelle Umlaute** Fcitx5 addon.
 
 ### System Requirements
 
-- **Linux Distribution**: Arch Linux (or compatible)
+- **Linux Distribution**: Arch Linux (or compatible) - For Ubuntu/Debian, use `./install-ubuntu.sh`
 - **Display Server**: X11 or Wayland
 - **Input Method Framework**: Fcitx5
 

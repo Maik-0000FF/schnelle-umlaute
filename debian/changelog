@@ -1,7 +1,0 @@
-fcitx5-schnelle-umlaute (0.1.1-1) unstable; urgency=medium
-
-  * Initial Debian release
-  * Case-insensitive key release comparison for Shift+letter
-  * Prevent text from being sent to wrong window on focus change
-
- -- Maik <https://github.com/Maik-0000FF>  Fri, 17 Jan 2026 12:00:00 +0100
