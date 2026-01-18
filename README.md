@@ -338,6 +338,15 @@ gsettings set org.gnome.settings-daemon.plugins.xsettings overrides "{'Gtk/IMMod
 
 ## 🎮 Setup & Usage
 
+### Important: Keyboard Layout Requirement
+
+This addon is **not a standalone keyboard layout** - it works **alongside** your existing keyboard layout.
+
+**You always need a base keyboard layout** (e.g., US) in your Fcitx5 configuration. The addon:
+- Receives characters that are already translated by your base layout
+- Only modifies the configured keys (a, o, u, s, etc.)
+- Passes all other keys through unchanged
+
 ### Configure Fcitx5
 
 1. Open Fcitx5 configuration:
@@ -743,6 +752,17 @@ If you see a warning about Fcitx5 not being launched by KWin, fix it for optimal
 
 This enables the native Wayland input method protocol and eliminates the warning.
 
+### Input method not shared across applications
+
+By default, Fcitx5 remembers the input method **per application**. If you switch to "Schnelle Umlaute" in Firefox, the terminal may still use the US keyboard.
+
+To share the input method state globally:
+
+1. Open Fcitx5 configuration: `fcitx5-config-qt`
+2. Go to **Global Options**
+3. Set **Share Input State** to **All**
+4. Restart Fcitx5: `fcitx5 -r`
+
 ### Kitty terminal not working
 
 **Symptom:** The input method indicator doesn't change when pressing <kbd>Ctrl</kbd> + <kbd>Space</kbd> in Kitty, or the indicator appears in other windows instead of Kitty.
@@ -829,10 +849,6 @@ sudo rm /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf
 rm ~/.config/environment.d/fcitx5.conf  # Optional: remove environment config
 fcitx5 -r
 ```
-
-## 📚 Documentation
-
-- **[addon/README.md](addon/README.md)** - Detailed addon documentation
 
 ## 🤝 Contributing
 
