@@ -832,7 +832,6 @@ fcitx5 -r
 
 ## 📚 Documentation
 
-- **[INSTALL.md](INSTALL.md)** - Complete installation guide with troubleshooting
 - **[addon/README.md](addon/README.md)** - Detailed addon documentation
 
 ## 🤝 Contributing
