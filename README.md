@@ -4,9 +4,9 @@
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://www.linux.org/)
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
 
-**Linux Alternative to Windows PowerToys Quick Accent** - Fast accent input using hold+space gestures.
+**Linux Alternative to Windows PowerToys Quick Accent** - Fast accent and special character input using hold+space gestures.
 
-Missing **PowerToys Quick Accent** on Linux? This is the solution. Type accents, umlauts, emojis, symbols, and text snippets using intuitive hold + space gestures. Supports accent cycling through multiple variants. Native Fcitx5 addon with clipboard-free operation for X11 and Wayland.
+Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets you type accents, umlauts, emojis, symbols, and text snippets using intuitive hold + space keyboard gestures. Supports accent cycling (é → è → ê → ë) for German, French, Spanish and other languages. Clipboard-free operation on X11 and Wayland.
 
 **Features:**
 - Hold letter + space/arrow keys for accent characters
