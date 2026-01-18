@@ -268,6 +268,74 @@ EOF
 fcitx5 -r
 ```
 
+### 🔧 Manual Installation (Ubuntu / Debian)
+
+If you prefer manual installation:
+
+**1. Install Dependencies**
+
+```bash
+sudo apt update
+sudo apt install fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 \
+    fcitx5-frontend-qt5 libfcitx5core-dev cmake extra-cmake-modules g++ gettext
+```
+
+**2. Build the Addon**
+
+```bash
+cd addon
+./build.sh
+```
+
+**3. Install**
+
+```bash
+cd build
+sudo make install
+```
+
+**4. Configure Environment Variables**
+
+For the addon to work in ALL applications (GTK, Qt, browsers, terminals, etc.), set up environment variables:
+
+```bash
+mkdir -p ~/.config/environment.d
+cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+EOF
+```
+
+**Note:** On Ubuntu/Debian, use `fcitx` (not `fcitx5`) for the environment variables.
+
+**5. Set Fcitx5 as Default Input Method**
+
+```bash
+im-config -n fcitx5
+```
+
+**6. Setup Autostart**
+
+```bash
+mkdir -p ~/.config/autostart
+cp /usr/share/applications/org.fcitx.Fcitx5.desktop ~/.config/autostart/
+```
+
+**7. Logout and Login**
+
+**IMPORTANT:** You must logout and login again for the environment variables to take effect!
+
+```bash
+# After logout/login, verify Fcitx5 is running:
+fcitx5 -r
+```
+
+**GNOME Users:** If Fcitx5 doesn't work in GNOME apps, run:
+```bash
+gsettings set org.gnome.settings-daemon.plugins.xsettings overrides "{'Gtk/IMModule':<'fcitx'>}"
+```
+
 ## 🎮 Setup & Usage
 
 ### Configure Fcitx5
