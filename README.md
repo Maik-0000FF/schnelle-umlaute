@@ -177,7 +177,7 @@ sequenceDiagram
 
 - **Linux** with Fcitx5 support
   - **Arch Linux** - Fully tested and supported
-  - **Ubuntu/Debian** - Experimental (via `install-ubuntu.sh`)
+  - **Ubuntu/Debian** - Supported (via `install-ubuntu.sh`)
 - **Fcitx5** - Input Method Framework
 - **CMake** and **extra-cmake-modules** - For building
 - **GCC with C++20 support** - For compilation
@@ -200,9 +200,7 @@ The script will:
 
 **After installation:** Logout and login, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
 
-### Ubuntu / Debian (Experimental)
-
-> **Note:** Ubuntu/Debian support is experimental. Please report any issues.
+### Ubuntu / Debian
 
 ```bash
 git clone https://github.com/Maik-0000FF/schnelle-umlaute.git
@@ -728,15 +726,21 @@ Applications with custom text rendering or non-standard input handling may not w
 
 ## 🗑️ Uninstallation
 
-### Quick Uninstall (Recommended)
+### Arch Linux
 
 ```bash
 ./uninstall.sh
 ```
 
-The script will:
-- Remove all installed files
-- Ask if you want to remove environment configuration
+### Ubuntu / Debian
+
+```bash
+./uninstall-ubuntu.sh
+```
+
+Both scripts will:
+- Remove all installed addon files
+- Ask if you want to remove environment/autostart configuration
 - Restart Fcitx5
 
 ### Manual Uninstallation

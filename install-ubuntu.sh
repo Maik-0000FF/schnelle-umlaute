@@ -10,7 +10,6 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Schnelle Umlaute - Ubuntu Installation${NC}"
-echo -e "${YELLOW}           (Experimental)${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo
 
