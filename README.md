@@ -277,7 +277,7 @@ If you prefer manual installation:
 ```bash
 sudo apt update
 sudo apt install fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 \
-    fcitx5-frontend-qt5 libfcitx5core-dev cmake extra-cmake-modules g++ gettext
+    fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev cmake extra-cmake-modules g++ gettext
 ```
 
 **2. Build the Addon**

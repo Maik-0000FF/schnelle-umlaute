@@ -47,6 +47,7 @@ DEPS=(
     fcitx5-frontend-gtk4
     fcitx5-frontend-qt5
     libfcitx5core-dev
+    fcitx5-modules-dev
     cmake
     extra-cmake-modules
     g++
