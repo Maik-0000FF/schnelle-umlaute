@@ -206,6 +206,27 @@ public:
         }
 
         // =========================================
+        // SKIP IF MODIFIER KEYS ARE PRESSED (Ctrl, Alt, Super)
+        // This allows shortcuts like Ctrl+C, Alt+F4, etc. to work
+        // =========================================
+        KeyStates modifiers = key.states();
+        if (modifiers.test(KeyState::Ctrl) || modifiers.test(KeyState::Alt) ||
+            modifiers.test(KeyState::Super)) {
+            // Commit any pending preedit before letting the shortcut through
+            if (waitingKey_) {
+                auto* ic = keyEvent.inputContext();
+                ic->inputPanel().reset();
+                ic->commitString(*waitingKey_);
+                ic->updatePreedit();
+                waitingKey_.reset();
+                savedContext_ = nullptr;
+                cancelTimeout();
+            }
+            resetCycling();
+            return;  // Let the shortcut through
+        }
+
+        // =========================================
         // HANDLE LEADER KEY (Space/Arrows)
         // =========================================
         if (isLeaderKey(key)) {
