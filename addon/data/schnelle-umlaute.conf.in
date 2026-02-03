@@ -225,3 +225,103 @@ Description=Input 20
 Type=String
 DefaultValue=
 Description=Output 20
+
+[Mapping21Input]
+Type=String
+DefaultValue=
+Description=Input 21
+
+[Mapping21Output]
+Type=String
+DefaultValue=
+Description=Output 21
+
+[Mapping22Input]
+Type=String
+DefaultValue=
+Description=Input 22
+
+[Mapping22Output]
+Type=String
+DefaultValue=
+Description=Output 22
+
+[Mapping23Input]
+Type=String
+DefaultValue=
+Description=Input 23
+
+[Mapping23Output]
+Type=String
+DefaultValue=
+Description=Output 23
+
+[Mapping24Input]
+Type=String
+DefaultValue=
+Description=Input 24
+
+[Mapping24Output]
+Type=String
+DefaultValue=
+Description=Output 24
+
+[Mapping25Input]
+Type=String
+DefaultValue=
+Description=Input 25
+
+[Mapping25Output]
+Type=String
+DefaultValue=
+Description=Output 25
+
+[Mapping26Input]
+Type=String
+DefaultValue=
+Description=Input 26
+
+[Mapping26Output]
+Type=String
+DefaultValue=
+Description=Output 26
+
+[Mapping27Input]
+Type=String
+DefaultValue=
+Description=Input 27
+
+[Mapping27Output]
+Type=String
+DefaultValue=
+Description=Output 27
+
+[Mapping28Input]
+Type=String
+DefaultValue=
+Description=Input 28
+
+[Mapping28Output]
+Type=String
+DefaultValue=
+Description=Output 28
+
+[Mapping29Input]
+Type=String
+DefaultValue=
+Description=Input 29
+
+[Mapping29Output]
+Type=String
+DefaultValue=
+Description=Output 29
+
+[Mapping30Input]
+Type=String
+DefaultValue=
+Description=Input 30
+
+[Mapping30Output]
+Type=String
+DefaultValue=
+Description=Output 30

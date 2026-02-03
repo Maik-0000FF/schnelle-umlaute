@@ -131,7 +131,7 @@
             "Emoji mappings",
             "No clipboard interference",
             "X11 and Wayland support",
-            "20 customizable mappings",
+            "30 customizable mappings",
             "Configurable time delay"
         ],
         "keywords": "PowerToys, Quick Accent, Linux, German umlauts, Fcitx5, umlaut, accent cycling, snippets, Umlaute tippen, deutsche Sonderzeichen, accents français, caractères accentués, acentos español, teclado español, acentos português, teclado português, cedilha, Braille Unicode, Braille Schriftzeichen, Blindenschrift",
@@ -187,7 +187,7 @@
                 "name": "What is Schnelle Umlaute?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Schnelle Umlaute is a native Fcitx5 addon for Linux that enables fast German umlaut input using the same hold + space gesture as Windows PowerToys Quick Accent."
+                    "text": "Schnelle Umlaute is a native Fcitx5 addon for Linux that enables fast German umlaut input using the same hold + space gesture as Windows PowerToys Quick Accent. It's a lightweight, system-wide solution that works in any application."
                 }
             },
             {
@@ -195,7 +195,7 @@
                 "name": "Does Schnelle Umlaute work on Wayland?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Yes, Schnelle Umlaute works natively on both X11 and Wayland display protocols without any additional configuration."
+                    "text": "Yes, Schnelle Umlaute works natively on both X11 and Wayland display protocols without any additional configuration. Since it's a Fcitx5 addon, it integrates directly with your input method framework."
                 }
             },
             {
@@ -203,7 +203,7 @@
                 "name": "Does Schnelle Umlaute interfere with the clipboard?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "No, unlike many Linux alternatives, Schnelle Umlaute uses direct text insertion via Fcitx5's commitString() API and never touches your clipboard."
+                    "text": "No, unlike many Linux alternatives that use xdotool or clipboard-based solutions, Schnelle Umlaute uses direct text insertion via Fcitx5's commitString() API. Your clipboard stays completely untouched."
                 }
             },
             {
@@ -211,7 +211,31 @@
                 "name": "What characters can I type with Schnelle Umlaute?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "By default, you can type German umlauts (ä, ö, ü, ß), but the addon supports 20 customizable mappings including accent cycling, text snippets, and emoji."
+                    "text": "By default, German umlauts (ä, ö, ü, ß) are configured. But with 30 customizable mapping slots, you can add French accents, Spanish characters, Portuguese accents, Braille Unicode, emojis, math symbols, or even full text snippets."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How does accent cycling work in Schnelle Umlaute?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "After inserting an accented character, press the leader key (Space by default) again to cycle through variants. For example: á → à → â → ã → ā. This is perfect for languages with multiple accent types on the same base letter."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Which Linux distributions are supported?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Schnelle Umlaute is fully tested on Arch Linux and Ubuntu/Debian. Installation scripts are provided for both. It should work on any distribution with Fcitx5 support."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Can I customize the timing in Schnelle Umlaute?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes, the time window for detecting the hold + space gesture is configurable via fcitx5-config-qt. The default is 400ms for lowercase and 600ms for uppercase letters, but you can adjust these values to match your typing speed."
                 }
             }
         ]
@@ -557,6 +581,79 @@
             font-family: 'Courier New', monospace;
             font-size: 0.9em;
         }
+
+        .faq {
+            margin: 40px 0;
+            content-visibility: auto;
+        }
+
+        .faq h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        .faq-list {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .faq-item {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .faq-item summary {
+            padding: 18px 20px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #333;
+            background: #f8f9fa;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .faq-item summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .faq-item summary::after {
+            content: "+";
+            font-size: 1.4em;
+            color: #764ba2;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .faq-item[open] summary::after {
+            content: "-";
+        }
+
+        .faq-item summary:hover {
+            background: #f0ebff;
+        }
+
+        .faq-answer {
+            padding: 18px 20px;
+            color: #555;
+            line-height: 1.7;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .faq-answer a {
+            color: #764ba2;
+            text-decoration: none;
+        }
+
+        .faq-answer a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -602,7 +699,7 @@
                     <li>Emoji mappings for quick insertion</li>
                     <li>No clipboard interference (unlike many Linux alternatives)</li>
                     <li>Works system-wide on X11 and Wayland</li>
-                    <li>20 customizable character mappings with cycling support</li>
+                    <li>30 customizable character mappings with cycling support</li>
                 </ul>
             </section>
 
@@ -631,7 +728,7 @@
                 </article>
                 <article class="feature">
                     <h3>Fully Configurable</h3>
-                    <p>20 mapping slots, custom delays, flexible leader keys (Space/Arrows)</p>
+                    <p>30 mapping slots, custom delays, flexible leader keys (Space/Arrows)</p>
                 </article>
                 </div>
             </section>
@@ -668,6 +765,54 @@
                         </div>
                     </li>
                 </ol>
+            </section>
+
+            <section class="faq" aria-labelledby="faq-heading">
+                <h2 id="faq-heading">Frequently Asked Questions</h2>
+                <div class="faq-list">
+                    <details class="faq-item">
+                        <summary>What is Schnelle Umlaute?</summary>
+                        <div class="faq-answer">
+                            Schnelle Umlaute is a native Fcitx5 addon for Linux that enables fast German umlaut input using the same hold + space gesture as Windows PowerToys Quick Accent. It's a lightweight, system-wide solution that works in any application.
+                        </div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Does it work on Wayland?</summary>
+                        <div class="faq-answer">
+                            Yes, Schnelle Umlaute works natively on both X11 and Wayland display protocols without any additional configuration. Since it's a Fcitx5 addon, it integrates directly with your input method framework.
+                        </div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Does it interfere with my clipboard?</summary>
+                        <div class="faq-answer">
+                            No, unlike many Linux alternatives that use xdotool or clipboard-based solutions, Schnelle Umlaute uses direct text insertion via Fcitx5's <code>commitString()</code> API. Your clipboard stays completely untouched.
+                        </div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>What characters can I type?</summary>
+                        <div class="faq-answer">
+                            By default, German umlauts (ä, ö, ü, ß) are configured. But with 30 customizable mapping slots, you can add French accents (é, è, ê, ç), Spanish characters (ñ, á), Portuguese accents (ã, õ), Braille Unicode, emojis, math symbols, or even full text snippets.
+                        </div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>How does accent cycling work?</summary>
+                        <div class="faq-answer">
+                            After inserting an accented character, press the leader key (Space by default) again to cycle through variants. For example: á → à → â → ã → ā. This is perfect for languages with multiple accent types on the same base letter.
+                        </div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Which Linux distributions are supported?</summary>
+                        <div class="faq-answer">
+                            Schnelle Umlaute is fully tested on Arch Linux and Ubuntu/Debian. Installation scripts are provided for both. It should work on any distribution with Fcitx5 support. Check the <a href="https://github.com/Maik-0000FF/schnelle-umlaute#-installation">installation guide</a> for details.
+                        </div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Can I customize the timing?</summary>
+                        <div class="faq-answer">
+                            Yes, the time window for detecting the hold + space gesture is configurable via <code>fcitx5-config-qt</code>. The default is 400ms for lowercase and 600ms for uppercase letters, but you can adjust these values to match your typing speed.
+                        </div>
+                    </details>
+                </div>
             </section>
 
             <section class="cta-final" aria-labelledby="cta-heading" style="text-align: center; margin: 50px 0;">

@@ -13,7 +13,7 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã)
 - Snippets: Map single keys to entire text phrases
 - Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
-- Configurable activation keys and 20 mapping slots
+- Configurable activation keys and 30 mapping slots
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
 
@@ -172,7 +172,7 @@ sequenceDiagram
 
 **Note:** The uppercase delay is longer because typing <kbd>Shift</kbd> + Letter + <kbd>Space</kbd> requires more finger coordination.
 
-**All character mappings are fully customizable!** You can configure up to 20 custom input→output mappings via `fcitx5-config-qt`. See the "Customizing Character Mappings" section below for details.
+**All character mappings are fully customizable!** You can configure up to 30 custom input→output mappings via `fcitx5-config-qt`. See the "Customizing Character Mappings" section below for details.
 
 ## 📋 Requirements
 
@@ -472,7 +472,7 @@ You can customize which key activates the umlaut transformation. This feature is
 
 ### Customizing Character Mappings (Advanced)
 
-You can customize which input characters produce which outputs! The addon provides **20 mapping slots** that you can configure freely.
+You can customize which input characters produce which outputs! The addon provides **30 mapping slots** that you can configure freely.
 
 **Default mappings** (first 7 slots):
 

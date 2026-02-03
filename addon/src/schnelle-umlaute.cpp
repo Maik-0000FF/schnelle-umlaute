@@ -87,6 +87,26 @@ FCITX_CONFIGURATION(
     Option<std::string> mapping19Output{this, "Mapping19Output", "Output 19", ""};
     Option<std::string> mapping20Input{this, "Mapping20Input", "Input 20", ""};
     Option<std::string> mapping20Output{this, "Mapping20Output", "Output 20", ""};
+    Option<std::string> mapping21Input{this, "Mapping21Input", "Input 21", ""};
+    Option<std::string> mapping21Output{this, "Mapping21Output", "Output 21", ""};
+    Option<std::string> mapping22Input{this, "Mapping22Input", "Input 22", ""};
+    Option<std::string> mapping22Output{this, "Mapping22Output", "Output 22", ""};
+    Option<std::string> mapping23Input{this, "Mapping23Input", "Input 23", ""};
+    Option<std::string> mapping23Output{this, "Mapping23Output", "Output 23", ""};
+    Option<std::string> mapping24Input{this, "Mapping24Input", "Input 24", ""};
+    Option<std::string> mapping24Output{this, "Mapping24Output", "Output 24", ""};
+    Option<std::string> mapping25Input{this, "Mapping25Input", "Input 25", ""};
+    Option<std::string> mapping25Output{this, "Mapping25Output", "Output 25", ""};
+    Option<std::string> mapping26Input{this, "Mapping26Input", "Input 26", ""};
+    Option<std::string> mapping26Output{this, "Mapping26Output", "Output 26", ""};
+    Option<std::string> mapping27Input{this, "Mapping27Input", "Input 27", ""};
+    Option<std::string> mapping27Output{this, "Mapping27Output", "Output 27", ""};
+    Option<std::string> mapping28Input{this, "Mapping28Input", "Input 28", ""};
+    Option<std::string> mapping28Output{this, "Mapping28Output", "Output 28", ""};
+    Option<std::string> mapping29Input{this, "Mapping29Input", "Input 29", ""};
+    Option<std::string> mapping29Output{this, "Mapping29Output", "Output 29", ""};
+    Option<std::string> mapping30Input{this, "Mapping30Input", "Input 30", ""};
+    Option<std::string> mapping30Output{this, "Mapping30Output", "Output 30", ""};
 );
 
 // =============================================================================
@@ -467,6 +487,16 @@ private:
         addMapping(*config_.mapping18Input, *config_.mapping18Output);
         addMapping(*config_.mapping19Input, *config_.mapping19Output);
         addMapping(*config_.mapping20Input, *config_.mapping20Output);
+        addMapping(*config_.mapping21Input, *config_.mapping21Output);
+        addMapping(*config_.mapping22Input, *config_.mapping22Output);
+        addMapping(*config_.mapping23Input, *config_.mapping23Output);
+        addMapping(*config_.mapping24Input, *config_.mapping24Output);
+        addMapping(*config_.mapping25Input, *config_.mapping25Output);
+        addMapping(*config_.mapping26Input, *config_.mapping26Output);
+        addMapping(*config_.mapping27Input, *config_.mapping27Output);
+        addMapping(*config_.mapping28Input, *config_.mapping28Output);
+        addMapping(*config_.mapping29Input, *config_.mapping29Output);
+        addMapping(*config_.mapping30Input, *config_.mapping30Output);
     }
 
     bool isLeaderKey(const Key &key) const {
