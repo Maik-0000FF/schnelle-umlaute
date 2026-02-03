@@ -12,6 +12,7 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Hold letter + space/arrow keys for accent characters
 - Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã)
 - Snippets: Map single keys to entire text phrases
+- Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
 - Configurable activation keys and 20 mapping slots
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
@@ -527,7 +528,7 @@ You can customize which input characters produce which outputs! The addon provid
    fcitx5 -r
    ```
 
-**Quick examples:** French accents (é, è, ê), Spanish (ñ, á), Math symbols (π, ∂). See sections below for Accent Cycling, Snippets, and Emoji mappings.
+**Quick examples:** French accents (é, è, ê), Spanish (ñ, á), Math symbols (π, ∂), Braille characters (⠁⠃⠉). See sections below for Accent Cycling, Snippets, and Emoji mappings.
 
 ### Accent Cycling
 
