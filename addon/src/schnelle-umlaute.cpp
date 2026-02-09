@@ -242,6 +242,7 @@ public:
                 savedContextRef_.unwatch();
                 cancelTimeout();
             }
+            inputKeyPressed_ = false;
             resetCycling();
             return;  // Let the shortcut through
         }
