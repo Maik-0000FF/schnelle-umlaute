@@ -17,7 +17,6 @@
 #include <memory>
 #include <time.h>
 #include <algorithm>
-#include <thread>
 
 namespace fcitx {
 
@@ -410,23 +409,6 @@ private:
         cyclingIndex_ = 0;
     }
 
-    // Delete characters - uses the best available method for the current app
-    // Returns true if forwardKey was used (needs delay before commit)
-    bool deleteCharacters(InputContext *ic, size_t count) {
-        // Check if surrounding text is available (GUI apps usually support this)
-        const auto& surroundingText = ic->surroundingText();
-        if (surroundingText.isValid()) {
-            ic->deleteSurroundingText(-static_cast<int>(count), count);
-            return false;
-        } else {
-            // Fall back to BackSpace key events (for terminals)
-            for (size_t i = 0; i < count; ++i) {
-                ic->forwardKey(Key(FcitxKey_BackSpace));
-            }
-            return true;  // Needs delay before commit
-        }
-    }
-
     std::vector<std::string> splitOutputs(const std::string& output) {
         std::vector<std::string> outputs;
         if (output.empty()) return outputs;
@@ -582,15 +564,6 @@ private:
 
     void cancelTimeout() {
         timeoutEvent_.reset();
-    }
-
-    void commitWaitingKey(InputContext *ic) {
-        if (waitingKey_) {
-            ic->commitString(*waitingKey_);
-            waitingKey_.reset();
-            savedContextRef_.unwatch();
-        }
-        cancelTimeout();
     }
 
     Instance *instance_;
