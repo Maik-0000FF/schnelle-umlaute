@@ -188,7 +188,7 @@ public:
             // before releasing the letter key
             if (cyclingInput_ && inputKeyPressed_ && !keyChar.empty() &&
                 cyclingInput_->length() == 1 && keyChar.length() == 1 &&
-                std::tolower((*cyclingInput_)[0]) == std::tolower(keyChar[0])) {
+                std::tolower(static_cast<unsigned char>((*cyclingInput_)[0])) == std::tolower(static_cast<unsigned char>(keyChar[0]))) {
 
                 // Commit the current preedit value
                 auto it = umlautMap_.find(*cyclingInput_);
@@ -211,7 +211,7 @@ public:
             // then 'a' release event comes but waitingKey_ is "A")
             if (waitingKey_ && inputKeyPressed_ && !keyChar.empty() &&
                 waitingKey_->length() == 1 && keyChar.length() == 1 &&
-                std::tolower((*waitingKey_)[0]) == std::tolower(keyChar[0])) {
+                std::tolower(static_cast<unsigned char>((*waitingKey_)[0])) == std::tolower(static_cast<unsigned char>(keyChar[0]))) {
                 auto* ic = keyEvent.inputContext();
                 ic->inputPanel().reset();
                 ic->commitString(*waitingKey_);
