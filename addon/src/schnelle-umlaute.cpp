@@ -217,7 +217,7 @@ public:
                 ic->commitString(*waitingKey_);
                 ic->updatePreedit();
                 waitingKey_.reset();
-                savedContext_ = nullptr;
+                savedContextRef_.unwatch();
                 cancelTimeout();
                 inputKeyPressed_ = false;
                 return;
@@ -239,7 +239,7 @@ public:
                 ic->commitString(*waitingKey_);
                 ic->updatePreedit();
                 waitingKey_.reset();
-                savedContext_ = nullptr;
+                savedContextRef_.unwatch();
                 cancelTimeout();
             }
             resetCycling();
@@ -301,7 +301,7 @@ public:
                     }
 
                     waitingKey_.reset();
-                    savedContext_ = nullptr;
+                    savedContextRef_.unwatch();
                     cancelTimeout();
                     keyEvent.filterAndAccept();
                     return;
@@ -334,7 +334,7 @@ public:
                 ic->commitString(*waitingKey_);
                 ic->updatePreedit();
                 waitingKey_.reset();
-                savedContext_ = nullptr;
+                savedContextRef_.unwatch();
                 cancelTimeout();
             }
             resetCycling();
@@ -346,7 +346,7 @@ public:
 
             // Save the InputContext to use in timeout callback
             auto* ic = keyEvent.inputContext();
-            savedContext_ = ic;
+            savedContextRef_ = ic->watch();
 
             scheduleTimeout();
 
@@ -371,7 +371,7 @@ public:
             ic->commitString(*waitingKey_);
             ic->updatePreedit();
             waitingKey_.reset();
-            savedContext_ = nullptr;
+            savedContextRef_.unwatch();
             cancelTimeout();
         }
         resetCycling();
@@ -386,7 +386,7 @@ public:
         }
 
         waitingKey_.reset();
-        savedContext_ = nullptr;
+        savedContextRef_.unwatch();
         inputKeyPressed_ = false;
         cancelTimeout();
         resetCycling();
@@ -397,7 +397,7 @@ public:
     void disable() {
         enabled_ = false;
         waitingKey_.reset();
-        savedContext_ = nullptr;
+        savedContextRef_.unwatch();
         inputKeyPressed_ = false;
         cancelTimeout();
         resetCycling();
@@ -552,24 +552,26 @@ private:
         uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * 1000;
 
         auto savedKey = *waitingKey_;
-        auto* savedCtx = savedContext_;
+        auto savedRef = savedContextRef_;
         timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC,
             target_usec,
             0,
-            [this, savedKey, savedCtx](EventSourceTime *, uint64_t) {
+            [this, savedKey, savedRef](EventSourceTime *, uint64_t) {
                 // PREEDIT: Commit the preedit as-is when timeout expires
                 if (waitingKey_ && *waitingKey_ == savedKey) {
                     // Only commit to the ORIGINAL context where the key was pressed
                     // This prevents sending text to the wrong window after focus change
-                    if (savedCtx && savedCtx == savedContext_ && savedCtx->hasFocus()) {
-                        savedCtx->inputPanel().reset();
-                        savedCtx->commitString(*waitingKey_);
-                        savedCtx->updatePreedit();
+                    // Uses TrackableObjectReference: get() returns nullptr if window was closed
+                    auto* ctx = savedRef.get();
+                    if (ctx && ctx == savedContextRef_.get() && ctx->hasFocus()) {
+                        ctx->inputPanel().reset();
+                        ctx->commitString(*waitingKey_);
+                        ctx->updatePreedit();
                     }
-                    // If focus changed, silently discard the pending key
+                    // If focus changed or window closed, silently discard the pending key
                     waitingKey_.reset();
-                    savedContext_ = nullptr;
+                    savedContextRef_.unwatch();
                 }
                 timeoutEvent_.reset();
                 return false;
@@ -585,7 +587,7 @@ private:
         if (waitingKey_) {
             ic->commitString(*waitingKey_);
             waitingKey_.reset();
-            savedContext_ = nullptr;
+            savedContextRef_.unwatch();
         }
         cancelTimeout();
     }
@@ -603,7 +605,8 @@ private:
     bool inputKeyPressed_ = false;
 
     // Save the InputContext where waitingKey_ was set to avoid sending to wrong window
-    InputContext* savedContext_ = nullptr;
+    // Uses TrackableObjectReference to safely detect if the window was closed
+    TrackableObjectReference<InputContext> savedContextRef_;
 
     // Cycling state (after first Space, while input key held)
     std::optional<std::string> cyclingInput_;
