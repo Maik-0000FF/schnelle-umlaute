@@ -413,28 +413,17 @@ private:
         std::vector<std::string> outputs;
         if (output.empty()) return outputs;
 
-        std::string current;
-        for (size_t i = 0; i < output.length(); ) {
-            unsigned char c = output[i];
-            size_t charLen = 1;
-            if ((c & 0x80) == 0) charLen = 1;
-            else if ((c & 0xE0) == 0xC0) charLen = 2;
-            else if ((c & 0xF0) == 0xE0) charLen = 3;
-            else if ((c & 0xF8) == 0xF0) charLen = 4;
-
-            std::string ch = output.substr(i, charLen);
-            if (ch == ",") {
-                if (!current.empty()) {
-                    outputs.push_back(current);
-                    current.clear();
+        size_t start = 0;
+        for (size_t i = 0; i < output.length(); ++i) {
+            if (output[i] == ',') {
+                if (i > start) {
+                    outputs.push_back(output.substr(start, i - start));
                 }
-            } else {
-                current += ch;
+                start = i + 1;
             }
-            i += charLen;
         }
-        if (!current.empty()) {
-            outputs.push_back(current);
+        if (start < output.length()) {
+            outputs.push_back(output.substr(start));
         }
         return outputs;
     }
