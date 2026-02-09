@@ -804,6 +804,23 @@ gcc --version  # Should be 11 or newer
 
 The final character is committed when you release the input key. In GUI applications (Firefox, Kate, etc.), the cycling preview is displayed in real-time.
 
+### Double characters in security-sensitive input fields (banking, login, etc.)
+
+**Symptom:** When typing a mapped character (e.g., `1` mapped on Input 10) in a security-sensitive input field (banking forms, login pages, 2FA codes), the character appears twice (e.g., `11` instead of `1`).
+
+**Cause:** This is **not a bug in the addon**. Security-sensitive input fields often disable or partially implement the input method (IME) protocol. The addon's normal flow is:
+
+1. Key press → `filterAndAccept()` consumes the key (original character suppressed)
+2. Key release or timeout → `commitString()` sends the character once
+
+When a security field ignores `filterAndAccept()`, both the raw keystroke **and** the committed string reach the field, resulting in a double character.
+
+**Affected:** Any mapped character - letters, digits, and special characters alike. It is more noticeable with digits (e.g., year input `2024` becomes `20024`) because digits are commonly used in security forms.
+
+**Workaround:**
+- Switch to your base keyboard layout (<kbd>Ctrl</kbd> + <kbd>Space</kbd>) before entering data in security-sensitive fields
+- Avoid mapping characters that are frequently needed in security contexts (digits, common password characters)
+
 ### General compatibility note
 
 Not all applications fully support Fcitx5's input method protocol. The addon relies on the application correctly handling:
