@@ -46,66 +46,45 @@ stateDiagram-v2
 
 This addon works differently than normal typing. Understanding this helps you adapt faster.
 
-#### Scenario 1: Normal Letter (e.g. 'b', 'c', 'd')
+#### Scenario 1: Normal Letter (unmapped, e.g. 'b', 'c', 'd')
 
 ```mermaid
 graph LR
-    N1[Key Press] --> N2[System outputs 'b'<br/>INSTANTLY]
-    N2 --> N3[Appears on screen]
-    N4[Key Release] --> N5[Ignored by system]
+    N1["🔽 Press 'b'"] -->|instant| N2["'b' on screen ✓"]
+    N2 --> N3["🔼 Release 'b'"]
+    N3 -.->|no action| N4["Done"]
 
     style N1 fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000
     style N2 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
-    style N3 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
+    style N3 fill:#f5f5f5,stroke:#757575,stroke-width:2px,color:#000
     style N4 fill:#f5f5f5,stroke:#757575,stroke-width:2px,color:#000
-    style N5 fill:#f5f5f5,stroke:#757575,stroke-width:2px,color:#000
 ```
 
 **Timing:** 0ms delay - Output on **Press** ✓
 
 ---
 
-#### Scenario 2: Addon Letter (a, o, u, s) - Quick Release
+#### Scenario 2: Mapped Letter (a, o, u, s) - The Decision Point
+
+The addon intercepts the key and waits to see what happens next:
 
 ```mermaid
-graph LR
-    A1[Key Press] --> A2[Addon filters event<br/>START WAITING]
-    A2 --> A3[Waiting...]
-    A3 --> A4[Key Release<br/>within 400ms]
-    A4 --> A5[Output normal letter<br/>DELAYED]
-    A5 --> A6[Appears on screen]
+graph TD
+    A1["🔽 Press mapped key 'o'"] --> A2["Addon intercepts key<br/>⏳ Waiting for decision..."]
+    A2 --> A3{What happens next?}
+    A3 -->|"🔼 Key Release"| A4["Output 'o'<br/>normal letter"]
+    A3 -->|"⎵ Leader Key"| A5["Output 'ö'<br/>umlaut ✓"]
+    A3 -->|"⏰ Timeout 400ms"| A6["Output 'o'<br/>fallback"]
 
     style A1 fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000
     style A2 fill:#fff9c4,stroke:#f57f17,stroke-width:3px,color:#000
-    style A3 fill:#fff9c4,stroke:#f57f17,stroke-width:3px,color:#000
-    style A4 fill:#ffecb3,stroke:#f57f17,stroke-width:3px,color:#000
-    style A5 fill:#ffccbc,stroke:#d84315,stroke-width:3px,color:#000
+    style A3 fill:#fff3e0,stroke:#e65100,stroke-width:3px,color:#000
+    style A4 fill:#ffccbc,stroke:#d84315,stroke-width:3px,color:#000
+    style A5 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
     style A6 fill:#ffccbc,stroke:#d84315,stroke-width:3px,color:#000
 ```
 
-**Timing:** 100-300ms delay - Output on **Release** ⚠
-
----
-
-#### Scenario 3: Addon Letter - With Leader Key (Umlaut)
-
-```mermaid
-graph LR
-    S1[Key Press] --> S2[Addon filters event<br/>START WAITING]
-    S2 --> S3[Waiting...]
-    S3 --> S4[Leader Key Press<br/>within 400ms]
-    S4 --> S5[Output umlaut 'ö'<br/>SUCCESS]
-    S5 --> S6[Appears on screen]
-
-    style S1 fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000
-    style S2 fill:#fff9c4,stroke:#f57f17,stroke-width:3px,color:#000
-    style S3 fill:#fff9c4,stroke:#f57f17,stroke-width:3px,color:#000
-    style S4 fill:#e1f5fe,stroke:#0288d1,stroke-width:3px,color:#000
-    style S5 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
-    style S6 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
-```
-
-**Timing:** 100-400ms delay - Output on **Leader Key** ✓
+**Timing:** 100-400ms delay - Output depends on user action ⚠
 
 ---
 
@@ -114,40 +93,37 @@ graph LR
 ```mermaid
 sequenceDiagram
     participant User
-    participant Keyboard
+    participant Addon
     participant Screen
 
-    Note over User,Screen: What Users EXPECT (Normal Typing)
-    User->>Keyboard: Press 'o'
-    Keyboard->>Screen: 'o' appears INSTANTLY
-    Note right of Screen: ✓ 0ms delay<br/>Direct feedback
+    Note over User,Screen: Normal letter (unmapped)
+    User->>Screen: Press 'b' → appears INSTANTLY
+    Note right of Screen: ✓ 0ms delay
 
     Note over User,Screen: ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    Note over User,Screen: What Addon DELIVERS
-    User->>Keyboard: Press 'o'
-    Note right of Keyboard: Filtered, waiting...
-    Keyboard->>Keyboard: Wait 100-300ms...
-    User->>Keyboard: Release 'o'
-    Keyboard->>Screen: 'o' appears DELAYED
-    Note right of Screen: ⚠ 100-300ms delay<br/>Feels like "lag"
+    Note over User,Screen: Mapped letter
+    User->>Addon: Press 'o'
+    Note right of Addon: Intercepted, waiting...
+    alt Leader Key pressed
+        User->>Addon: Press Space
+        Addon->>Screen: 'ö' (umlaut) ✓
+    else Key released / Timeout
+        User->>Addon: Release 'o'
+        Addon->>Screen: 'o' (normal) ⚠
+    end
+    Note right of Screen: 100-400ms delay
 ```
 
 #### Quick Comparison
 
-| Action | Normal Letter | Addon Letter (a,o,u,s) |
+| Action | Normal Letter | Mapped Letter (a,o,u,s) |
 |--------|--------------|------------------------|
-| **Output Trigger** | Key **Press** | Key **Release** or Space |
+| **Output Trigger** | Key **Press** | Key **Release** or Leader Key |
 | **Timing** | Instant (0ms) | Delayed (100-400ms) |
 | **Feel** | Direct feedback | Slight "lag" |
-| **Muscle Memory** | Confirmed ✓ | Takes adjustment ⚠ |
 
-**Why is it different?**
-- **Normal typing:** Press = Output (rising edge)
-- **With addon:** Press is filtered, we must wait for **decision**
-  - Release → normal letter
-  - Space → umlaut
-  - Timeout → normal letter
+**Why the delay?** The addon must wait after a mapped key press to determine whether the leader key follows (→ accent) or the key is simply released (→ normal letter).
 
 ### Supported Characters
 
@@ -371,162 +347,83 @@ This addon is **not a standalone keyboard layout** - it works **alongside** your
    - When active, the Fcitx5 tray icon will show **"Ää"**
    - When using normal keyboard, it shows "En" or "US"
 
-2. **Type umlauts:**
-
-| Want | Hold | Press Leader Key | Result |
-|------|------|------------------|--------|
-| ä | <kbd>a</kbd> | <kbd>Space</kbd> | ä |
-| ö | <kbd>o</kbd> | <kbd>Space</kbd> | ö |
-| ü | <kbd>u</kbd> | <kbd>Space</kbd> | ü |
-| ß | <kbd>s</kbd> | <kbd>Space</kbd> | ß |
-| Ä | <kbd>Shift</kbd> + <kbd>a</kbd> | <kbd>Space</kbd> | Ä |
-| Ö | <kbd>Shift</kbd> + <kbd>o</kbd> | <kbd>Space</kbd> | Ö |
-| Ü | <kbd>Shift</kbd> + <kbd>u</kbd> | <kbd>Space</kbd> | Ü |
-
-   **Note:** Leader key is <kbd>Space</kbd> by default, but can be configured to <kbd>←</kbd>/<kbd>→</kbd> Arrow or combinations (see below).
+2. **Type umlauts:** Hold a mapped key, then press the leader key within the time window. See [Supported Characters](#supported-characters) for all default mappings.
 
 3. **Type normally:** If you don't press the leader key within the time window, the normal letter appears
 
-### Configuring Delays (Advanced)
+### Configuration (Advanced)
 
-You can customize the timing delays to match your typing speed:
+All addon settings can be changed in two ways:
 
-1. **Via GUI** (recommended):
-   ```bash
-   fcitx5-config-qt
-   ```
-   - Select "Schnelle Umlaute" in the Input Method list
-   - Click the **Configure** button (wrench icon)
-   - Adjust **DelayLowercase** (default: 400ms) and **DelayUppercase** (default: 700ms)
-   - Valid range: 50-2000ms
-   - Enter any exact value - no rounding applied
+- **Via GUI** (recommended): `fcitx5-config-qt` → select "Schnelle Umlaute" → click **Configure** (wrench icon)
+- **Via config file**: edit `~/.config/fcitx5/conf/schnelle-umlaute.conf`
 
-2. **Via config file** (alternative):
-   ```bash
-   nano ~/.config/fcitx5/conf/schnelle-umlaute.conf
-   ```
-   ```ini
-   [DelayLowercase]
-   # Range: 50-2000ms, any exact value accepted
-   Value=400
+**After config file changes**, restart Fcitx5 with `fcitx5 -r`. GUI changes apply immediately after clicking Apply.
 
-   [DelayUppercase]
-   # Range: 50-2000ms, any exact value accepted
-   Value=700
-   ```
+#### Delays
 
-3. **Restart Fcitx5** to apply changes:
-   ```bash
-   fcitx5 -r
-   ```
+Customize the timing delays to match your typing speed:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **DelayLowercase** | 400ms | Time window for lowercase gestures |
+| **DelayUppercase** | 700ms | Time window for uppercase gestures (longer because <kbd>Shift</kbd> + Letter + <kbd>Space</kbd> requires more coordination) |
+
+Valid range: 50-2000ms, any exact value accepted.
+
+```ini
+[DelayLowercase]
+Value=400
+
+[DelayUppercase]
+Value=700
+```
 
 **Tips:**
-- Start with defaults (400ms/700ms) and adjust if needed
+- Start with defaults and adjust if needed
 - Faster typists may prefer shorter delays (300ms/600ms)
 - Slower, more deliberate typing benefits from longer delays (500ms/800ms)
-- Uppercase delay should be ~300ms longer than lowercase (harder to coordinate <kbd>Shift</kbd> + Letter + <kbd>Space</kbd>)
 
-### Configuring Leader Key (Advanced)
+#### Leader Key
 
-You can customize which key activates the umlaut transformation. This feature is inspired by PowerToys Quick Accents on Windows.
+Customize which key activates the umlaut transformation:
 
-**Available Options:**
-- <kbd>Space</kbd> (Default) - Simple and intuitive
-- <kbd>←</kbd> LeftArrow - Cursor moves back, convenient for continued typing
-- <kbd>→</kbd> RightArrow - Cursor moves forward
-- <kbd>Space</kbd> or <kbd>←</kbd> - Either Space or Left Arrow works
-- <kbd>Space</kbd> or <kbd>→</kbd> - Either Space or Right Arrow works
-- <kbd>←</kbd> or <kbd>→</kbd> - Either Left or Right Arrow works
-- **All** - All three keys work (<kbd>Space</kbd>, <kbd>←</kbd>, <kbd>→</kbd>)
+| Option | Keys |
+|--------|------|
+| **Space** (Default) | <kbd>Space</kbd> |
+| LeftArrow | <kbd>←</kbd> |
+| RightArrow | <kbd>→</kbd> |
+| SpaceOrLeft | <kbd>Space</kbd> or <kbd>←</kbd> |
+| SpaceOrRight | <kbd>Space</kbd> or <kbd>→</kbd> |
+| LeftOrRight | <kbd>←</kbd> or <kbd>→</kbd> |
+| All | <kbd>Space</kbd>, <kbd>←</kbd>, <kbd>→</kbd> |
 
-**How to configure:**
+```ini
+# Options: Space, LeftArrow, RightArrow, SpaceOrLeft, SpaceOrRight, LeftOrRight, All
+LeaderKey=Space
+```
 
-1. **Via GUI** (recommended):
-   ```bash
-   fcitx5-config-qt
-   ```
-   - Select "Schnelle Umlaute" in the Input Method list
-   - Click the **Configure** button (wrench icon)
-   - Find **"Activation key (Leader Key)"** dropdown
-   - Select your preferred option
-   - Click Apply
+#### Character Mappings
 
-2. **Via config file** (alternative):
-   ```bash
-   nano ~/.config/fcitx5/conf/schnelle-umlaute.conf
-   ```
-   ```ini
-   # Options: Space, LeftArrow, RightArrow, SpaceOrLeft, SpaceOrRight, LeftOrRight, All
-   LeaderKey=Space
-   ```
+The addon provides **30 mapping slots** that you can configure freely. The first 7 slots are pre-configured with German umlauts (see [Supported Characters](#supported-characters)).
 
-3. **Restart Fcitx5** to apply changes:
-   ```bash
-   fcitx5 -r
-   ```
+In the GUI, scroll down to see mapping fields (**Input 1** / **Output 1** through **Input 30** / **Output 30**). Empty slots are ignored. Click **"Defaults"** to restore German umlauts.
 
-**Tips:**
-- <kbd>Space</kbd> works well for most users and feels natural
-- Arrow keys can be useful if you want to combine umlaut input with cursor movement
-- Combinations (e.g., <kbd>Space</kbd> or <kbd>→</kbd>) give you flexibility without committing to one key
+```ini
+# Default German mappings
+Mapping1Input=a
+Mapping1Output=ä
 
-### Customizing Character Mappings (Advanced)
+Mapping2Input=o
+Mapping2Output=ö
 
-You can customize which input characters produce which outputs! The addon provides **30 mapping slots** that you can configure freely.
+# Add your own mappings
+Mapping8Input=e
+Mapping8Output=é
 
-**Default mappings** (first 7 slots):
-
-| Input | Output | Description |
-|-------|--------|-------------|
-| <kbd>a</kbd> | ä | German lowercase umlaut |
-| <kbd>o</kbd> | ö | German lowercase umlaut |
-| <kbd>u</kbd> | ü | German lowercase umlaut |
-| <kbd>s</kbd> | ß | German sharp S |
-| <kbd>A</kbd> | Ä | German uppercase umlaut |
-| <kbd>O</kbd> | Ö | German uppercase umlaut |
-| <kbd>U</kbd> | Ü | German uppercase umlaut |
-
-**How to customize:**
-
-1. **Via GUI** (recommended):
-   ```bash
-   fcitx5-config-qt
-   ```
-   - Select "Schnelle Umlaute" in the Input Method list
-   - Click the **Configure** button (wrench icon)
-   - Scroll down to see mapping fields:
-     - **Input 1** / **Output 1** (default: a → ä)
-     - **Input 2** / **Output 2** (default: o → ö)
-     - ...and so on up to slot 20
-   - Edit any Input/Output pair you want
-   - Empty slots are ignored
-   - Click **"Defaults"** button to restore German umlauts
-   - Click **Apply**
-
-2. **Via config file** (alternative):
-   ```bash
-   nano ~/.config/fcitx5/conf/schnelle-umlaute.conf
-   ```
-   ```ini
-   # Custom mapping example
-   Mapping1Input=a
-   Mapping1Output=ä
-
-   Mapping2Input=o
-   Mapping2Output=ö
-
-   # Add your own mappings
-   Mapping8Input=e
-   Mapping8Output=é
-
-   Mapping9Input=n
-   Mapping9Output=ñ
-   ```
-
-3. **Restart Fcitx5** to apply changes:
-   ```bash
-   fcitx5 -r
-   ```
+Mapping9Input=n
+Mapping9Output=ñ
+```
 
 **Quick examples:** French accents (é, è, ê), Spanish (ñ, á), Math symbols (π, ∂), Braille characters (⠁⠃⠉). See sections below for Accent Cycling, Snippets, and Emoji mappings.
 
@@ -541,16 +438,9 @@ Cycle through multiple accent variants by pressing the leader key repeatedly. In
 4. Keep pressing → cycles through all variants (è → ê → ë → é → ...)
 5. Release input key → cycling stops, current selection is kept
 
-**Configuration via GUI:**
+In the GUI, enter comma-separated variants in any Output field (e.g., Output 8: `é,è,ê,ë` for Input 8: `e`).
 
-1. Open `fcitx5-config-qt`
-2. Select "Schnelle Umlaute" and click Configure
-3. In any Output field, enter comma-separated variants:
-   - Output 8: `é,è,ê,ë` (for Input 8: `e`)
-   - Output 9: `á,à,â,ã` (for Input 9: `a`)
-4. Click Apply and restart with `fcitx5 -r`
-
-**Configuration via config file:**
+**Config file example:**
 
 ```ini
 # ~/.config/fcitx5/conf/schnelle-umlaute.conf
@@ -583,8 +473,6 @@ Mapping10Output=ç,ć,č
 
 Map a single key to an entire phrase or longer text. Useful for frequently typed words, signatures, or boilerplate text.
 
-**Examples:**
-
 | Input | Output | Use case |
 |-------|--------|----------|
 | <kbd>g</kbd> | Guten Tag | German greeting |
@@ -592,10 +480,7 @@ Map a single key to an entire phrase or longer text. Useful for frequently typed
 | <kbd>@</kbd> | name@example.com | Email address |
 | <kbd>t</kbd> | TODO: | Code annotation |
 
-**Configuration:**
-
 ```ini
-# ~/.config/fcitx5/conf/schnelle-umlaute.conf
 Mapping11Input=g
 Mapping11Output=Guten Tag
 
@@ -624,13 +509,6 @@ Map keys to emoji for quick insertion without opening an emoji picker.
 | <kbd>c</kbd> | ✓ | Checkmark |
 
 Emoji cycling also works: `Mapping14Output=😊,😀,😁,🙂` cycles through smileys.
-
-**Tips:**
-- Input can be any single character
-- Output can be any string (single char, multi-char, emoji, or full phrases)
-- Comma-separated outputs enable cycling
-- Empty slots are ignored
-- Changes take effect after `fcitx5 -r`
 
 ## 🏗️ Architecture
 
@@ -692,17 +570,7 @@ If the addon appears but you can't see DelayLowercase/DelayUppercase settings:
 
 ### Works in terminal but not in other apps (Firefox, Kate, etc.)
 
-You need to set environment variables and **logout/login**:
-
-```bash
-mkdir -p ~/.config/environment.d
-cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-GTK_IM_MODULE=fcitx5
-QT_IM_MODULE=fcitx5
-XMODIFIERS=@im=fcitx5
-GLFW_IM_MODULE=ibus
-EOF
-```
+Environment variables must be set correctly. See the environment variables step in [Manual Installation (Arch)](#-manual-installation-arch-linux) or [Manual Installation (Ubuntu)](#-manual-installation-ubuntu--debian) for your platform.
 
 Then **logout and login again** for changes to take effect.
 
@@ -790,17 +658,20 @@ Make sure you have C++20 support:
 gcc --version  # Should be 11 or newer
 ```
 
-### Cycling preview not visible in terminal emulators
+### Cycling preview not visible
 
-**Symptom:** When cycling through accent variants in terminal emulators, you don't see the current character changing. The cycling works, but the preview is not displayed.
+**Symptom:** When cycling through accent variants, you don't see the current character changing. The cycling works, but the preview is not displayed.
 
-**Cause:** Terminal emulators often don't display preedit (composition) text visually. The cycling happens internally, but the preview is only shown after you release the input key.
+**Cause 1 - "Show Preedit In Application" disabled:** The addon uses Fcitx5's client preedit to display the cycling preview. If **"Show Preedit In Application"** is disabled in Fcitx5's global options, the preview cannot be forwarded to the application.
 
-**Workaround:** Count your <kbd>Space</kbd> presses to reach the desired variant:
+**Fix:** Open `fcitx5-config-qt` → **Global Options** → enable **"Show Preedit In Application"**.
+
+**Cause 2 - Terminal emulators:** Many terminal emulators don't display preedit (composition) text visually, even when the setting is enabled. The cycling still works internally.
+
+**Workaround for terminals:** Count your <kbd>Space</kbd> presses to reach the desired variant:
 - 1× <kbd>Space</kbd> = first variant (e.g., ä)
 - 2× <kbd>Space</kbd> = second variant (e.g., à)
 - 3× <kbd>Space</kbd> = third variant (e.g., â)
-- etc.
 
 The final character is committed when you release the input key. In GUI applications (Firefox, Kate, etc.), the cycling preview is displayed in real-time.
 
