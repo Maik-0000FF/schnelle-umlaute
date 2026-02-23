@@ -17,7 +17,6 @@
 #include <memory>
 #include <time.h>
 #include <algorithm>
-#include <thread>
 
 namespace fcitx {
 
@@ -188,7 +187,7 @@ public:
             // before releasing the letter key
             if (cyclingInput_ && inputKeyPressed_ && !keyChar.empty() &&
                 cyclingInput_->length() == 1 && keyChar.length() == 1 &&
-                std::tolower((*cyclingInput_)[0]) == std::tolower(keyChar[0])) {
+                std::tolower(static_cast<unsigned char>((*cyclingInput_)[0])) == std::tolower(static_cast<unsigned char>(keyChar[0]))) {
 
                 // Commit the current preedit value
                 auto it = umlautMap_.find(*cyclingInput_);
@@ -211,13 +210,13 @@ public:
             // then 'a' release event comes but waitingKey_ is "A")
             if (waitingKey_ && inputKeyPressed_ && !keyChar.empty() &&
                 waitingKey_->length() == 1 && keyChar.length() == 1 &&
-                std::tolower((*waitingKey_)[0]) == std::tolower(keyChar[0])) {
+                std::tolower(static_cast<unsigned char>((*waitingKey_)[0])) == std::tolower(static_cast<unsigned char>(keyChar[0]))) {
                 auto* ic = keyEvent.inputContext();
                 ic->inputPanel().reset();
                 ic->commitString(*waitingKey_);
                 ic->updatePreedit();
                 waitingKey_.reset();
-                savedContext_ = nullptr;
+                savedContextRef_.unwatch();
                 cancelTimeout();
                 inputKeyPressed_ = false;
                 return;
@@ -239,9 +238,10 @@ public:
                 ic->commitString(*waitingKey_);
                 ic->updatePreedit();
                 waitingKey_.reset();
-                savedContext_ = nullptr;
+                savedContextRef_.unwatch();
                 cancelTimeout();
             }
+            inputKeyPressed_ = false;
             resetCycling();
             return;  // Let the shortcut through
         }
@@ -301,7 +301,7 @@ public:
                     }
 
                     waitingKey_.reset();
-                    savedContext_ = nullptr;
+                    savedContextRef_.unwatch();
                     cancelTimeout();
                     keyEvent.filterAndAccept();
                     return;
@@ -334,7 +334,7 @@ public:
                 ic->commitString(*waitingKey_);
                 ic->updatePreedit();
                 waitingKey_.reset();
-                savedContext_ = nullptr;
+                savedContextRef_.unwatch();
                 cancelTimeout();
             }
             resetCycling();
@@ -346,7 +346,7 @@ public:
 
             // Save the InputContext to use in timeout callback
             auto* ic = keyEvent.inputContext();
-            savedContext_ = ic;
+            savedContextRef_ = ic->watch();
 
             scheduleTimeout();
 
@@ -371,7 +371,7 @@ public:
             ic->commitString(*waitingKey_);
             ic->updatePreedit();
             waitingKey_.reset();
-            savedContext_ = nullptr;
+            savedContextRef_.unwatch();
             cancelTimeout();
         }
         resetCycling();
@@ -386,7 +386,7 @@ public:
         }
 
         waitingKey_.reset();
-        savedContext_ = nullptr;
+        savedContextRef_.unwatch();
         inputKeyPressed_ = false;
         cancelTimeout();
         resetCycling();
@@ -397,7 +397,7 @@ public:
     void disable() {
         enabled_ = false;
         waitingKey_.reset();
-        savedContext_ = nullptr;
+        savedContextRef_.unwatch();
         inputKeyPressed_ = false;
         cancelTimeout();
         resetCycling();
@@ -409,49 +409,21 @@ private:
         cyclingIndex_ = 0;
     }
 
-    // Delete characters - uses the best available method for the current app
-    // Returns true if forwardKey was used (needs delay before commit)
-    bool deleteCharacters(InputContext *ic, size_t count) {
-        // Check if surrounding text is available (GUI apps usually support this)
-        const auto& surroundingText = ic->surroundingText();
-        if (surroundingText.isValid()) {
-            ic->deleteSurroundingText(-static_cast<int>(count), count);
-            return false;
-        } else {
-            // Fall back to BackSpace key events (for terminals)
-            for (size_t i = 0; i < count; ++i) {
-                ic->forwardKey(Key(FcitxKey_BackSpace));
-            }
-            return true;  // Needs delay before commit
-        }
-    }
-
     std::vector<std::string> splitOutputs(const std::string& output) {
         std::vector<std::string> outputs;
         if (output.empty()) return outputs;
 
-        std::string current;
-        for (size_t i = 0; i < output.length(); ) {
-            unsigned char c = output[i];
-            size_t charLen = 1;
-            if ((c & 0x80) == 0) charLen = 1;
-            else if ((c & 0xE0) == 0xC0) charLen = 2;
-            else if ((c & 0xF0) == 0xE0) charLen = 3;
-            else if ((c & 0xF8) == 0xF0) charLen = 4;
-
-            std::string ch = output.substr(i, charLen);
-            if (ch == ",") {
-                if (!current.empty()) {
-                    outputs.push_back(current);
-                    current.clear();
+        size_t start = 0;
+        for (size_t i = 0; i < output.length(); ++i) {
+            if (output[i] == ',') {
+                if (i > start) {
+                    outputs.push_back(output.substr(start, i - start));
                 }
-            } else {
-                current += ch;
+                start = i + 1;
             }
-            i += charLen;
         }
-        if (!current.empty()) {
-            outputs.push_back(current);
+        if (start < output.length()) {
+            outputs.push_back(output.substr(start));
         }
         return outputs;
     }
@@ -552,24 +524,26 @@ private:
         uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * 1000;
 
         auto savedKey = *waitingKey_;
-        auto* savedCtx = savedContext_;
+        auto savedRef = savedContextRef_;
         timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC,
             target_usec,
             0,
-            [this, savedKey, savedCtx](EventSourceTime *, uint64_t) {
+            [this, savedKey, savedRef](EventSourceTime *, uint64_t) {
                 // PREEDIT: Commit the preedit as-is when timeout expires
                 if (waitingKey_ && *waitingKey_ == savedKey) {
                     // Only commit to the ORIGINAL context where the key was pressed
                     // This prevents sending text to the wrong window after focus change
-                    if (savedCtx && savedCtx == savedContext_ && savedCtx->hasFocus()) {
-                        savedCtx->inputPanel().reset();
-                        savedCtx->commitString(*waitingKey_);
-                        savedCtx->updatePreedit();
+                    // Uses TrackableObjectReference: get() returns nullptr if window was closed
+                    auto* ctx = savedRef.get();
+                    if (ctx && ctx == savedContextRef_.get() && ctx->hasFocus()) {
+                        ctx->inputPanel().reset();
+                        ctx->commitString(*waitingKey_);
+                        ctx->updatePreedit();
                     }
-                    // If focus changed, silently discard the pending key
+                    // If focus changed or window closed, silently discard the pending key
                     waitingKey_.reset();
-                    savedContext_ = nullptr;
+                    savedContextRef_.unwatch();
                 }
                 timeoutEvent_.reset();
                 return false;
@@ -579,15 +553,6 @@ private:
 
     void cancelTimeout() {
         timeoutEvent_.reset();
-    }
-
-    void commitWaitingKey(InputContext *ic) {
-        if (waitingKey_) {
-            ic->commitString(*waitingKey_);
-            waitingKey_.reset();
-            savedContext_ = nullptr;
-        }
-        cancelTimeout();
     }
 
     Instance *instance_;
@@ -603,7 +568,8 @@ private:
     bool inputKeyPressed_ = false;
 
     // Save the InputContext where waitingKey_ was set to avoid sending to wrong window
-    InputContext* savedContext_ = nullptr;
+    // Uses TrackableObjectReference to safely detect if the window was closed
+    TrackableObjectReference<InputContext> savedContextRef_;
 
     // Cycling state (after first Space, while input key held)
     std::optional<std::string> cyclingInput_;
