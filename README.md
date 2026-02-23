@@ -331,15 +331,13 @@ This addon is **not a standalone keyboard layout** - it works **alongside** your
    fcitx5-config-qt
    ```
 
-2. Go to **"Input Method"** tab (Eingabemethode)
+2. Go to **"Input Method"** tab
 
-3. Click **"+"** to add a new input method
+3. Click **"Add Input Method..."** and search for **"Schnelle Umlaute"**
 
-4. Search for **"Schnelle Umlaute"**
+4. Add it to your input methods and click **"Apply"**
 
-5. Add it to your input methods
-
-6. Click **"Apply"** or **"OK"**
+![Input Method Configuration](docs/screenshot-input-method.png)
 
 ### Using the Addon
 
@@ -359,6 +357,8 @@ All addon settings can be changed in two ways:
 - **Via config file**: edit `~/.config/fcitx5/conf/schnelle-umlaute.conf`
 
 **After config file changes**, restart Fcitx5 with `fcitx5 -r`. GUI changes apply immediately after clicking Apply.
+
+![Schnelle Umlaute Addon Configuration](docs/screenshot-addon-config.png)
 
 #### Delays
 
@@ -665,6 +665,8 @@ gcc --version  # Should be 11 or newer
 **Cause 1 - "Show Preedit In Application" disabled:** The addon uses Fcitx5's client preedit to display the cycling preview. If **"Show Preedit In Application"** is disabled in Fcitx5's global options, the preview cannot be forwarded to the application.
 
 **Fix:** Open `fcitx5-config-qt` → **Global Options** → enable **"Show Preedit In Application"**.
+
+![Global Options - Show Preedit In Application](docs/screenshot-global-options.png)
 
 **Cause 2 - Terminal emulators:** Many terminal emulators don't display preedit (composition) text visually, even when the setting is enabled. The cycling still works internally.
 
