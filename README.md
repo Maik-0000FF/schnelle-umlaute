@@ -812,6 +812,6 @@ Built with:
 
 ---
 
-**Version:** 0.1.1
+**Version:** 0.1.2
 **Status:** Working - tested and functional
-**Date:** 2025-10-25
+**Date:** 2025-02-23
