@@ -149,7 +149,9 @@ echo
 echo -e "${BLUE}Checking Fcitx5 status...${NC}"
 if pgrep -x fcitx5 > /dev/null; then
     echo -e "${YELLOW}Fcitx5 is running, restarting...${NC}"
-    fcitx5 -r > /dev/null 2>&1 &
+    killall fcitx5 2>/dev/null || true
+    sleep 1
+    fcitx5 -d 2>/dev/null
     sleep 2
     if pgrep -x fcitx5 > /dev/null; then
         echo -e "${GREEN}✓ Fcitx5 restarted successfully${NC}"

@@ -80,8 +80,10 @@ fi
 # Restart Fcitx5
 echo -e "${BLUE}Restarting Fcitx5...${NC}"
 if pgrep -x fcitx5 > /dev/null; then
-    fcitx5 -r 2>/dev/null
+    killall fcitx5 2>/dev/null || true
     sleep 1
+    fcitx5 -d 2>/dev/null
+    sleep 2
     if pgrep -x fcitx5 > /dev/null; then
         echo -e "${GREEN}✓ Fcitx5 restarted successfully${NC}"
     else
