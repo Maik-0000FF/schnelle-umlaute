@@ -43,9 +43,9 @@ private:
 
 FCITX_CONFIGURATION(
     SchnelleUmlauteConfig,
-    Option<int, IntConstrainWithStep> delayLowercase{this, "DelayLowercase", "Delay für Kleinbuchstaben (ms)", 400, IntConstrainWithStep(50, 2000, 25)};
-    Option<int, IntConstrainWithStep> delayUppercase{this, "DelayUppercase", "Delay für Großbuchstaben (ms)", 700, IntConstrainWithStep(50, 2000, 25)};
-    Option<LeaderKey> leaderKey{this, "LeaderKey", "Aktivierungstaste (Leader Key)", LeaderKey::Space};
+    Option<int, IntConstrainWithStep> delayLowercase{this, "DelayLowercase", "Delay for lowercase letters (ms)", 400, IntConstrainWithStep(50, 2000, 25)};
+    Option<int, IntConstrainWithStep> delayUppercase{this, "DelayUppercase", "Delay for uppercase letters (ms)", 700, IntConstrainWithStep(50, 2000, 25)};
+    Option<LeaderKey> leaderKey{this, "LeaderKey", "Activation key (Leader Key)", LeaderKey::Space};
     Option<std::string> mapping1Input{this, "Mapping1Input", "Input 1", "a"};
     Option<std::string> mapping1Output{this, "Mapping1Output", "Output 1", "ä"};
     Option<std::string> mapping2Input{this, "Mapping2Input", "Input 2", "o"};
