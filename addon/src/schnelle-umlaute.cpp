@@ -170,6 +170,7 @@ public:
 
         auto key = keyEvent.key();
         bool isPress = !keyEvent.isRelease();
+        int rawCode = keyEvent.rawKey().code();
 
         // Get character from key
         uint32_t unicode = Key::keySymToUnicode(key.sym());
@@ -183,11 +184,8 @@ public:
         // =========================================
         if (!isPress) {
             // Check if releasing the cycling input key
-            // Note: Compare case-insensitively because user might release Shift
-            // before releasing the letter key
-            if (cyclingInput_ && inputKeyPressed_ && !keyChar.empty() &&
-                cyclingInput_->length() == 1 && keyChar.length() == 1 &&
-                std::tolower(static_cast<unsigned char>((*cyclingInput_)[0])) == std::tolower(static_cast<unsigned char>(keyChar[0]))) {
+            // Compare physical keycode so shifted chars (!, @, #) match their base key
+            if (cyclingInput_ && inputKeyPressed_ && rawCode == waitingKeyCode_) {
 
                 // Commit the current preedit value
                 auto it = umlautMap_.find(*cyclingInput_);
@@ -200,25 +198,25 @@ public:
 
                 inputKeyPressed_ = false;
                 resetCycling();
+                keyEvent.filterAndAccept();
                 return;
             }
 
             // Check if releasing waiting key (before first Space)
             // PREEDIT: Commit the preedit as the original character
-            // Note: Compare case-insensitively because user might release Shift
-            // before releasing the letter key (e.g., Shift+A pressed, Shift released,
-            // then 'a' release event comes but waitingKey_ is "A")
-            if (waitingKey_ && inputKeyPressed_ && !keyChar.empty() &&
-                waitingKey_->length() == 1 && keyChar.length() == 1 &&
-                std::tolower(static_cast<unsigned char>((*waitingKey_)[0])) == std::tolower(static_cast<unsigned char>(keyChar[0]))) {
+            // Compare physical keycode so shifted chars (!, @, #) and uppercase
+            // letters match even if Shift is released first
+            if (waitingKey_ && inputKeyPressed_ && rawCode == waitingKeyCode_) {
                 auto* ic = keyEvent.inputContext();
                 ic->inputPanel().reset();
                 ic->commitString(*waitingKey_);
                 ic->updatePreedit();
                 waitingKey_.reset();
+                waitingKeyCode_ = 0;
                 savedContextRef_.unwatch();
                 cancelTimeout();
                 inputKeyPressed_ = false;
+                keyEvent.filterAndAccept();
                 return;
             }
             return;
@@ -341,6 +339,7 @@ public:
 
             // Show character in PREEDIT (not committed yet - can be changed!)
             waitingKey_ = keyChar;
+            waitingKeyCode_ = keyEvent.rawKey().code();
             inputKeyPressed_ = true;
             startTime_ = std::chrono::steady_clock::now();
 
@@ -407,6 +406,7 @@ private:
     void resetCycling() {
         cyclingInput_.reset();
         cyclingIndex_ = 0;
+        waitingKeyCode_ = 0;
     }
 
     std::vector<std::string> splitOutputs(const std::string& output) {
@@ -543,6 +543,7 @@ private:
                     }
                     // If focus changed or window closed, silently discard the pending key
                     waitingKey_.reset();
+                    waitingKeyCode_ = 0;
                     savedContextRef_.unwatch();
                 }
                 timeoutEvent_.reset();
@@ -566,6 +567,7 @@ private:
 
     // KEY INSIGHT: Track if input key is physically pressed
     bool inputKeyPressed_ = false;
+    int waitingKeyCode_ = 0;
 
     // Save the InputContext where waitingKey_ was set to avoid sending to wrong window
     // Uses TrackableObjectReference to safely detect if the window was closed
