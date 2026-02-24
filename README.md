@@ -632,24 +632,14 @@ To share the input method state globally:
 3. Set **Share Input State** to **All**
 4. Restart Fcitx5: `fcitx5 -r`
 
-### Kitty terminal not working
+### WezTerm known issues
 
-**Symptom:** The input method indicator doesn't change when pressing <kbd>Ctrl</kbd> + <kbd>Space</kbd> in Kitty, or the indicator appears in other windows instead of Kitty.
+WezTerm has upstream issues with fcitx5 that are **not caused by this addon**:
 
-**Cause:** Kitty's Wayland text-input implementation doesn't properly register the input context with Fcitx5, causing Fcitx5 to not recognize the Kitty window.
+- **Addon not working after fcitx5 restart:** WezTerm cannot reconnect to fcitx5 via XIM. Re-login or restart WezTerm after addon changes. ([#2819](https://github.com/wezterm/wezterm/issues/2819))
+- **Copy/paste between WezTerm windows:** May require clicking into the target window first on Wayland. ([#6685](https://github.com/wezterm/wezterm/issues/6685))
 
-**Solution:** Configure Kitty to use X11 (XWayland) instead of native Wayland:
-
-1. Add to `~/.config/kitty/kitty.conf`:
-   ```
-   linux_display_server x11
-   ```
-
-2. Restart all Kitty windows (close and reopen)
-
-3. Test: Press <kbd>Ctrl</kbd> + <kbd>Space</kbd> in Kitty - the input method indicator should now appear in Kitty
-
-**Note:** Make sure you also have `GLFW_IM_MODULE=ibus` set in your environment variables (see step 4 of Installation).
+These issues do not occur in Kitty, which uses a more robust IME integration.
 
 ### Build errors
 
