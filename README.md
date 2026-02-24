@@ -743,6 +743,7 @@ Contributions welcome! This addon is:
 Help keep Schnelle Umlaute awesome! Here's how you can contribute:
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/Maik-0000FF)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20me-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/maik0000ff)
 
 ```mermaid
 graph TB
@@ -750,6 +751,7 @@ graph TB
 
     subgraph one["💰 Financial"]
         Sponsor["💖 GitHub Sponsors<br/><i>Easy one-time or monthly support</i>"]
+        Kofi["☕ Ko-fi<br/><a href='https://ko-fi.com/maik0000ff'>ko-fi.com/maik0000ff</a><br/><i>Buy me a coffee!</i>"]
         Bitcoin["₿ Bitcoin Donation<br/><code>bc1q6gmpgfn4wx2hx2c3njgpep9tl00etma9k7w6d4</code><br/><i>Every ä, ö, ü counts!</i>"]
     end
 
@@ -771,6 +773,7 @@ graph TB
 
     style Start fill:#64b5f6,stroke:#1976d2,stroke-width:3px,color:#000
     style Sponsor fill:#ff69b4,stroke:#d63384,stroke-width:2px,color:#000
+    style Kofi fill:#ff5e5b,stroke:#d32f2f,stroke-width:2px,color:#000
     style Bitcoin fill:#ff8a65,stroke:#d84315,stroke-width:2px,color:#000
     style Star fill:#81c784,stroke:#388e3c,stroke-width:2px,color:#000
     style Share fill:#81c784,stroke:#388e3c,stroke-width:2px,color:#000
