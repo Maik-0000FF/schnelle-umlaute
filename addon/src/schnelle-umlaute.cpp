@@ -372,6 +372,7 @@ public:
             waitingKey_.reset();
             savedContextRef_.unwatch();
             cancelTimeout();
+            inputKeyPressed_ = false;
         }
         resetCycling();
         // Let key through
@@ -540,11 +541,16 @@ private:
                         ctx->inputPanel().reset();
                         ctx->commitString(*waitingKey_);
                         ctx->updatePreedit();
+                    } else if (ctx) {
+                        // Focus lost: clear stale preedit to prevent ghost text
+                        ctx->inputPanel().reset();
+                        ctx->updatePreedit();
                     }
                     // If focus changed or window closed, silently discard the pending key
                     waitingKey_.reset();
                     waitingKeyCode_ = 0;
                     savedContextRef_.unwatch();
+                    inputKeyPressed_ = false;
                 }
                 timeoutEvent_.reset();
                 return false;
