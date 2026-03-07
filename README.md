@@ -805,6 +805,6 @@ Built with:
 
 ---
 
-**Version:** 0.1.2
+**Version:** 0.1.3
 **Status:** Working - tested and functional
 **Date:** 2026-02-23
