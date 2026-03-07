@@ -20,6 +20,11 @@
 
 namespace fcitx {
 
+constexpr uint32_t kMaxUnicodeCodepoint = 0x10FFFF;
+constexpr uint64_t kMicrosecondsPerSecond = 1'000'000;
+constexpr uint64_t kNanosecondsPerMicrosecond = 1'000;
+constexpr uint64_t kMicrosecondsPerMillisecond = 1'000;
+
 // Leader key options (matching PowerToys Quick Accents)
 FCITX_CONFIG_ENUM(LeaderKey, Space, LeftArrow, RightArrow, SpaceOrLeft,
                   SpaceOrRight, LeftOrRight, All);
@@ -172,7 +177,7 @@ public:
         // Get character from key
         uint32_t unicode = Key::keySymToUnicode(key.sym());
         std::string keyChar;
-        if (unicode > 0 && unicode < 0x10FFFF) {
+        if (unicode > 0 && unicode < kMaxUnicodeCodepoint) {
             keyChar = utf8::UCS4ToUTF8(unicode);
         }
 
@@ -497,8 +502,9 @@ private:
 
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
-        uint64_t now_usec = static_cast<uint64_t>(ts.tv_sec) * 1000000 + ts.tv_nsec / 1000;
-        uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * 1000;
+        uint64_t now_usec = static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
+                          + ts.tv_nsec / kNanosecondsPerMicrosecond;
+        uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * kMicrosecondsPerMillisecond;
 
         auto savedKey = *waitingKey_;
         auto savedRef = savedContextRef_;
