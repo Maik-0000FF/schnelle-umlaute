@@ -228,7 +228,14 @@ public:
             // Compare physical keycode so shifted chars (!, @, #) and uppercase
             // letters match even if Shift is released first
             if (waitingKey_ && inputKeyPressed_ && rawCode == waitingKeyCode_) {
-                commitPendingKey(keyEvent.inputContext());
+                if (isTimeoutExpired()) {
+                    // Timeout expired: defer commit to next key press so both
+                    // the pending char and the following key (e.g. Space) can be
+                    // committed in a single commitString call — guaranteed order.
+                    inputKeyPressed_ = false;
+                } else {
+                    commitPendingKey(keyEvent.inputContext());
+                }
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -238,17 +245,25 @@ public:
         // =========================================
         // ORDERING GUARD: Ensure correct character order after timeout
         // =========================================
-        // If timeout expired, commit pending key now (in key event context)
-        // and for Space: also commit via commitString so both characters
-        // go through the same channel, preventing wrong order ("m o" vs "mo")
+        // Commit pending char in the SAME commitString as the following key
+        // so both travel through one XIM event — impossible to reorder.
         if (waitingKey_ && isTimeoutExpired()) {
             auto* ic = keyEvent.inputContext();
-            commitPendingKey(ic);
+            std::string pending = *waitingKey_;
+            ic->inputPanel().reset();
+            ic->updatePreedit();
+            waitingKey_.reset();
+            waitingKeyCode_ = 0;
+            savedContextRef_.unwatch();
+            cancelTimeout();
+            inputKeyPressed_ = false;
+
             if (key.sym() == FcitxKey_space) {
-                ic->commitString(" ");
+                ic->commitString(pending + " ");
                 keyEvent.filterAndAccept();
                 return;
             }
+            ic->commitString(pending);
         }
 
         // =========================================
@@ -383,6 +398,7 @@ public:
     void disable() {
         enabled_ = false;
         clearAllState();
+        recentlyCommitted_ = false;
     }
 
 private:
@@ -390,7 +406,9 @@ private:
         waitingKey_.reset();
         savedContextRef_.unwatch();
         inputKeyPressed_ = false;
-        recentlyCommitted_ = false;
+        // Note: recentlyCommitted_ is intentionally NOT cleared here.
+        // Apps like WezTerm and Chromium call reset() after every commit,
+        // which would destroy the ordering guard before Space arrives.
         cancelTimeout();
         resetCycling();
     }
