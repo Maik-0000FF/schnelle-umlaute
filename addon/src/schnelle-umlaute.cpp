@@ -229,6 +229,7 @@ public:
             modifiers.test(KeyState::Super)) {
             // Commit any pending preedit before letting the shortcut through
             commitPendingKey(keyEvent.inputContext());
+            inputKeyPressed_ = false;
             resetCycling();
             return;  // Let the shortcut through
         }
