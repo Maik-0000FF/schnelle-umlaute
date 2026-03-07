@@ -186,6 +186,21 @@ public:
         }
 
         // =========================================
+        // ORDERING GUARD: After a recent commitString, route Space
+        // through commitString too so both go through the same channel.
+        // Without this, committed text and raw key events can arrive
+        // at the application out of order in browsers and WezTerm.
+        // =========================================
+        if (recentlyCommitted_ && isPress) {
+            recentlyCommitted_ = false;
+            if (key.sym() == FcitxKey_space) {
+                keyEvent.inputContext()->commitString(" ");
+                keyEvent.filterAndAccept();
+                return;
+            }
+        }
+
+        // =========================================
         // HANDLE KEY RELEASE FIRST
         // =========================================
         if (!isPress) {
@@ -218,6 +233,22 @@ public:
                 return;
             }
             return;
+        }
+
+        // =========================================
+        // ORDERING GUARD: Ensure correct character order after timeout
+        // =========================================
+        // If timeout expired, commit pending key now (in key event context)
+        // and for Space: also commit via commitString so both characters
+        // go through the same channel, preventing wrong order ("m o" vs "mo")
+        if (waitingKey_ && isTimeoutExpired()) {
+            auto* ic = keyEvent.inputContext();
+            commitPendingKey(ic);
+            if (key.sym() == FcitxKey_space) {
+                ic->commitString(" ");
+                keyEvent.filterAndAccept();
+                return;
+            }
         }
 
         // =========================================
@@ -289,7 +320,7 @@ public:
                 }
             }
 
-            // Not in gesture - let Space through
+            // Not in gesture - let leader key through
             return;
         }
 
@@ -359,6 +390,7 @@ private:
         waitingKey_.reset();
         savedContextRef_.unwatch();
         inputKeyPressed_ = false;
+        recentlyCommitted_ = false;
         cancelTimeout();
         resetCycling();
     }
@@ -380,6 +412,7 @@ private:
         savedContextRef_.unwatch();
         cancelTimeout();
         inputKeyPressed_ = false;
+        recentlyCommitted_ = true;
     }
 
     void resetCycling() {
@@ -513,26 +546,23 @@ private:
             target_usec,
             0,
             [this, savedKey, savedRef](EventSourceTime *, uint64_t) {
-                // PREEDIT: Commit the preedit as-is when timeout expires
+                // Don't commit here - commits in timer callbacks can arrive
+                // out of order with subsequent key events in some applications.
+                // The actual commit happens on key release or next key press
+                // (via commitPendingKey), guaranteeing correct character order.
                 if (waitingKey_ && *waitingKey_ == savedKey) {
-                    // Only commit to the ORIGINAL context where the key was pressed
-                    // This prevents sending text to the wrong window after focus change
-                    // Uses TrackableObjectReference: get() returns nullptr if window was closed
                     auto* ctx = savedRef.get();
-                    if (ctx && ctx == savedContextRef_.get() && ctx->hasFocus()) {
-                        ctx->inputPanel().reset();
-                        ctx->commitString(*waitingKey_);
-                        ctx->updatePreedit();
-                    } else if (ctx) {
-                        // Focus lost: clear stale preedit to prevent ghost text
-                        ctx->inputPanel().reset();
-                        ctx->updatePreedit();
+                    if (!ctx || ctx != savedContextRef_.get() || !ctx->hasFocus()) {
+                        // Focus lost or window closed: clean up
+                        if (ctx) {
+                            ctx->inputPanel().reset();
+                            ctx->updatePreedit();
+                        }
+                        waitingKey_.reset();
+                        waitingKeyCode_ = 0;
+                        savedContextRef_.unwatch();
+                        inputKeyPressed_ = false;
                     }
-                    // If focus changed or window closed, silently discard the pending key
-                    waitingKey_.reset();
-                    waitingKeyCode_ = 0;
-                    savedContextRef_.unwatch();
-                    inputKeyPressed_ = false;
                 }
                 timeoutEvent_.reset();
                 return false;
@@ -560,6 +590,9 @@ private:
     // Save the InputContext where waitingKey_ was set to avoid sending to wrong window
     // Uses TrackableObjectReference to safely detect if the window was closed
     TrackableObjectReference<InputContext> savedContextRef_;
+
+    // Set after commitPendingKey to route next Space through commitString
+    bool recentlyCommitted_ = false;
 
     // Cycling state (after first Space, while input key held)
     std::optional<std::string> cyclingInput_;
