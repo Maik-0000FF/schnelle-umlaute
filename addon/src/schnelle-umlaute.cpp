@@ -15,7 +15,7 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
-#include <time.h>
+#include <ctime>
 #include <algorithm>
 
 namespace fcitx {
@@ -127,11 +127,8 @@ public:
     const Configuration *getConfig() const override { return &config_; }
     void setConfig(const RawConfig &config) override {
         config_.load(config);
-        auto clamp = [](int value, int min, int max) {
-            return std::max(min, std::min(max, value));
-        };
-        config_.delayLowercase.setValue(clamp(*config_.delayLowercase, 50, 2000));
-        config_.delayUppercase.setValue(clamp(*config_.delayUppercase, 50, 2000));
+        config_.delayLowercase.setValue(std::clamp(*config_.delayLowercase, 50, 2000));
+        config_.delayUppercase.setValue(std::clamp(*config_.delayUppercase, 50, 2000));
         safeSaveAsIni(config_, "conf/schnelle-umlaute.conf");
         reloadConfig();
     }
