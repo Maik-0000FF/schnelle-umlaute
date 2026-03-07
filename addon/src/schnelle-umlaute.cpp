@@ -341,17 +341,18 @@ public:
             return;  // Keep all state intact
         }
 
-        waitingKey_.reset();
-        savedContextRef_.unwatch();
-        inputKeyPressed_ = false;
-        cancelTimeout();
-        resetCycling();
+        clearAllState();
     }
 
     void enable() { enabled_ = true; }
 
     void disable() {
         enabled_ = false;
+        clearAllState();
+    }
+
+private:
+    void clearAllState() {
         waitingKey_.reset();
         savedContextRef_.unwatch();
         inputKeyPressed_ = false;
@@ -359,7 +360,6 @@ public:
         resetCycling();
     }
 
-private:
     void updateClientPreedit(InputContext* ic, const std::string& text) {
         Text preedit(text);
         preedit.setCursor(preedit.textLength());
