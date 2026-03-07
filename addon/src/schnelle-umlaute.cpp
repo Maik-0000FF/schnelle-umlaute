@@ -472,6 +472,13 @@ private:
         }
     }
 
+    int getEffectiveDelay() const {
+        if (!waitingKey_) return *config_.delayLowercase;
+        bool isUpper = waitingKey_->length() == 1 &&
+                       std::isupper(static_cast<unsigned char>((*waitingKey_)[0]));
+        return isUpper ? *config_.delayUppercase : *config_.delayLowercase;
+    }
+
     bool isTimeoutExpired() const {
         if (!waitingKey_) return false;
 
@@ -479,10 +486,7 @@ private:
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             now - startTime_).count();
 
-        bool isUpperCase = waitingKey_->length() == 1 && std::isupper((*waitingKey_)[0]);
-        int effectiveDelay = isUpperCase ? *config_.delayUppercase : *config_.delayLowercase;
-
-        return elapsed > effectiveDelay;
+        return elapsed > getEffectiveDelay();
     }
 
     void scheduleTimeout() {
@@ -490,8 +494,7 @@ private:
 
         timeoutEvent_.reset();
 
-        bool isUpperCase = waitingKey_->length() == 1 && std::isupper((*waitingKey_)[0]);
-        int effectiveDelay = isUpperCase ? *config_.delayUppercase : *config_.delayLowercase;
+        int effectiveDelay = getEffectiveDelay();
 
         auto* eventLoop = &instance_->eventLoop();
 
