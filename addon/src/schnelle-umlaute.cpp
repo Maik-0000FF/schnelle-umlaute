@@ -207,15 +207,7 @@ public:
             // Compare physical keycode so shifted chars (!, @, #) and uppercase
             // letters match even if Shift is released first
             if (waitingKey_ && inputKeyPressed_ && rawCode == waitingKeyCode_) {
-                auto* ic = keyEvent.inputContext();
-                ic->inputPanel().reset();
-                ic->commitString(*waitingKey_);
-                ic->updatePreedit();
-                waitingKey_.reset();
-                waitingKeyCode_ = 0;
-                savedContextRef_.unwatch();
-                cancelTimeout();
-                inputKeyPressed_ = false;
+                commitPendingKey(keyEvent.inputContext());
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -230,16 +222,7 @@ public:
         if (modifiers.test(KeyState::Ctrl) || modifiers.test(KeyState::Alt) ||
             modifiers.test(KeyState::Super)) {
             // Commit any pending preedit before letting the shortcut through
-            if (waitingKey_) {
-                auto* ic = keyEvent.inputContext();
-                ic->inputPanel().reset();
-                ic->commitString(*waitingKey_);
-                ic->updatePreedit();
-                waitingKey_.reset();
-                savedContextRef_.unwatch();
-                cancelTimeout();
-            }
-            inputKeyPressed_ = false;
+            commitPendingKey(keyEvent.inputContext());
             resetCycling();
             return;  // Let the shortcut through
         }
@@ -325,16 +308,7 @@ public:
             }
 
             // New accent key - commit any existing preedit first
-            if (waitingKey_) {
-                // Commit previous preedit as-is
-                auto* ic = keyEvent.inputContext();
-                ic->inputPanel().reset();
-                ic->commitString(*waitingKey_);
-                ic->updatePreedit();
-                waitingKey_.reset();
-                savedContextRef_.unwatch();
-                cancelTimeout();
-            }
+            commitPendingKey(keyEvent.inputContext());
             resetCycling();
 
             // Show character in PREEDIT (not committed yet - can be changed!)
@@ -363,17 +337,7 @@ public:
         // OTHER KEYS - Reset state
         // PREEDIT: Commit the preedit as-is, then let the key through
         // =========================================
-        if (waitingKey_) {
-            // Commit the preedit as the original character
-            auto* ic = keyEvent.inputContext();
-            ic->inputPanel().reset();
-            ic->commitString(*waitingKey_);
-            ic->updatePreedit();
-            waitingKey_.reset();
-            savedContextRef_.unwatch();
-            cancelTimeout();
-            inputKeyPressed_ = false;
-        }
+        commitPendingKey(keyEvent.inputContext());
         resetCycling();
         // Let key through
     }
@@ -404,6 +368,18 @@ public:
     }
 
 private:
+    void commitPendingKey(InputContext* ic) {
+        if (!waitingKey_) return;
+        ic->inputPanel().reset();
+        ic->commitString(*waitingKey_);
+        ic->updatePreedit();
+        waitingKey_.reset();
+        waitingKeyCode_ = 0;
+        savedContextRef_.unwatch();
+        cancelTimeout();
+        inputKeyPressed_ = false;
+    }
+
     void resetCycling() {
         cyclingInput_.reset();
         cyclingIndex_ = 0;
