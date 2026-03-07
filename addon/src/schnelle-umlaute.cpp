@@ -248,11 +248,7 @@ public:
                     const std::string& nextOutput = it->second[cyclingIndex_];
 
                     // Update preedit with new variant (no deletion needed!)
-                    auto* ic = keyEvent.inputContext();
-                    Text preedit(nextOutput);
-                    preedit.setCursor(preedit.textLength());
-                    ic->inputPanel().setClientPreedit(preedit);
-                    ic->updatePreedit();
+                    updateClientPreedit(keyEvent.inputContext(), nextOutput);
 
                     keyEvent.filterAndAccept();
                     return;
@@ -272,10 +268,7 @@ public:
                         cyclingIndex_ = 0;
 
                         // Update preedit with first variant
-                        Text preedit(it->second[0]);
-                        preedit.setCursor(preedit.textLength());
-                        ic->inputPanel().setClientPreedit(preedit);
-                        ic->updatePreedit();
+                        updateClientPreedit(ic, it->second[0]);
                     } else {
                         // Single output - commit directly
                         ic->inputPanel().reset();
@@ -326,10 +319,7 @@ public:
             scheduleTimeout();
 
             // Set preedit text
-            Text preedit(keyChar);
-            preedit.setCursor(preedit.textLength());
-            ic->inputPanel().setClientPreedit(preedit);
-            ic->updatePreedit();
+            updateClientPreedit(ic, keyChar);
 
             keyEvent.filterAndAccept();
             return;
@@ -370,6 +360,13 @@ public:
     }
 
 private:
+    void updateClientPreedit(InputContext* ic, const std::string& text) {
+        Text preedit(text);
+        preedit.setCursor(preedit.textLength());
+        ic->inputPanel().setClientPreedit(preedit);
+        ic->updatePreedit();
+    }
+
     void commitPendingKey(InputContext* ic) {
         if (!waitingKey_) return;
         ic->inputPanel().reset();
