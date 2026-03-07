@@ -296,9 +296,7 @@ public:
         // HANDLE ACCENT KEYS (a, o, u, etc.)
         // Use PREEDIT mode - show character as preview, commit/change on Space
         // =========================================
-        bool isAccentKey = umlautMap_.find(keyChar) != umlautMap_.end();
-
-        if (isAccentKey) {
+        if (!keyChar.empty() && umlautMap_.find(keyChar) != umlautMap_.end()) {
             // Ignore key repeat while waiting or cycling
             if ((waitingKey_ && *waitingKey_ == keyChar) ||
                 (cyclingInput_ && *cyclingInput_ == keyChar)) {
@@ -501,7 +499,7 @@ private:
 
         auto* eventLoop = &instance_->eventLoop();
 
-        struct timespec ts;
+        timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         uint64_t now_usec = static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
                           + ts.tv_nsec / kNanosecondsPerMicrosecond;
