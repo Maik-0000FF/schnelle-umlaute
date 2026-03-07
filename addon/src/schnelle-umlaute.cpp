@@ -228,14 +228,7 @@ public:
             // Compare physical keycode so shifted chars (!, @, #) and uppercase
             // letters match even if Shift is released first
             if (waitingKey_ && inputKeyPressed_ && rawCode == waitingKeyCode_) {
-                if (isTimeoutExpired()) {
-                    // Timeout expired: defer commit to next key press so both
-                    // the pending char and the following key (e.g. Space) can be
-                    // committed in a single commitString call — guaranteed order.
-                    inputKeyPressed_ = false;
-                } else {
-                    commitPendingKey(keyEvent.inputContext());
-                }
+                commitPendingKey(keyEvent.inputContext());
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -564,23 +557,21 @@ private:
             target_usec,
             0,
             [this, savedKey, savedRef](EventSourceTime *, uint64_t) {
-                // Don't commit here - commits in timer callbacks can arrive
-                // out of order with subsequent key events in some applications.
-                // The actual commit happens on key release or next key press
-                // (via commitPendingKey), guaranteeing correct character order.
                 if (waitingKey_ && *waitingKey_ == savedKey) {
                     auto* ctx = savedRef.get();
-                    if (!ctx || ctx != savedContextRef_.get() || !ctx->hasFocus()) {
-                        // Focus lost or window closed: clean up
-                        if (ctx) {
-                            ctx->inputPanel().reset();
-                            ctx->updatePreedit();
-                        }
-                        waitingKey_.reset();
-                        waitingKeyCode_ = 0;
-                        savedContextRef_.unwatch();
-                        inputKeyPressed_ = false;
+                    if (ctx && ctx == savedContextRef_.get() && ctx->hasFocus()) {
+                        ctx->inputPanel().reset();
+                        ctx->commitString(*waitingKey_);
+                        ctx->updatePreedit();
+                        recentlyCommitted_ = true;
+                    } else if (ctx) {
+                        ctx->inputPanel().reset();
+                        ctx->updatePreedit();
                     }
+                    waitingKey_.reset();
+                    waitingKeyCode_ = 0;
+                    savedContextRef_.unwatch();
+                    inputKeyPressed_ = false;
                 }
                 timeoutEvent_.reset();
                 return false;
