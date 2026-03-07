@@ -25,6 +25,10 @@ constexpr uint64_t kMicrosecondsPerSecond = 1'000'000;
 constexpr uint64_t kNanosecondsPerMicrosecond = 1'000;
 constexpr uint64_t kMicrosecondsPerMillisecond = 1'000;
 
+constexpr int kDelayMin = 50;
+constexpr int kDelayMax = 2000;
+constexpr int kDelayStep = 25;
+
 // Leader key options (matching PowerToys Quick Accents)
 FCITX_CONFIG_ENUM(LeaderKey, Space, LeftArrow, RightArrow, SpaceOrLeft,
                   SpaceOrRight, LeftOrRight, All);
@@ -48,8 +52,8 @@ private:
 
 FCITX_CONFIGURATION(
     SchnelleUmlauteConfig,
-    Option<int, IntConstrainWithStep> delayLowercase{this, "DelayLowercase", "Delay for lowercase letters (ms)", 400, IntConstrainWithStep(50, 2000, 25)};
-    Option<int, IntConstrainWithStep> delayUppercase{this, "DelayUppercase", "Delay for uppercase letters (ms)", 700, IntConstrainWithStep(50, 2000, 25)};
+    Option<int, IntConstrainWithStep> delayLowercase{this, "DelayLowercase", "Delay for lowercase letters (ms)", 400, IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
+    Option<int, IntConstrainWithStep> delayUppercase{this, "DelayUppercase", "Delay for uppercase letters (ms)", 700, IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
     Option<LeaderKey> leaderKey{this, "LeaderKey", "Activation key (Leader Key)", LeaderKey::Space};
     Option<std::string> mapping1Input{this, "Mapping1Input", "Input 1", "a"};
     Option<std::string> mapping1Output{this, "Mapping1Output", "Output 1", "ä"};
@@ -132,8 +136,8 @@ public:
     const Configuration *getConfig() const override { return &config_; }
     void setConfig(const RawConfig &config) override {
         config_.load(config);
-        config_.delayLowercase.setValue(std::clamp(*config_.delayLowercase, 50, 2000));
-        config_.delayUppercase.setValue(std::clamp(*config_.delayUppercase, 50, 2000));
+        config_.delayLowercase.setValue(std::clamp(*config_.delayLowercase, kDelayMin, kDelayMax));
+        config_.delayUppercase.setValue(std::clamp(*config_.delayUppercase, kDelayMin, kDelayMax));
         safeSaveAsIni(config_, "conf/schnelle-umlaute.conf");
         reloadConfig();
     }
