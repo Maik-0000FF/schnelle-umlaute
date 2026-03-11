@@ -559,14 +559,11 @@ private:
             [this, savedKey, savedRef](EventSourceTime *, uint64_t) {
                 if (waitingKey_ && *waitingKey_ == savedKey) {
                     auto* ctx = savedRef.get();
-                    if (ctx && ctx == savedContextRef_.get() && ctx->hasFocus()) {
+                    if (ctx && ctx == savedContextRef_.get()) {
                         ctx->inputPanel().reset();
                         ctx->commitString(*waitingKey_);
                         ctx->updatePreedit();
                         recentlyCommitted_ = true;
-                    } else if (ctx) {
-                        ctx->inputPanel().reset();
-                        ctx->updatePreedit();
                     }
                     waitingKey_.reset();
                     waitingKeyCode_ = 0;
