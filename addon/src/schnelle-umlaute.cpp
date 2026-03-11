@@ -13,6 +13,7 @@
 #include <chrono>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <memory>
 #include <ctime>
@@ -178,6 +179,15 @@ public:
         bool isPress = !keyEvent.isRelease();
         int rawCode = keyEvent.rawKey().code();
 
+        // Track physical key state for repeat detection.
+        // A key already in heldRawCodes_ is a repeat (auto-repeat).
+        bool isNewKeyPress = true;
+        if (isPress) {
+            isNewKeyPress = heldRawCodes_.insert(rawCode).second;
+        } else {
+            heldRawCodes_.erase(rawCode);
+        }
+
         // Get character from key
         uint32_t unicode = Key::keySymToUnicode(key.sym());
         std::string keyChar;
@@ -270,8 +280,8 @@ public:
             modifiers.test(KeyState::Super)) {
             // Commit any pending preedit before letting the shortcut through
             commitPendingKey(keyEvent.inputContext());
+            commitCyclingValue(keyEvent.inputContext());
             inputKeyPressed_ = false;
-            resetCycling();
             return;  // Let the shortcut through
         }
 
@@ -346,9 +356,19 @@ public:
                 return;
             }
 
-            // New accent key - commit any existing preedit first
+            // During an active gesture, suppress repeats of other held keys.
+            // Prevents held keys from interfering with another key's
+            // waiting/cycling. After the gesture ends, repeats are allowed
+            // to start new gestures (e.g. hold 'a'+'s', cycle 's', release
+            // 's' → 'a' repeat can now start a new 'a' gesture).
+            if (!isNewKeyPress && (waitingKey_ || cyclingInput_)) {
+                keyEvent.filterAndAccept();
+                return;
+            }
+
+            // New accent key - commit any pending state first
             commitPendingKey(keyEvent.inputContext());
-            resetCycling();
+            commitCyclingValue(keyEvent.inputContext());
 
             // Show character in PREEDIT (not committed yet - can be changed!)
             waitingKey_ = keyChar;
@@ -374,7 +394,7 @@ public:
         // PREEDIT: Commit the preedit as-is, then let the key through
         // =========================================
         commitPendingKey(keyEvent.inputContext());
-        resetCycling();
+        commitCyclingValue(keyEvent.inputContext());
         // Let key through
     }
 
@@ -426,6 +446,18 @@ private:
         cancelTimeout();
         inputKeyPressed_ = false;
         recentlyCommitted_ = true;
+    }
+
+    void commitCyclingValue(InputContext* ic) {
+        if (!cyclingInput_) return;
+        auto it = umlautMap_.find(*cyclingInput_);
+        if (it != umlautMap_.end() && cyclingIndex_ < it->second.size()) {
+            ic->inputPanel().reset();
+            ic->commitString(it->second[cyclingIndex_]);
+            ic->updatePreedit();
+            recentlyCommitted_ = true;
+        }
+        resetCycling();
     }
 
     void resetCycling() {
@@ -605,6 +637,9 @@ private:
     // Cycling state (after first Space, while input key held)
     std::optional<std::string> cyclingInput_;
     size_t cyclingIndex_ = 0;
+
+    // Track physically held keys to distinguish fresh presses from repeats
+    std::unordered_set<int> heldRawCodes_;
 
     // Mappings
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
