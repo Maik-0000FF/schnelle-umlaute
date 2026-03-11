@@ -190,10 +190,12 @@ public:
         // through commitString too so both go through the same channel.
         // Without this, committed text and raw key events can arrive
         // at the application out of order in browsers and WezTerm.
+        // Skip when an accent key is waiting — Space should act as
+        // leader key for conversion (e.g. "as" + Space → "aß").
         // =========================================
         if (recentlyCommitted_ && isPress) {
             recentlyCommitted_ = false;
-            if (key.sym() == FcitxKey_space) {
+            if (key.sym() == FcitxKey_space && !waitingKey_) {
                 keyEvent.inputContext()->commitString(" ");
                 keyEvent.filterAndAccept();
                 return;
