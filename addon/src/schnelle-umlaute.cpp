@@ -10,7 +10,6 @@
 #include <fcitx-utils/log.h>
 #include <fcitx-config/configuration.h>
 #include <fcitx-config/iniparser.h>
-#include <chrono>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -265,10 +264,12 @@ public:
 
             if (key.sym() == FcitxKey_space) {
                 ic->commitString(pending + " ");
+                recentlyCommitted_ = true;
                 keyEvent.filterAndAccept();
                 return;
             }
             ic->commitString(pending);
+            recentlyCommitted_ = true;
         }
 
         // =========================================
@@ -374,7 +375,12 @@ public:
             waitingKey_ = keyChar;
             waitingKeyCode_ = keyEvent.rawKey().code();
             inputKeyPressed_ = true;
-            startTime_ = std::chrono::steady_clock::now();
+            {
+                timespec ts;
+                clock_gettime(CLOCK_MONOTONIC, &ts);
+                startTimeUsec_ = static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
+                               + ts.tv_nsec / kNanosecondsPerMicrosecond;
+            }
 
             // Save the InputContext to use in timeout callback
             auto* ic = keyEvent.inputContext();
@@ -426,6 +432,7 @@ private:
         // which would destroy the ordering guard before Space arrives.
         cancelTimeout();
         resetCycling();
+        heldRawCodes_.clear();
     }
 
     void updateClientPreedit(InputContext* ic, const std::string& text) {
@@ -562,11 +569,13 @@ private:
     bool isTimeoutExpired() const {
         if (!waitingKey_) return false;
 
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - startTime_).count();
+        timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        uint64_t now_usec = static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
+                          + ts.tv_nsec / kNanosecondsPerMicrosecond;
+        uint64_t elapsed_ms = (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
 
-        return elapsed > getEffectiveDelay();
+        return elapsed_ms > static_cast<uint64_t>(getEffectiveDelay());
     }
 
     void scheduleTimeout() {
@@ -620,7 +629,7 @@ private:
 
     // Waiting state (before first Space)
     std::optional<std::string> waitingKey_;
-    std::chrono::steady_clock::time_point startTime_;
+    uint64_t startTimeUsec_ = 0;
     std::unique_ptr<EventSourceTime> timeoutEvent_;
 
     // KEY INSIGHT: Track if input key is physically pressed
