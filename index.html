@@ -724,39 +724,16 @@
             position: relative;
         }
 
-        .steps-row::before {
-            content: '';
-            position: absolute;
-            top: 34px; left: 15%; right: 15%; height: 2px;
-            background:
-                linear-gradient(90deg, transparent 0%, rgba(74,222,128,0.9) 50%, transparent 100%),
-                rgba(74,222,128,0.1);
-            background-size: 30% 100%, 100% 100%;
-            background-repeat: no-repeat, no-repeat;
-            animation: line-sweep 3s linear infinite;
+        @property --angle {
+            syntax: '<angle>';
+            initial-value: 0deg;
+            inherits: false;
         }
 
-        @keyframes line-sweep {
-            from { background-position: -30% 0, 0 0; }
-            to   { background-position: 130% 0, 0 0; }
-        }
-
-        @keyframes line-sweep-v {
-            from { background-position: 0 -30%; }
-            to   { background-position: 0 130%; }
-        }
-
-        @keyframes step-active {
-            0%, 5% {
-                background: rgba(74,222,128,0.18);
-                border-color: rgba(74,222,128,0.7);
-                box-shadow: 0 0 0 7px rgba(74,222,128,0.08), 0 0 22px rgba(74,222,128,0.3);
-            }
-            30%, 100% {
-                background: rgba(74,222,128,0.05);
-                border-color: rgba(74,222,128,0.25);
-                box-shadow: none;
-            }
+        @keyframes circle-timer {
+            0%          { --angle: 0deg; }
+            24%         { --angle: 360deg; }
+            25%, 100%   { --angle: 0deg; }
         }
 
         .step-item { text-align: center; padding: 0 16px; position: relative; z-index: 1; }
@@ -764,20 +741,31 @@
         .step-circle {
             width: 70px; height: 70px;
             border-radius: 50%;
-            border: 1px solid rgba(74,222,128,0.25);
+            border: 1px solid rgba(74,222,128,0.2);
             background: rgba(74,222,128,0.05);
             display: flex; align-items: center; justify-content: center;
             margin: 0 auto 20px;
             font-family: 'Space Grotesk', sans-serif;
             font-size: 1.5em; font-weight: 700;
             color: var(--green);
-            transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
+            position: relative;
         }
 
-        .step-item:nth-child(1) .step-circle { animation: step-active 3s ease-in-out infinite 0s; }
-        .step-item:nth-child(2) .step-circle { animation: step-active 3s ease-in-out infinite 0.75s; }
-        .step-item:nth-child(3) .step-circle { animation: step-active 3s ease-in-out infinite 1.5s; }
-        .step-item:nth-child(4) .step-circle { animation: step-active 3s ease-in-out infinite 2.25s; }
+        .step-circle::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            background: conic-gradient(rgba(74,222,128,0.85) var(--angle), rgba(74,222,128,0.1) var(--angle));
+            -webkit-mask: radial-gradient(circle, transparent 86%, black 88%);
+            mask: radial-gradient(circle, transparent 86%, black 88%);
+            animation: circle-timer 3s linear infinite;
+        }
+
+        .step-item:nth-child(1) .step-circle::before { animation-delay: 0s; }
+        .step-item:nth-child(2) .step-circle::before { animation-delay: 0.75s; }
+        .step-item:nth-child(3) .step-circle::before { animation-delay: 1.5s; }
+        .step-item:nth-child(4) .step-circle::before { animation-delay: 2.25s; }
 
         .step-item h3 {
             font-family: 'Space Grotesk', sans-serif;
@@ -1107,7 +1095,6 @@
             .fw-desk { grid-column: span 1; }
             .map-mini { grid-template-columns: repeat(2, 1fr); }
             .steps-row { grid-template-columns: 1fr 1fr; row-gap: 48px; }
-            .steps-row::before { display: none; }
         }
 
         @media (max-width: 640px) {
@@ -1123,26 +1110,12 @@
             footer { padding: 28px 24px; flex-direction: column; align-items: flex-start; }
             .cta-section { padding: 80px 24px; }
             .testi-card { padding: 36px 28px; }
-            .steps-row { grid-template-columns: 1fr; gap: 0; }
-            .steps-row::before { display: none; }
-            .steps-row::after {
-                content: '';
-                position: absolute;
-                left: 50%; transform: translateX(-50%);
-                top: 35px; bottom: 35px;
-                width: 2px;
-                background: linear-gradient(180deg,
-                    rgba(74,222,128,0.1) 0%,
-                    rgba(74,222,128,0.1) 30%,
-                    rgba(74,222,128,0.9) 50%,
-                    rgba(74,222,128,0.1) 70%,
-                    rgba(74,222,128,0.1) 100%
-                );
-                background-size: 100% 300%;
-                animation: line-sweep-v 3s linear infinite;
-            }
-            .step-item { padding: 0 0 44px; }
-            .step-item:last-child { padding-bottom: 0; }
+            .hero-sub { max-width: 100%; }
+            .hero-demo-card { padding: 24px 20px; }
+            .demo-row { gap: 8px; }
+            .key { min-width: 44px; height: 44px; font-size: 0.95em; padding: 0 8px; }
+            #dk-space { min-width: 68px !important; font-size: 0.6em !important; }
+            .demo-result { font-size: 2em; width: 48px; }
         }
     </style>
 </head>
