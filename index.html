@@ -96,7 +96,7 @@
         "aggregateRating": {
             "@type": "AggregateRating",
             "ratingValue": "5",
-            "ratingCount": "1",
+            "ratingCount": "2",
             "bestRating": "5",
             "worstRating": "1"
         },
@@ -112,7 +112,21 @@
                 "name": "GitHub User"
             },
             "reviewBody": "This is EXACTLY what I was looking for and unlike all other solutions I tried it works easy and like a charm! Thank you so much for your work!"
-        }
+        },
+        "review": [
+            {
+                "@type": "Review",
+                "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+                "author": { "@type": "Person", "name": "GitHub User" },
+                "reviewBody": "This is EXACTLY what I was looking for and unlike all other solutions I tried it works easy and like a charm! Thank you so much for your work!"
+            },
+            {
+                "@type": "Review",
+                "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+                "author": { "@type": "Person", "name": "GitHub User" },
+                "reviewBody": "Your tool is getting reliable for daily use, now even with other languages than German!"
+            }
+        ]
     }
     </script>
 
@@ -150,8 +164,8 @@
     <style>
         /* ─── TOKENS ─── */
         :root {
-            --bg:       #060a07;
-            --bg2:      #0b120c;
+            --bg:       #08060f;
+            --bg2:      #0e0b1c;
             --green:    #4ade80;
             --green-d:  #166534;
             --purple:   #a855f7;
@@ -260,6 +274,7 @@
             padding: 8px 20px;
             border-radius: 8px;
             transition: opacity 0.2s, transform 0.2s;
+            display: inline-flex; align-items: center; gap: 7px;
         }
         .nav-cta:hover { opacity: 0.88; transform: translateY(-1px); }
 
@@ -278,20 +293,20 @@
         }
 
         .orb-1 {
-            width: 700px; height: 700px;
-            background: rgba(124,58,237,0.22);
-            top: -200px; left: -200px;
+            width: 900px; height: 900px;
+            background: rgba(124,58,237,0.38);
+            top: -280px; left: -280px;
             animation: drift1 24s ease-in-out infinite;
         }
         .orb-2 {
             width: 550px; height: 550px;
-            background: rgba(74,222,128,0.14);
+            background: rgba(74,222,128,0.12);
             bottom: -100px; right: -100px;
             animation: drift2 20s ease-in-out infinite;
         }
         .orb-3 {
-            width: 400px; height: 400px;
-            background: rgba(8,145,178,0.1);
+            width: 500px; height: 500px;
+            background: rgba(124,58,237,0.18);
             top: 40%; left: 45%;
             animation: drift3 28s ease-in-out infinite;
         }
@@ -425,7 +440,19 @@
             display: flex; flex-direction: column; align-items: center;
             text-align: center;
             flex-shrink: 0;
+            position: relative; overflow: hidden;
+            transform-style: preserve-3d; will-change: transform;
+            transition: border-color 0.3s, transform 0.3s;
         }
+
+        .hero-demo-card::after {
+            content: '';
+            position: absolute; inset: 0; border-radius: var(--r-lg);
+            background: radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(74,222,128,0.09), transparent 60%);
+            opacity: 0; transition: opacity 0.4s; pointer-events: none;
+        }
+        .hero-demo-card:hover::after { opacity: 1; }
+        .hero-demo-card:hover { border-color: rgba(74,222,128,0.28); }
 
         .demo-inner {
             display: inline-flex;
@@ -443,7 +470,7 @@
             overflow: hidden;
             border: 1px solid rgba(255,255,255,0.07);
             box-shadow: 0 24px 60px rgba(0,0,0,0.5);
-            height: 260px;
+            height: 282px;
             display: flex; flex-direction: column;
         }
 
@@ -506,12 +533,28 @@
             50%      { opacity: 0; }
         }
 
-        .demo-label {
-            font-size: 0.72em; font-weight: 600;
-            letter-spacing: 0.14em; text-transform: uppercase;
-            color: var(--green);
-            margin-bottom: 16px;
-            opacity: 0.7;
+        .demo-col {
+            display: flex; flex-direction: column;
+            align-items: center; gap: 7px;
+        }
+
+        .demo-col .demo-op,
+        .demo-col .demo-result {
+            height: 58px;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .demo-sublabel {
+            font-size: 0.68em; font-weight: 600;
+            letter-spacing: 0.12em; text-transform: uppercase;
+            color: var(--green); opacity: 0.65;
+        }
+
+        .demo-desc {
+            margin-bottom: 14px;
+            font-size: 0.78em; color: var(--muted);
+            opacity: 0.75;
+            transition: opacity 0.3s;
         }
 
         .demo-row {
@@ -786,26 +829,38 @@
 
         /* ─── TESTIMONIAL ─── */
         .testi-wrap {
-            text-align: center;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
             margin-top: 60px;
         }
 
         .testi-card {
-            display: inline-block;
-            max-width: 700px;
-            background: rgba(74,222,128,0.03);
-            border: 1px solid rgba(74,222,128,0.15);
+            max-width: 100%;
+            background: rgba(124,58,237,0.06);
+            border: 1px solid rgba(124,58,237,0.2);
             border-radius: var(--r-lg);
             padding: 52px 56px;
-            position: relative;
+            position: relative; overflow: hidden;
+            transform-style: preserve-3d; will-change: transform;
+            transition: border-color 0.3s, transform 0.3s;
         }
+
+        .testi-card::after {
+            content: '';
+            position: absolute; inset: 0; border-radius: var(--r-lg);
+            background: radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(124,58,237,0.13), transparent 60%);
+            opacity: 0; transition: opacity 0.4s; pointer-events: none;
+        }
+        .testi-card:hover::after { opacity: 1; }
+        .testi-card:hover { border-color: rgba(124,58,237,0.45); }
 
         .testi-card::before {
             content: '';
             position: absolute; top: 0; left: 50%;
             transform: translateX(-50%);
             width: 140px; height: 2px;
-            background: linear-gradient(90deg, transparent, var(--green), transparent);
+            background: linear-gradient(90deg, transparent, var(--purple), transparent);
         }
 
         .testi-q {
@@ -872,29 +927,32 @@
             position: relative; overflow: hidden;
             border-radius: 28px;
             display: block;
-            background: rgba(6,10,7,0.95);
-            border: 1px solid rgba(74,222,128,0.18);
+            background: rgba(124,58,237,0.06);
+            border: 1px solid rgba(124,58,237,0.2);
             animation: support-glow 4s ease-in-out infinite;
+            transform-style: preserve-3d; will-change: transform;
+            transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
         }
 
         @keyframes support-glow {
-            0%,100% { box-shadow: 0 0 40px rgba(74,222,128,0.05), 0 0 0 1px rgba(74,222,128,0.12); }
-            50%      { box-shadow: 0 0 90px rgba(74,222,128,0.13), 0 0 0 1px rgba(74,222,128,0.30); }
+            0%,100% { box-shadow: 0 0 40px rgba(124,58,237,0.08), 0 0 0 1px rgba(124,58,237,0.15); }
+            50%      { box-shadow: 0 0 90px rgba(124,58,237,0.18), 0 0 0 1px rgba(124,58,237,0.35); }
         }
 
         .support-card::after {
             content: '';
-            position: absolute; right: -60px; bottom: -60px;
-            width: 340px; height: 340px; border-radius: 50%;
-            background: radial-gradient(circle, rgba(74,222,128,0.07), transparent 70%);
-            pointer-events: none;
+            position: absolute; inset: 0; border-radius: 28px;
+            background: radial-gradient(circle at var(--mx,80%) var(--my,80%), rgba(124,58,237,0.14), transparent 60%);
+            opacity: 0; transition: opacity 0.4s; pointer-events: none;
         }
+        .support-card:hover::after { opacity: 1; }
+        .support-card:hover { border-color: rgba(124,58,237,0.45); }
 
         .support-visual {
             display: flex; align-items: center; justify-content: center;
             padding: 52px 40px;
-            background: rgba(74,222,128,0.03);
-            border-right: 1px solid rgba(74,222,128,0.1);
+            background: rgba(124,58,237,0.04);
+            border-right: 1px solid rgba(124,58,237,0.15);
             position: relative; z-index: 1;
         }
 
@@ -944,7 +1002,7 @@
 
 @media (max-width: 960px) {
             .support-card { grid-template-columns: 1fr; }
-            .support-visual { border-right: none; border-bottom: 1px solid rgba(74,222,128,0.1); padding: 40px; }
+            .support-visual { border-right: none; border-bottom: 1px solid rgba(124,58,237,0.15); padding: 40px; }
             .support-text { padding: 40px; }
         }
         @media (max-width: 640px) {
@@ -1088,13 +1146,14 @@
         @media (max-width: 960px) {
             .hero-inner { grid-template-columns: 1fr; gap: 40px; height: auto; min-height: 0; }
             .hero-demo-card { width: 100%; }
-            .terminal-window { flex: none; height: 210px; }
+            .terminal-window { flex: none; height: 282px; }
             .feat-grid { grid-template-columns: 1fr 1fr; }
             /* fw-all stays span 2 (fills tablet row), fw-desk drops to 1 */
             .fw-all  { grid-column: span 2; }
             .fw-desk { grid-column: span 1; }
             .map-mini { grid-template-columns: repeat(2, 1fr); }
             .steps-row { grid-template-columns: 1fr 1fr; row-gap: 48px; }
+            .testi-wrap { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 640px) {
@@ -1114,7 +1173,8 @@
             .hero-demo-card { padding: 24px 20px; }
             .demo-row { gap: 8px; }
             .key { min-width: 44px; height: 44px; font-size: 0.95em; padding: 0 8px; }
-            #dk-space { min-width: 68px !important; font-size: 0.6em !important; }
+            #dk-space { min-width: 84px !important; font-size: 0.6em !important; }
+            .demo-col-space { width: 84px !important; }
             .demo-result { font-size: 2em; width: 48px; }
         }
     </style>
@@ -1129,8 +1189,12 @@
 <nav id="main-nav" aria-label="Main navigation">
     <a href="#" class="nav-logo"><span class="nl-w">Schnelle</span> <span class="nl-g">Umlaute</span></a>
     <div class="nav-right">
-        <a href="https://github.com/Maik-0000FF/schnelle-umlaute#-installation" class="nav-link" rel="noopener">Installation</a>
-        <a href="https://github.com/Maik-0000FF/schnelle-umlaute" class="nav-cta" rel="noopener">GitHub →</a>
+        <a href="https://github.com/Maik-0000FF/schnelle-umlaute" class="nav-cta" rel="noopener">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+            GitHub
+        </a>
     </div>
 </nav>
 
@@ -1175,13 +1239,28 @@
         <div class="hero-right">
             <div class="hero-demo-card" role="img" aria-label="Keyboard gesture demonstration">
                 <div class="demo-inner">
-                    <p class="demo-label" id="dk-label">hold + space</p>
+                    <p class="demo-desc" id="dk-desc"></p>
                     <div class="demo-row">
-                        <div class="key" id="dk-letter">A</div>
-                        <span class="demo-op" aria-hidden="true">+</span>
-                        <div class="key" id="dk-space" style="min-width:90px;font-size:0.7em;letter-spacing:0.1em;color:var(--muted)">SPACE</div>
-                        <span class="demo-op" aria-hidden="true">→</span>
-                        <div class="demo-result" id="dk-out"></div>
+                        <div class="demo-col">
+                            <div class="key" id="dk-letter">A</div>
+                            <span class="demo-sublabel">hold</span>
+                        </div>
+                        <div class="demo-col">
+                            <span class="demo-op" aria-hidden="true">+</span>
+                            <span class="demo-sublabel">+</span>
+                        </div>
+                        <div class="demo-col demo-col-space" style="width:112px;flex-shrink:0;overflow:hidden">
+                            <div class="key" id="dk-space" style="min-width:112px;font-size:0.7em;letter-spacing:0.1em;color:var(--muted)">SPACE</div>
+                            <span class="demo-sublabel" id="dk-label" style="display:block;text-align:center;white-space:nowrap">space</span>
+                        </div>
+                        <div class="demo-col">
+                            <span class="demo-op" aria-hidden="true">→</span>
+                            <span class="demo-sublabel" aria-hidden="true" style="visibility:hidden">+</span>
+                        </div>
+                        <div class="demo-col">
+                            <div class="demo-result" id="dk-out"></div>
+                            <span class="demo-sublabel" aria-hidden="true" style="visibility:hidden">+</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1247,9 +1326,9 @@
             <h3 class="feat-title" id="f3">Text Snippets</h3>
             <p class="feat-body">One key. Any command.</p>
             <div class="code-pill" style="width:100%">
-                <div style="margin-bottom:6px"><span class="ck">s</span> → <span class="cs">sudo systemctl restart</span></div>
-                <div style="margin-bottom:6px"><span class="ck">g</span> → <span class="cs">git push origin main</span></div>
-                <div><span class="ck">m</span> → <span class="cs">cmake --build build</span></div>
+                <div style="margin-bottom:6px"><span class="ck">h</span> → <span class="cs">Hello</span></div>
+                <div style="margin-bottom:6px"><span class="ck">p</span> → <span class="cs">sudo pacman -Syu</span></div>
+                <div><span class="ck">t</span> → <span class="cs">Tschüss!</span></div>
             </div>
         </article>
 
@@ -1345,6 +1424,15 @@
                 <strong itemprop="author">@Martin-Eckleben</strong> &nbsp;—&nbsp; GitHub User
             </p>
         </div>
+        <div class="testi-card reveal d1" itemscope itemtype="https://schema.org/Review">
+            <span class="testi-q" aria-hidden="true">"</span>
+            <p class="testi-text" itemprop="reviewBody">
+                "Your tool is getting reliable for daily use, now even with other languages than German!"
+            </p>
+            <p class="testi-author">
+                <strong itemprop="author">@ungaul</strong> &nbsp;—&nbsp; GitHub User
+            </p>
+        </div>
     </div>
 </div>
 
@@ -1414,7 +1502,7 @@
 
 <!-- Footer -->
 <footer>
-    <span>Built with Fcitx5 InputMethodEngineV2</span>
+    <span>© 2026 Maik-0000FF</span>
     <div class="footer-links">
         <a href="https://github.com/Maik-0000FF/schnelle-umlaute" rel="noopener">GitHub</a>
         <a href="https://github.com/Maik-0000FF/schnelle-umlaute/issues" rel="noopener">Issues</a>
@@ -1475,38 +1563,33 @@
 
 
     if (dkLetter && dkSpace && dkOut) {
+        var dkDesc = document.getElementById('dk-desc');
         /* r: single char = simple mapping, r: array = cycling demo */
         var seqs = [
             /* Deutsch */
-            {k:'A', r:'ä'},
-            {k:'O', r:'ö'},
-            {k:'U', r:'ü'},
-            {k:'S', r:'ß'},
+            {k:'A', r:'ä',              desc:'Type German umlauts'},
+            {k:'O', r:'ö',              desc:'Type German umlauts'},
+            {k:'U', r:'ü',              desc:'Type German umlauts'},
+            {k:'S', r:'ß',              desc:'Type German sharp S'},
             /* Französisch – cycling */
-            {k:'E', r:['é','è','ê','ë']},
-            {k:'A', r:['à','â','æ']},
-            {k:'O', r:['ô','œ']},
-            {k:'C', r:'ç'},
+            {k:'E', r:['é','è','ê','ë'], desc:'Cycle through French accents'},
+            {k:'A', r:['à','â','æ'],     desc:'Cycle through French accents'},
+            {k:'O', r:['ô','œ'],         desc:'Cycle through French accents'},
+            {k:'C', r:'ç',               desc:'Type French cedilla'},
             /* Spanisch – cycling */
-            {k:'N', r:['ñ']},
-            {k:'A', r:['á']},
-            {k:'E', r:['é']},
-            {k:'I', r:['í']},
-            {k:'O', r:['ó']},
-            {k:'U', r:['ú','ü']},
+            {k:'N', r:['ñ'],             desc:'Type Spanish Ñ'},
+            {k:'A', r:['á'],             desc:'Type Spanish accents'},
+            {k:'U', r:['ú','ü'],         desc:'Cycle through Spanish accents'},
             /* Portugiesisch – cycling */
-            {k:'A', r:['ã','â','á','à']},
-            {k:'O', r:['õ','ô','ó']},
-            {k:'C', r:'ç'},
+            {k:'A', r:['ã','â','á','à'], desc:'Cycle through Portuguese accents'},
+            {k:'O', r:['õ','ô','ó'],     desc:'Cycle through Portuguese accents'},
             /* Mathematik */
-            {k:'P', r:'π'},
-            {k:'I', r:'∞'},
-            {k:'R', r:['√','∛','∜']},
-            {k:'S', r:['Σ','∑']},
-            {k:'O', r:'Ω'},
-            {k:'D', r:'Δ'},
+            {k:'P', r:'π',              desc:'Type math symbols'},
+            {k:'I', r:'∞',              desc:'Type infinity symbol'},
+            {k:'R', r:['√','∛','∜'],    desc:'Cycle through root symbols'},
+            {k:'S', r:['Σ','∑'],        desc:'Cycle through sum symbols'},
             /* Braille */
-            {k:'B', r:['⠁','⠃','⠉','⠙','⠑']},
+            {k:'B', r:['⠁','⠃','⠉','⠙','⠑'], desc:'Cycle through Braille characters'},
         ];
         var si = 0;
 
@@ -1527,7 +1610,8 @@
             dkOut.textContent = '';
             dkOut.style.opacity = '1';
             dkLetter.textContent = s.k;
-            if (dkLabel) dkLabel.textContent = 'hold + space';
+            if (dkLabel) dkLabel.textContent = 'space';
+            if (dkDesc) dkDesc.textContent = s.desc;
 
             /* 1. Hold letter */
             setTimeout(function () { dkLetter.classList.add('pressed'); }, 250);
@@ -1545,7 +1629,7 @@
                     }
 
                     /* 3. Cycling: letter stays held, terminal replaces last char */
-                    if (dkLabel) dkLabel.textContent = 'hold + space → cycle';
+                    if (dkLabel) dkLabel.textContent = 'space · cycle';
                     var stepDuration = 750;
                     for (var i = 1; i < chars.length; i++) {
                         (function (idx, d) {
@@ -1588,16 +1672,16 @@
         }, 850);
     }
 
-    /* ── 3D card tilt ── */
-    document.querySelectorAll('.feat-card').forEach(function (card) {
+    /* ── 3D card tilt (all card types) ── */
+    document.querySelectorAll('.feat-card, .hero-demo-card, .testi-card, .support-card').forEach(function (card) {
+        var intensity = card.classList.contains('support-card') ? 6 : 10;
         card.addEventListener('mousemove', function (e) {
             var r = card.getBoundingClientRect();
             var x = (e.clientX - r.left) / r.width  - 0.5;
             var y = (e.clientY - r.top)  / r.height - 0.5;
             card.style.transform =
-                'perspective(900px) rotateY(' + (x * 10) + 'deg) rotateX(' + (-y * 10) + 'deg) translateZ(8px)';
-            /* Move radial gradient to cursor position */
-            card.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100) + '%');
+                'perspective(900px) rotateY(' + (x * intensity) + 'deg) rotateX(' + (-y * intensity) + 'deg) translateZ(8px)';
+            card.style.setProperty('--mx', ((e.clientX - r.left) / r.width  * 100) + '%');
             card.style.setProperty('--my', ((e.clientY - r.top)  / r.height * 100) + '%');
         });
         card.addEventListener('mouseleave', function () {
@@ -1626,28 +1710,27 @@
         var cursor = document.getElementById('term-cursor');
         if (!body || !cursor) return;
 
-        /* Installation script — runs once, then loops */
-        var scripts = [
-            { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute',
-              out: "Cloning into 'schnelle-umlaute'...\nremote: Counting objects: 147, done." },
-            { cmd: 'cd schnelle-umlaute/addon',
-              out: null },
-            { cmd: 'cmake -S . -B build',
-              out: '-- The CXX compiler identification is GNU 14.2.1\n-- Build files written to: build/' },
-            { cmd: 'cmake --build build',
-              out: '[ 50%] Building CXX object CMakeFiles/schnelle-umlaute.cpp.o\n[100%] Linking CXX shared library libschnelle-umlaute.so' },
-            { cmd: 'sudo cmake --install build',
-              out: '-- Installing: /usr/lib/fcitx5/libschnelle-umlaute.so\n-- Installing: /usr/share/fcitx5/addon/schnelle-umlaute.conf' },
-            { cmd: 'echo "✓ Done! Restart fcitx5 to activate."',
-              out: '✓ Done! Restart fcitx5 to activate.' },
+        /* Installation script — alternates Arch / Ubuntu */
+        var groups = [
+            [
+                { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
+                { cmd: 'cd schnelle-umlaute', out: null },
+                { cmd: './install.sh', out: '[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
+            ],
+            [
+                { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
+                { cmd: 'cd schnelle-umlaute', out: null },
+                { cmd: './install-ubuntu.sh', out: '[✓] apt packages installed\n[✓] Build complete\n[✓] Addon installed' },
+            ],
         ];
 
         var MAX_LINES = 20;
         var lines = [];
+        var gi = 0;
         var si = 0;
-        var CHAR_DELAY = 36;
-        var AFTER_CMD  = 300;
-        var AFTER_OUT  = 800;
+        var CHAR_DELAY = 65;
+        var AFTER_CMD  = 500;
+        var AFTER_OUT  = 1200;
 
         function render() {
             body.innerHTML = '';
@@ -1700,19 +1783,23 @@
         }
 
         function runScript() {
-            var s = scripts[si % scripts.length]; si++;
+            var scripts = groups[gi];
+            var s = scripts[si]; si++;
             typeCommand(s.cmd, function () {
                 if (s.out !== null && s.out !== undefined) {
                     var last = lines[lines.length - 1];
                     last.out = escHtml(s.out);
                     render();
                 }
-                /* After last step pause longer, then clear and restart */
-                var delay = (si % scripts.length === 0) ? 2500 : AFTER_OUT;
-                if (si % scripts.length === 0) {
-                    setTimeout(function () { lines = []; si = 0; runScript(); }, delay);
+                if (si >= scripts.length) {
+                    /* Group done — pause, clear, switch to next group */
+                    setTimeout(function () {
+                        lines = []; si = 0;
+                        gi = (gi + 1) % groups.length;
+                        runScript();
+                    }, 2800);
                 } else {
-                    setTimeout(runScript, delay);
+                    setTimeout(runScript, AFTER_OUT);
                 }
             });
         }
