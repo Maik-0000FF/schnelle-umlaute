@@ -721,7 +721,9 @@
         .cy-c {
             font-family: 'Space Grotesk', sans-serif;
             font-size: 1.6em; font-weight: 700;
-            padding: 5px 13px; border-radius: 9px;
+            width: 54px; height: 54px;
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 12px;
             background: rgba(74,222,128,0.05);
             border: 1px solid rgba(74,222,128,0.12);
             color: rgba(74,222,128,0.5);
@@ -767,16 +769,11 @@
             position: relative;
         }
 
-        @property --angle {
-            syntax: '<angle>';
-            initial-value: 0deg;
-            inherits: false;
-        }
-
-        @keyframes circle-timer {
-            0%          { --angle: 0deg; }
-            24%         { --angle: 360deg; }
-            25%, 100%   { --angle: 0deg; }
+        @keyframes arc-fill {
+            0%      { stroke-dashoffset: 220; }
+            24%     { stroke-dashoffset: 0; }
+            24.1%   { stroke-dashoffset: 220; }
+            100%    { stroke-dashoffset: 220; }
         }
 
         .step-item { text-align: center; padding: 0 16px; position: relative; z-index: 1; }
@@ -794,21 +791,33 @@
             position: relative;
         }
 
-        .step-circle::before {
-            content: '';
-            position: absolute;
-            inset: -4px;
-            border-radius: 50%;
-            background: conic-gradient(rgba(74,222,128,0.85) var(--angle), rgba(74,222,128,0.1) var(--angle));
-            -webkit-mask: radial-gradient(circle, transparent 86%, black 88%);
-            mask: radial-gradient(circle, transparent 86%, black 88%);
-            animation: circle-timer 3s linear infinite;
+        .step-arc {
+            position: absolute; inset: -4px;
+            width: calc(100% + 8px); height: calc(100% + 8px);
+            transform: rotate(-90deg);
+            pointer-events: none;
         }
 
-        .step-item:nth-child(1) .step-circle::before { animation-delay: 0s; }
-        .step-item:nth-child(2) .step-circle::before { animation-delay: 0.75s; }
-        .step-item:nth-child(3) .step-circle::before { animation-delay: 1.5s; }
-        .step-item:nth-child(4) .step-circle::before { animation-delay: 2.25s; }
+        .step-arc-track {
+            fill: none;
+            stroke: rgba(74,222,128,0.1);
+            stroke-width: 2;
+        }
+
+        .step-arc-fill {
+            fill: none;
+            stroke: rgba(74,222,128,0.85);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-dasharray: 220;
+            stroke-dashoffset: 220;
+            animation: arc-fill 8s linear infinite;
+        }
+
+        .step-item:nth-child(1) .step-arc-fill { animation-delay: 0s; }
+        .step-item:nth-child(2) .step-arc-fill { animation-delay: -7.5s; }
+        .step-item:nth-child(3) .step-arc-fill { animation-delay: -7s; }
+        .step-item:nth-child(4) .step-arc-fill { animation-delay: -6.5s; }
 
         .step-item h3 {
             font-family: 'Space Grotesk', sans-serif;
@@ -1391,22 +1400,34 @@
 
     <div class="steps-row" role="list">
         <div class="step-item reveal" role="listitem">
-            <div class="step-circle" aria-hidden="true">1</div>
+            <div class="step-circle" aria-hidden="true">
+                <svg class="step-arc" viewBox="0 0 78 78"><circle class="step-arc-track" cx="39" cy="39" r="35"/><circle class="step-arc-fill" cx="39" cy="39" r="35"/></svg>
+                1
+            </div>
             <h3>Hold Letter</h3>
             <p>Press and hold <span class="kk">a</span> <span class="kk">o</span> <span class="kk">u</span> <span class="kk">s</span></p>
         </div>
         <div class="step-item reveal d1" role="listitem">
-            <div class="step-circle" aria-hidden="true">2</div>
+            <div class="step-circle" aria-hidden="true">
+                <svg class="step-arc" viewBox="0 0 78 78"><circle class="step-arc-track" cx="39" cy="39" r="35"/><circle class="step-arc-fill" cx="39" cy="39" r="35"/></svg>
+                2
+            </div>
             <h3>Press Space</h3>
             <p>Within 400ms, tap <span class="kk">Space</span></p>
         </div>
         <div class="step-item reveal d2" role="listitem">
-            <div class="step-circle" aria-hidden="true">3</div>
+            <div class="step-circle" aria-hidden="true">
+                <svg class="step-arc" viewBox="0 0 78 78"><circle class="step-arc-track" cx="39" cy="39" r="35"/><circle class="step-arc-fill" cx="39" cy="39" r="35"/></svg>
+                3
+            </div>
             <h3>Get Umlaut</h3>
             <p><span class="kk">ä</span> <span class="kk">ö</span> <span class="kk">ü</span> <span class="kk">ß</span> — instantly</p>
         </div>
         <div class="step-item reveal d3" role="listitem">
-            <div class="step-circle" aria-hidden="true">4</div>
+            <div class="step-circle" aria-hidden="true">
+                <svg class="step-arc" viewBox="0 0 78 78"><circle class="step-arc-track" cx="39" cy="39" r="35"/><circle class="step-arc-fill" cx="39" cy="39" r="35"/></svg>
+                4
+            </div>
             <h3>Cycle (Optional)</h3>
             <p>Press again: <span class="kk">á</span> → <span class="kk">à</span> → <span class="kk">â</span></p>
         </div>
@@ -1422,7 +1443,7 @@
         <div class="testi-card reveal" itemscope itemtype="https://schema.org/Review">
             <span class="testi-q" aria-hidden="true">"</span>
             <p class="testi-text" itemprop="reviewBody">
-                "This is EXACTLY what I was looking for and unlike all other solutions I tried it works easy and like a charm! Thank you so much for your work!"
+                This is EXACTLY what I was looking for and unlike all other solutions I tried it works easy and like a charm! Thank you so much for your work!"
             </p>
             <p class="testi-author">
                 <strong itemprop="author"><a href="https://github.com/Martin-Eckleben" rel="noopener">@Martin-Eckleben</a></strong><br><span style="padding-left:0.1em">Passionate programmer and general techie</span>
@@ -1431,7 +1452,7 @@
         <div class="testi-card reveal d1" itemscope itemtype="https://schema.org/Review">
             <span class="testi-q" aria-hidden="true">"</span>
             <p class="testi-text" itemprop="reviewBody">
-                "Your tool is getting reliable for daily use, now even with other languages than German!"
+                Your tool is getting reliable for daily use, now even with other languages than German!"
             </p>
             <p class="testi-author">
                 <strong itemprop="author"><a href="https://github.com/ungaul" rel="noopener">@ungaul</a></strong><br><span style="padding-left:0.1em">GitHub User</span>
