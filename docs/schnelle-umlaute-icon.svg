@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 512 512"
+   version="1.1"
+   id="svg2"
+   sodipodi:docname="favicon.svg"
+   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2" />
+  <sodipodi:namedview
+     id="namedview2"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="2.3613281"
+     inkscape:cx="256"
+     inkscape:cy="256"
+     inkscape:window-width="1333"
+     inkscape:window-height="2104"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg2" />
+  <!-- Violet rounded rectangle background -->
+  <rect
+     width="512"
+     height="512"
+     rx="96"
+     ry="96"
+     fill="#7c3aed"
+     id="rect1" />
+  <!-- S (Schnelle) — white, shifted left to make room -->
+  <g
+     transform="translate(-67.94,-41.59)"
+     fill="#f0fdf4" stroke="#f0fdf4" stroke-width="1"
+     id="g1">
+    <path
+       d="M257.7 379.76Q230.16 379.76 209.08 369.9Q188 360.04 176.1 341.68Q164.2 323.32 164.2 297.48V287.96H208.4V297.48Q208.4 318.9 221.66 329.61Q234.92 340.32 257.7 340.32Q280.82 340.32 292.21 331.14Q303.6 321.96 303.6 307.68Q303.6 297.82 297.99 291.7Q292.38 285.58 281.67 281.67Q270.96 277.76 255.66 274.36L247.84 272.66Q223.36 267.22 205.85 258.89Q188.34 250.56 178.99 236.96Q169.64 223.36 169.64 201.6Q169.64 179.84 180.01 164.37Q190.38 148.9 209.25 140.57Q228.12 132.24 253.62 132.24Q279.12 132.24 299.01 140.91Q318.9 149.58 330.29 166.75Q341.68 183.92 341.68 209.76V219.96H297.48V209.76Q297.48 196.16 292.21 187.83Q286.94 179.5 277.08 175.59Q267.22 171.68 253.62 171.68Q233.22 171.68 223.53 179.33Q213.84 186.98 213.84 200.24Q213.84 209.08 218.43 215.2Q223.02 221.32 232.2 225.4Q241.38 229.48 255.66 232.54L263.48 234.24Q288.98 239.68 307.85 248.18Q326.72 256.68 337.26 270.62Q347.8 284.56 347.8 306.32Q347.8 328.08 336.75 344.57Q325.7 361.06 305.47 370.41Q285.24 379.76 257.7 379.76Z"
+       id="path1" />
+  </g>
+  <!-- U (Umlaute) — green, left stroke aligned with S top stroke start -->
+  <g
+     transform="translate(66.57,43.96)"
+     fill="#4ade80" stroke="#4ade80" stroke-width="1"
+     id="g2">
+    <path
+       d="m 256,377.38 q -29.24,0 -50.15,-10.71 -20.91,-10.71 -31.96,-30.6 -11.05,-19.89 -11.05,-47.09 V 134.62 h 44.88 v 155.72 q 0,21.76 12.41,34.34 12.41,12.58 35.87,12.58 23.46,0 35.87,-12.58 12.41,-12.58 12.41,-34.34 V 134.62 h 44.88 v 154.36 q 0,27.2 -11.05,47.09 -11.05,19.89 -31.96,30.6 -20.91,10.71 -50.15,10.71 z"
+       id="path2" />
+  </g>
+</svg>
