@@ -331,6 +331,9 @@ public:
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
+                        inputKeyPressed_ = false;
+                        waitingKeyCode_ = 0;
+                        recentlyCommitted_ = true;
                     }
 
                     waitingKey_.reset();
