@@ -6,6 +6,7 @@
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://www.linux.org/)
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
 
+> [!WARNING]
 > **Known Issue (fcitx5 5.1.18+):** On KDE Wayland, fcitx5 5.1.18+ may cause sporadic input loss where mapped keys stop producing output. This is caused by a behavior change in `focusInWrapper()` that triggers excessive `reset()` calls. A fix is in progress. As a workaround, switch to `keyboard-us` via Ctrl+Space and back to restore input.
 
 **Linux Alternative to Windows PowerToys Quick Accent** - Fast accent and special character input using hold+space gestures.
