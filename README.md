@@ -6,8 +6,8 @@
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://www.linux.org/)
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
 
-> [!NOTE]
-> **fcitx5 5.1.18+ on KDE Wayland:** If you updated from an older version, reinstall the addon: `./install.sh` (Arch) or `./install-ubuntu.sh` (Ubuntu). This includes fixes for a focus synchronization issue and a dual-instance conflict introduced in fcitx5 5.1.18+.
+> [!WARNING]
+> **fcitx5 5.1.18+** has a known focus tracking bug that causes the addon to stop working after switching between applications. **Recommended version: fcitx5 ≤ 5.1.17.** See [#10](https://github.com/Maik-0000FF/schnelle-umlaute/issues/10) for details and downgrade instructions.
 
 **Linux Alternative to Windows PowerToys Quick Accent** - Fast accent and special character input using hold+space gestures.
 
@@ -160,7 +160,7 @@ sequenceDiagram
 - **Linux** with Fcitx5 support
   - **Arch Linux** - Fully tested and supported
   - **Ubuntu/Debian** - Supported (via `install-ubuntu.sh`)
-- **Fcitx5** - Input Method Framework
+- **Fcitx5 ≤ 5.1.17** - Input Method Framework (see [known issue with 5.1.18+](https://github.com/Maik-0000FF/schnelle-umlaute/issues/10))
 - **CMake** and **extra-cmake-modules** - For building
 - **GCC with C++20 support** - For compilation
 
