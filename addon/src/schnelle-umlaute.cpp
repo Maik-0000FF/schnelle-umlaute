@@ -408,9 +408,6 @@ public:
     }
 
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
-        // Log acts as sync barrier for focusInWrapper() in fcitx5 5.1.18+
-        // which calls reset() on every key event via updateFocus().
-        FCITX_INFO() << "Schnelle: reset ip=" << inputKeyPressed_;
         // Don't clear state if input key is still pressed!
         // Some apps (Chromium, Neovide) call reset() after every commit.
         if (inputKeyPressed_) {
@@ -470,6 +467,7 @@ private:
             ic->updatePreedit();
             recentlyCommitted_ = true;
         }
+        inputKeyPressed_ = false;
         resetCycling();
     }
 
@@ -479,6 +477,8 @@ private:
         waitingKeyCode_ = 0;
     }
 
+    // Intentionally no whitespace trimming: leading/trailing spaces in outputs
+    // are valid (e.g. mapping a key to " " so terminal commands skip history).
     std::vector<std::string> splitOutputs(const std::string& output) {
         std::vector<std::string> outputs;
         if (output.empty()) return outputs;
