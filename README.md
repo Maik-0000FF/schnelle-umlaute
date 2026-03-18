@@ -1,3 +1,5 @@
+<img align="right" height="72" src="docs/apple-touch-icon.png" alt="Schnelle Umlaute Icon">
+
 # Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
