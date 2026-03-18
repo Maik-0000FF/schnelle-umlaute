@@ -243,7 +243,7 @@
         #main-nav {
             position: fixed; top: 0; left: 0; right: 0;
             z-index: 500;
-            padding: 16px 48px;
+            padding: 8px 48px;
             display: flex; align-items: center; justify-content: space-between;
             background: rgba(6,10,7,0.8);
             backdrop-filter: blur(20px);
@@ -258,7 +258,9 @@
             font-weight: 700; font-size: 1em;
             text-decoration: none;
             letter-spacing: -0.01em;
+            display: inline-flex; align-items: center; gap: 8px;
         }
+        .nav-icon { flex-shrink: 0; }
         .nav-logo .nl-w { color: var(--text); }
         .nav-logo .nl-g { color: var(--green); }
 
@@ -478,6 +480,8 @@
             box-shadow: 0 24px 60px rgba(0,0,0,0.5);
             height: 282px;
             display: flex; flex-direction: column;
+            transform-style: preserve-3d; will-change: transform;
+            transition: border-color 0.3s, transform 0.3s;
         }
 
         .terminal-bar {
@@ -919,11 +923,12 @@
         }
         details.q summary::-webkit-details-marker { display: none; }
         details.q summary:hover { color: var(--green); }
+        details.q summary:hover::after { color: var(--green); }
         details.q summary::after {
             content: '+';
-            font-size: 1.3em; color: var(--green);
+            font-size: 1.3em; color: var(--muted);
             font-weight: 300; flex-shrink: 0;
-            transition: transform 0.3s;
+            transition: transform 0.3s, color 0.2s;
         }
         details.q[open] summary::after { transform: rotate(45deg); }
 
@@ -1212,7 +1217,7 @@
 
 <!-- Navigation -->
 <nav id="main-nav" aria-label="Main navigation">
-    <a href="#" class="nav-logo"><span class="nl-w">Schnelle</span> <span class="nl-g">Umlaute</span></a>
+    <a href="#" class="nav-logo"><img src="docs/apple-touch-icon.png" alt="" class="nav-icon" width="42" height="42"><span class="nl-w">Schnelle</span> <span class="nl-g">Umlaute</span></a>
     <div class="nav-right">
         <a href="https://github.com/Maik-0000FF/schnelle-umlaute" class="nav-cta" rel="noopener">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0">
@@ -1582,13 +1587,31 @@
         })();
     }
 
+    /* ── Clean up fadeUp animations (hero elements) ── */
+    document.addEventListener('animationend', function (evt) {
+        if (evt.animationName === 'fadeUp') {
+            var el = evt.target;
+            el.style.opacity = '1';
+            el.style.animation = 'none';
+        }
+    });
+
     /* ── Scroll reveal (fade + clip) ── */
     if ('IntersectionObserver' in window) {
         var obs = new IntersectionObserver(function (entries) {
             entries.forEach(function (e) {
                 if (e.isIntersecting) {
-                    e.target.classList.add('in');
-                    obs.unobserve(e.target);
+                    var el = e.target;
+                    el.classList.add('in');
+                    obs.unobserve(el);
+                    /* Strip reveal classes after animation so transition &
+                       transition-delay don't interfere with 3D card tilt */
+                    var d = el.classList.contains('d3') ? 300 :
+                            el.classList.contains('d2') ? 200 :
+                            el.classList.contains('d1') ? 100 : 0;
+                    setTimeout(function () {
+                        el.classList.remove('reveal', 'clip-reveal', 'in', 'd1', 'd2', 'd3');
+                    }, 750 + d);
                 }
             });
         }, { threshold: 0.08 });
@@ -1719,8 +1742,8 @@
     }
 
     /* ── 3D card tilt (all card types) ── */
-    document.querySelectorAll('.feat-card, .hero-demo-card, .testi-card, .support-card').forEach(function (card) {
-        var intensity = card.classList.contains('support-card') ? 6 : 10;
+    document.querySelectorAll('.feat-card, .hero-demo-card, .testi-card, .support-card, .terminal-window').forEach(function (card) {
+        var intensity = card.classList.contains('support-card') ? 6 : card.classList.contains('terminal-window') ? 6 : 10;
         card.addEventListener('mousemove', function (e) {
             var r = card.getBoundingClientRect();
             var x = (e.clientX - r.left) / r.width  - 0.5;
