@@ -407,6 +407,23 @@ public:
         // Let key through
     }
 
+    void deactivate(const InputMethodEntry &, InputContextEvent &) override {
+        // deactivate() is called only on genuine focus changes (FocusOut /
+        // IC switch), never spuriously. Always clear state here.
+        //
+        // This fixes fcitx5 5.1.18+ where unconditional focusInWrapper()
+        // before each key event causes IC switches during app switching.
+        // With the old default behaviour (deactivate → reset), reset()
+        // returned early when inputKeyPressed_=true, leaving a stale
+        // savedContextRef_ that caused timeout commits to go to the wrong
+        // (possibly destroyed) IC, silently breaking the gesture.
+        //
+        // Chromium / Neovide spurious calls use reset(), not deactivate(),
+        // so the inputKeyPressed_ guard in reset() still protects them.
+        clearAllState();
+        recentlyCommitted_ = false;
+    }
+
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
         // Don't clear state if input key is still pressed!
         // Some apps (Chromium, Neovide) call reset() after every commit.
