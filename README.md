@@ -1,4 +1,4 @@
-<img align="right" height="72" src="docs/apple-touch-icon.png" alt="Schnelle Umlaute Icon">
+<div align="right"><img height="96" src="docs/apple-touch-icon.png" alt="Schnelle Umlaute Icon"></div>
 
 # Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux
 
