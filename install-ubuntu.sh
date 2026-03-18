@@ -199,34 +199,58 @@ if [ -f "$USER_CONFIG" ] && grep -q "^\[Mapping1\]" "$USER_CONFIG"; then
 fi
 echo
 
-# Restart Fcitx5
-echo -e "${BLUE}Starting Fcitx5...${NC}"
-pkill fcitx5 2>/dev/null || true
-sleep 1
-fcitx5 -d 2>/dev/null &
-sleep 2
-
-if pgrep -x fcitx5 > /dev/null; then
-    echo -e "${GREEN}✓ Fcitx5 started successfully${NC}"
-else
-    echo -e "${YELLOW}⚠ Fcitx5 will start after login${NC}"
+# On KDE Wayland, KWin runs fcitx5 internally. The system autostart
+# launches a second instance that conflicts via DBus, causing duplicate
+# key events and input loss.
+if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+    AUTOSTART_FILE="$HOME/.config/autostart/org.fcitx.Fcitx5.desktop"
+    if [ ! -f "$AUTOSTART_FILE" ] || ! grep -q "Hidden=true" "$AUTOSTART_FILE"; then
+        echo -e "${BLUE}Disabling redundant fcitx5 autostart (KWin handles this)...${NC}"
+        mkdir -p "$HOME/.config/autostart"
+        cat > "$AUTOSTART_FILE" << 'EOF'
+[Desktop Entry]
+Hidden=true
+EOF
+        echo -e "${GREEN}✓ Duplicate autostart disabled${NC}"
+    fi
 fi
 echo
 
-# Setup autostart
-echo -e "${BLUE}Setting up autostart...${NC}"
-AUTOSTART_DIR="$HOME/.config/autostart"
-mkdir -p "$AUTOSTART_DIR"
-
-if [ -f /usr/share/applications/org.fcitx.Fcitx5.desktop ]; then
-    cp /usr/share/applications/org.fcitx.Fcitx5.desktop "$AUTOSTART_DIR/"
-    echo -e "${GREEN}✓ Fcitx5 will autostart on login${NC}"
-elif [ -f /usr/share/applications/fcitx5.desktop ]; then
-    cp /usr/share/applications/fcitx5.desktop "$AUTOSTART_DIR/"
-    echo -e "${GREEN}✓ Fcitx5 will autostart on login${NC}"
+# Restart Fcitx5
+echo -e "${BLUE}Starting Fcitx5...${NC}"
+if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+    fcitx5-remote -r 2>/dev/null && \
+        echo -e "${GREEN}✓ Fcitx5 config reloaded${NC}" || \
+        echo -e "${YELLOW}⚠ Could not reload fcitx5 config${NC}"
+    echo -e "${YELLOW}  To fully restart fcitx5: right-click the system tray icon → Exit${NC}"
+    echo -e "${YELLOW}  KWin will restart it automatically${NC}"
 else
-    echo -e "${YELLOW}⚠ Could not find Fcitx5 desktop file for autostart${NC}"
-    echo "  You may need to manually add Fcitx5 to startup applications"
+    pkill fcitx5 2>/dev/null || true
+    sleep 1
+    fcitx5 -d 2>/dev/null &
+    sleep 2
+
+    if pgrep -x fcitx5 > /dev/null; then
+        echo -e "${GREEN}✓ Fcitx5 started successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠ Fcitx5 will start after login${NC}"
+    fi
+
+    # Setup autostart (not needed on KDE Wayland where KWin handles it)
+    echo -e "${BLUE}Setting up autostart...${NC}"
+    AUTOSTART_DIR="$HOME/.config/autostart"
+    mkdir -p "$AUTOSTART_DIR"
+
+    if [ -f /usr/share/applications/org.fcitx.Fcitx5.desktop ]; then
+        cp /usr/share/applications/org.fcitx.Fcitx5.desktop "$AUTOSTART_DIR/"
+        echo -e "${GREEN}✓ Fcitx5 will autostart on login${NC}"
+    elif [ -f /usr/share/applications/fcitx5.desktop ]; then
+        cp /usr/share/applications/fcitx5.desktop "$AUTOSTART_DIR/"
+        echo -e "${GREEN}✓ Fcitx5 will autostart on login${NC}"
+    else
+        echo -e "${YELLOW}⚠ Could not find Fcitx5 desktop file for autostart${NC}"
+        echo "  You may need to manually add Fcitx5 to startup applications"
+    fi
 fi
 echo
 
