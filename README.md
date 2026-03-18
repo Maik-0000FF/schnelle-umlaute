@@ -6,8 +6,8 @@
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://www.linux.org/)
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
 
-> [!WARNING]
-> **fcitx5 5.1.18+ on KDE Wayland:** If you experience sporadic input loss (mapped keys stop producing output), reinstall the addon to get the fix: `./install.sh` (Arch) or `./install-ubuntu.sh` (Ubuntu). The installer also prevents a dual-instance conflict that can cause keyboard failure at login.
+> [!NOTE]
+> **fcitx5 5.1.18+ on KDE Wayland:** If you updated from an older version, reinstall the addon: `./install.sh` (Arch) or `./install-ubuntu.sh` (Ubuntu). This includes fixes for a focus synchronization issue and a dual-instance conflict introduced in fcitx5 5.1.18+.
 
 **Linux Alternative to Windows PowerToys Quick Accent** - Fast accent and special character input using hold+space gestures.
 

@@ -408,6 +408,9 @@ public:
     }
 
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
+        // Log acts as sync barrier for focusInWrapper() in fcitx5 5.1.18+
+        // which calls reset() on every key event via updateFocus().
+        FCITX_INFO() << "Schnelle: reset ip=" << inputKeyPressed_;
         // Don't clear state if input key is still pressed!
         // Some apps (Chromium, Neovide) call reset() after every commit.
         if (inputKeyPressed_) {
