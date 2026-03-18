@@ -297,7 +297,9 @@ EOF
 im-config -n fcitx5
 ```
 
-**6. Setup Autostart**
+**6. Setup Autostart (GNOME only)**
+
+> Skip this step on KDE Wayland — KWin starts Fcitx5 automatically. Adding autostart causes a dual-instance conflict.
 
 ```bash
 mkdir -p ~/.config/autostart
