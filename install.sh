@@ -145,18 +145,45 @@ else
 fi
 echo
 
+# On KDE Wayland, KWin runs fcitx5 internally. The system autostart
+# (/etc/xdg/autostart/org.fcitx.Fcitx5.desktop) launches a second instance
+# that conflicts via DBus, causing duplicate key events and input loss.
+if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+    AUTOSTART_FILE="$HOME/.config/autostart/org.fcitx.Fcitx5.desktop"
+    if [ ! -f "$AUTOSTART_FILE" ]; then
+        echo -e "${BLUE}Disabling redundant fcitx5 autostart (KWin handles this)...${NC}"
+        mkdir -p "$HOME/.config/autostart"
+        cat > "$AUTOSTART_FILE" << 'EOF'
+[Desktop Entry]
+Hidden=true
+EOF
+        echo -e "${GREEN}✓ Duplicate autostart disabled${NC}"
+    fi
+fi
+echo
+
 # Restart Fcitx5
 echo -e "${BLUE}Checking Fcitx5 status...${NC}"
 if pgrep -x fcitx5 > /dev/null; then
-    echo -e "${YELLOW}Fcitx5 is running, restarting...${NC}"
-    killall fcitx5 2>/dev/null || true
-    sleep 1
-    fcitx5 -d 2>/dev/null
-    sleep 2
-    if pgrep -x fcitx5 > /dev/null; then
-        echo -e "${GREEN}✓ Fcitx5 restarted successfully${NC}"
+    # On KDE Wayland, fcitx5 runs inside KWin. killall would kill the
+    # KWin-integrated instance and cause total keyboard loss. Instead,
+    # use fcitx5-remote to safely reload the config, or ask for re-login.
+    if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+        fcitx5-remote -r 2>/dev/null && \
+            echo -e "${GREEN}✓ Fcitx5 config reloaded${NC}" || \
+            echo -e "${YELLOW}⚠ Could not reload fcitx5 config${NC}"
+        echo -e "${YELLOW}  To fully restart fcitx5: right-click the system tray icon → Exit${NC}"
+        echo -e "${YELLOW}  KWin will restart it automatically${NC}"
     else
-        echo -e "${YELLOW}⚠ Fcitx5 stopped (will start on next login)${NC}"
+        killall fcitx5 2>/dev/null || true
+        sleep 1
+        fcitx5 -d 2>/dev/null
+        sleep 2
+        if pgrep -x fcitx5 > /dev/null; then
+            echo -e "${GREEN}✓ Fcitx5 restarted successfully${NC}"
+        else
+            echo -e "${YELLOW}⚠ Fcitx5 stopped (will start on next login)${NC}"
+        fi
     fi
 else
     echo -e "${YELLOW}⚠ Fcitx5 not running yet${NC}"
