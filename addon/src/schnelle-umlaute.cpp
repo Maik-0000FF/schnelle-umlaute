@@ -129,7 +129,7 @@ FCITX_CONFIGURATION(
 class SchnelleUmlauteEngine : public InputMethodEngineV2 {
 public:
     SchnelleUmlauteEngine(Instance *instance)
-        : instance_(instance), enabled_(true) {
+        : instance_(instance) {
         reloadConfig();
     }
 
@@ -172,7 +172,14 @@ public:
     }
 
     void keyEvent(const InputMethodEntry &entry, KeyEvent &keyEvent) override {
-        if (!enabled_) return;
+        // Detect IC change — clear stale state from previous app/text field.
+        // Fallback for when deactivate() is not called (e.g. ShareInputState=All).
+        auto* ic = keyEvent.inputContext();
+        if (lastContextRef_.isValid() && lastContextRef_.get() != ic) {
+            clearAllState();
+            recentlyCommitted_ = false;
+        }
+        lastContextRef_ = ic->watch();
 
         auto key = keyEvent.key();
         bool isPress = !keyEvent.isRelease();
@@ -194,6 +201,13 @@ public:
             keyChar = utf8::UCS4ToUTF8(unicode);
         }
 
+        // Pure modifier key presses (Shift, Ctrl, Alt, Super, etc.)
+        // pass through without affecting gesture state.
+        // Only Modifier+Key combinations trigger the modifier check below.
+        if (isPress && key.sym() >= FcitxKey_Shift_L && key.sym() <= FcitxKey_Hyper_R) {
+            return;
+        }
+
         // =========================================
         // ORDERING GUARD: After a recent commitString, route Space
         // through commitString too so both go through the same channel.
@@ -201,10 +215,12 @@ public:
         // at the application out of order in browsers and WezTerm.
         // Skip when an accent key is waiting — Space should act as
         // leader key for conversion (e.g. "as" + Space → "aß").
+        // Modifier combinations (Ctrl+Space, Alt+Space) are excluded
+        // so shortcuts like IM toggle are not swallowed.
         // =========================================
         if (recentlyCommitted_ && isPress) {
             recentlyCommitted_ = false;
-            if (key.sym() == FcitxKey_space && !waitingKey_) {
+            if (key.sym() == FcitxKey_space && !waitingKey_ && !hasModifiers(key)) {
                 keyEvent.inputContext()->commitString(" ");
                 keyEvent.filterAndAccept();
                 return;
@@ -251,6 +267,8 @@ public:
         // =========================================
         // Commit pending char in the SAME commitString as the following key
         // so both travel through one XIM event — impossible to reorder.
+        // Modifier combinations (Ctrl+Space) are excluded so shortcuts
+        // are not swallowed — pending char is committed separately instead.
         if (waitingKey_ && isTimeoutExpired()) {
             auto* ic = keyEvent.inputContext();
             std::string pending = *waitingKey_;
@@ -262,7 +280,7 @@ public:
             cancelTimeout();
             inputKeyPressed_ = false;
 
-            if (key.sym() == FcitxKey_space) {
+            if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
                 ic->commitString(pending + " ");
                 recentlyCommitted_ = true;
                 keyEvent.filterAndAccept();
@@ -273,12 +291,11 @@ public:
         }
 
         // =========================================
-        // SKIP IF MODIFIER KEYS ARE PRESSED (Ctrl, Alt, Super)
-        // This allows shortcuts like Ctrl+C, Alt+F4, etc. to work
+        // HANDLE MODIFIER COMBINATIONS (Ctrl+C, Alt+F4, etc.)
+        // Unlike the pure modifier early-return above (Shift/Ctrl alone),
+        // this handles a modifier HELD + another key pressed.
         // =========================================
-        KeyStates modifiers = key.states();
-        if (modifiers.test(KeyState::Ctrl) || modifiers.test(KeyState::Alt) ||
-            modifiers.test(KeyState::Super)) {
+        if (hasModifiers(key)) {
             // Commit any pending preedit before letting the shortcut through
             commitPendingKey(keyEvent.inputContext());
             commitCyclingValue(keyEvent.inputContext());
@@ -378,12 +395,7 @@ public:
             waitingKey_ = keyChar;
             waitingKeyCode_ = keyEvent.rawKey().code();
             inputKeyPressed_ = true;
-            {
-                timespec ts;
-                clock_gettime(CLOCK_MONOTONIC, &ts);
-                startTimeUsec_ = static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
-                               + ts.tv_nsec / kNanosecondsPerMicrosecond;
-            }
+            startTimeUsec_ = nowUsec();
 
             // Save the InputContext to use in timeout callback
             auto* ic = keyEvent.inputContext();
@@ -408,15 +420,12 @@ public:
     }
 
     void deactivate(const InputMethodEntry &, InputContextEvent &) override {
-        // deactivate() is called only on genuine focus changes (FocusOut /
-        // IC switch), never spuriously. Always clear state here.
+        // Called on genuine focus changes (FocusOut / IC switch).
+        // Clears all state so gestures don't leak across windows.
         //
-        // This fixes fcitx5 5.1.18+ where unconditional focusInWrapper()
-        // before each key event causes IC switches during app switching.
-        // With the old default behaviour (deactivate → reset), reset()
-        // returned early when inputKeyPressed_=true, leaving a stale
-        // savedContextRef_ that caused timeout commits to go to the wrong
-        // (possibly destroyed) IC, silently breaking the gesture.
+        // Note: with ShareInputState=All, deactivate() may not be called
+        // on every app switch. The IC change detection at the top of
+        // keyEvent() serves as a fallback for that case.
         //
         // Chromium / Neovide spurious calls use reset(), not deactivate(),
         // so the inputKeyPressed_ guard in reset() still protects them.
@@ -432,14 +441,6 @@ public:
         }
 
         clearAllState();
-    }
-
-    void enable() { enabled_ = true; }
-
-    void disable() {
-        enabled_ = false;
-        clearAllState();
-        recentlyCommitted_ = false;
     }
 
 private:
@@ -558,6 +559,21 @@ private:
         addMapping(*config_.mapping30Input, *config_.mapping30Output);
     }
 
+    static uint64_t nowUsec() {
+        timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
+             + ts.tv_nsec / kNanosecondsPerMicrosecond;
+    }
+
+    // Check for Ctrl/Alt/Super in key state. Shift is intentionally
+    // excluded — it is needed for uppercase accent mappings (Shift+A → Ä).
+    static bool hasModifiers(const Key &key) {
+        KeyStates mods = key.states();
+        return mods.test(KeyState::Ctrl) || mods.test(KeyState::Alt) ||
+               mods.test(KeyState::Super);
+    }
+
     bool isLeaderKey(const Key &key) const {
         KeySym sym = key.sym();
         LeaderKey leader = *config_.leaderKey;
@@ -592,10 +608,7 @@ private:
     bool isTimeoutExpired() const {
         if (!waitingKey_) return false;
 
-        timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        uint64_t now_usec = static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
-                          + ts.tv_nsec / kNanosecondsPerMicrosecond;
+        uint64_t now_usec = nowUsec();
         uint64_t elapsed_ms = (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
 
         return elapsed_ms > static_cast<uint64_t>(getEffectiveDelay());
@@ -610,10 +623,7 @@ private:
 
         auto* eventLoop = &instance_->eventLoop();
 
-        timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        uint64_t now_usec = static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
-                          + ts.tv_nsec / kNanosecondsPerMicrosecond;
+        uint64_t now_usec = nowUsec();
         uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * kMicrosecondsPerMillisecond;
 
         auto savedKey = *waitingKey_;
@@ -647,7 +657,6 @@ private:
     }
 
     Instance *instance_;
-    bool enabled_;
     SchnelleUmlauteConfig config_;
 
     // Waiting state (before first Space)
@@ -669,6 +678,9 @@ private:
     // Cycling state (after first Space, while input key held)
     std::optional<std::string> cyclingInput_;
     size_t cyclingIndex_ = 0;
+
+    // Detect IC changes to clear stale state on app/text field switch
+    TrackableObjectReference<InputContext> lastContextRef_;
 
     // Track physically held keys to distinguish fresh presses from repeats
     std::unordered_set<int> heldRawCodes_;
