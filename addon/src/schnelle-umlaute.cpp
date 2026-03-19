@@ -3,6 +3,7 @@
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/instance.h>
 #include <fcitx/inputcontext.h>
+#include <fcitx/inputcontextproperty.h>
 #include <fcitx/inputpanel.h>
 #include <fcitx-utils/textformatflags.h>
 #include <fcitx-utils/utf8.h>
@@ -118,6 +119,69 @@ FCITX_CONFIGURATION(
 );
 
 // =============================================================================
+// Per-IC State: Each InputContext (application window) gets its own state.
+// This prevents focus switches from corrupting gesture state across windows.
+// =============================================================================
+
+class SchnelleUmlauteState : public InputContextProperty {
+public:
+    // Waiting state (before first Space)
+    std::optional<std::string> waitingKey_;
+    uint64_t startTimeUsec_ = 0;
+    std::unique_ptr<EventSourceTime> timeoutEvent_;
+
+    // Track if input key is physically pressed
+    bool inputKeyPressed_ = false;
+    int waitingKeyCode_ = 0;
+
+    // Set after commit to route next Space through commitString (ordering guard).
+    // Intentionally NOT cleared in clearAllState() — apps like WezTerm and
+    // Chromium call reset() after every commit, which would destroy the
+    // ordering guard before Space arrives.
+    bool recentlyCommitted_ = false;
+
+    // Cycling state (after first Space, while input key held)
+    std::optional<std::string> cyclingInput_;
+    size_t cyclingIndex_ = 0;
+
+    // Track physically held keys to distinguish fresh presses from repeats
+    std::unordered_set<int> heldRawCodes_;
+
+    void clearAllState() {
+        waitingKey_.reset();
+        inputKeyPressed_ = false;
+        waitingKeyCode_ = 0;
+        // Note: recentlyCommitted_ is intentionally NOT cleared here.
+        cancelTimeout();
+        resetCycling();
+        heldRawCodes_.clear();
+    }
+
+    void resetCycling() {
+        cyclingInput_.reset();
+        cyclingIndex_ = 0;
+    }
+
+    void cancelTimeout() {
+        timeoutEvent_.reset();
+    }
+
+    bool isTimeoutExpired(int effectiveDelay) const {
+        if (!waitingKey_) return false;
+        uint64_t now_usec = nowUsec();
+        uint64_t elapsed_ms = (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
+        return elapsed_ms > static_cast<uint64_t>(effectiveDelay);
+    }
+
+    static uint64_t nowUsec() {
+        timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
+             + ts.tv_nsec / kNanosecondsPerMicrosecond;
+    }
+};
+
+// =============================================================================
 // VelocityAccents-Style Implementation
 // =============================================================================
 // Key insight: Track whether input key is PHYSICALLY PRESSED
@@ -129,7 +193,10 @@ FCITX_CONFIGURATION(
 class SchnelleUmlauteEngine : public InputMethodEngineV2 {
 public:
     SchnelleUmlauteEngine(Instance *instance)
-        : instance_(instance) {
+        : instance_(instance),
+          factory_([](InputContext &) { return new SchnelleUmlauteState; }) {
+        instance_->inputContextManager().registerProperty(
+            "schnelle-umlaute-state", &factory_);
         reloadConfig();
     }
 
@@ -172,14 +239,8 @@ public:
     }
 
     void keyEvent(const InputMethodEntry &entry, KeyEvent &keyEvent) override {
-        // Detect IC change — clear stale state from previous app/text field.
-        // Fallback for when deactivate() is not called (e.g. ShareInputState=All).
-        auto* ic = keyEvent.inputContext();
-        if (lastContextRef_.isValid() && lastContextRef_.get() != ic) {
-            clearAllState();
-            recentlyCommitted_ = false;
-        }
-        lastContextRef_ = ic->watch();
+        auto *ic = keyEvent.inputContext();
+        auto *state = ic->propertyFor(&factory_);
 
         auto key = keyEvent.key();
         bool isPress = !keyEvent.isRelease();
@@ -189,9 +250,9 @@ public:
         // A key already in heldRawCodes_ is a repeat (auto-repeat).
         bool isNewKeyPress = true;
         if (isPress) {
-            isNewKeyPress = heldRawCodes_.insert(rawCode).second;
+            isNewKeyPress = state->heldRawCodes_.insert(rawCode).second;
         } else {
-            heldRawCodes_.erase(rawCode);
+            state->heldRawCodes_.erase(rawCode);
         }
 
         // Get character from key
@@ -218,10 +279,10 @@ public:
         // Modifier combinations (Ctrl+Space, Alt+Space) are excluded
         // so shortcuts like IM toggle are not swallowed.
         // =========================================
-        if (recentlyCommitted_ && isPress) {
-            recentlyCommitted_ = false;
-            if (key.sym() == FcitxKey_space && !waitingKey_ && !hasModifiers(key)) {
-                keyEvent.inputContext()->commitString(" ");
+        if (state->recentlyCommitted_ && isPress) {
+            state->recentlyCommitted_ = false;
+            if (key.sym() == FcitxKey_space && !state->waitingKey_ && !hasModifiers(key)) {
+                ic->commitString(" ");
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -233,19 +294,18 @@ public:
         if (!isPress) {
             // Check if releasing the cycling input key
             // Compare physical keycode so shifted chars (!, @, #) match their base key
-            if (cyclingInput_ && inputKeyPressed_ && rawCode == waitingKeyCode_) {
+            if (state->cyclingInput_ && state->inputKeyPressed_ && rawCode == state->waitingKeyCode_) {
 
                 // Commit the current preedit value
-                auto it = umlautMap_.find(*cyclingInput_);
-                if (it != umlautMap_.end() && cyclingIndex_ < it->second.size()) {
-                    auto* ic = keyEvent.inputContext();
+                auto it = umlautMap_.find(*state->cyclingInput_);
+                if (it != umlautMap_.end() && state->cyclingIndex_ < it->second.size()) {
                     ic->inputPanel().reset();
-                    ic->commitString(it->second[cyclingIndex_]);
+                    ic->commitString(it->second[state->cyclingIndex_]);
                     ic->updatePreedit();
                 }
 
-                inputKeyPressed_ = false;
-                resetCycling();
+                state->inputKeyPressed_ = false;
+                state->resetCycling();
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -254,8 +314,8 @@ public:
             // PREEDIT: Commit the preedit as the original character
             // Compare physical keycode so shifted chars (!, @, #) and uppercase
             // letters match even if Shift is released first
-            if (waitingKey_ && inputKeyPressed_ && rawCode == waitingKeyCode_) {
-                commitPendingKey(keyEvent.inputContext());
+            if (state->waitingKey_ && state->inputKeyPressed_ && rawCode == state->waitingKeyCode_) {
+                commitPendingKey(ic, state);
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -269,25 +329,23 @@ public:
         // so both travel through one XIM event — impossible to reorder.
         // Modifier combinations (Ctrl+Space) are excluded so shortcuts
         // are not swallowed — pending char is committed separately instead.
-        if (waitingKey_ && isTimeoutExpired()) {
-            auto* ic = keyEvent.inputContext();
-            std::string pending = *waitingKey_;
+        if (state->waitingKey_ && state->isTimeoutExpired(getEffectiveDelay(state))) {
+            std::string pending = *state->waitingKey_;
             ic->inputPanel().reset();
             ic->updatePreedit();
-            waitingKey_.reset();
-            waitingKeyCode_ = 0;
-            savedContextRef_.unwatch();
-            cancelTimeout();
-            inputKeyPressed_ = false;
+            state->waitingKey_.reset();
+            state->waitingKeyCode_ = 0;
+            state->cancelTimeout();
+            state->inputKeyPressed_ = false;
 
             if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
                 ic->commitString(pending + " ");
-                recentlyCommitted_ = true;
+                state->recentlyCommitted_ = true;
                 keyEvent.filterAndAccept();
                 return;
             }
             ic->commitString(pending);
-            recentlyCommitted_ = true;
+            state->recentlyCommitted_ = true;
         }
 
         // =========================================
@@ -297,9 +355,9 @@ public:
         // =========================================
         if (hasModifiers(key)) {
             // Commit any pending preedit before letting the shortcut through
-            commitPendingKey(keyEvent.inputContext());
-            commitCyclingValue(keyEvent.inputContext());
-            inputKeyPressed_ = false;
+            commitPendingKey(ic, state);
+            commitCyclingValue(ic, state);
+            state->inputKeyPressed_ = false;
             return;  // Let the shortcut through
         }
 
@@ -308,21 +366,21 @@ public:
         // =========================================
         if (isLeaderKey(key)) {
             // CASE 1: Currently in cycling mode
-            if (cyclingInput_) {
+            if (state->cyclingInput_) {
                 // Check if input key is still pressed
-                if (!inputKeyPressed_) {
-                    resetCycling();
+                if (!state->inputKeyPressed_) {
+                    state->resetCycling();
                     return;  // Let Space through
                 }
 
-                auto it = umlautMap_.find(*cyclingInput_);
+                auto it = umlautMap_.find(*state->cyclingInput_);
                 if (it != umlautMap_.end() && it->second.size() > 1) {
                     // Cycle to next variant
-                    cyclingIndex_ = (cyclingIndex_ + 1) % it->second.size();
-                    const std::string& nextOutput = it->second[cyclingIndex_];
+                    state->cyclingIndex_ = (state->cyclingIndex_ + 1) % it->second.size();
+                    const std::string& nextOutput = it->second[state->cyclingIndex_];
 
                     // Update preedit with new variant (no deletion needed!)
-                    updateClientPreedit(keyEvent.inputContext(), nextOutput);
+                    updateClientPreedit(ic, nextOutput);
 
                     keyEvent.filterAndAccept();
                     return;
@@ -331,15 +389,14 @@ public:
 
             // CASE 2: First leader key press (start cycling)
             // PREEDIT: Update preedit to show first umlaut (don't commit yet!)
-            if (waitingKey_ && !isTimeoutExpired()) {
-                auto it = umlautMap_.find(*waitingKey_);
+            if (state->waitingKey_ && !state->isTimeoutExpired(getEffectiveDelay(state))) {
+                auto it = umlautMap_.find(*state->waitingKey_);
                 if (it != umlautMap_.end() && !it->second.empty()) {
-                    auto* ic = keyEvent.inputContext();
 
                     // Start cycling if multiple outputs - stay in preedit
                     if (it->second.size() > 1) {
-                        cyclingInput_ = *waitingKey_;
-                        cyclingIndex_ = 0;
+                        state->cyclingInput_ = *state->waitingKey_;
+                        state->cyclingIndex_ = 0;
 
                         // Update preedit with first variant
                         updateClientPreedit(ic, it->second[0]);
@@ -348,14 +405,13 @@ public:
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
-                        inputKeyPressed_ = false;
-                        waitingKeyCode_ = 0;
-                        recentlyCommitted_ = true;
+                        state->inputKeyPressed_ = false;
+                        state->waitingKeyCode_ = 0;
+                        state->recentlyCommitted_ = true;
                     }
 
-                    waitingKey_.reset();
-                    savedContextRef_.unwatch();
-                    cancelTimeout();
+                    state->waitingKey_.reset();
+                    state->cancelTimeout();
                     keyEvent.filterAndAccept();
                     return;
                 }
@@ -371,8 +427,8 @@ public:
         // =========================================
         if (!keyChar.empty() && umlautMap_.find(keyChar) != umlautMap_.end()) {
             // Ignore key repeat while waiting or cycling
-            if ((waitingKey_ && *waitingKey_ == keyChar) ||
-                (cyclingInput_ && *cyclingInput_ == keyChar)) {
+            if ((state->waitingKey_ && *state->waitingKey_ == keyChar) ||
+                (state->cyclingInput_ && *state->cyclingInput_ == keyChar)) {
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -382,26 +438,22 @@ public:
             // waiting/cycling. After the gesture ends, repeats are allowed
             // to start new gestures (e.g. hold 'a'+'s', cycle 's', release
             // 's' → 'a' repeat can now start a new 'a' gesture).
-            if (!isNewKeyPress && (waitingKey_ || cyclingInput_)) {
+            if (!isNewKeyPress && (state->waitingKey_ || state->cyclingInput_)) {
                 keyEvent.filterAndAccept();
                 return;
             }
 
             // New accent key - commit any pending state first
-            commitPendingKey(keyEvent.inputContext());
-            commitCyclingValue(keyEvent.inputContext());
+            commitPendingKey(ic, state);
+            commitCyclingValue(ic, state);
 
             // Show character in PREEDIT (not committed yet - can be changed!)
-            waitingKey_ = keyChar;
-            waitingKeyCode_ = keyEvent.rawKey().code();
-            inputKeyPressed_ = true;
-            startTimeUsec_ = nowUsec();
+            state->waitingKey_ = keyChar;
+            state->waitingKeyCode_ = keyEvent.rawKey().code();
+            state->inputKeyPressed_ = true;
+            state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
-            // Save the InputContext to use in timeout callback
-            auto* ic = keyEvent.inputContext();
-            savedContextRef_ = ic->watch();
-
-            scheduleTimeout();
+            scheduleTimeout(ic, state);
 
             // Set preedit text
             updateClientPreedit(ic, keyChar);
@@ -414,97 +466,83 @@ public:
         // OTHER KEYS - Reset state
         // PREEDIT: Commit the preedit as-is, then let the key through
         // =========================================
-        commitPendingKey(keyEvent.inputContext());
-        commitCyclingValue(keyEvent.inputContext());
+        commitPendingKey(ic, state);
+        commitCyclingValue(ic, state);
         // Let key through
     }
 
-    void activate(const InputMethodEntry &, InputContextEvent &) override {
+    void activate(const InputMethodEntry &, InputContextEvent &event) override {
         // Ensure clean state when switching TO this input method.
         // Catches residual state after crashes or unexpected restarts.
-        clearAllState();
-        recentlyCommitted_ = false;
+        auto *state = event.inputContext()->propertyFor(&factory_);
+        state->clearAllState();
+        state->recentlyCommitted_ = false;
     }
 
-    void deactivate(const InputMethodEntry &, InputContextEvent &) override {
+    void deactivate(const InputMethodEntry &, InputContextEvent &event) override {
         // Called on genuine focus changes (FocusOut / IC switch).
         // Clears all state so gestures don't leak across windows.
-        //
-        // Note: with ShareInputState=All, deactivate() may not be called
-        // on every app switch. The IC change detection at the top of
-        // keyEvent() serves as a fallback for that case.
-        //
-        // Chromium / Neovide spurious calls use reset(), not deactivate(),
-        // so the inputKeyPressed_ guard in reset() still protects them.
-        clearAllState();
-        recentlyCommitted_ = false;
+        auto *ic = event.inputContext();
+        auto *state = ic->propertyFor(&factory_);
+
+        // On IM switch (Ctrl+Space): commit pending preedit before clearing.
+        // The server does NOT auto-commit preedit on IM switch, only on FocusOut.
+        if (event.type() == EventType::InputContextSwitchInputMethod) {
+            commitPendingKey(ic, state);
+            commitCyclingValue(ic, state);
+        }
+
+        state->clearAllState();
+        state->recentlyCommitted_ = false;
     }
 
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
         // Don't clear state if input key is still pressed!
         // Some apps (Chromium, Neovide) call reset() after every commit.
-        if (inputKeyPressed_) {
+        auto *state = event.inputContext()->propertyFor(&factory_);
+        if (state->inputKeyPressed_) {
             return;  // Keep all state intact
         }
 
-        clearAllState();
+        state->clearAllState();
     }
 
 private:
-    void clearAllState() {
-        waitingKey_.reset();
-        savedContextRef_.unwatch();
-        inputKeyPressed_ = false;
-        // Note: recentlyCommitted_ is intentionally NOT cleared here.
-        // Apps like WezTerm and Chromium call reset() after every commit,
-        // which would destroy the ordering guard before Space arrives.
-        cancelTimeout();
-        resetCycling();
-        heldRawCodes_.clear();
-    }
-
-    void updateClientPreedit(InputContext* ic, const std::string& text) {
+    void updateClientPreedit(InputContext *ic, const std::string &text) {
         Text preedit(text);
         preedit.setCursor(preedit.textLength());
         ic->inputPanel().setClientPreedit(preedit);
         ic->updatePreedit();
     }
 
-    void commitPendingKey(InputContext* ic) {
-        if (!waitingKey_) return;
+    void commitPendingKey(InputContext *ic, SchnelleUmlauteState *state) {
+        if (!state->waitingKey_) return;
         ic->inputPanel().reset();
-        ic->commitString(*waitingKey_);
+        ic->commitString(*state->waitingKey_);
         ic->updatePreedit();
-        waitingKey_.reset();
-        waitingKeyCode_ = 0;
-        savedContextRef_.unwatch();
-        cancelTimeout();
-        inputKeyPressed_ = false;
-        recentlyCommitted_ = true;
+        state->waitingKey_.reset();
+        state->waitingKeyCode_ = 0;
+        state->cancelTimeout();
+        state->inputKeyPressed_ = false;
+        state->recentlyCommitted_ = true;
     }
 
-    void commitCyclingValue(InputContext* ic) {
-        if (!cyclingInput_) return;
-        auto it = umlautMap_.find(*cyclingInput_);
-        if (it != umlautMap_.end() && cyclingIndex_ < it->second.size()) {
+    void commitCyclingValue(InputContext *ic, SchnelleUmlauteState *state) {
+        if (!state->cyclingInput_) return;
+        auto it = umlautMap_.find(*state->cyclingInput_);
+        if (it != umlautMap_.end() && state->cyclingIndex_ < it->second.size()) {
             ic->inputPanel().reset();
-            ic->commitString(it->second[cyclingIndex_]);
+            ic->commitString(it->second[state->cyclingIndex_]);
             ic->updatePreedit();
-            recentlyCommitted_ = true;
+            state->recentlyCommitted_ = true;
         }
-        inputKeyPressed_ = false;
-        resetCycling();
-    }
-
-    void resetCycling() {
-        cyclingInput_.reset();
-        cyclingIndex_ = 0;
-        waitingKeyCode_ = 0;
+        state->inputKeyPressed_ = false;
+        state->resetCycling();
     }
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs
     // are valid (e.g. mapping a key to " " so terminal commands skip history).
-    std::vector<std::string> splitOutputs(const std::string& output) {
+    std::vector<std::string> splitOutputs(const std::string &output) {
         std::vector<std::string> outputs;
         if (output.empty()) return outputs;
 
@@ -566,13 +604,6 @@ private:
         addMapping(*config_.mapping30Input, *config_.mapping30Output);
     }
 
-    static uint64_t nowUsec() {
-        timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
-             + ts.tv_nsec / kNanosecondsPerMicrosecond;
-    }
-
     // Check for Ctrl/Alt/Super in key state. Shift is intentionally
     // excluded — it is needed for uppercase accent mappings (Shift+A → Ä).
     static bool hasModifiers(const Key &key) {
@@ -605,53 +636,42 @@ private:
         }
     }
 
-    int getEffectiveDelay() const {
-        if (!waitingKey_) return *config_.delayLowercase;
-        bool isUpper = waitingKey_->length() == 1 &&
-                       std::isupper(static_cast<unsigned char>((*waitingKey_)[0]));
+    int getEffectiveDelay(const SchnelleUmlauteState *state) const {
+        if (!state->waitingKey_) return *config_.delayLowercase;
+        bool isUpper = state->waitingKey_->length() == 1 &&
+                       std::isupper(static_cast<unsigned char>((*state->waitingKey_)[0]));
         return isUpper ? *config_.delayUppercase : *config_.delayLowercase;
     }
 
-    bool isTimeoutExpired() const {
-        if (!waitingKey_) return false;
+    void scheduleTimeout(InputContext *ic, SchnelleUmlauteState *state) {
+        if (!state->waitingKey_) return;
 
-        uint64_t now_usec = nowUsec();
-        uint64_t elapsed_ms = (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
+        state->cancelTimeout();
 
-        return elapsed_ms > static_cast<uint64_t>(getEffectiveDelay());
-    }
+        int effectiveDelay = getEffectiveDelay(state);
+        auto *eventLoop = &instance_->eventLoop();
 
-    void scheduleTimeout() {
-        if (!waitingKey_) return;
-
-        timeoutEvent_.reset();
-
-        int effectiveDelay = getEffectiveDelay();
-
-        auto* eventLoop = &instance_->eventLoop();
-
-        uint64_t now_usec = nowUsec();
+        uint64_t now_usec = SchnelleUmlauteState::nowUsec();
         uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * kMicrosecondsPerMillisecond;
 
-        auto savedKey = *waitingKey_;
-        auto savedRef = savedContextRef_;
-        timeoutEvent_ = eventLoop->addTimeEvent(
+        auto savedKey = *state->waitingKey_;
+        auto savedRef = ic->watch();
+        state->timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC,
             target_usec,
             0,
-            [this, savedKey, savedRef](EventSourceTime *, uint64_t) {
-                if (waitingKey_ && *waitingKey_ == savedKey) {
-                    auto* ctx = savedRef.get();
-                    if (ctx && ctx == savedContextRef_.get()) {
+            [state, savedKey, savedRef](EventSourceTime *, uint64_t) {
+                if (state->waitingKey_ && *state->waitingKey_ == savedKey) {
+                    auto *ctx = savedRef.get();
+                    if (ctx) {
                         ctx->inputPanel().reset();
-                        ctx->commitString(*waitingKey_);
+                        ctx->commitString(*state->waitingKey_);
                         ctx->updatePreedit();
-                        recentlyCommitted_ = true;
+                        state->recentlyCommitted_ = true;
                     }
-                    waitingKey_.reset();
-                    waitingKeyCode_ = 0;
-                    savedContextRef_.unwatch();
-                    inputKeyPressed_ = false;
+                    state->waitingKey_.reset();
+                    state->waitingKeyCode_ = 0;
+                    state->inputKeyPressed_ = false;
                 }
                 // Don't reset timeoutEvent_ here — destroying the EventSource
                 // inside its own callback is a use-after-free risk. Returning
@@ -662,40 +682,11 @@ private:
         );
     }
 
-    void cancelTimeout() {
-        timeoutEvent_.reset();
-    }
-
     Instance *instance_;
     SchnelleUmlauteConfig config_;
+    FactoryFor<SchnelleUmlauteState> factory_;
 
-    // Waiting state (before first Space)
-    std::optional<std::string> waitingKey_;
-    uint64_t startTimeUsec_ = 0;
-    std::unique_ptr<EventSourceTime> timeoutEvent_;
-
-    // KEY INSIGHT: Track if input key is physically pressed
-    bool inputKeyPressed_ = false;
-    int waitingKeyCode_ = 0;
-
-    // Save the InputContext where waitingKey_ was set to avoid sending to wrong window
-    // Uses TrackableObjectReference to safely detect if the window was closed
-    TrackableObjectReference<InputContext> savedContextRef_;
-
-    // Set after commitPendingKey to route next Space through commitString
-    bool recentlyCommitted_ = false;
-
-    // Cycling state (after first Space, while input key held)
-    std::optional<std::string> cyclingInput_;
-    size_t cyclingIndex_ = 0;
-
-    // Detect IC changes to clear stale state on app/text field switch
-    TrackableObjectReference<InputContext> lastContextRef_;
-
-    // Track physically held keys to distinguish fresh presses from repeats
-    std::unordered_set<int> heldRawCodes_;
-
-    // Mappings
+    // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
 };
 
