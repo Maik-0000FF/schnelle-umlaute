@@ -419,6 +419,13 @@ public:
         // Let key through
     }
 
+    void activate(const InputMethodEntry &, InputContextEvent &) override {
+        // Ensure clean state when switching TO this input method.
+        // Catches residual state after crashes or unexpected restarts.
+        clearAllState();
+        recentlyCommitted_ = false;
+    }
+
     void deactivate(const InputMethodEntry &, InputContextEvent &) override {
         // Called on genuine focus changes (FocusOut / IC switch).
         // Clears all state so gestures don't leak across windows.
@@ -646,7 +653,10 @@ private:
                     savedContextRef_.unwatch();
                     inputKeyPressed_ = false;
                 }
-                timeoutEvent_.reset();
+                // Don't reset timeoutEvent_ here — destroying the EventSource
+                // inside its own callback is a use-after-free risk. Returning
+                // false disables the timer; the unique_ptr is cleaned up by
+                // the next scheduleTimeout() or cancelTimeout() call.
                 return false;
             }
         );
