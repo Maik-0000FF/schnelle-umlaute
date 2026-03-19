@@ -6,8 +6,8 @@
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://www.linux.org/)
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
 
-> [!NOTE]
-> **v0.1.4** fixes a focus tracking issue with fcitx5 5.1.18+ that caused the addon to stop working after switching between applications. If you are on an older version, please update.
+> [!WARNING]
+> **fcitx5 5.1.18+** introduced a regression ([`c2c757f0e3`](https://github.com/fcitx/fcitx5/commit/c2c757f0e3)) that causes this addon to lose focus and stop producing output when switching between application windows. This is a [known upstream issue](https://github.com/fcitx/fcitx5/issues/1532), not a bug in the addon. **For stable operation, use fcitx5 5.1.17.** On Arch Linux: `sudo pacman -U /var/cache/pacman/pkg/fcitx5-5.1.17-1-x86_64.pkg.tar.zst` and add `IgnorePkg = fcitx5` to `/etc/pacman.conf` to prevent automatic upgrades.
 
 **Linux Alternative to Windows PowerToys Quick Accent** - Fast accent and special character input using hold+space gestures.
 
@@ -543,6 +543,28 @@ This is a **native Fcitx5 addon** written in **C++**, using the Fcitx5 InputMeth
 | XTest | ✅ | ❌ | ✅ | ❌ | Low |
 
 ## 🐛 Troubleshooting
+
+### fcitx5 5.1.18+ focus regression — addon stops working after window switch
+
+**Symptom:** After switching between application windows (alt-tab), the addon stops producing output. Mapped keys are consumed but nothing appears on screen. Double overlay icons may appear in the system tray.
+
+**Cause:** Commit [`c2c757f0e3`](https://github.com/fcitx/fcitx5/commit/c2c757f0e3) in fcitx5 5.1.18 changed the Wayland input method frontend to call `focusInWrapper()` unconditionally on every key event. Previously, this was guarded by `if (!realFocus())`. The unconditional call creates race conditions during the compositor's activate/deactivate cycle when switching windows, causing the addon's `commitString()` to go to a stale input context.
+
+This is an [upstream issue](https://github.com/fcitx/fcitx5/issues/1532) — not a bug in the addon.
+
+**Fix — downgrade to fcitx5 5.1.17:**
+
+```bash
+# Arch Linux: downgrade from pacman cache
+sudo pacman -U /var/cache/pacman/pkg/fcitx5-5.1.17-1-x86_64.pkg.tar.zst
+
+# Prevent automatic upgrade
+sudo sed -i '/^#IgnorePkg/a IgnorePkg = fcitx5' /etc/pacman.conf
+```
+
+**Temporary workaround (if downgrade is not possible):**
+
+If the addon stops working after a window switch, open `fcitx5-config-qt`, remove "Schnelle Umlaute" from your input methods, click Apply, then add it back and click Apply again. This forces fcitx5 to re-initialize the input method connection.
 
 ### Addon not showing in fcitx5-config-qt
 
