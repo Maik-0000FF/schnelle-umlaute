@@ -7,7 +7,7 @@
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
 
 > [!WARNING]
-> **fcitx5 5.1.18+** introduced a regression ([`c2c757f0e3`](https://github.com/fcitx/fcitx5/commit/c2c757f0e3)) that causes this addon to lose focus and stop producing output when switching between application windows. This is a [known upstream issue](https://github.com/fcitx/fcitx5/issues/1532), not a bug in the addon. **For stable operation, use fcitx5 5.1.17.** On Arch Linux: `sudo pacman -U /var/cache/pacman/pkg/fcitx5-5.1.17-1-x86_64.pkg.tar.zst` and add `IgnorePkg = fcitx5` to `/etc/pacman.conf` to prevent automatic upgrades.
+> **fcitx5 5.1.18+** has a [known upstream regression](https://github.com/fcitx/fcitx5/issues/1532) that can cause the addon to lose focus when used with **KWin tiling scripts** (e.g. MouseTiler). If you experience the addon stopping output after switching or moving windows, disable tiling scripts as a workaround. Without tiling scripts, v0.1.5 is stable on fcitx5 5.1.19. An upstream fix is pending.
 
 **Linux Alternative to Windows PowerToys Quick Accent** - Fast accent and special character input using hold+space gestures.
 
@@ -544,27 +544,24 @@ This is a **native Fcitx5 addon** written in **C++**, using the Fcitx5 InputMeth
 
 ## 🐛 Troubleshooting
 
-### fcitx5 5.1.18+ focus regression — addon stops working after window switch
+### fcitx5 5.1.18+ focus regression with KWin tiling scripts
 
-**Symptom:** After switching between application windows (alt-tab), the addon stops producing output. Mapped keys are consumed but nothing appears on screen. Double overlay icons may appear in the system tray.
+**Symptom:** After switching or moving windows, the addon stops producing output. Mapped keys are consumed but nothing appears on screen.
 
-**Cause:** Commit [`c2c757f0e3`](https://github.com/fcitx/fcitx5/commit/c2c757f0e3) in fcitx5 5.1.18 changed the Wayland input method frontend to call `focusInWrapper()` unconditionally on every key event. Previously, this was guarded by `if (!realFocus())`. The unconditional call creates race conditions during the compositor's activate/deactivate cycle when switching windows, causing the addon's `commitString()` to go to a stale input context.
+**Cause:** Commit [`c2c757f0e3`](https://github.com/fcitx/fcitx5/commit/c2c757f0e3) in fcitx5 5.1.18 changed the Wayland input method frontend to call `focusInWrapper()` unconditionally on every key event. KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) generate additional focus events during window move/resize operations that trigger this regression. Without tiling scripts, the addon is stable on fcitx5 5.1.19.
 
-This is an [upstream issue](https://github.com/fcitx/fcitx5/issues/1532) — not a bug in the addon.
+This is an [upstream issue](https://github.com/fcitx/fcitx5/issues/1532).
 
-**Fix — downgrade to fcitx5 5.1.17:**
+**Workarounds:**
 
-```bash
-# Arch Linux: downgrade from pacman cache
-sudo pacman -U /var/cache/pacman/pkg/fcitx5-5.1.17-1-x86_64.pkg.tar.zst
-
-# Prevent automatic upgrade
-sudo sed -i '/^#IgnorePkg/a IgnorePkg = fcitx5' /etc/pacman.conf
-```
-
-**Temporary workaround (if downgrade is not possible):**
-
-If the addon stops working after a window switch, open `fcitx5-config-qt`, remove "Schnelle Umlaute" from your input methods, click Apply, then add it back and click Apply again. This forces fcitx5 to re-initialize the input method connection.
+1. **Disable KWin tiling scripts** (System Settings → Window Management → KWin Scripts) — this eliminates the extra focus events that trigger the bug
+2. **Downgrade to fcitx5 5.1.17** (Arch Linux):
+   ```bash
+   sudo pacman -U /var/cache/pacman/pkg/fcitx5-5.1.17-1-x86_64.pkg.tar.zst
+   # Prevent automatic upgrade:
+   sudo sed -i '/^#IgnorePkg/a IgnorePkg = fcitx5' /etc/pacman.conf
+   ```
+3. **If the addon breaks:** Restart the affected application. If that doesn't help, open `fcitx5-config-qt`, remove "Schnelle Umlaute", click Apply, then add it back and click Apply again.
 
 ### Addon not showing in fcitx5-config-qt
 
@@ -854,6 +851,6 @@ Built with:
 
 ---
 
-**Version:** 0.1.4
+**Version:** 0.1.5-rc0
 **Status:** Working - tested and functional
 **Date:** 2026-03-19
