@@ -649,6 +649,25 @@ WezTerm has upstream issues with fcitx5 that are **not caused by this addon**:
 
 These issues do not occur in Kitty, which uses a more robust IME integration.
 
+### XWayland mixed mode: addon stops working globally
+
+**Symptom:** After opening an X11 application from a Wayland session (e.g. via `--ozone-platform=x11` or native X11 apps like `xterm`), the addon stops working — not only in the X11 app, but in **all** applications. Mapped keys are swallowed with no output. The addon does not recover after closing the X11 app.
+
+**Affected applications:**
+| Application | Status after XWayland app opened |
+|---|---|
+| WezTerm | Broken |
+| Chromium | Broken |
+| Neovide | Broken |
+| Ghostty | Not affected |
+| Firefox | Not affected |
+
+**Cause:** XWayland sends focus events that are incompatible with fcitx5's Wayland input method protocol. This corrupts the input method connection for applications with fragile IM bindings (winit-based apps via XIM, Chromium's custom input stack). Applications with robust IM implementations (Ghostty, Firefox) are not affected.
+
+**Recovery:** Restarting fcitx5 alone does not fix the affected apps. A re-login is not always sufficient either. A full system reboot reliably restores functionality.
+
+**Note:** This is not a bug in the addon — it is caused by the interaction between XWayland focus handling and the affected applications' input method implementations. In a pure X11 or pure Wayland session, this does not occur.
+
 ### Build errors
 
 Make sure you have C++20 support:
