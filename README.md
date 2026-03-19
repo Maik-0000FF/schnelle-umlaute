@@ -6,9 +6,6 @@
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://www.linux.org/)
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
 
-> [!WARNING]
-> **fcitx5 5.1.18+** has a [known upstream regression](https://github.com/fcitx/fcitx5/issues/1532) that can cause the addon to lose focus when used with **KWin tiling scripts** (e.g. MouseTiler). If you experience the addon stopping output after switching or moving windows, disable tiling scripts as a workaround. Without tiling scripts, v0.1.5 is stable on fcitx5 5.1.19. An upstream fix is pending.
-
 **Linux Alternative to Windows PowerToys Quick Accent** - Fast accent and special character input using hold+space gestures.
 
 Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets you type accents, umlauts, emojis, symbols, and text snippets using intuitive hold + space keyboard gestures. Supports accent cycling (é → è → ê → ë) for German, French, Spanish and other languages. Clipboard-free operation on X11 and Wayland.
@@ -544,24 +541,9 @@ This is a **native Fcitx5 addon** written in **C++**, using the Fcitx5 InputMeth
 
 ## 🐛 Troubleshooting
 
-### fcitx5 5.1.18+ focus regression with KWin tiling scripts
+### Addon stops working after moving/switching windows (fcitx5 5.1.18+)
 
-**Symptom:** After switching or moving windows, the addon stops producing output. Mapped keys are consumed but nothing appears on screen.
-
-**Cause:** Commit [`c2c757f0e3`](https://github.com/fcitx/fcitx5/commit/c2c757f0e3) in fcitx5 5.1.18 changed the Wayland input method frontend to call `focusInWrapper()` unconditionally on every key event. KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) generate additional focus events during window move/resize operations that trigger this regression. Without tiling scripts, the addon is stable on fcitx5 5.1.19.
-
-This is an [upstream issue](https://github.com/fcitx/fcitx5/issues/1532).
-
-**Workarounds:**
-
-1. **Disable KWin tiling scripts** (System Settings → Window Management → KWin Scripts) — this eliminates the extra focus events that trigger the bug
-2. **Downgrade to fcitx5 5.1.17** (Arch Linux):
-   ```bash
-   sudo pacman -U /var/cache/pacman/pkg/fcitx5-5.1.17-1-x86_64.pkg.tar.zst
-   # Prevent automatic upgrade:
-   sudo sed -i '/^#IgnorePkg/a IgnorePkg = fcitx5' /etc/pacman.conf
-   ```
-3. **If the addon breaks:** Restart the affected application. If that doesn't help, open `fcitx5-config-qt`, remove "Schnelle Umlaute", click Apply, then add it back and click Apply again.
+KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) can trigger a [focus regression in fcitx5 5.1.18+](https://github.com/fcitx/fcitx5/issues/1532). Disable tiling scripts to fix this. Without tiling scripts, the addon is stable on fcitx5 5.1.19.
 
 ### Addon not showing in fcitx5-config-qt
 
