@@ -14,17 +14,40 @@ Min=50
 Max=2000
 IntStep=25
 
-[LeaderKey]
-Type=Enum
-DefaultValue=Space
-Description=Activation key (Leader Key)
-Enum0=Space
-Enum1=LeftArrow
-Enum2=RightArrow
-Enum3=SpaceOrLeft
-Enum4=SpaceOrRight
-Enum5=LeftOrRight
-Enum6=All
+[LeaderSpace]
+Type=Boolean
+DefaultValue=True
+Description=Space
+
+[LeaderLeft]
+Type=Boolean
+DefaultValue=False
+Description=Left Arrow
+
+[LeaderRight]
+Type=Boolean
+DefaultValue=False
+Description=Right Arrow
+
+[LeaderUp]
+Type=Boolean
+DefaultValue=False
+Description=Up Arrow
+
+[LeaderDown]
+Type=Boolean
+DefaultValue=False
+Description=Down Arrow
+
+[LeaderAlt]
+Type=Boolean
+DefaultValue=False
+Description=<b><font color="red">experimental</font></b> Alt/AltGr
+
+[CustomLeaderKey]
+Type=String
+DefaultValue=
+Description=<b><font color="red">experimental</font></b> Custom Leader Key
 
 [Mapping1Input]
 Type=String

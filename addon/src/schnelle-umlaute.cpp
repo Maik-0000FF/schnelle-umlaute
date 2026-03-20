@@ -30,10 +30,6 @@ constexpr int kDelayMin = 50;
 constexpr int kDelayMax = 2000;
 constexpr int kDelayStep = 25;
 
-// Leader key options (matching PowerToys Quick Accents)
-FCITX_CONFIG_ENUM(LeaderKey, Space, LeftArrow, RightArrow, SpaceOrLeft,
-                  SpaceOrRight, LeftOrRight, All);
-
 class IntConstrainWithStep {
 public:
     using Type = int;
@@ -55,7 +51,13 @@ FCITX_CONFIGURATION(
     SchnelleUmlauteConfig,
     Option<int, IntConstrainWithStep> delayLowercase{this, "DelayLowercase", "Delay for lowercase letters (ms)", 400, IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
     Option<int, IntConstrainWithStep> delayUppercase{this, "DelayUppercase", "Delay for uppercase letters (ms)", 700, IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
-    Option<LeaderKey> leaderKey{this, "LeaderKey", "Activation key (Leader Key)", LeaderKey::Space};
+    Option<bool> leaderSpace{this, "LeaderSpace", "Space", true};
+    Option<bool> leaderLeft{this, "LeaderLeft", "Left Arrow", false};
+    Option<bool> leaderRight{this, "LeaderRight", "Right Arrow", false};
+    Option<bool> leaderUp{this, "LeaderUp", "Up Arrow", false};
+    Option<bool> leaderDown{this, "LeaderDown", "Down Arrow", false};
+    Option<bool> leaderAlt{this, "LeaderAlt", "<b><font color=\"red\">experimental</font></b> Alt/AltGr", false};
+    Option<std::string> customLeaderKey{this, "CustomLeaderKey", "<b><font color=\"red\">experimental</font></b> Custom Leader Key", ""};
     Option<std::string> mapping1Input{this, "Mapping1Input", "Input 1", "a"};
     Option<std::string> mapping1Output{this, "Mapping1Output", "Output 1", "ä"};
     Option<std::string> mapping2Input{this, "Mapping2Input", "Input 2", "o"};
@@ -147,6 +149,16 @@ public:
     // Track physically held keys to distinguish fresh presses from repeats
     std::unordered_set<int> heldRawCodes_;
 
+    // Suppress auto-repeat after single-output commit until key is released.
+    // Without this, held accent keys generate repeat events that start new
+    // unwanted gestures after the conversion is already committed (e.g. "üu").
+    int committedKeyCode_ = 0;
+
+    // Track consumed Alt/AltGr leader press to also consume the release.
+    // Prevents compositor state confusion from an orphan modifier release
+    // and TUI side effects from stray Alt release events.
+    int consumedAltCode_ = 0;
+
     void clearAllState() {
         waitingKey_.reset();
         inputKeyPressed_ = false;
@@ -155,6 +167,8 @@ public:
         cancelTimeout();
         resetCycling();
         heldRawCodes_.clear();
+        committedKeyCode_ = 0;
+        consumedAltCode_ = 0;
     }
 
     void resetCycling() {
@@ -205,29 +219,38 @@ public:
         config_.load(config);
         config_.delayLowercase.setValue(std::clamp(*config_.delayLowercase, kDelayMin, kDelayMax));
         config_.delayUppercase.setValue(std::clamp(*config_.delayUppercase, kDelayMin, kDelayMax));
+
+        // Sanitize custom leader key: trim whitespace, keep only first
+        // UTF-8 character. Only a single key is valid — spaces would
+        // silently shadow the Space toggle, and multi-char strings
+        // would never match a single keypress.
+        std::string customKey = *config_.customLeaderKey;
+        size_t start = customKey.find_first_not_of(" \t\n\r");
+        if (start == std::string::npos) {
+            customKey = "";
+        } else {
+            size_t end = customKey.find_last_not_of(" \t\n\r");
+            customKey = customKey.substr(start, end - start + 1);
+        }
+        if (customKey.length() > 1) {
+            unsigned char first = static_cast<unsigned char>(customKey[0]);
+            size_t charLen = 1;
+            if (first >= 0xF0) charLen = 4;
+            else if (first >= 0xE0) charLen = 3;
+            else if (first >= 0xC0) charLen = 2;
+            if (charLen <= customKey.length()) {
+                customKey = customKey.substr(0, charLen);
+            }
+        }
+        config_.customLeaderKey.setValue(customKey);
+
         safeSaveAsIni(config_, "conf/schnelle-umlaute.conf");
-        reloadConfig();
+        applyConfig();
     }
 
     void reloadConfig() override {
         readAsIni(config_, "conf/schnelle-umlaute.conf");
-        loadMappingsFromConfig();
-
-        const char* leaderKeyName = "Unknown";
-        switch (*config_.leaderKey) {
-            case LeaderKey::Space: leaderKeyName = "Space"; break;
-            case LeaderKey::LeftArrow: leaderKeyName = "Left Arrow"; break;
-            case LeaderKey::RightArrow: leaderKeyName = "Right Arrow"; break;
-            case LeaderKey::SpaceOrLeft: leaderKeyName = "Space or Left"; break;
-            case LeaderKey::SpaceOrRight: leaderKeyName = "Space or Right"; break;
-            case LeaderKey::LeftOrRight: leaderKeyName = "Left or Right"; break;
-            case LeaderKey::All: leaderKeyName = "All (Space/Left/Right)"; break;
-        }
-
-        FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=" << *config_.delayLowercase
-                     << "ms, DelayUppercase=" << *config_.delayUppercase
-                     << "ms, LeaderKey=" << leaderKeyName
-                     << ", Mappings=" << umlautMap_.size();
+        applyConfig();
     }
 
     std::vector<InputMethodEntry> listInputMethods() override {
@@ -266,7 +289,16 @@ public:
         // pass through without affecting gesture state.
         // Only Modifier+Key combinations trigger the modifier check below.
         if (isPress && key.sym() >= FcitxKey_Shift_L && key.sym() <= FcitxKey_Hyper_R) {
-            return;
+            // Allow Alt_L/Alt_R through as leader when configured and gesture active.
+            // ISO_Level3_Shift (AltGr on EU layouts, 0xfe03) is outside this range
+            // and passes through naturally.
+            if (*config_.leaderAlt &&
+                (key.sym() == FcitxKey_Alt_L || key.sym() == FcitxKey_Alt_R) &&
+                (state->waitingKey_ || state->cyclingInput_)) {
+                // Fall through to leader key handling
+            } else {
+                return;
+            }
         }
 
         // =========================================
@@ -292,6 +324,22 @@ public:
         // HANDLE KEY RELEASE FIRST
         // =========================================
         if (!isPress) {
+            // Consume Alt/AltGr release when the press was consumed as leader.
+            // Prevents compositor state confusion and TUI side effects.
+            if (state->consumedAltCode_ != 0 && rawCode == state->consumedAltCode_) {
+                state->consumedAltCode_ = 0;
+                keyEvent.filterAndAccept();
+                return;
+            }
+
+            // Consume release of key that was committed via single-output.
+            // The press was filterAndAccepted, so the release is an orphan.
+            if (state->committedKeyCode_ != 0 && rawCode == state->committedKeyCode_) {
+                state->committedKeyCode_ = 0;
+                keyEvent.filterAndAccept();
+                return;
+            }
+
             // Check if releasing the cycling input key
             // Compare physical keycode so shifted chars (!, @, #) match their base key
             if (state->cyclingInput_ && state->inputKeyPressed_ && rawCode == state->waitingKeyCode_) {
@@ -362,9 +410,11 @@ public:
         }
 
         // =========================================
-        // HANDLE LEADER KEY (Space/Arrows)
+        // HANDLE LEADER KEY (Space/Arrows/Alt/Custom)
         // =========================================
-        if (isLeaderKey(key)) {
+        if (isLeaderKey(key, keyChar)) {
+            bool isAlt = isAltLeaderSym(key.sym());
+
             // CASE 1: Currently in cycling mode
             if (state->cyclingInput_) {
                 // Check if input key is still pressed
@@ -382,6 +432,7 @@ public:
                     // Update preedit with new variant (no deletion needed!)
                     updateClientPreedit(ic, nextOutput);
 
+                    if (isAlt) state->consumedAltCode_ = rawCode;
                     keyEvent.filterAndAccept();
                     return;
                 }
@@ -405,6 +456,7 @@ public:
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
+                        state->committedKeyCode_ = state->waitingKeyCode_;
                         state->inputKeyPressed_ = false;
                         state->waitingKeyCode_ = 0;
                         state->recentlyCommitted_ = true;
@@ -412,6 +464,7 @@ public:
 
                     state->waitingKey_.reset();
                     state->cancelTimeout();
+                    if (isAlt) state->consumedAltCode_ = rawCode;
                     keyEvent.filterAndAccept();
                     return;
                 }
@@ -439,6 +492,16 @@ public:
             // to start new gestures (e.g. hold 'a'+'s', cycle 's', release
             // 's' → 'a' repeat can now start a new 'a' gesture).
             if (!isNewKeyPress && (state->waitingKey_ || state->cyclingInput_)) {
+                keyEvent.filterAndAccept();
+                return;
+            }
+
+            // Suppress auto-repeat of key that was just committed via single-output.
+            // After single-output commit, the input key may still be held, generating
+            // repeat events. Without this guard, repeats start new unwanted gestures
+            // (e.g. 'u' + AltGr → "ü" then repeat 'u' → "üu").
+            if (!isNewKeyPress && state->committedKeyCode_ != 0 &&
+                rawCode == state->committedKeyCode_) {
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -508,6 +571,28 @@ public:
     }
 
 private:
+    // Apply in-memory config: rebuild mappings and log active leaders.
+    // Shared by setConfig (values already loaded) and reloadConfig (read from disk).
+    void applyConfig() {
+        loadMappingsFromConfig();
+
+        std::string leaders;
+        if (*config_.leaderSpace) leaders += "Space ";
+        if (*config_.leaderLeft) leaders += "Left ";
+        if (*config_.leaderRight) leaders += "Right ";
+        if (*config_.leaderUp) leaders += "Up ";
+        if (*config_.leaderDown) leaders += "Down ";
+        if (*config_.leaderAlt) leaders += "Alt/AltGr ";
+        const std::string &custom = *config_.customLeaderKey;
+        if (!custom.empty()) leaders += "Custom('" + custom + "') ";
+        if (leaders.empty()) leaders = "None ";
+
+        FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=" << *config_.delayLowercase
+                     << "ms, DelayUppercase=" << *config_.delayUppercase
+                     << "ms, Leaders=" << leaders
+                     << ", Mappings=" << umlautMap_.size();
+    }
+
     void updateClientPreedit(InputContext *ic, const std::string &text) {
         Text preedit(text);
         preedit.setCursor(preedit.textLength());
@@ -612,28 +697,35 @@ private:
                mods.test(KeyState::Super);
     }
 
-    bool isLeaderKey(const Key &key) const {
-        KeySym sym = key.sym();
-        LeaderKey leader = *config_.leaderKey;
+    static bool isAltLeaderSym(KeySym sym) {
+        return sym == FcitxKey_Alt_L || sym == FcitxKey_Alt_R ||
+               sym == FcitxKey_ISO_Level3_Shift;
+    }
 
-        switch (leader) {
-            case LeaderKey::Space:
-                return sym == FcitxKey_space;
-            case LeaderKey::LeftArrow:
-                return sym == FcitxKey_Left;
-            case LeaderKey::RightArrow:
-                return sym == FcitxKey_Right;
-            case LeaderKey::SpaceOrLeft:
-                return sym == FcitxKey_space || sym == FcitxKey_Left;
-            case LeaderKey::SpaceOrRight:
-                return sym == FcitxKey_space || sym == FcitxKey_Right;
-            case LeaderKey::LeftOrRight:
-                return sym == FcitxKey_Left || sym == FcitxKey_Right;
-            case LeaderKey::All:
-                return sym == FcitxKey_space || sym == FcitxKey_Left || sym == FcitxKey_Right;
-            default:
-                return sym == FcitxKey_space;
+    bool isLeaderKey(const Key &key, const std::string &keyChar) const {
+        KeySym sym = key.sym();
+
+        // Check Alt/AltGr leader (works on all layouts)
+        // - Alt_L/Alt_R: Left/Right Alt on US layouts
+        // - ISO_Level3_Shift: AltGr on European layouts (physical Right Alt)
+        if (*config_.leaderAlt && isAltLeaderSym(sym)) {
+            return true;
         }
+
+        // Check custom leader key
+        const std::string &custom = *config_.customLeaderKey;
+        if (!custom.empty() && !keyChar.empty() && keyChar == custom) {
+            return true;
+        }
+
+        // Check individual leader key toggles
+        if (*config_.leaderSpace && sym == FcitxKey_space) return true;
+        if (*config_.leaderLeft && sym == FcitxKey_Left) return true;
+        if (*config_.leaderRight && sym == FcitxKey_Right) return true;
+        if (*config_.leaderUp && sym == FcitxKey_Up) return true;
+        if (*config_.leaderDown && sym == FcitxKey_Down) return true;
+
+        return false;
     }
 
     int getEffectiveDelay(const SchnelleUmlauteState *state) const {
@@ -661,14 +753,15 @@ private:
             target_usec,
             0,
             [state, savedKey, savedRef](EventSourceTime *, uint64_t) {
+                // Validate IC first — if destroyed, state is gone too.
+                auto *ctx = savedRef.get();
+                if (!ctx) return false;
+
                 if (state->waitingKey_ && *state->waitingKey_ == savedKey) {
-                    auto *ctx = savedRef.get();
-                    if (ctx) {
-                        ctx->inputPanel().reset();
-                        ctx->commitString(*state->waitingKey_);
-                        ctx->updatePreedit();
-                        state->recentlyCommitted_ = true;
-                    }
+                    ctx->inputPanel().reset();
+                    ctx->commitString(*state->waitingKey_);
+                    ctx->updatePreedit();
+                    state->recentlyCommitted_ = true;
                     state->waitingKey_.reset();
                     state->waitingKeyCode_ = 0;
                     state->inputKeyPressed_ = false;
