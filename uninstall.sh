@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # Colors for output
 RED='\033[0;31m'
@@ -11,6 +12,13 @@ echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Schnelle Umlaute - Uninstallation${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo
+
+# Check if running with sudo (should NOT be)
+if [ "$EUID" -eq 0 ]; then
+    echo -e "${RED}Error: Do not run this script with sudo!${NC}"
+    echo "Run as regular user. Sudo will be requested when needed."
+    exit 1
+fi
 
 # Check if addon is installed (also check /usr/local in case a previous
 # install used the default CMake prefix)
@@ -54,17 +62,10 @@ fi
 
 # Remove files
 echo -e "${BLUE}Removing files (requires sudo)...${NC}"
-if [ ${#FOUND_FILES[@]} -gt 0 ]; then
-    sudo rm -f "${FOUND_FILES[@]}"
-    if [ $? -eq 0 ]; then
-        for file in "${FOUND_FILES[@]}"; do
-            echo -e "  ${GREEN}✓${NC} Removed: $file"
-        done
-    else
-        echo -e "${RED}Error removing files${NC}"
-        exit 1
-    fi
-fi
+sudo rm -f "${FOUND_FILES[@]}"
+for file in "${FOUND_FILES[@]}"; do
+    echo -e "  ${GREEN}✓${NC} Removed: $file"
+done
 echo
 
 # Ask about user configuration
@@ -101,14 +102,21 @@ fi
 # Restart Fcitx5
 echo -e "${BLUE}Restarting Fcitx5...${NC}"
 if pgrep -x fcitx5 > /dev/null; then
-    killall fcitx5 2>/dev/null || true
-    sleep 1
-    fcitx5 -d 2>/dev/null
-    sleep 2
-    if pgrep -x fcitx5 > /dev/null; then
-        echo -e "${GREEN}✓ Fcitx5 restarted successfully${NC}"
+    if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+        fcitx5-remote -r 2>/dev/null && \
+            echo -e "${GREEN}✓ Fcitx5 config reloaded${NC}" || \
+            echo -e "${YELLOW}⚠ Could not reload fcitx5 config${NC}"
+        echo -e "${YELLOW}  Logout/login to fully apply changes${NC}"
     else
-        echo -e "${YELLOW}⚠ Fcitx5 stopped (will start on next login)${NC}"
+        killall fcitx5 2>/dev/null || true
+        sleep 1
+        fcitx5 -d 2>/dev/null
+        sleep 2
+        if pgrep -x fcitx5 > /dev/null; then
+            echo -e "${GREEN}✓ Fcitx5 restarted successfully${NC}"
+        else
+            echo -e "${YELLOW}⚠ Fcitx5 stopped (will start on next login)${NC}"
+        fi
     fi
 else
     echo -e "${YELLOW}⚠ Fcitx5 not running (will start on next login)${NC}"

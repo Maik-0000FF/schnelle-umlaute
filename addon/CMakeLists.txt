@@ -7,9 +7,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(ECM REQUIRED 1.0.0)
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
+# Install addon files to fcitx5's own directories (e.g. /usr/lib/fcitx5 on
+# Arch, /usr/lib/x86_64-linux-gnu/fcitx5 on Debian, /usr/local/lib/fcitx5
+# when fcitx5 was built from source).  Must be set before find_package so
+# Fcitx5UtilsConfig.cmake picks up the correct paths.
+set(FCITX_INSTALL_USE_FCITX_SYS_PATHS ON CACHE BOOL
+    "Install to fcitx5's system directories instead of CMAKE_INSTALL_PREFIX")
+
 find_package(Fcitx5Core REQUIRED)
 find_package(Gettext REQUIRED)
-find_package(Fcitx5Module REQUIRED COMPONENTS TestFrontend TestIM)
 
 include(GNUInstallDirs)
 

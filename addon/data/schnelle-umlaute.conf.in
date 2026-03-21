@@ -1,350 +1,362 @@
-[DelayLowercase]
+[Delay]
+Name=Delay
+Description=Delay Settings
+
+[Delay/Lowercase]
 Type=Integer
 DefaultValue=400
-Description=Delay for lowercase letters (ms)
-Min=50
-Max=2000
+Description=Lowercase (ms)
+IntMin=50
+IntMax=2000
 IntStep=25
 
-[DelayUppercase]
+[Delay/Uppercase]
 Type=Integer
 DefaultValue=700
-Description=Delay for uppercase letters (ms)
-Min=50
-Max=2000
+Description=Uppercase (ms)
+IntMin=50
+IntMax=2000
 IntStep=25
 
-[LeaderSpace]
+[Leader]
+Name=Leader Keys
+Description=Leader Keys
+
+[Leader/Space]
 Type=Boolean
 DefaultValue=True
 Description=Space
 
-[LeaderLeft]
+[Leader/Left]
 Type=Boolean
 DefaultValue=False
 Description=Left Arrow
 
-[LeaderRight]
+[Leader/Right]
 Type=Boolean
 DefaultValue=False
 Description=Right Arrow
 
-[LeaderUp]
+[Leader/Up]
 Type=Boolean
 DefaultValue=False
 Description=Up Arrow
 
-[LeaderDown]
+[Leader/Down]
 Type=Boolean
 DefaultValue=False
 Description=Down Arrow
 
-[LeaderAlt]
+[Leader/Alt]
 Type=Boolean
 DefaultValue=False
-Description=<b><font color="red">experimental</font></b> Alt/AltGr
+Description=⚠ experimental – Alt/AltGr
 
-[CustomLeaderKey]
+[Leader/CustomKey]
 Type=String
 DefaultValue=
-Description=<b><font color="red">experimental</font></b> Custom Leader Key
+Description=⚠ experimental – Custom Leader Key
 
-[Mapping1Input]
+[Mappings]
+Name=Mappings
+Description=Mappings
+
+[Mappings/Input1]
 Type=String
 DefaultValue=a
 Description=Input 1
 
-[Mapping1Output]
+[Mappings/Output1]
 Type=String
 DefaultValue=ä
 Description=Output 1
 
-[Mapping2Input]
+[Mappings/Input2]
 Type=String
 DefaultValue=o
 Description=Input 2
 
-[Mapping2Output]
+[Mappings/Output2]
 Type=String
 DefaultValue=ö
 Description=Output 2
 
-[Mapping3Input]
+[Mappings/Input3]
 Type=String
 DefaultValue=u
 Description=Input 3
 
-[Mapping3Output]
+[Mappings/Output3]
 Type=String
 DefaultValue=ü
 Description=Output 3
 
-[Mapping4Input]
+[Mappings/Input4]
 Type=String
 DefaultValue=s
 Description=Input 4
 
-[Mapping4Output]
+[Mappings/Output4]
 Type=String
 DefaultValue=ß
 Description=Output 4
 
-[Mapping5Input]
+[Mappings/Input5]
 Type=String
 DefaultValue=A
 Description=Input 5
 
-[Mapping5Output]
+[Mappings/Output5]
 Type=String
 DefaultValue=Ä
 Description=Output 5
 
-[Mapping6Input]
+[Mappings/Input6]
 Type=String
 DefaultValue=O
 Description=Input 6
 
-[Mapping6Output]
+[Mappings/Output6]
 Type=String
 DefaultValue=Ö
 Description=Output 6
 
-[Mapping7Input]
+[Mappings/Input7]
 Type=String
 DefaultValue=U
 Description=Input 7
 
-[Mapping7Output]
+[Mappings/Output7]
 Type=String
 DefaultValue=Ü
 Description=Output 7
 
-[Mapping8Input]
+[Mappings/Input8]
 Type=String
 DefaultValue=
 Description=Input 8
 
-[Mapping8Output]
+[Mappings/Output8]
 Type=String
 DefaultValue=
 Description=Output 8
 
-[Mapping9Input]
+[Mappings/Input9]
 Type=String
 DefaultValue=
 Description=Input 9
 
-[Mapping9Output]
+[Mappings/Output9]
 Type=String
 DefaultValue=
 Description=Output 9
 
-[Mapping10Input]
+[Mappings/Input10]
 Type=String
 DefaultValue=
 Description=Input 10
 
-[Mapping10Output]
+[Mappings/Output10]
 Type=String
 DefaultValue=
 Description=Output 10
 
-[Mapping11Input]
+[Mappings/Input11]
 Type=String
 DefaultValue=
 Description=Input 11
 
-[Mapping11Output]
+[Mappings/Output11]
 Type=String
 DefaultValue=
 Description=Output 11
 
-[Mapping12Input]
+[Mappings/Input12]
 Type=String
 DefaultValue=
 Description=Input 12
 
-[Mapping12Output]
+[Mappings/Output12]
 Type=String
 DefaultValue=
 Description=Output 12
 
-[Mapping13Input]
+[Mappings/Input13]
 Type=String
 DefaultValue=
 Description=Input 13
 
-[Mapping13Output]
+[Mappings/Output13]
 Type=String
 DefaultValue=
 Description=Output 13
 
-[Mapping14Input]
+[Mappings/Input14]
 Type=String
 DefaultValue=
 Description=Input 14
 
-[Mapping14Output]
+[Mappings/Output14]
 Type=String
 DefaultValue=
 Description=Output 14
 
-[Mapping15Input]
+[Mappings/Input15]
 Type=String
 DefaultValue=
 Description=Input 15
 
-[Mapping15Output]
+[Mappings/Output15]
 Type=String
 DefaultValue=
 Description=Output 15
 
-[Mapping16Input]
+[Mappings/Input16]
 Type=String
 DefaultValue=
 Description=Input 16
 
-[Mapping16Output]
+[Mappings/Output16]
 Type=String
 DefaultValue=
 Description=Output 16
 
-[Mapping17Input]
+[Mappings/Input17]
 Type=String
 DefaultValue=
 Description=Input 17
 
-[Mapping17Output]
+[Mappings/Output17]
 Type=String
 DefaultValue=
 Description=Output 17
 
-[Mapping18Input]
+[Mappings/Input18]
 Type=String
 DefaultValue=
 Description=Input 18
 
-[Mapping18Output]
+[Mappings/Output18]
 Type=String
 DefaultValue=
 Description=Output 18
 
-[Mapping19Input]
+[Mappings/Input19]
 Type=String
 DefaultValue=
 Description=Input 19
 
-[Mapping19Output]
+[Mappings/Output19]
 Type=String
 DefaultValue=
 Description=Output 19
 
-[Mapping20Input]
+[Mappings/Input20]
 Type=String
 DefaultValue=
 Description=Input 20
 
-[Mapping20Output]
+[Mappings/Output20]
 Type=String
 DefaultValue=
 Description=Output 20
 
-[Mapping21Input]
+[Mappings/Input21]
 Type=String
 DefaultValue=
 Description=Input 21
 
-[Mapping21Output]
+[Mappings/Output21]
 Type=String
 DefaultValue=
 Description=Output 21
 
-[Mapping22Input]
+[Mappings/Input22]
 Type=String
 DefaultValue=
 Description=Input 22
 
-[Mapping22Output]
+[Mappings/Output22]
 Type=String
 DefaultValue=
 Description=Output 22
 
-[Mapping23Input]
+[Mappings/Input23]
 Type=String
 DefaultValue=
 Description=Input 23
 
-[Mapping23Output]
+[Mappings/Output23]
 Type=String
 DefaultValue=
 Description=Output 23
 
-[Mapping24Input]
+[Mappings/Input24]
 Type=String
 DefaultValue=
 Description=Input 24
 
-[Mapping24Output]
+[Mappings/Output24]
 Type=String
 DefaultValue=
 Description=Output 24
 
-[Mapping25Input]
+[Mappings/Input25]
 Type=String
 DefaultValue=
 Description=Input 25
 
-[Mapping25Output]
+[Mappings/Output25]
 Type=String
 DefaultValue=
 Description=Output 25
 
-[Mapping26Input]
+[Mappings/Input26]
 Type=String
 DefaultValue=
 Description=Input 26
 
-[Mapping26Output]
+[Mappings/Output26]
 Type=String
 DefaultValue=
 Description=Output 26
 
-[Mapping27Input]
+[Mappings/Input27]
 Type=String
 DefaultValue=
 Description=Input 27
 
-[Mapping27Output]
+[Mappings/Output27]
 Type=String
 DefaultValue=
 Description=Output 27
 
-[Mapping28Input]
+[Mappings/Input28]
 Type=String
 DefaultValue=
 Description=Input 28
 
-[Mapping28Output]
+[Mappings/Output28]
 Type=String
 DefaultValue=
 Description=Output 28
 
-[Mapping29Input]
+[Mappings/Input29]
 Type=String
 DefaultValue=
 Description=Input 29
 
-[Mapping29Output]
+[Mappings/Output29]
 Type=String
 DefaultValue=
 Description=Output 29
 
-[Mapping30Input]
+[Mappings/Input30]
 Type=String
 DefaultValue=
 Description=Input 30
 
-[Mapping30Output]
+[Mappings/Output30]
 Type=String
 DefaultValue=
 Description=Output 30

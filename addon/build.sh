@@ -21,7 +21,7 @@ cd build
 
 # Configure with CMake
 echo "Configuring with CMake..."
-cmake -DCMAKE_INSTALL_PREFIX=/usr ..
+cmake ..
 
 # Build
 echo "Building..."

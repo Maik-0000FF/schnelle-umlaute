@@ -88,10 +88,37 @@ else
     echo
 fi
 
-# Check for stale installations under /usr/local (default CMake prefix)
-# that would shadow the /usr installation
+# Build the addon first — stale files are only removed after a successful build
+# so the user is never left with no working installation.
+echo -e "${BLUE}Building addon...${NC}"
+cd addon
+
+# Create build directory
+echo "Creating build directory..."
+rm -rf build
+mkdir -p build
+cd build
+
+echo "Configuring with CMake..."
+cmake ..
+
+echo "Building..."
+make -j$(nproc)
+
+echo -e "${GREEN}✓ Build successful!${NC}"
+echo
+
+# Now that build succeeded, check for and remove stale installations.
+# fcitx5 may be under /usr (distro package) or /usr/local (from-source).
 STALE_FILES=()
-for stale in /usr/local/lib/fcitx5/schnelle-umlaute.so \
+for stale in /usr/lib/fcitx5/schnelle-umlaute.so \
+             /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so \
+             /usr/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so \
+             /usr/share/fcitx5/addon/schnelle-umlaute.conf \
+             /usr/share/fcitx5/addon/schnelle-umlaute.conf.in \
+             /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml \
+             /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf \
+             /usr/local/lib/fcitx5/schnelle-umlaute.so \
              /usr/local/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so \
              /usr/local/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so \
              /usr/local/share/fcitx5/addon/schnelle-umlaute.conf \
@@ -104,43 +131,21 @@ for stale in /usr/local/lib/fcitx5/schnelle-umlaute.so \
 done
 
 if [ ${#STALE_FILES[@]} -ne 0 ]; then
-    echo -e "${RED}WARNING: Old installation found under /usr/local/${NC}"
-    echo -e "${RED}This will shadow the new installation and cause version conflicts!${NC}"
+    echo -e "${YELLOW}Found previous installation files:${NC}"
     for file in "${STALE_FILES[@]}"; do
         echo "  - $file"
     done
     echo
-    read -p "Remove old installation? [Y/n] " -n 1 -r
+    read -p "Remove before reinstalling? [Y/n] " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         sudo rm -f "${STALE_FILES[@]}"
         echo -e "${GREEN}✓ Old installation removed${NC}"
     else
-        echo -e "${RED}Warning: Old version may still be loaded instead of the new one!${NC}"
+        echo -e "${RED}Warning: Old files may conflict with the new installation!${NC}"
     fi
     echo
 fi
-
-# Build the addon
-echo -e "${BLUE}Building addon...${NC}"
-cd addon
-
-# Create build directory
-echo "Creating build directory..."
-rm -rf build
-mkdir -p build
-cd build
-
-# Configure with CMake (Ubuntu uses /usr prefix)
-echo "Configuring with CMake..."
-cmake -DCMAKE_INSTALL_PREFIX=/usr ..
-
-# Build
-echo "Building..."
-make -j$(nproc)
-
-echo -e "${GREEN}✓ Build successful!${NC}"
-echo
 
 # Install
 echo -e "${BLUE}Installing addon...${NC}"
@@ -168,17 +173,19 @@ if [ -f "$ENV_FILE" ]; then
         echo -e "${YELLOW}Skipping environment setup.${NC}"
     else
         cat > "$ENV_FILE" << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
+GTK_IM_MODULE=fcitx5
+QT_IM_MODULE=fcitx5
+XMODIFIERS=@im=fcitx5
+GLFW_IM_MODULE=ibus
 EOF
         echo -e "${GREEN}✓ Environment variables configured${NC}"
     fi
 else
     cat > "$ENV_FILE" << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
+GTK_IM_MODULE=fcitx5
+QT_IM_MODULE=fcitx5
+XMODIFIERS=@im=fcitx5
+GLFW_IM_MODULE=ibus
 EOF
     echo -e "${GREEN}✓ Environment variables configured${NC}"
 fi
@@ -215,20 +222,80 @@ ShareInputState=No
 EOF
     echo -e "${GREEN}✓ Fcitx5 configured (Ctrl+Space to switch)${NC}"
 else
-    echo -e "${GREEN}✓ Fcitx5 config already exists${NC}"
+    # Check if TriggerKeys contains Shift_L (conflicts with addon)
+    if grep -q "TriggerKeys.*Shift" "$CONFIG_FILE"; then
+        sed -i 's/^TriggerKeys=.*/TriggerKeys=Control+space/' "$CONFIG_FILE"
+        echo -e "${GREEN}✓ Shift conflict resolved (switched to Ctrl+Space only)${NC}"
+    else
+        echo -e "${GREEN}✓ Fcitx5 config already exists${NC}"
+    fi
 fi
 echo
 
-# Check for old configuration format
+# Check for old configuration format and migrate if needed
 USER_CONFIG="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
-if [ -f "$USER_CONFIG" ] && grep -q "^\[Mapping1\]" "$USER_CONFIG"; then
-    echo -e "${YELLOW}Detected old configuration format${NC}"
-    read -p "Remove old config and use defaults? [Y/n] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-        mv "$USER_CONFIG" "$USER_CONFIG.backup"
-        echo -e "${GREEN}✓ Old config backed up${NC}"
+
+echo -e "${BLUE}Checking configuration...${NC}"
+
+# Migrate old flat config format to new sectioned format.
+migrate_flat_config() {
+    local cfg="$1"
+    local tmp="${cfg}.migrating"
+
+    echo "[Delay]" > "$tmp"
+    grep -oP '^DelayLowercase=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Lowercase=$v"; done >> "$tmp"
+    grep -oP '^DelayUppercase=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Uppercase=$v"; done >> "$tmp"
+    echo "" >> "$tmp"
+
+    echo "[Leader]" >> "$tmp"
+    grep -oP '^LeaderSpace=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Space=$v"; done >> "$tmp"
+    grep -oP '^LeaderLeft=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Left=$v"; done >> "$tmp"
+    grep -oP '^LeaderRight=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Right=$v"; done >> "$tmp"
+    grep -oP '^LeaderUp=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Up=$v"; done >> "$tmp"
+    grep -oP '^LeaderDown=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Down=$v"; done >> "$tmp"
+    grep -oP '^LeaderAlt=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Alt=$v"; done >> "$tmp"
+    grep -oP '^CustomLeaderKey=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "CustomKey=$v"; done >> "$tmp"
+    echo "" >> "$tmp"
+
+    echo "[Mappings]" >> "$tmp"
+    for i in $(seq 1 30); do
+        grep -oP "^Mapping${i}Input=\\K.*" "$cfg" 2>/dev/null | while read -r v; do echo "Input${i}=$v"; done >> "$tmp"
+        grep -oP "^Mapping${i}Output=\\K.*" "$cfg" 2>/dev/null | while read -r v; do echo "Output${i}=$v"; done >> "$tmp"
+    done
+    echo "" >> "$tmp"
+
+    mv "$tmp" "$cfg"
+}
+
+if [ -f "$USER_CONFIG" ]; then
+    if grep -q "^\[Mapping1\]" "$USER_CONFIG"; then
+        echo -e "${YELLOW}Detected very old configuration format (SubConfiguration structure)${NC}"
+        read -p "Remove old config and regenerate defaults? [Y/n] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            mv "$USER_CONFIG" "$USER_CONFIG.backup"
+            echo -e "${GREEN}✓ Old config backed up to: $USER_CONFIG.backup${NC}"
+            echo -e "${GREEN}✓ Defaults will be regenerated on next start${NC}"
+        else
+            echo -e "${RED}Warning: Old config format may not work correctly!${NC}"
+        fi
+    elif grep -q "^DelayLowercase=" "$USER_CONFIG" || grep -q "^LeaderSpace=" "$USER_CONFIG" || grep -q "^Mapping1Input=" "$USER_CONFIG"; then
+        echo -e "${YELLOW}Detected old flat configuration format${NC}"
+        echo -e "${YELLOW}The new version uses grouped sections ([Delay], [Leader], [Mappings])${NC}"
+        read -p "Auto-migrate configuration? [Y/n] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            cp "$USER_CONFIG" "$USER_CONFIG.backup"
+            migrate_flat_config "$USER_CONFIG"
+            echo -e "${GREEN}✓ Config migrated (backup: $USER_CONFIG.backup)${NC}"
+        else
+            echo -e "${RED}Warning: Old config format may not work correctly!${NC}"
+        fi
+    else
+        echo -e "${GREEN}✓ Configuration looks good${NC}"
     fi
+else
+    echo -e "${GREEN}✓ No existing config (defaults will be used)${NC}"
 fi
 echo
 
