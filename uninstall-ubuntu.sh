@@ -12,11 +12,15 @@ echo -e "${BLUE}  Schnelle Umlaute - Ubuntu Uninstall${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo
 
-# Check possible library paths (Ubuntu uses multiarch)
+# Check possible library paths (Ubuntu uses multiarch, also check /usr/local
+# in case a previous install used the default CMake prefix)
 LIB_PATHS=(
     "/usr/lib/fcitx5"
     "/usr/lib/x86_64-linux-gnu/fcitx5"
     "/usr/lib/aarch64-linux-gnu/fcitx5"
+    "/usr/local/lib/fcitx5"
+    "/usr/local/lib/x86_64-linux-gnu/fcitx5"
+    "/usr/local/lib/aarch64-linux-gnu/fcitx5"
 )
 
 # Find addon files
@@ -29,12 +33,16 @@ for lib_path in "${LIB_PATHS[@]}"; do
     fi
 done
 
-# Check data files
+# Check data files (both /usr and /usr/local prefixes)
 DATA_FILES=(
     "/usr/share/fcitx5/addon/schnelle-umlaute.conf"
     "/usr/share/fcitx5/addon/schnelle-umlaute.conf.in"
     "/usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml"
     "/usr/share/fcitx5/inputmethod/schnelle-umlaute.conf"
+    "/usr/local/share/fcitx5/addon/schnelle-umlaute.conf"
+    "/usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in"
+    "/usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml"
+    "/usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf"
 )
 
 for file in "${DATA_FILES[@]}"; do
@@ -73,6 +81,21 @@ else
     exit 1
 fi
 echo
+
+# Ask about user configuration
+USER_CONFIG="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
+if [ -f "$USER_CONFIG" ]; then
+    echo -e "${YELLOW}User configuration found: $USER_CONFIG${NC}"
+    read -p "Remove user configuration? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        rm -f "$USER_CONFIG"
+        echo -e "${GREEN}✓ User configuration removed${NC}"
+    else
+        echo -e "${YELLOW}Keeping user configuration${NC}"
+    fi
+    echo
+fi
 
 # Ask about environment variables
 ENV_FILE="$HOME/.config/environment.d/fcitx5.conf"

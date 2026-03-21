@@ -12,13 +12,19 @@ echo -e "${BLUE}  Schnelle Umlaute - Uninstallation${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo
 
-# Check if addon is installed
+# Check if addon is installed (also check /usr/local in case a previous
+# install used the default CMake prefix)
 FILES=(
     "/usr/lib/fcitx5/schnelle-umlaute.so"
     "/usr/share/fcitx5/addon/schnelle-umlaute.conf"
     "/usr/share/fcitx5/addon/schnelle-umlaute.conf.in"
     "/usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml"
     "/usr/share/fcitx5/inputmethod/schnelle-umlaute.conf"
+    "/usr/local/lib/fcitx5/schnelle-umlaute.so"
+    "/usr/local/share/fcitx5/addon/schnelle-umlaute.conf"
+    "/usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in"
+    "/usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml"
+    "/usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf"
 )
 
 FOUND_FILES=()
@@ -60,6 +66,21 @@ if [ ${#FOUND_FILES[@]} -gt 0 ]; then
     fi
 fi
 echo
+
+# Ask about user configuration
+USER_CONFIG="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
+if [ -f "$USER_CONFIG" ]; then
+    echo -e "${YELLOW}User configuration found: $USER_CONFIG${NC}"
+    read -p "Remove user configuration? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        rm -f "$USER_CONFIG"
+        echo -e "${GREEN}✓ User configuration removed${NC}"
+    else
+        echo -e "${YELLOW}Keeping user configuration${NC}"
+    fi
+    echo
+fi
 
 # Ask about environment variables
 ENV_FILE="$HOME/.config/environment.d/fcitx5.conf"

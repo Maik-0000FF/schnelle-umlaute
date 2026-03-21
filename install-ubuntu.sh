@@ -88,6 +88,39 @@ else
     echo
 fi
 
+# Check for stale installations under /usr/local (default CMake prefix)
+# that would shadow the /usr installation
+STALE_FILES=()
+for stale in /usr/local/lib/fcitx5/schnelle-umlaute.so \
+             /usr/local/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so \
+             /usr/local/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so \
+             /usr/local/share/fcitx5/addon/schnelle-umlaute.conf \
+             /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in \
+             /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml \
+             /usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf; do
+    if [ -f "$stale" ]; then
+        STALE_FILES+=("$stale")
+    fi
+done
+
+if [ ${#STALE_FILES[@]} -ne 0 ]; then
+    echo -e "${RED}WARNING: Old installation found under /usr/local/${NC}"
+    echo -e "${RED}This will shadow the new installation and cause version conflicts!${NC}"
+    for file in "${STALE_FILES[@]}"; do
+        echo "  - $file"
+    done
+    echo
+    read -p "Remove old installation? [Y/n] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        sudo rm -f "${STALE_FILES[@]}"
+        echo -e "${GREEN}✓ Old installation removed${NC}"
+    else
+        echo -e "${RED}Warning: Old version may still be loaded instead of the new one!${NC}"
+    fi
+    echo
+fi
+
 # Build the addon
 echo -e "${BLUE}Building addon...${NC}"
 cd addon
