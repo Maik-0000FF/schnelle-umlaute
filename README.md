@@ -743,15 +743,22 @@ Both scripts will:
 
 ### Manual Uninstallation
 
+If the build directory still exists, use the install manifest:
 ```bash
 cd addon/build
-sudo make uninstall
+sudo xargs rm -f < install_manifest.txt
 fcitx5 -r
 ```
 
-Or remove files manually:
+Otherwise, remove files manually. The addon library path depends on your distribution:
 ```bash
+# Arch Linux
 sudo rm /usr/lib/fcitx5/schnelle-umlaute.so
+
+# Ubuntu/Debian (x86_64)
+sudo rm /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
+
+# Common data files (all distributions)
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
 sudo rm /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
