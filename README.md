@@ -588,7 +588,7 @@ Then **logout and login again** for changes to take effect.
 1. Make sure you're switched to "Schnelle Umlaute" input method (<kbd>Ctrl</kbd> + <kbd>Space</kbd>)
 2. Check Fcitx5 is running: `ps aux | grep fcitx5`
 3. Try holding the key longer before pressing Space
-4. Verify environment variables are set: `echo $GTK_IM_MODULE` (should output "fcitx5")
+4. Verify environment variables are set: `echo $GTK_IM_MODULE` (should output "fcitx")
 
 ### Addon is visible but not activatable / Fcitx5 not responding
 
