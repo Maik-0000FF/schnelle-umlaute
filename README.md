@@ -544,7 +544,7 @@ This is a **native Fcitx5 addon** written in **C++**, using the Fcitx5 InputMeth
 
 ### Addon stops working after moving/switching windows (fcitx5 5.1.18+)
 
-KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) can cause focus event conflicts that break the addon. Disable tiling scripts or uncheck "Track the current window" in fcitx5 global settings to fix this.
+KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) can interfere with the addon — mapped keys stop producing output until you press Ctrl+Space twice. Disable the tiling script to fix this.
 
 ### Addon not showing in fcitx5-config-qt
 
