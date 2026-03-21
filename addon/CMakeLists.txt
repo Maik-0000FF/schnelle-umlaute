@@ -23,25 +23,27 @@ add_library(schnelle-umlaute MODULE ${SCHNELLE_UMLAUTE_SOURCES})
 target_link_libraries(schnelle-umlaute Fcitx5::Core)
 set_target_properties(schnelle-umlaute PROPERTIES PREFIX "")
 
-# Install addon
-install(TARGETS schnelle-umlaute DESTINATION "${CMAKE_INSTALL_LIBDIR}/fcitx5")
+# Install addon library to fcitx5's own addon directory.
+# FCITX_INSTALL_ADDONDIR is provided by Fcitx5Utils and always points to
+# the correct path (e.g. /usr/lib/fcitx5 on Arch, /usr/lib/x86_64-linux-gnu/fcitx5 on Debian).
+install(TARGETS schnelle-umlaute DESTINATION "${FCITX_INSTALL_ADDONDIR}")
 
 # Install addon configuration
 fcitx5_translate_desktop_file(org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml.in
                                org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml XML)
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml"
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/fcitx5/addon")
+        DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon")
 
 # Install configuration files
 install(FILES data/schnelle-umlaute.conf
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/fcitx5/addon")
+        DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon")
 
 # Install configuration descriptor
 install(FILES data/schnelle-umlaute.conf.in
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/fcitx5/addon")
+        DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon")
 
 # Install input method configuration
 install(FILES data/schnelle-umlaute-inputmethod.conf
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/fcitx5/inputmethod"
+        DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod"
         RENAME schnelle-umlaute.conf)
