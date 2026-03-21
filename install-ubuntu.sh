@@ -173,18 +173,18 @@ if [ -f "$ENV_FILE" ]; then
         echo -e "${YELLOW}Skipping environment setup.${NC}"
     else
         cat > "$ENV_FILE" << 'EOF'
-GTK_IM_MODULE=fcitx5
-QT_IM_MODULE=fcitx5
-XMODIFIERS=@im=fcitx5
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
 GLFW_IM_MODULE=ibus
 EOF
         echo -e "${GREEN}✓ Environment variables configured${NC}"
     fi
 else
     cat > "$ENV_FILE" << 'EOF'
-GTK_IM_MODULE=fcitx5
-QT_IM_MODULE=fcitx5
-XMODIFIERS=@im=fcitx5
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
 GLFW_IM_MODULE=ibus
 EOF
     echo -e "${GREEN}✓ Environment variables configured${NC}"
@@ -364,7 +364,7 @@ echo
 echo -e "1. ${RED}LOGOUT AND LOGIN${NC} (or reboot) for changes to take effect"
 echo
 echo "2. After login, configure Fcitx5:"
-echo "   ${BLUE}fcitx5-config-qt${NC}"
+echo -e "   ${BLUE}fcitx5-config-qt${NC}"
 echo
 echo "3. In the configuration window:"
 echo "   - Go to 'Input Method' tab"
@@ -373,7 +373,7 @@ echo "   - Uncheck 'Only Show Current Language'"
 echo "   - Search for 'Schnelle Umlaute'"
 echo "   - Add it to your input methods"
 echo
-echo "4. Switch to 'Schnelle Umlaute' using ${BLUE}Ctrl+Space${NC}"
+echo -e "4. Switch to 'Schnelle Umlaute' using ${BLUE}Ctrl+Space${NC}"
 echo
 echo "5. Test it:"
 echo "   - Hold 'a' and press Space → ä"

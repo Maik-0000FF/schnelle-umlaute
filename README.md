@@ -229,9 +229,9 @@ For the addon to work in ALL applications (GTK, Qt, browsers, terminals, etc.), 
 ```bash
 mkdir -p ~/.config/environment.d
 cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-GTK_IM_MODULE=fcitx5
-QT_IM_MODULE=fcitx5
-XMODIFIERS=@im=fcitx5
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
 GLFW_IM_MODULE=ibus
 EOF
 ```
@@ -283,10 +283,11 @@ cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
 GTK_IM_MODULE=fcitx
 QT_IM_MODULE=fcitx
 XMODIFIERS=@im=fcitx
+GLFW_IM_MODULE=ibus
 EOF
 ```
 
-**Note:** On Ubuntu/Debian, use `fcitx` (not `fcitx5`) for the environment variables.
+**Note:** `GLFW_IM_MODULE=ibus` is required for Kitty terminal and other GLFW-based applications.
 
 **5. Set Fcitx5 as Default Input Method**
 
@@ -833,6 +834,6 @@ Built with:
 
 ---
 
-**Version:** 0.1.5-rc0
+**Version:** 0.1.5-rc1
 **Status:** Working - tested and functional
-**Date:** 2026-03-19
+**Date:** 2026-03-21
