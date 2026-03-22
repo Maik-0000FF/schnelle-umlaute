@@ -746,23 +746,31 @@ private:
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs
     // are valid (e.g. mapping a key to " " so terminal commands skip history).
-    // Empty segments between commas are skipped: "a,,b" → ["a", "b"].
-    // A literal comma cannot be used as output.
+    // Comma is the separator between cycling variants: "a,b" → ["a", "b"].
+    // Double comma escapes a literal comma: "a,,b" → ["a,b"].
+    // Empty segments are skipped: "a,,,b" → ["a", ",b"] (escape wins).
     std::vector<std::string> splitOutputs(const std::string &output) {
         std::vector<std::string> outputs;
         if (output.empty()) return outputs;
 
-        size_t start = 0;
+        std::string current;
         for (size_t i = 0; i < output.length(); ++i) {
             if (output[i] == ',') {
-                if (i > start) {
-                    outputs.push_back(output.substr(start, i - start));
+                if (i + 1 < output.length() && output[i + 1] == ',') {
+                    current += ',';
+                    ++i;
+                } else {
+                    if (!current.empty()) {
+                        outputs.push_back(std::move(current));
+                        current.clear();
+                    }
                 }
-                start = i + 1;
+            } else {
+                current += output[i];
             }
         }
-        if (start < output.length()) {
-            outputs.push_back(output.substr(start));
+        if (!current.empty()) {
+            outputs.push_back(std::move(current));
         }
         return outputs;
     }

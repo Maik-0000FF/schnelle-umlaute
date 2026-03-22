@@ -377,6 +377,137 @@ void scheduleTests(Instance *instance) {
     // consuming commit expectations. Timeout behavior is tested manually.
 
     // =========================================================================
+    // TEST 30: Double-comma escape — literal comma in output
+    // Output "a,,b" should produce single output "a,b" (escaped comma).
+    // Must run before configureLeaders tests to avoid inotify interference.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 30: Double-comma escape in output ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKey", "");
+        config.setValueByPath("Mappings/Input1", "a");
+        config.setValueByPath("Mappings/Output1", "a,,b");
+        for (int i = 2; i <= 30; ++i) {
+            auto s = std::to_string(i);
+            config.setValueByPath("Mappings/Input" + s, "");
+            config.setValueByPath("Mappings/Output" + s, "");
+        }
+        addon->setConfig(config);
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test30");
+
+        // Hold 'a' + Space → should commit "a,b" (single output, not cycling)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("a,b");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 30 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 31: Double-comma with cycling — "x,,y,z" → ["x,y", "z"]
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 31: Double-comma with cycling ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKey", "");
+        config.setValueByPath("Mappings/Input1", "a");
+        config.setValueByPath("Mappings/Output1", "x,,y,z");
+        for (int i = 2; i <= 30; ++i) {
+            auto s = std::to_string(i);
+            config.setValueByPath("Mappings/Input" + s, "");
+            config.setValueByPath("Mappings/Output" + s, "");
+        }
+        addon->setConfig(config);
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test31");
+
+        // Hold 'a' + Space → enters cycling, preedit shows "x,y"
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Second Space → cycles to "z"
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Release 'a' → commits current cycling value "z"
+        tf->call<ITestFrontend::pushCommitExpectation>("z");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 31 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 32: Triple comma ",,," → [","] (escaped comma + separator)
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 32: Triple comma output ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKey", "");
+        config.setValueByPath("Mappings/Input1", "a");
+        config.setValueByPath("Mappings/Output1", ",,,");
+        for (int i = 2; i <= 30; ++i) {
+            auto s = std::to_string(i);
+            config.setValueByPath("Mappings/Input" + s, "");
+            config.setValueByPath("Mappings/Output" + s, "");
+        }
+        addon->setConfig(config);
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test32");
+
+        // Hold 'a' + Space → single output "," (literal comma)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>(",");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 32 PASSED";
+    });
+
+    // =========================================================================
     // TEST 13: Left Arrow as leader
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
