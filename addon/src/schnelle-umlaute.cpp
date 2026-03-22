@@ -16,7 +16,6 @@
 #include <unordered_set>
 #include <vector>
 #include <memory>
-#include <ctime>
 #include <algorithm>
 
 namespace fcitx {
@@ -258,7 +257,7 @@ public:
         return methods;
     }
 
-    void keyEvent(const InputMethodEntry &entry, KeyEvent &keyEvent) override {
+    void keyEvent(const InputMethodEntry & /*entry*/, KeyEvent &keyEvent) override {
         auto *ic = keyEvent.inputContext();
         auto *state = ic->propertyFor(&factory_);
 
@@ -696,6 +695,8 @@ private:
         state->timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC, target, 0,
             [state, savedRef, this](EventSourceTime *, uint64_t) {
+                // Safety: see scheduleTimeout — single-threaded event loop
+                // guarantees state outlives savedRef.get() != nullptr.
                 auto *ctx = savedRef.get();
                 if (!ctx) return false;
 
@@ -851,7 +852,7 @@ private:
     int getEffectiveDelay(const SchnelleUmlauteState *state) const {
         if (!state->waitingKey_) return *config_.delay->lowercase;
         bool isUpper = state->waitingKey_->length() == 1 &&
-                       std::isupper(static_cast<unsigned char>((*state->waitingKey_)[0]));
+                       (*state->waitingKey_)[0] >= 'A' && (*state->waitingKey_)[0] <= 'Z';
         return isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
     }
 
@@ -873,7 +874,11 @@ private:
             target_usec,
             0,
             [state, savedKey, savedRef](EventSourceTime *, uint64_t) {
-                // Validate IC first — if destroyed, state is gone too.
+                // Safety: state is owned by IC (InputContextProperty). If IC
+                // is destroyed, savedRef.get() returns nullptr and we bail
+                // before touching state. No race: fcitx5's event loop is
+                // single-threaded, so IC can't be destroyed between the
+                // check and the access.
                 auto *ctx = savedRef.get();
                 if (!ctx) return false;
 
@@ -903,17 +908,9 @@ private:
         if (start == std::string::npos) return "";
         size_t end = raw.find_last_not_of(" \t\n\r");
         std::string trimmed = raw.substr(start, end - start + 1);
-        if (trimmed.length() > 1) {
-            unsigned char first = static_cast<unsigned char>(trimmed[0]);
-            size_t charLen = 1;
-            if (first >= 0xF0) charLen = 4;
-            else if (first >= 0xE0) charLen = 3;
-            else if (first >= 0xC0) charLen = 2;
-            if (charLen <= trimmed.length()) {
-                trimmed = trimmed.substr(0, charLen);
-            }
-        }
-        return trimmed;
+        if (!utf8::validate(trimmed)) return "";
+        size_t firstCharBytes = utf8::ncharByteLength(trimmed.begin(), 1);
+        return trimmed.substr(0, firstCharBytes);
     }
 
     Instance *instance_;

@@ -27,6 +27,7 @@ set(SCHNELLE_UMLAUTE_SOURCES
 # Build addon shared library
 add_library(schnelle-umlaute MODULE ${SCHNELLE_UMLAUTE_SOURCES})
 target_link_libraries(schnelle-umlaute Fcitx5::Core)
+target_compile_options(schnelle-umlaute PRIVATE -Wall -Wextra -Wpedantic)
 set_target_properties(schnelle-umlaute PROPERTIES PREFIX "")
 
 # Install addon library to fcitx5's own addon directory.

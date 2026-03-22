@@ -76,7 +76,7 @@ fi
 # Build the addon first — stale files are only removed after a successful build
 # so the user is never left with no working installation.
 echo -e "${BLUE}Building addon...${NC}"
-cd addon
+cd addon || { echo -e "${RED}Error: addon directory not found${NC}"; exit 1; }
 ./build.sh
 
 # Now that build succeeded, check for and remove stale installations.
@@ -117,8 +117,8 @@ fi
 # Install
 echo
 echo -e "${BLUE}Installing addon...${NC}"
-cd build
-sudo make install
+cd build || { echo -e "${RED}Error: build directory not found${NC}"; exit 1; }
+sudo cmake --install .
 echo -e "${GREEN}✓ Addon installed${NC}"
 echo
 
