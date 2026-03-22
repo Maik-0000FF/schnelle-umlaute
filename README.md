@@ -391,22 +391,34 @@ Value=700
 
 #### Leader Key
 
-Customize which key activates the umlaut transformation:
+Customize which keys activate the umlaut transformation. Multiple leader keys can be enabled at the same time.
 
-| Option | Keys |
-|--------|------|
-| **Space** (Default) | <kbd>Space</kbd> |
-| LeftArrow | <kbd>←</kbd> |
-| RightArrow | <kbd>→</kbd> |
-| SpaceOrLeft | <kbd>Space</kbd> or <kbd>←</kbd> |
-| SpaceOrRight | <kbd>Space</kbd> or <kbd>→</kbd> |
-| LeftOrRight | <kbd>←</kbd> or <kbd>→</kbd> |
-| All | <kbd>Space</kbd>, <kbd>←</kbd>, <kbd>→</kbd> |
+| Option | Default | Key |
+|--------|---------|-----|
+| **Space** | enabled | <kbd>Space</kbd> |
+| Left | disabled | <kbd>←</kbd> |
+| Right | disabled | <kbd>→</kbd> |
+| Up | disabled | <kbd>↑</kbd> |
+| Down | disabled | <kbd>↓</kbd> |
+| ⚠ Alt | disabled | <kbd>Alt</kbd> / <kbd>AltGr</kbd> |
+| ⚠ Custom Key | disabled | Any single key |
 
 ```ini
-# Options: Space, LeftArrow, RightArrow, SpaceOrLeft, SpaceOrRight, LeftOrRight, All
-LeaderKey=Space
+[Leader]
+Space=True
+Left=False
+Right=False
+Up=False
+Down=False
+Alt=False
+CustomKey=
 ```
+
+> **⚠ Experimental: Alt / AltGr Leader**
+> Enables <kbd>Alt</kbd> (Left/Right Alt) and <kbd>AltGr</kbd> (ISO_Level3_Shift on EU layouts) as leader keys. On KWin Wayland, auto-repeat sends release-press pairs which can cause input leaks. Works reliably under XIM (e.g. WezTerm).
+
+> **⚠ Experimental: Custom Leader Key**
+> Assign any single character as an additional leader key (e.g. `#`, `§`, `^`). Enter the character in the config GUI or config file. Multi-character input is trimmed to the first UTF-8 character, whitespace is ignored.
 
 #### Character Mappings
 
