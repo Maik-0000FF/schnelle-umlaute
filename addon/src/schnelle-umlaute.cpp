@@ -174,6 +174,12 @@ public:
     // and TUI side effects from stray Alt release events.
     int consumedAltCode_ = 0;
 
+    // Active Alt-led cycling session. Set when Alt starts cycling,
+    // cleared only by deferred commit timer or clearAllState().
+    // Survives auto-repeat release-press gaps on KWin Wayland where
+    // cycling is temporarily reset between pairs.
+    bool altGestureSession_ = false;
+
     void clearAllState() {
         waitingKey_.reset();
         inputKeyPressed_ = false;
@@ -184,6 +190,7 @@ public:
         heldRawCodes_.clear();
         committedKeyCode_ = 0;
         consumedAltCode_ = 0;
+        altGestureSession_ = false;
     }
 
     void resetCycling() {
@@ -287,6 +294,10 @@ public:
                 (state->waitingKey_ || state->cyclingInput_)) {
                 // Fall through to leader key handling
             } else {
+                // Don't clear consumedAltCode_ here — during KWin Wayland
+                // auto-repeat gaps, no gesture is active but the Alt session
+                // may still be ongoing. Cleared via clearAllState() or when
+                // a non-gesture key is pressed.
                 return;
             }
         }
@@ -317,7 +328,12 @@ public:
             // Consume Alt/AltGr release when the press was consumed as leader.
             // Prevents compositor state confusion and TUI side effects.
             if (state->consumedAltCode_ != 0 && rawCode == state->consumedAltCode_) {
-                state->consumedAltCode_ = 0;
+                // Don't clear consumedAltCode_ here. On KWin Wayland,
+                // Alt auto-repeat sends release-press pairs — clearing on
+                // release leaves a gap where input key events leak through
+                // hasModifiers. Cleared when Alt arrives outside a gesture
+                // (pure modifier handler / leader key handler) or via
+                // clearAllState().
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -334,7 +350,18 @@ public:
             // Compare physical keycode so shifted chars (!, @, #) match their base key
             if (state->cyclingInput_ && state->inputKeyPressed_ && rawCode == state->waitingKeyCode_) {
 
-                // Commit the current preedit value
+                if (state->altGestureSession_) {
+                    // Alt-led gesture on KWin Wayland: defer commit.
+                    // Auto-repeat sends release-press pairs; committing here
+                    // would destroy cycling state. A 30ms timer distinguishes
+                    // auto-repeat from real release.
+                    state->inputKeyPressed_ = false;
+                    scheduleDeferredCyclingCommit(ic, state);
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+
+                // Non-Alt leader: commit immediately
                 auto it = umlautMap_.find(*state->cyclingInput_);
                 if (it != umlautMap_.end() && state->cyclingIndex_ < it->second.size()) {
                     ic->inputPanel().reset();
@@ -392,11 +419,40 @@ public:
         // this handles a modifier HELD + another key pressed.
         // =========================================
         if (hasModifiers(key)) {
-            // Commit any pending preedit before letting the shortcut through
-            commitPendingKey(ic, state);
-            commitCyclingValue(ic, state);
-            state->inputKeyPressed_ = false;
-            return;  // Let the shortcut through
+            // When Alt is the leader key and a gesture is active, ignore
+            // Alt-only modifier state — input key repeats with Alt held
+            // should not commit the gesture and leak through.
+            bool altLeaderBypass = *config_.leader->alt &&
+                (state->waitingKey_ || state->cyclingInput_ ||
+                 state->consumedAltCode_ != 0 || state->altGestureSession_);
+            if (altLeaderBypass) {
+                KeyStates mods = key.states();
+                altLeaderBypass = mods.test(KeyState::Alt) &&
+                                  !mods.test(KeyState::Ctrl) &&
+                                  !mods.test(KeyState::Super);
+            }
+            if (!altLeaderBypass) {
+                // Commit any pending preedit before letting the shortcut through
+                commitPendingKey(ic, state);
+                commitCyclingValue(ic, state);
+                state->inputKeyPressed_ = false;
+                return;  // Let the shortcut through
+            }
+            // Alt-only during gesture: fall through to normal key handling
+        }
+
+        // Re-press of gesture key during deferred Alt cycling commit.
+        // On KWin Wayland, auto-repeat sends release-press pairs. The
+        // release deferred the commit; this re-press cancels it and
+        // continues cycling — no filterAndAccept needed for the key
+        // because cycling stays in preedit without state transitions.
+        if (state->altGestureSession_ && state->cyclingInput_ &&
+            !state->inputKeyPressed_ && state->waitingKeyCode_ != 0 &&
+            rawCode == state->waitingKeyCode_) {
+            state->cancelTimeout();
+            state->inputKeyPressed_ = true;
+            keyEvent.filterAndAccept();
+            return;
         }
 
         // =========================================
@@ -409,18 +465,23 @@ public:
             if (state->cyclingInput_) {
                 // Check if input key is still pressed
                 if (!state->inputKeyPressed_) {
-                    state->resetCycling();
-                    return;  // Let Space through
+                    // During Alt-led gesture, the input key may be in a
+                    // Wayland auto-repeat gap (release-press pair). The
+                    // deferred commit timer handles the real release.
+                    if (!(isAlt && state->altGestureSession_)) {
+                        state->resetCycling();
+                        return;  // Let leader through
+                    }
                 }
 
                 auto it = umlautMap_.find(*state->cyclingInput_);
-                if (it != umlautMap_.end() && it->second.size() > 1) {
-                    // Cycle to next variant
-                    state->cyclingIndex_ = (state->cyclingIndex_ + 1) % it->second.size();
-                    const std::string& nextOutput = it->second[state->cyclingIndex_];
-
-                    // Update preedit with new variant (no deletion needed!)
-                    updateClientPreedit(ic, nextOutput);
+                if (it != umlautMap_.end()) {
+                    if (it->second.size() > 1) {
+                        // Cycle to next variant
+                        state->cyclingIndex_ = (state->cyclingIndex_ + 1) % it->second.size();
+                        updateClientPreedit(ic, it->second[state->cyclingIndex_]);
+                    }
+                    // Single-output: preedit unchanged, just consume the leader.
 
                     if (isAlt) state->consumedAltCode_ = rawCode;
                     keyEvent.filterAndAccept();
@@ -434,15 +495,21 @@ public:
                 auto it = umlautMap_.find(*state->waitingKey_);
                 if (it != umlautMap_.end() && !it->second.empty()) {
 
-                    // Start cycling if multiple outputs - stay in preedit
-                    if (it->second.size() > 1) {
+                    // Alt leader: keep ALL outputs in preedit (even single).
+                    // KWin Wayland doesn't reliably suppress key events with
+                    // Alt modifier state via filterAndAccept. Keeping the
+                    // value in preedit lets the deferred commit and re-press
+                    // detection machinery protect against auto-repeat leaks.
+                    // Non-Alt leaders: single output commits directly.
+                    if (it->second.size() > 1 || isAlt) {
                         state->cyclingInput_ = *state->waitingKey_;
                         state->cyclingIndex_ = 0;
+                        if (isAlt) state->altGestureSession_ = true;
 
                         // Update preedit with first variant
                         updateClientPreedit(ic, it->second[0]);
                     } else {
-                        // Single output - commit directly
+                        // Single output with non-Alt leader - commit directly
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
@@ -460,7 +527,23 @@ public:
                 }
             }
 
-            // Not in gesture - let leader key through
+            // Not in gesture - clear stale consumedAltCode_ (covers
+            // AltGr/ISO_Level3_Shift which bypasses the modifier range check)
+            // and let leader key through.
+            if (state->consumedAltCode_ != 0) {
+                state->consumedAltCode_ = 0;
+            }
+            return;
+        }
+
+        // rawCode-based repeat suppression during active gesture.
+        // When Alt is held as leader, some backends change the keysym
+        // (e.g. "1" → symbol), so keyChar-based checks below may not
+        // match the gesture key. Fall back to physical rawCode.
+        if (!isNewKeyPress && state->waitingKeyCode_ != 0 &&
+            rawCode == state->waitingKeyCode_ &&
+            (state->waitingKey_ || state->cyclingInput_)) {
+            keyEvent.filterAndAccept();
             return;
         }
 
@@ -521,6 +604,9 @@ public:
         // =========================================
         commitPendingKey(ic, state);
         commitCyclingValue(ic, state);
+        // Clean up stale Alt gesture state
+        state->altGestureSession_ = false;
+        state->consumedAltCode_ = 0;
         // Let key through
     }
 
@@ -594,6 +680,43 @@ private:
         ic->updatePreedit();
     }
 
+    // Deferred cycling commit for Alt-led gestures on KWin Wayland.
+    // Auto-repeat sends release-press pairs; committing on release would
+    // destroy cycling state. Instead, wait 30ms — if a re-press arrives,
+    // it cancels this timer and cycling continues. If not (real release),
+    // the timer fires and commits the cycling value.
+    void scheduleDeferredCyclingCommit(InputContext *ic, SchnelleUmlauteState *state) {
+        state->cancelTimeout();
+
+        auto savedRef = ic->watch();
+        auto *eventLoop = &instance_->eventLoop();
+        uint64_t now = SchnelleUmlauteState::nowUsec();
+        uint64_t target = now + 25 * kMicrosecondsPerMillisecond;
+
+        state->timeoutEvent_ = eventLoop->addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [state, savedRef, this](EventSourceTime *, uint64_t) {
+                auto *ctx = savedRef.get();
+                if (!ctx) return false;
+
+                if (state->cyclingInput_) {
+                    auto it = umlautMap_.find(*state->cyclingInput_);
+                    if (it != umlautMap_.end() && state->cyclingIndex_ < it->second.size()) {
+                        ctx->inputPanel().reset();
+                        ctx->commitString(it->second[state->cyclingIndex_]);
+                        ctx->updatePreedit();
+                        state->recentlyCommitted_ = true;
+                    }
+                    state->resetCycling();
+                    state->waitingKeyCode_ = 0;
+                }
+                state->altGestureSession_ = false;
+                state->consumedAltCode_ = 0;
+                return false;
+            }
+        );
+    }
+
     void commitPendingKey(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->waitingKey_) return;
         ic->inputPanel().reset();
@@ -608,6 +731,7 @@ private:
 
     void commitCyclingValue(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->cyclingInput_) return;
+        state->cancelTimeout();  // Cancel any deferred commit timer
         auto it = umlautMap_.find(*state->cyclingInput_);
         if (it != umlautMap_.end() && state->cyclingIndex_ < it->second.size()) {
             ic->inputPanel().reset();
