@@ -443,7 +443,7 @@ Cycle through multiple accent variants by pressing the leader key repeatedly. In
 4. Keep pressing → cycles through all variants (è → ê → ë → é → ...)
 5. Release input key → cycling stops, current selection is kept
 
-In the GUI, enter comma-separated variants in any Output field (e.g., Output 8: `é,è,ê,ë` for Input 8: `e`).
+In the GUI, enter comma-separated variants in any Output field (e.g., Output 8: `é,è,ê,ë` for Input 8: `e`). To include a literal comma in an output, use double comma (`,,`) as escape — see [Snippets](#snippets-text-expansion) for details.
 
 **Config file example:**
 
@@ -498,7 +498,24 @@ Mapping13Output=name@example.com
 
 Hold <kbd>g</kbd> + press <kbd>Space</kbd> → "Guten Tag" is inserted.
 
-**Important:** Snippets cannot contain commas, as commas are used as the separator for cycling. Use snippets only for text without commas.
+**Commas in snippets:** Since commas separate cycling variants, use double comma (`,,`) to include a literal comma in your output:
+
+```ini
+# Snippet with comma: "Hello, World"
+Mapping14Input=h
+Mapping14Output=Hello,, World
+
+# Snippet with multiple commas: "a, b, c"
+Mapping15Input=l
+Mapping15Output=a,, b,, c
+```
+
+| Config value | Result |
+|---|---|
+| `Hello,, World` | Hello, World |
+| `a,, b,, c` | a, b, c |
+| `x,,y,z` | Cycling: x,y → z |
+| `,,,` | Single output: , |
 
 ### Emoji Mappings
 
