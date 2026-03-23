@@ -366,6 +366,7 @@ public:
                     ic->inputPanel().reset();
                     ic->commitString(it->second[state->cyclingIndex_]);
                     ic->updatePreedit();
+                    state->recentlyCommitted_ = true;
                 }
 
                 state->inputKeyPressed_ = false;
