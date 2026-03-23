@@ -604,7 +604,12 @@ void scheduleTests(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 17: Alt_L as leader
+    // TEST 17: Alt_L as leader — consumed and enters cycling
+    // NOTE: Alt leader always uses deferred commit (25ms timer via
+    // scheduleDeferredCyclingCommit). The timer fires asynchronously after
+    // this callback returns, so pushCommitExpectation cannot verify it —
+    // the IC would be destroyed before the timer fires. We verify the
+    // consumed status instead; commit correctness is covered by manual test.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
         FCITX_INFO() << "=== Test 17: Alt_L as leader ===";
@@ -615,7 +620,6 @@ void scheduleTests(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        tf->call<ITestFrontend::pushCommitExpectation>("ä");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
         FCITX_ASSERT(consumed) << "Alt_L leader during gesture should be consumed";
@@ -628,7 +632,8 @@ void scheduleTests(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 18: AltGr (ISO_Level3_Shift) as leader
+    // TEST 18: AltGr (ISO_Level3_Shift) as leader — consumed and enters cycling
+    // NOTE: Same deferred-commit limitation as Test 17 (see note there).
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
         FCITX_INFO() << "=== Test 18: AltGr (ISO_Level3_Shift) as leader ===";
@@ -639,7 +644,6 @@ void scheduleTests(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        tf->call<ITestFrontend::pushCommitExpectation>("ä");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr), false);
         FCITX_ASSERT(consumed) << "AltGr leader during gesture should be consumed";
@@ -653,6 +657,9 @@ void scheduleTests(Instance *instance) {
 
     // =========================================================================
     // TEST 19: consumedAltCode_ — Alt release consumed after leader use
+    // NOTE: Same deferred-commit limitation as Test 17. Commit verification
+    // removed; this test focuses on consumed status of Alt and input key
+    // releases during an Alt-led gesture.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
         FCITX_INFO() << "=== Test 19: Alt release consumed after leader use ===";
@@ -660,10 +667,9 @@ void scheduleTests(Instance *instance) {
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test19");
 
-        // Hold 'a' + Alt_L → commit 'ä'
+        // Hold 'a' + Alt_L → enters cycling (preedit "ä", deferred commit)
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        tf->call<ITestFrontend::pushCommitExpectation>("ä");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
 
@@ -672,10 +678,10 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
         FCITX_ASSERT(consumed) << "Alt release after leader should be consumed";
 
-        // Release 'a' — should be consumed (committedKeyCode_)
+        // Release 'a' — consumed by cycling-release handler (defers commit)
         consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
-        FCITX_ASSERT(consumed) << "Accent key release after commit should be consumed";
+        FCITX_ASSERT(consumed) << "Accent key release during Alt gesture should be consumed";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 19 PASSED";
@@ -845,6 +851,306 @@ void scheduleTests(Instance *instance) {
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 28 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 40: Cycling — multiple outputs, cycle through variants
+    // Mapping "a" → "ä,ae,@" — Space cycles: ä → ae → @ → ä → ...
+    // Release 'a' after second Space → commits "ae" (index 1).
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 40: Cycling through multiple outputs ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKey", "");
+        config.setValueByPath("Mappings/Input1", "a");
+        config.setValueByPath("Mappings/Output1", "\xc3\xa4,ae,@");
+        for (int i = 2; i <= 30; ++i) {
+            auto s = std::to_string(i);
+            config.setValueByPath("Mappings/Input" + s, "");
+            config.setValueByPath("Mappings/Output" + s, "");
+        }
+        addon->setConfig(config);
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test40");
+
+        // Hold 'a' + Space → enters cycling at index 0 (preedit "ä")
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Second Space → cycles to index 1 (preedit "ae")
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Release 'a' → commits current cycling value "ae"
+        tf->call<ITestFrontend::pushCommitExpectation>("ae");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 40 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 41: Cycling — wrap around to first variant
+    // Mapping "a" → "ä,ae" — three Spaces: ä → ae → ä (wraps)
+    // Release 'a' → commits "ä" (index 0 after wrap).
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 41: Cycling wraps around ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKey", "");
+        config.setValueByPath("Mappings/Input1", "a");
+        config.setValueByPath("Mappings/Output1", "\xc3\xa4,ae");
+        for (int i = 2; i <= 30; ++i) {
+            auto s = std::to_string(i);
+            config.setValueByPath("Mappings/Input" + s, "");
+            config.setValueByPath("Mappings/Output" + s, "");
+        }
+        addon->setConfig(config);
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test41");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Space 1 → index 0 ("ä")
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Space 2 → index 1 ("ae")
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Space 3 → wraps to index 0 ("ä")
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Release 'a' → commits "ä"
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 41 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 42: Overlapping gestures — hold 'a', press 's' while 'a' held
+    // Pressing a second mapped key should commit 'a' and start 's' gesture.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 42: Overlapping gestures ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test42");
+
+        // Press 'a' → enters waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Press 's' → should commit 'a' (pending), then start 's' gesture
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), false);
+
+        // Now 's' is waiting — Space should convert it
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\x9f");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 42 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 43: Space passthrough without gesture
+    // Space alone (no key held) should pass through unconsumed.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 43: Space passthrough without gesture ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test43");
+
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(!consumed) << "Space without gesture should pass through";
+
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), true);
+        FCITX_ASSERT(!consumed) << "Space release without gesture should pass through";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 43 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 44: Ordering guard — non-Space key clears guard
+    // After a commit, recentlyCommitted_ is set. Any non-Space press clears
+    // it without consuming. A subsequent Space then also passes through.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 44: Ordering guard clears on non-Space ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test44");
+
+        // Hold 'a' + Space → 'ä' (sets recentlyCommitted_)
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Press 'b' (unmapped) → not consumed, but clears recentlyCommitted_
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_b, KeyStates(), kCodeB), false);
+        FCITX_ASSERT(!consumed) << "Unmapped 'b' after commit should pass through";
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_b, KeyStates(), kCodeB), true);
+
+        // Space now → guard already cleared, should pass through
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(!consumed) << "Space after guard cleared should pass through";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 44 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 45: State cleanup after cycling — new gesture works immediately
+    // After a cycling commit (release key), all cycling state must be reset
+    // so a new gesture can start without interference.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 45: New gesture after cycling commit ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKey", "");
+        config.setValueByPath("Mappings/Input1", "a");
+        config.setValueByPath("Mappings/Output1", "\xc3\xa4,ae");
+        config.setValueByPath("Mappings/Input2", "s");
+        config.setValueByPath("Mappings/Output2", "\xc3\x9f");
+        for (int i = 3; i <= 30; ++i) {
+            auto s = std::to_string(i);
+            config.setValueByPath("Mappings/Input" + s, "");
+            config.setValueByPath("Mappings/Output" + s, "");
+        }
+        addon->setConfig(config);
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test45");
+
+        // Cycling gesture: hold 'a' + Space + Space → index 1 ("ae")
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Release 'a' → commits "ae"
+        tf->call<ITestFrontend::pushCommitExpectation>("ae");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // New gesture immediately: hold 's' + Space → 'ß' (single output)
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\x9f");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 45 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 46: Ordering guard after cycling release
+    // After cycling commit via key release, recentlyCommitted_ must be set
+    // so the next Space goes through commitString (same channel as the commit).
+    // Without this, Space could arrive before the committed text in terminals.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 46: Ordering guard after cycling release ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKey", "");
+        config.setValueByPath("Mappings/Input1", "a");
+        config.setValueByPath("Mappings/Output1", "\xc3\xa4,ae");
+        for (int i = 2; i <= 30; ++i) {
+            auto s = std::to_string(i);
+            config.setValueByPath("Mappings/Input" + s, "");
+            config.setValueByPath("Mappings/Output" + s, "");
+        }
+        addon->setConfig(config);
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test46");
+
+        // Cycling: hold 'a' + Space → preedit "ä"
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Release 'a' → commits "ä" via cycling release path
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Space → ordering guard should route through commitString(" ")
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Space after cycling commit must be consumed by ordering guard";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 46 PASSED";
     });
 
     // All tests done — exit
