@@ -880,6 +880,20 @@ private:
                sym == FcitxKey_ISO_Level3_Shift;
     }
 
+    // Case-insensitive match for ASCII letters, exact match otherwise.
+    // Allows Shift+f to match custom leader "f" so uppercase mappings
+    // work naturally while holding Shift (e.g. Shift+O + Shift+F → Ö).
+    static bool matchCustomKey(const std::string &keyChar, const std::string &customKey) {
+        if (keyChar == customKey) return true;
+        if (keyChar.size() == 1 && customKey.size() == 1) {
+            char a = keyChar[0], b = customKey[0];
+            if (a >= 'A' && a <= 'Z') a += 32;
+            if (b >= 'A' && b <= 'Z') b += 32;
+            if (a >= 'a' && a <= 'z') return a == b;
+        }
+        return false;
+    }
+
     // Leader classification for dual custom leader support.
     // Built-in leaders (Space, Arrows, Alt) are unrestricted.
     // Custom1/Custom2 may be restricted by dual-split logic.
@@ -892,12 +906,14 @@ private:
         if (*config_.leader->alt && isAltLeaderSym(sym))
             return LeaderType::BuiltIn;
 
-        // Custom Key 1 (sanitized at config load)
-        if (!cachedCustomKey_.empty() && !keyChar.empty() && keyChar == cachedCustomKey_)
+        // Custom Key 1 (sanitized at config load, case-insensitive for letters)
+        if (!cachedCustomKey_.empty() && !keyChar.empty() &&
+            matchCustomKey(keyChar, cachedCustomKey_))
             return LeaderType::Custom1;
 
         // Custom Key 2
-        if (!cachedCustomKey2_.empty() && !keyChar.empty() && keyChar == cachedCustomKey2_)
+        if (!cachedCustomKey2_.empty() && !keyChar.empty() &&
+            matchCustomKey(keyChar, cachedCustomKey2_))
             return LeaderType::Custom2;
 
         // Built-in leader toggles
