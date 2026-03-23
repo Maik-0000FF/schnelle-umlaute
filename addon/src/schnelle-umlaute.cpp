@@ -28,6 +28,7 @@ constexpr uint64_t kMicrosecondsPerMillisecond = 1'000;
 constexpr int kDelayMin = 50;
 constexpr int kDelayMax = 2000;
 constexpr int kDelayStep = 25;
+constexpr int kDeferredCommitDelayMs = 5;
 
 class IntConstrainWithStep {
 public:
@@ -691,7 +692,7 @@ private:
         auto savedRef = ic->watch();
         auto *eventLoop = &instance_->eventLoop();
         uint64_t now = SchnelleUmlauteState::nowUsec();
-        uint64_t target = now + 25 * kMicrosecondsPerMillisecond;
+        uint64_t target = now + kDeferredCommitDelayMs * kMicrosecondsPerMillisecond;
 
         state->timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC, target, 0,
