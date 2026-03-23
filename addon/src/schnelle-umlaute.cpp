@@ -61,7 +61,12 @@ FCITX_CONFIGURATION(
     Option<bool> up{this, "Up", "Up Arrow", false};
     Option<bool> down{this, "Down", "Down Arrow", false};
     Option<bool> alt{this, "Alt", "\xe2\x9a\xa0 experimental \xe2\x80\x93 Alt/AltGr", false};
-    Option<std::string> customKey{this, "CustomKey", "\xe2\x9a\xa0 experimental \xe2\x80\x93 Custom Leader Key", ""};
+    Option<std::string> customKey{this, "CustomKey",
+        "\xe2\x9a\xa0 experimental \xe2\x80\x93 Custom Leader"
+        " (or left/right split with Key 2)", ""};
+    Option<std::string> customKey2{this, "CustomKey2",
+        "\xe2\x9a\xa0 experimental \xe2\x80\x93 Custom Leader 2"
+        " (enables hand-split)", ""};
 );
 
 FCITX_CONFIGURATION(
@@ -459,7 +464,21 @@ public:
         // =========================================
         // HANDLE LEADER KEY (Space/Arrows/Alt/Custom)
         // =========================================
-        if (isLeaderKey(key, keyChar)) {
+        auto leaderType = classifyLeader(key, keyChar);
+        if (leaderType != LeaderType::None) {
+            // Dual custom leader split: check if this leader is allowed
+            // for the currently active input key's keyboard half.
+            std::string activeInput;
+            if (state->cyclingInput_) activeInput = *state->cyclingInput_;
+            else if (state->waitingKey_) activeInput = *state->waitingKey_;
+
+            if (!activeInput.empty() &&
+                !isDualCustomAllowed(leaderType, activeInput)) {
+                // Leader not allowed for this input's hand → treat as
+                // non-leader key (fall through to accent/other handling)
+                goto not_leader;
+            }
+
             bool isAlt = isAltLeaderSym(key.sym());
 
             // CASE 1: Currently in cycling mode
@@ -536,6 +555,7 @@ public:
             }
             return;
         }
+        not_leader:
 
         // rawCode-based repeat suppression during active gesture.
         // When Alt is held as leader, some backends change the keysym
@@ -657,6 +677,31 @@ private:
         // UTF-8 character.  Cached for runtime use — the config file
         // stores the original value so the UI round-trips correctly.
         cachedCustomKey_ = sanitizeCustomKey(*config_.leader->customKey);
+        cachedCustomKey2_ = sanitizeCustomKey(*config_.leader->customKey2);
+
+        // Warn about dual custom leader conflicts
+        if (!cachedCustomKey_.empty() && !cachedCustomKey2_.empty()) {
+            if (cachedCustomKey_ == cachedCustomKey2_) {
+                FCITX_WARN() << "Schnelle: CustomKey and CustomKey2 are identical"
+                             << " — dual split disabled, both trigger all mappings";
+            } else if (isLeftHandUSQwerty(cachedCustomKey_) ==
+                       isLeftHandUSQwerty(cachedCustomKey2_)) {
+                FCITX_WARN() << "Schnelle: CustomKey '" << cachedCustomKey_
+                             << "' and CustomKey2 '" << cachedCustomKey2_
+                             << "' are on the same keyboard half"
+                             << " — dual split disabled, both trigger all mappings";
+            }
+            if (umlautMap_.count(cachedCustomKey_)) {
+                FCITX_WARN() << "Schnelle: CustomKey '" << cachedCustomKey_
+                             << "' is also a mapped input"
+                             << " — it cannot trigger its own mapping";
+            }
+            if (umlautMap_.count(cachedCustomKey2_)) {
+                FCITX_WARN() << "Schnelle: CustomKey2 '" << cachedCustomKey2_
+                             << "' is also a mapped input"
+                             << " — it cannot trigger its own mapping";
+            }
+        }
 
         std::string leaders;
         if (*config_.leader->space) leaders += "Space ";
@@ -665,7 +710,8 @@ private:
         if (*config_.leader->up) leaders += "Up ";
         if (*config_.leader->down) leaders += "Down ";
         if (*config_.leader->alt) leaders += "Alt/AltGr ";
-        if (!cachedCustomKey_.empty()) leaders += "Custom('" + cachedCustomKey_ + "') ";
+        if (!cachedCustomKey_.empty()) leaders += "Custom1('" + cachedCustomKey_ + "') ";
+        if (!cachedCustomKey2_.empty()) leaders += "Custom2('" + cachedCustomKey2_ + "') ";
         if (leaders.empty()) leaders = "None ";
 
         FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=" << *config_.delay->lowercase
@@ -834,29 +880,80 @@ private:
                sym == FcitxKey_ISO_Level3_Shift;
     }
 
-    bool isLeaderKey(const Key &key, const std::string &keyChar) const {
+    // Leader classification for dual custom leader support.
+    // Built-in leaders (Space, Arrows, Alt) are unrestricted.
+    // Custom1/Custom2 may be restricted by dual-split logic.
+    enum class LeaderType { None, BuiltIn, Custom1, Custom2 };
+
+    LeaderType classifyLeader(const Key &key, const std::string &keyChar) const {
         KeySym sym = key.sym();
 
-        // Check Alt/AltGr leader (works on all layouts)
-        // - Alt_L/Alt_R: Left/Right Alt on US layouts
-        // - ISO_Level3_Shift: AltGr on European layouts (physical Right Alt)
-        if (*config_.leader->alt && isAltLeaderSym(sym)) {
+        // Alt/AltGr — built-in, unrestricted
+        if (*config_.leader->alt && isAltLeaderSym(sym))
+            return LeaderType::BuiltIn;
+
+        // Custom Key 1 (sanitized at config load)
+        if (!cachedCustomKey_.empty() && !keyChar.empty() && keyChar == cachedCustomKey_)
+            return LeaderType::Custom1;
+
+        // Custom Key 2
+        if (!cachedCustomKey2_.empty() && !keyChar.empty() && keyChar == cachedCustomKey2_)
+            return LeaderType::Custom2;
+
+        // Built-in leader toggles
+        if (*config_.leader->space && sym == FcitxKey_space) return LeaderType::BuiltIn;
+        if (*config_.leader->left && sym == FcitxKey_Left) return LeaderType::BuiltIn;
+        if (*config_.leader->right && sym == FcitxKey_Right) return LeaderType::BuiltIn;
+        if (*config_.leader->up && sym == FcitxKey_Up) return LeaderType::BuiltIn;
+        if (*config_.leader->down && sym == FcitxKey_Down) return LeaderType::BuiltIn;
+
+        return LeaderType::None;
+    }
+
+    // US QWERTY hand classification for dual custom leader split.
+    // Left hand: qwertasdfgzxcvb + digits 1-5 + symbols `~!@#$%
+    // Everything else (including non-ASCII) defaults to right hand.
+    static bool isLeftHandUSQwerty(const std::string &key) {
+        if (key.size() != 1) return false;
+        char c = key[0];
+        if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+        return c == 'q' || c == 'w' || c == 'e' || c == 'r' || c == 't' ||
+               c == 'a' || c == 's' || c == 'd' || c == 'f' || c == 'g' ||
+               c == 'z' || c == 'x' || c == 'c' || c == 'v' || c == 'b' ||
+               c == '`' || c == '1' || c == '2' || c == '3' || c == '4' ||
+               c == '5' || c == '~' || c == '!' || c == '@' || c == '#' ||
+               c == '$' || c == '%';
+    }
+
+    // Dual custom leader split: when BOTH custom keys are set and on
+    // opposite hands, each only triggers inputs on the OTHER hand.
+    // Single custom key or same-hand keys → no restriction.
+    // Built-in leaders always unrestricted.
+    bool isDualCustomAllowed(LeaderType leader, const std::string &inputKey) const {
+        if (leader == LeaderType::BuiltIn || leader == LeaderType::None)
             return true;
-        }
 
-        // Check custom leader key (sanitized at config load)
-        if (!cachedCustomKey_.empty() && !keyChar.empty() && keyChar == cachedCustomKey_) {
+        // Dual mode only when BOTH custom keys are set
+        if (cachedCustomKey_.empty() || cachedCustomKey2_.empty())
             return true;
-        }
 
-        // Check individual leader key toggles
-        if (*config_.leader->space && sym == FcitxKey_space) return true;
-        if (*config_.leader->left && sym == FcitxKey_Left) return true;
-        if (*config_.leader->right && sym == FcitxKey_Right) return true;
-        if (*config_.leader->up && sym == FcitxKey_Up) return true;
-        if (*config_.leader->down && sym == FcitxKey_Down) return true;
+        // Identical keys → no split
+        if (cachedCustomKey_ == cachedCustomKey2_)
+            return true;
 
-        return false;
+        bool key1Left = isLeftHandUSQwerty(cachedCustomKey_);
+        bool key2Left = isLeftHandUSQwerty(cachedCustomKey2_);
+
+        // Both keys on same hand → no split possible, allow all
+        if (key1Left == key2Left) return true;
+
+        bool inputLeft = isLeftHandUSQwerty(inputKey);
+
+        // Left-hand leader triggers RIGHT-hand inputs (and vice versa)
+        if (leader == LeaderType::Custom1)
+            return key1Left ? !inputLeft : inputLeft;
+        else  // Custom2
+            return key2Left ? !inputLeft : inputLeft;
     }
 
     int getEffectiveDelay(const SchnelleUmlauteState *state) const {
@@ -929,8 +1026,9 @@ private:
 
     // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
-    // Sanitized custom leader key (trimmed, single UTF-8 char)
+    // Sanitized custom leader keys (trimmed, single UTF-8 char each)
     std::string cachedCustomKey_;
+    std::string cachedCustomKey2_;
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {

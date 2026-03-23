@@ -55,7 +55,12 @@ Description=⚠ experimental – Alt/AltGr
 [Leader/CustomKey]
 Type=String
 DefaultValue=
-Description=⚠ experimental – Custom Leader Key
+Description=⚠ experimental – Custom Leader (or left/right split with Key 2)
+
+[Leader/CustomKey2]
+Type=String
+DefaultValue=
+Description=⚠ experimental – Custom Leader 2 (enables hand-split)
 
 [Mappings]
 Name=Mappings
