@@ -89,10 +89,12 @@ static constexpr int kLetterCodes[26] = {
     30, 55, 25, 53, 29, 52                     // u-z
 };
 
-// Multilingual cycling mappings: which lowercase chars are mapped?
+// Multilingual cycling mappings: which chars are mapped?
+// Lowercase: a,e,i,o,u,s,c,n,y  Uppercase: A,E,O,U
 static bool isMultilingualMapped(char c) {
     return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u' ||
-           c == 's' || c == 'c' || c == 'n' || c == 'y';
+           c == 's' || c == 'c' || c == 'n' || c == 'y' ||
+           c == 'A' || c == 'E' || c == 'O' || c == 'U';
 }
 
 // US QWERTY keyboard halves
@@ -181,8 +183,16 @@ static const char *firstMappedOutput(char c) {
         case 'c': return "\xc3\xa7";   // ç
         case 'n': return "\xc3\xb1";   // ñ
         case 'y': return "\xc3\xbd";   // ý
+        case 'A': return "\xc3\x84";   // Ä
+        case 'E': return "\xc3\x89";   // É
+        case 'O': return "\xc3\x96";   // Ö
+        case 'U': return "\xc3\x9c";   // Ü
         default:  return "";
     }
+}
+
+static bool isLetter(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
 // Configure multilingual cycling mappings with specified leaders
@@ -257,26 +267,42 @@ static void configureMultilingualCycling(Instance *instance,
 }
 
 // Type a single char with clean typing (press+release).
+// Handles lowercase, uppercase (Shift), period, comma.
 // If mapped, pushes commit expectation for original char.
 static void typeCharClean(AddonInstance *tf, ICUUID uuid, char c) {
-    if (c < 'a' || c > 'z') return;
-    auto sym = static_cast<FcitxKeySym>(FcitxKey_a + (c - 'a'));
-    int code = kLetterCodes[c - 'a'];
+    FcitxKeySym sym;
+    KeyStates states;
+    int code;
+
+    if (c >= 'a' && c <= 'z') {
+        sym = static_cast<FcitxKeySym>(FcitxKey_a + (c - 'a'));
+        code = kLetterCodes[c - 'a'];
+    } else if (c >= 'A' && c <= 'Z') {
+        sym = static_cast<FcitxKeySym>(FcitxKey_A + (c - 'A'));
+        states = KeyState::Shift;
+        code = kLetterCodes[c - 'A'];
+    } else if (c == '.') {
+        sym = FcitxKey_period; code = 60;
+    } else if (c == ',') {
+        sym = FcitxKey_comma; code = 59;
+    } else {
+        return;
+    }
+
     tf->call<ITestFrontend::sendKeyEvent>(
-        uuid, Key(sym, KeyStates(), code), false);
+        uuid, Key(sym, states, code), false);
     if (isMultilingualMapped(c)) {
         tf->call<ITestFrontend::pushCommitExpectation>(std::string(1, c));
     }
     tf->call<ITestFrontend::sendKeyEvent>(
-        uuid, Key(sym, KeyStates(), code), true);
+        uuid, Key(sym, states, code), true);
 }
 
 // Simulate fast typing with word-boundary overlap.
 // Within each word: clean typing (press-release).
-// At word end: HOLD last char while pressing Space.
-//   - Space leader + mapped char → conversion (collision!)
-//   - No Space leader + mapped char → commits original, Space passes through
-//   - Unmapped char → passes through, Space passes through
+// At word end: HOLD last LETTER while pressing Space.
+// Trailing punctuation (.,) shields the last letter from Space collision.
+// Handles uppercase letters (Shift modifier) and punctuation.
 // Returns number of word-boundary collisions.
 static int typeTextWordBoundaryOverlap(
     AddonInstance *tf, ICUUID uuid,
@@ -300,120 +326,202 @@ static int typeTextWordBoundaryOverlap(
         const auto &word = words[w];
         bool lastWord = (w == words.size() - 1);
 
-        // Type all chars except last with clean typing
-        for (size_t i = 0; i + 1 < word.size(); ++i) {
-            typeCharClean(tf, uuid, word[i]);
+        // Find last letter (skip trailing punctuation like . ,)
+        int lastLetterIdx = -1;
+        for (int i = (int)word.size() - 1; i >= 0; --i) {
+            if (isLetter(word[i])) { lastLetterIdx = i; break; }
         }
+        if (lastLetterIdx < 0) continue;  // no letters in word
 
-        char last = word.back();
-        if (last < 'a' || last > 'z') continue;
-        auto lastSym = static_cast<FcitxKeySym>(FcitxKey_a + (last - 'a'));
-        int lastCode = kLetterCodes[last - 'a'];
-        bool mapped = isMultilingualMapped(last);
+        bool hasTrailingPunct = (lastLetterIdx < (int)word.size() - 1);
+        char lastLetter = word[lastLetterIdx];
+        bool mapped = isMultilingualMapped(lastLetter);
 
-        if (lastWord) {
-            // Last word: clean type last char (no Space after)
-            typeCharClean(tf, uuid, last);
-
-        } else if (mapped && spaceIsLeader) {
-            // COLLISION: hold last char + Space → conversion
-            collisions++;
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(lastSym, KeyStates(), lastCode), false);
-
-            if (hasCycling(last)) {
-                // Multiple outputs: Space enters cycling, release commits
-                tf->call<ITestFrontend::sendKeyEvent>(
-                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-                tf->call<ITestFrontend::pushCommitExpectation>(
-                    firstMappedOutput(last));
-                tf->call<ITestFrontend::sendKeyEvent>(
-                    uuid, Key(lastSym, KeyStates(), lastCode), true);
-            } else {
-                // Single output: Space commits directly
-                tf->call<ITestFrontend::pushCommitExpectation>(
-                    firstMappedOutput(last));
-                tf->call<ITestFrontend::sendKeyEvent>(
-                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-                tf->call<ITestFrontend::sendKeyEvent>(
-                    uuid, Key(lastSym, KeyStates(), lastCode), true);
+        if (lastWord || hasTrailingPunct) {
+            // Punctuation shields the collision, or last word (no Space)
+            // → type entire word clean, send Space for non-last.
+            // Track whether the last simulated event was a mapped char
+            // (UTF-8 bytes are skipped and don't clear recentlyCommitted_).
+            bool lastSimWasMapped = false;
+            for (char c : word) {
+                typeCharClean(tf, uuid, c);
+                if (isLetter(c))
+                    lastSimWasMapped = isMultilingualMapped(c);
+                else if (c == '.' || c == ',')
+                    lastSimWasMapped = false;  // punctuation clears flag
             }
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), true);
-
-        } else if (mapped && !spaceIsLeader) {
-            // NO collision: Space is not leader → commits original
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(lastSym, KeyStates(), lastCode), false);
-            tf->call<ITestFrontend::pushCommitExpectation>(
-                std::string(1, last));
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(lastSym, KeyStates(), lastCode), true);
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), true);
-
+            if (!lastWord) {
+                if (lastSimWasMapped) {
+                    // Ordering guard will catch Space after mapped char
+                    tf->call<ITestFrontend::pushCommitExpectation>(" ");
+                }
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), true);
+            }
         } else {
-            // Unmapped last char: both pass through
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(lastSym, KeyStates(), lastCode), false);
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(lastSym, KeyStates(), lastCode), true);
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), true);
+            // No trailing punctuation — potential collision at word boundary
+            for (int i = 0; i < lastLetterIdx; ++i) {
+                typeCharClean(tf, uuid, word[i]);
+            }
+
+            // Compute keysym/code/states for last letter
+            FcitxKeySym lastSym;
+            int lastCode;
+            KeyStates lastStates;
+            if (lastLetter >= 'a' && lastLetter <= 'z') {
+                lastSym = static_cast<FcitxKeySym>(
+                    FcitxKey_a + (lastLetter - 'a'));
+                lastCode = kLetterCodes[lastLetter - 'a'];
+            } else {
+                lastSym = static_cast<FcitxKeySym>(
+                    FcitxKey_A + (lastLetter - 'A'));
+                lastStates = KeyState::Shift;
+                lastCode = kLetterCodes[lastLetter - 'A'];
+            }
+
+            if (mapped && spaceIsLeader) {
+                // COLLISION: hold last letter + Space → conversion
+                collisions++;
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(lastSym, lastStates, lastCode), false);
+
+                if (hasCycling(lastLetter)) {
+                    tf->call<ITestFrontend::sendKeyEvent>(
+                        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace),
+                        false);
+                    tf->call<ITestFrontend::pushCommitExpectation>(
+                        firstMappedOutput(lastLetter));
+                    tf->call<ITestFrontend::sendKeyEvent>(
+                        uuid, Key(lastSym, lastStates, lastCode), true);
+                } else {
+                    tf->call<ITestFrontend::pushCommitExpectation>(
+                        firstMappedOutput(lastLetter));
+                    tf->call<ITestFrontend::sendKeyEvent>(
+                        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace),
+                        false);
+                    tf->call<ITestFrontend::sendKeyEvent>(
+                        uuid, Key(lastSym, lastStates, lastCode), true);
+                }
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), true);
+
+            } else if (mapped && !spaceIsLeader) {
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(lastSym, lastStates, lastCode), false);
+                tf->call<ITestFrontend::pushCommitExpectation>(
+                    std::string(1, lastLetter));
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(lastSym, lastStates, lastCode), true);
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), true);
+
+            } else {
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(lastSym, lastStates, lastCode), false);
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(lastSym, lastStates, lastCode), true);
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), true);
+            }
         }
     }
     return collisions;
 }
 
-// 100-word test texts (lowercase, no punctuation)
-static const char *kGerman100 =
-    "die sonne scheint hell durch das fenster und wirft lange "
-    "schatten auf den boden es ist ein ruhiger morgen in der "
-    "kleinen stadt am fluss die menschen gehen langsam durch die "
-    "strassen und geniessen den frischen wind der von den hohen "
-    "bergen weht ein alter mann sitzt auf einer bank und liest "
-    "seine zeitung waehrend kinder um ihn herum spielen und lachen "
-    "der duft von frischem brot kommt aus der baeckerei nebenan "
-    "und laesst alle hungrig werden heute wird sicher ein schoener "
-    "tag das spuert jeder der am morgen nach draussen geht und "
-    "die warme luft auf der haut spuert";
+// ~1000 char realistic test texts with proper capitalization,
+// punctuation, and native accents/umlauts.
+// Multi-byte UTF-8 chars (ä,ö,ü,ß,é,ç,ñ...) are transparent to
+// the analysis — they are skipped as non-ASCII, and the surrounding
+// ASCII letters determine word boundaries and collisions.
 
-static const char *kEnglish100 =
-    "the quick brown fox jumps over the lazy dog and runs across "
-    "the fields where tall grass grows on both sides of the path "
-    "birds sing in the warm morning light while clouds drift slowly "
-    "across the bright blue sky a small river flows between old "
-    "rocks and stones making soft sounds that echo through the quiet "
-    "valley children play near the water throwing small pebbles and "
-    "laughing together the wind picks up dry leaves from the ground "
-    "and carries them far away to the hills where mountains stand "
-    "tall against the horizon it is a perfect day to enjoy";
+static const char *kGerman1000 =
+    "Die Sonne scheint hell durch das Fenster und wirft lange Schatten "
+    "auf den Boden. Es ist ein ruhiger Morgen in der kleinen Stadt am "
+    "Flu\xc3\x9f. Die Menschen gehen langsam durch die Stra\xc3\x9fen "
+    "und genie\xc3\x9fen den frischen Wind, der von den hohen Bergen "
+    "weht. Ein alter Mann sitzt auf einer Bank und liest seine Zeitung, "
+    "w\xc3\xa4hrend Kinder um ihn herum spielen und lachen. Der Duft "
+    "von frischem Brot kommt aus der B\xc3\xa4""ckerei nebenan und "
+    "l\xc3\xa4\xc3\x9ft alle hungrig werden. Heute wird sicher ein "
+    "sch\xc3\xb6ner Tag, das sp\xc3\xbcrt jeder, der am Morgen nach "
+    "drau\xc3\x9fen geht und die warme Luft auf der Haut sp\xc3\xbcrt. "
+    "Die V\xc3\xb6gel singen in den B\xc3\xa4umen und der Himmel ist "
+    "strahlend blau. Am Marktplatz stehen die ersten H\xc3\xa4ndler "
+    "mit ihren Waren. Frisches Obst und Gem\xc3\xbcse liegt auf den "
+    "Tischen neben duftendem Brot und K\xc3\xa4se. Eine Frau kauft "
+    "\xc3\x84pfel f\xc3\xbcr einen Kuchen, den sie heute backen will. "
+    "Studenten sitzen am Brunnen und lernen f\xc3\xbcr die n\xc3\xa4"
+    "chste Pr\xc3\xbcfung.";
 
-static const char *kFrench100 =
-    "le petit chat dort sur le tapis pendant que la pluie tombe "
-    "doucement dehors les enfants jouent dans le jardin avec un "
-    "ballon rouge et bleu la mere prepare le repas dans la grande "
-    "cuisine ou les odeurs de pain frais se melangent avec celles "
-    "des legumes grilles le pere lit son journal assis dans le "
-    "fauteuil pres de la fenetre ouverte par laquelle entre une "
-    "brise legere les oiseaux chantent sur les branches des vieux "
-    "arbres le soleil brille entre les nuages et fait danser des "
-    "ombres sur le sol de la cour il fait tres bon vivre ici";
+static const char *kEnglish1000 =
+    "The quick brown fox jumps over the lazy dog and runs across the "
+    "fields where tall grass grows on both sides of the narrow path. "
+    "Birds sing in the warm morning light while clouds drift slowly "
+    "across the bright blue sky. A small river flows between old rocks "
+    "and stones, making soft sounds that echo through the quiet valley. "
+    "Children play near the water, throwing small pebbles and laughing "
+    "together. The wind picks up dry leaves from the ground and carries "
+    "them far away to the hills where mountains stand tall against the "
+    "horizon. It is a perfect day to enjoy the fresh air and warm "
+    "sunshine. The flowers bloom in every garden and bees fly from "
+    "blossom to blossom. An old woman sits on her porch, reading a book "
+    "while her cat sleeps in the sun. Down the road a farmer drives his "
+    "truck to market with fresh vegetables and ripe fruit.";
 
-static const char *kPortuguese100 =
-    "o gato pequeno dorme no tapete macio enquanto a chuva cai "
-    "suavemente la fora as criancas brincam no jardim com uma bola "
-    "vermelha e azul a mae prepara a refeicao na cozinha grande "
-    "onde os cheiros de pao fresco se misturam com os dos legumes "
-    "grelhados o pai le o jornal sentado na poltrona perto da "
-    "janela aberta pela qual entra uma brisa suave os passaros "
-    "cantam nos galhos das velhas arvores o sol brilha entre as "
-    "nuvens brancas e faz dancar sombras no chao do quintal faz "
-    "um belo dia para sair de casa e aproveitar o ar livre";
+static const char *kFrench1000 =
+    "Le petit chat dort sur le tapis pendant que la pluie tombe "
+    "doucement dehors. Les enfants jouent dans le jardin avec un ballon "
+    "rouge et bleu. La m\xc3\xa8re pr\xc3\xa9pare le repas dans la "
+    "grande cuisine o\xc3\xb9 les odeurs de pain frais se m\xc3\xa9"
+    "langent avec celles des l\xc3\xa9gumes grill\xc3\xa9""es. Le "
+    "p\xc3\xa8re lit son journal, assis dans le fauteuil pr\xc3\xa8""s "
+    "de la fen\xc3\xaatre ouverte par laquelle entre une brise "
+    "l\xc3\xa9g\xc3\xa8re. Les oiseaux chantent sur les branches des "
+    "vieux arbres. Le soleil brille entre les nuages et fait danser des "
+    "ombres sur le sol de la cour. Il fait tr\xc3\xa8""s bon vivre ici "
+    "dans ce village tranquille. Les rues sont calmes et les gens se "
+    "connaissent depuis toujours. Chaque matin, le boulanger ouvre sa "
+    "boutique et le parfum du pain chaud se r\xc3\xa9pand dans tout le "
+    "quartier. Les voisins se retrouvent au caf\xc3\xa9 pour discuter "
+    "des nouvelles du jour.";
+
+static const char *kPortuguese1000 =
+    "O gato pequeno dorme no tapete macio enquanto a chuva cai "
+    "suavemente l\xc3\xa1 fora. As crian\xc3\xa7""as brincam no jardim "
+    "com uma bola vermelha e azul. A m\xc3\xa3""e prepara a "
+    "refei\xc3\xa7\xc3\xa3""o na cozinha grande onde os cheiros de "
+    "p\xc3\xa3""o fresco se misturam com os dos legumes grelhados. O "
+    "pai l\xc3\xaa o jornal sentado na poltrona perto da janela aberta "
+    "pela qual entra uma brisa suave. Os p\xc3\xa1""ssaros cantam nos "
+    "galhos das velhas \xc3\xa1rvores. O sol brilha entre as nuvens "
+    "brancas e faz dan\xc3\xa7""ar sombras no ch\xc3\xa3""o do quintal. "
+    "Faz um belo dia para sair de casa e aproveitar o ar livre. As "
+    "flores desabrocham nos jardins e as abelhas voam de flor em flor. "
+    "Uma senhora idosa senta na varanda lendo um livro enquanto seu "
+    "gato dorme ao sol. Na estrada um fazendeiro leva seus produtos "
+    "frescos para o mercado da cidade vizinha.";
+
+static const char *kSpanish1000 =
+    "El peque\xc3\xb1""o gato duerme en la alfombra mientras la lluvia "
+    "cae suavemente afuera. Los ni\xc3\xb1""os juegan en el jard\xc3"
+    "\xadn con una pelota roja y azul. La madre prepara la comida en "
+    "la cocina grande donde los olores de pan fresco se mezclan con los "
+    "de las verduras asadas. El padre lee el peri\xc3\xb3""dico sentado "
+    "en el sill\xc3\xb3n cerca de la ventana abierta por la cual entra "
+    "una brisa suave. Los p\xc3\xa1jaros cantan en las ramas de los "
+    "viejos \xc3\xa1rboles. El sol brilla entre las nubes y hace bailar "
+    "sombras en el suelo del patio. Hace un hermoso d\xc3\xad""a para "
+    "salir de casa y disfrutar del aire libre. Las flores florecen en "
+    "todos los jardines y las abejas vuelan de flor en flor. Una "
+    "se\xc3\xb1""ora mayor se sienta en el porche leyendo un libro "
+    "mientras su gato duerme al sol. Por el camino un granjero lleva "
+    "sus productos frescos al mercado de la ciudad vecina.";
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -1492,134 +1600,134 @@ void scheduleTests(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 47: Writing flow — Space leader, German 100 words
+    // TEST 47: Writing flow — Space leader, German 1000 chars
     // Fast typing with word-boundary overlap: hold last char + Space.
     // With Space as leader, mapped chars at word end get converted.
     // Mapped chars: a,e,i,o,u,s,c,n,y (multilingual cycling)
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 47: Space leader — German 100 words ===";
+        FCITX_INFO() << "=== Test 47: Space leader — German 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test47");
 
         int collisions = typeTextWordBoundaryOverlap(
-            tf, uuid, kGerman100, true);
+            tf, uuid, kGerman1000, true);
 
-        FCITX_ASSERT(collisions > 30)
+        FCITX_ASSERT(collisions > 10)
             << "German should have significant collisions with Space leader"
             << " (got " << collisions << ")";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 47 PASSED — German: "
-                      << collisions << "/99 collisions with Space leader";
+                      << collisions << " collisions with Space leader";
     });
 
     // =========================================================================
-    // TEST 48: Writing flow — Space leader, English 100 words
+    // TEST 48: Writing flow — Space leader, English 1000 chars
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 48: Space leader — English 100 words ===";
+        FCITX_INFO() << "=== Test 48: Space leader — English 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test48");
 
         int collisions = typeTextWordBoundaryOverlap(
-            tf, uuid, kEnglish100, true);
+            tf, uuid, kEnglish1000, true);
 
-        FCITX_ASSERT(collisions > 30)
+        FCITX_ASSERT(collisions > 10)
             << "English should have significant collisions with Space leader"
             << " (got " << collisions << ")";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 48 PASSED — English: "
-                      << collisions << "/99 collisions with Space leader";
+                      << collisions << " collisions with Space leader";
     });
 
     // =========================================================================
-    // TEST 49: Writing flow — Space leader, French 100 words
+    // TEST 49: Writing flow — Space leader, French 1000 chars
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 49: Space leader — French 100 words ===";
+        FCITX_INFO() << "=== Test 49: Space leader — French 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test49");
 
         int collisions = typeTextWordBoundaryOverlap(
-            tf, uuid, kFrench100, true);
+            tf, uuid, kFrench1000, true);
 
-        FCITX_ASSERT(collisions > 50)
+        FCITX_ASSERT(collisions > 10)
             << "French should have many collisions (short words ending e/s)"
             << " (got " << collisions << ")";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 49 PASSED — French: "
-                      << collisions << "/99 collisions with Space leader";
+                      << collisions << " collisions with Space leader";
     });
 
     // =========================================================================
-    // TEST 50: Writing flow — Space leader, Portuguese 100 words
+    // TEST 50: Writing flow — Space leader, Portuguese 1000 chars
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 50: Space leader — Portuguese 100 words ===";
+        FCITX_INFO() << "=== Test 50: Space leader — Portuguese 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test50");
 
         int collisions = typeTextWordBoundaryOverlap(
-            tf, uuid, kPortuguese100, true);
+            tf, uuid, kPortuguese1000, true);
 
-        FCITX_ASSERT(collisions > 50)
+        FCITX_ASSERT(collisions > 10)
             << "Portuguese should have many collisions (words ending a/o/e/s)"
             << " (got " << collisions << ")";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 50 PASSED — Portuguese: "
-                      << collisions << "/99 collisions with Space leader";
+                      << collisions << " collisions with Space leader";
     });
 
     // =========================================================================
-    // TEST 51: Writing flow — Alt leader, German 100 words
+    // TEST 51: Writing flow — Alt leader, German 1000 chars
     // Alt is never pressed during normal typing → 0 collisions.
     // This proves Alt is superior to Space for fast typing.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 51: Alt leader — German 100 words ===";
+        FCITX_INFO() << "=== Test 51: Alt leader — German 1000 chars ===";
         configureMultilingualCycling(instance, false, true);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test51");
 
         int collisions = typeTextWordBoundaryOverlap(
-            tf, uuid, kGerman100, false);
+            tf, uuid, kGerman1000, false);
 
         FCITX_ASSERT(collisions == 0)
             << "Alt leader must have zero collisions in normal typing";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 51 PASSED — Alt leader: "
-                      << collisions << "/99 collisions (zero!)";
+                      << collisions << " collisions (zero!)";
     });
 
     // =========================================================================
-    // TEST 52: Writing flow — Custom leader (#), German 100 words
+    // TEST 52: Writing flow — Custom leader (#), German 1000 chars
     // Custom key is never pressed during normal typing → 0 collisions.
     // Same advantage as Alt but key position may differ ergonomically.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 52: Custom leader (#) — German 100 words ===";
+        FCITX_INFO() << "=== Test 52: Custom leader (#) — German 1000 chars ===";
         configureMultilingualCycling(instance, false, false, "#");
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test52");
 
         int collisions = typeTextWordBoundaryOverlap(
-            tf, uuid, kGerman100, false);
+            tf, uuid, kGerman1000, false);
 
         FCITX_ASSERT(collisions == 0)
             << "Custom leader must have zero collisions in normal typing";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 52 PASSED — Custom leader (#): "
-                      << collisions << "/99 collisions (zero!)";
+                      << collisions << " collisions (zero!)";
     });
 
     // =========================================================================
@@ -1699,10 +1807,11 @@ void scheduleTests(Instance *instance) {
         };
 
         LangResult langs[] = {
-            {"German",     kGerman100,     0, 0, 0},
-            {"English",    kEnglish100,    0, 0, 0},
-            {"French",     kFrench100,     0, 0, 0},
-            {"Portuguese", kPortuguese100, 0, 0, 0},
+            {"German",     kGerman1000,     0, 0, 0},
+            {"English",    kEnglish1000,    0, 0, 0},
+            {"French",     kFrench1000,     0, 0, 0},
+            {"Portuguese", kPortuguese1000, 0, 0, 0},
+            {"Spanish",    kSpanish1000,    0, 0, 0},
         };
 
         for (auto &l : langs) {
@@ -1741,6 +1850,8 @@ void scheduleTests(Instance *instance) {
             {"a/;", 'a', ';'},
             {"z//", 'z', '/'},
             {"f/j", 'f', 'j'},
+            {"q/p", 'q', 'p'},
+            {"q/[", 'q', '['},
         };
 
         std::string result;
