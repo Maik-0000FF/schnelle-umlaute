@@ -465,20 +465,21 @@ public:
         // HANDLE LEADER KEY (Space/Arrows/Alt/Custom)
         // =========================================
         auto leaderType = classifyLeader(key, keyChar);
+
+        // Dual custom leader split: downgrade to None if this leader is
+        // not allowed for the currently active input key's keyboard half.
         if (leaderType != LeaderType::None) {
-            // Dual custom leader split: check if this leader is allowed
-            // for the currently active input key's keyboard half.
             std::string activeInput;
             if (state->cyclingInput_) activeInput = *state->cyclingInput_;
             else if (state->waitingKey_) activeInput = *state->waitingKey_;
 
             if (!activeInput.empty() &&
                 !isDualCustomAllowed(leaderType, activeInput)) {
-                // Leader not allowed for this input's hand → treat as
-                // non-leader key (fall through to accent/other handling)
-                goto not_leader;
+                leaderType = LeaderType::None;
             }
+        }
 
+        if (leaderType != LeaderType::None) {
             bool isAlt = isAltLeaderSym(key.sym());
 
             // CASE 1: Currently in cycling mode
@@ -555,7 +556,6 @@ public:
             }
             return;
         }
-        not_leader:
 
         // rawCode-based repeat suppression during active gesture.
         // When Alt is held as leader, some backends change the keysym
@@ -729,7 +729,7 @@ private:
 
     // Deferred cycling commit for Alt-led gestures on KWin Wayland.
     // Auto-repeat sends release-press pairs; committing on release would
-    // destroy cycling state. Instead, wait 30ms — if a re-press arrives,
+    // destroy cycling state. Instead, wait 5ms — if a re-press arrives,
     // it cancels this timer and cycling continues. If not (real release),
     // the timer fires and commits the cycling value.
     void scheduleDeferredCyclingCommit(InputContext *ic, SchnelleUmlauteState *state) {
