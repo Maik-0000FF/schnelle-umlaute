@@ -61,12 +61,14 @@ FCITX_CONFIGURATION(
     Option<bool> up{this, "Up", "Up Arrow", false};
     Option<bool> down{this, "Down", "Down Arrow", false};
     Option<bool> alt{this, "Alt", "\xe2\x9a\xa0 experimental \xe2\x80\x93 Alt/AltGr", false};
+    Option<bool> customKeyEnabled{this, "CustomKeyEnabled",
+        "\xe2\x9a\xa0 Custom Leader 1", false};
     Option<std::string> customKey{this, "CustomKey",
-        "\xe2\x9a\xa0 experimental \xe2\x80\x93 Custom Leader"
-        " (or left/right split with Key 2)", ""};
+        "  \xe2\x86\xb3 Key (e.g. ; or #)", ""};
+    Option<bool> customKey2Enabled{this, "CustomKey2Enabled",
+        "\xe2\x9a\xa0 Custom Leader 2 (hand-split)", false};
     Option<std::string> customKey2{this, "CustomKey2",
-        "\xe2\x9a\xa0 experimental \xe2\x80\x93 Custom Leader 2"
-        " (enables hand-split)", ""};
+        "  \xe2\x86\xb3 Key (e.g. j or f)", ""};
 );
 
 FCITX_CONFIGURATION(
@@ -676,8 +678,10 @@ private:
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
         // stores the original value so the UI round-trips correctly.
-        cachedCustomKey_ = sanitizeCustomKey(*config_.leader->customKey);
-        cachedCustomKey2_ = sanitizeCustomKey(*config_.leader->customKey2);
+        cachedCustomKey_ = *config_.leader->customKeyEnabled
+            ? sanitizeCustomKey(*config_.leader->customKey) : "";
+        cachedCustomKey2_ = *config_.leader->customKey2Enabled
+            ? sanitizeCustomKey(*config_.leader->customKey2) : "";
 
         // Warn about dual custom leader conflicts
         if (!cachedCustomKey_.empty() && !cachedCustomKey2_.empty()) {

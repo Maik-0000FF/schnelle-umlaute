@@ -52,15 +52,25 @@ Type=Boolean
 DefaultValue=False
 Description=⚠ experimental – Alt/AltGr
 
+[Leader/CustomKeyEnabled]
+Type=Boolean
+DefaultValue=False
+Description=⚠ Custom Leader 1
+
 [Leader/CustomKey]
 Type=String
 DefaultValue=
-Description=⚠ experimental – Custom Leader (or left/right split with Key 2)
+Description=  ↳ Key (e.g. ; or #)
+
+[Leader/CustomKey2Enabled]
+Type=Boolean
+DefaultValue=False
+Description=⚠ Custom Leader 2 (hand-split)
 
 [Leader/CustomKey2]
 Type=String
 DefaultValue=
-Description=⚠ experimental – Custom Leader 2 (enables hand-split)
+Description=  ↳ Key (e.g. j or f)
 
 [Mappings]
 Name=Mappings
