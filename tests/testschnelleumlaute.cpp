@@ -55,6 +55,8 @@ static void configureLeaders(Instance *instance,
     config.setValueByPath("Leader/Up", up ? "True" : "False");
     config.setValueByPath("Leader/Down", down ? "True" : "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
+    config.setValueByPath("Leader/CustomKeyEnabled",
+                          custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/CustomKey", custom);
     config.setValueByPath("Mappings/Input1", "a");
     config.setValueByPath("Mappings/Output1", "ä");
@@ -209,6 +211,8 @@ static void configureMultilingualCycling(Instance *instance,
     config.setValueByPath("Leader/Up", "False");
     config.setValueByPath("Leader/Down", "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
+    config.setValueByPath("Leader/CustomKeyEnabled",
+                          custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/CustomKey", custom);
     // a → ä,à,á,â,ã
     config.setValueByPath("Mappings/Input1", "a");
@@ -1051,7 +1055,7 @@ void scheduleTests(Instance *instance) {
 
     // =========================================================================
     // TEST 17: Alt_L as leader — consumed and enters cycling
-    // NOTE: Alt leader always uses deferred commit (25ms timer via
+    // NOTE: Alt leader always uses deferred commit (5ms timer via
     // scheduleDeferredCyclingCommit). The timer fires asynchronously after
     // this callback returns, so pushCommitExpectation cannot verify it —
     // the IC would be destroyed before the timer fires. We verify the
@@ -1888,6 +1892,7 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
         config.setValueByPath("Leader/CustomKey", "");
+        config.setValueByPath("Leader/CustomKey2Enabled", "True");
         config.setValueByPath("Leader/CustomKey2", "#");
         config.setValueByPath("Mappings/Input1", "a");
         config.setValueByPath("Mappings/Output1", "\xc3\xa4");
@@ -1932,7 +1937,9 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Up", "False");
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
         config.setValueByPath("Leader/CustomKey", "z");
+        config.setValueByPath("Leader/CustomKey2Enabled", "True");
         config.setValueByPath("Leader/CustomKey2", "/");
         config.setValueByPath("Mappings/Input1", "u");
         config.setValueByPath("Mappings/Output1", "\xc3\xbc");
@@ -1979,7 +1986,9 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Up", "False");
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
         config.setValueByPath("Leader/CustomKey", "z");
+        config.setValueByPath("Leader/CustomKey2Enabled", "True");
         config.setValueByPath("Leader/CustomKey2", "/");
         config.setValueByPath("Mappings/Input1", "u");
         config.setValueByPath("Mappings/Output1", "\xc3\xbc");
@@ -2026,7 +2035,9 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Up", "False");
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
         config.setValueByPath("Leader/CustomKey", "z");
+        config.setValueByPath("Leader/CustomKey2Enabled", "True");
         config.setValueByPath("Leader/CustomKey2", "/");
         config.setValueByPath("Mappings/Input1", "u");
         config.setValueByPath("Mappings/Output1", "\xc3\xbc");
@@ -2072,6 +2083,7 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Up", "False");
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
         config.setValueByPath("Leader/CustomKey", "z");
         config.setValueByPath("Leader/CustomKey2", "");
         config.setValueByPath("Mappings/Input1", "a");
@@ -2119,7 +2131,9 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Up", "False");
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
         config.setValueByPath("Leader/CustomKey", "z");
+        config.setValueByPath("Leader/CustomKey2Enabled", "True");
         config.setValueByPath("Leader/CustomKey2", "/");
         config.setValueByPath("Mappings/Input1", "a");
         config.setValueByPath("Mappings/Output1", "\xc3\xa4");
