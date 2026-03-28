@@ -72,67 +72,35 @@ FCITX_CONFIGURATION(
 );
 
 FCITX_CONFIGURATION(
+    MappingEntry,
+    Option<std::string> input{this, "Input", "Input"};
+    Option<std::string> output{this, "Output", "Output"};
+);
+
+FCITX_CONFIGURATION(
     MappingsConfig,
-    Option<std::string> input1{this, "Input1", "Input 1", "a"};
-    Option<std::string> output1{this, "Output1", "Output 1", "\xc3\xa4"};
-    Option<std::string> input2{this, "Input2", "Input 2", "o"};
-    Option<std::string> output2{this, "Output2", "Output 2", "\xc3\xb6"};
-    Option<std::string> input3{this, "Input3", "Input 3", "u"};
-    Option<std::string> output3{this, "Output3", "Output 3", "\xc3\xbc"};
-    Option<std::string> input4{this, "Input4", "Input 4", "s"};
-    Option<std::string> output4{this, "Output4", "Output 4", "\xc3\x9f"};
-    Option<std::string> input5{this, "Input5", "Input 5", "A"};
-    Option<std::string> output5{this, "Output5", "Output 5", "\xc3\x84"};
-    Option<std::string> input6{this, "Input6", "Input 6", "O"};
-    Option<std::string> output6{this, "Output6", "Output 6", "\xc3\x96"};
-    Option<std::string> input7{this, "Input7", "Input 7", "U"};
-    Option<std::string> output7{this, "Output7", "Output 7", "\xc3\x9c"};
-    Option<std::string> input8{this, "Input8", "Input 8", ""};
-    Option<std::string> output8{this, "Output8", "Output 8", ""};
-    Option<std::string> input9{this, "Input9", "Input 9", ""};
-    Option<std::string> output9{this, "Output9", "Output 9", ""};
-    Option<std::string> input10{this, "Input10", "Input 10", ""};
-    Option<std::string> output10{this, "Output10", "Output 10", ""};
-    Option<std::string> input11{this, "Input11", "Input 11", ""};
-    Option<std::string> output11{this, "Output11", "Output 11", ""};
-    Option<std::string> input12{this, "Input12", "Input 12", ""};
-    Option<std::string> output12{this, "Output12", "Output 12", ""};
-    Option<std::string> input13{this, "Input13", "Input 13", ""};
-    Option<std::string> output13{this, "Output13", "Output 13", ""};
-    Option<std::string> input14{this, "Input14", "Input 14", ""};
-    Option<std::string> output14{this, "Output14", "Output 14", ""};
-    Option<std::string> input15{this, "Input15", "Input 15", ""};
-    Option<std::string> output15{this, "Output15", "Output 15", ""};
-    Option<std::string> input16{this, "Input16", "Input 16", ""};
-    Option<std::string> output16{this, "Output16", "Output 16", ""};
-    Option<std::string> input17{this, "Input17", "Input 17", ""};
-    Option<std::string> output17{this, "Output17", "Output 17", ""};
-    Option<std::string> input18{this, "Input18", "Input 18", ""};
-    Option<std::string> output18{this, "Output18", "Output 18", ""};
-    Option<std::string> input19{this, "Input19", "Input 19", ""};
-    Option<std::string> output19{this, "Output19", "Output 19", ""};
-    Option<std::string> input20{this, "Input20", "Input 20", ""};
-    Option<std::string> output20{this, "Output20", "Output 20", ""};
-    Option<std::string> input21{this, "Input21", "Input 21", ""};
-    Option<std::string> output21{this, "Output21", "Output 21", ""};
-    Option<std::string> input22{this, "Input22", "Input 22", ""};
-    Option<std::string> output22{this, "Output22", "Output 22", ""};
-    Option<std::string> input23{this, "Input23", "Input 23", ""};
-    Option<std::string> output23{this, "Output23", "Output 23", ""};
-    Option<std::string> input24{this, "Input24", "Input 24", ""};
-    Option<std::string> output24{this, "Output24", "Output 24", ""};
-    Option<std::string> input25{this, "Input25", "Input 25", ""};
-    Option<std::string> output25{this, "Output25", "Output 25", ""};
-    Option<std::string> input26{this, "Input26", "Input 26", ""};
-    Option<std::string> output26{this, "Output26", "Output 26", ""};
-    Option<std::string> input27{this, "Input27", "Input 27", ""};
-    Option<std::string> output27{this, "Output27", "Output 27", ""};
-    Option<std::string> input28{this, "Input28", "Input 28", ""};
-    Option<std::string> output28{this, "Output28", "Output 28", ""};
-    Option<std::string> input29{this, "Input29", "Input 29", ""};
-    Option<std::string> output29{this, "Output29", "Output 29", ""};
-    Option<std::string> input30{this, "Input30", "Input 30", ""};
-    Option<std::string> output30{this, "Output30", "Output 30", ""};
+    OptionWithAnnotation<std::vector<MappingEntry>, ListDisplayOptionAnnotation>
+        entries{this, "Entries", "Mappings",
+                defaultMappings(),
+                {}, {}, ListDisplayOptionAnnotation("Input")};
+
+    static std::vector<MappingEntry> defaultMappings() {
+        std::vector<MappingEntry> m;
+        auto add = [&](const char *in, const char *out) {
+            MappingEntry e;
+            e.input.setValue(in);
+            e.output.setValue(out);
+            m.push_back(std::move(e));
+        };
+        add("a", "\xc3\xa4");  // ä
+        add("o", "\xc3\xb6");  // ö
+        add("u", "\xc3\xbc");  // ü
+        add("s", "\xc3\x9f");  // ß
+        add("A", "\xc3\x84");  // Ä
+        add("O", "\xc3\x96");  // Ö
+        add("U", "\xc3\x9c");  // Ü
+        return m;
+    }
 );
 
 FCITX_CONFIGURATION(
@@ -829,46 +797,16 @@ private:
 
     void loadMappingsFromConfig() {
         umlautMap_.clear();
-        auto addMapping = [this](const std::string& input, const std::string& output) {
+        for (const auto &entry : *config_.mappings->entries) {
+            const auto &input = *entry.input;
+            const auto &output = *entry.output;
             if (!input.empty() && !output.empty()) {
                 auto outputs = splitOutputs(output);
                 if (!outputs.empty()) {
                     umlautMap_[input] = outputs;
                 }
             }
-        };
-
-        const auto *m = &*config_.mappings;
-        addMapping(*m->input1, *m->output1);
-        addMapping(*m->input2, *m->output2);
-        addMapping(*m->input3, *m->output3);
-        addMapping(*m->input4, *m->output4);
-        addMapping(*m->input5, *m->output5);
-        addMapping(*m->input6, *m->output6);
-        addMapping(*m->input7, *m->output7);
-        addMapping(*m->input8, *m->output8);
-        addMapping(*m->input9, *m->output9);
-        addMapping(*m->input10, *m->output10);
-        addMapping(*m->input11, *m->output11);
-        addMapping(*m->input12, *m->output12);
-        addMapping(*m->input13, *m->output13);
-        addMapping(*m->input14, *m->output14);
-        addMapping(*m->input15, *m->output15);
-        addMapping(*m->input16, *m->output16);
-        addMapping(*m->input17, *m->output17);
-        addMapping(*m->input18, *m->output18);
-        addMapping(*m->input19, *m->output19);
-        addMapping(*m->input20, *m->output20);
-        addMapping(*m->input21, *m->output21);
-        addMapping(*m->input22, *m->output22);
-        addMapping(*m->input23, *m->output23);
-        addMapping(*m->input24, *m->output24);
-        addMapping(*m->input25, *m->output25);
-        addMapping(*m->input26, *m->output26);
-        addMapping(*m->input27, *m->output27);
-        addMapping(*m->input28, *m->output28);
-        addMapping(*m->input29, *m->output29);
-        addMapping(*m->input30, *m->output30);
+        }
     }
 
     // Check for Ctrl/Alt/Super in key state. Shift is intentionally
