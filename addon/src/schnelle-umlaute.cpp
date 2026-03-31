@@ -47,27 +47,50 @@ private:
     int step_;
 };
 
-/// Annotation that sets placeholder text on String fields in fcitx5-configtool.
+/// Annotation that sets placeholder text, optional tooltip, and optional
+/// cross-field validation on String fields in fcitx5-configtool.
+/// ValidateNotIn: path to a List in the same config (e.g. "Mappings/Entries").
+/// ValidateNotInField: sub-field within each list entry to check against.
+/// ValidateNotInWarning: warning message shown when a conflict is found.
 struct PlaceholderAnnotation {
-    PlaceholderAnnotation(std::string text, bool compact = false)
-        : text_(std::move(text)), compact_(compact) {}
-    bool skipDescription() { return false; }
-    bool skipSave() { return false; }
+    PlaceholderAnnotation(std::string text, bool compact = false,
+                          std::string tooltip = "",
+                          std::string validateNotIn = "",
+                          std::string validateField = "",
+                          std::string validateWarning = "")
+        : text_(std::move(text)), compact_(compact), tooltip_(std::move(tooltip)),
+          validateNotIn_(std::move(validateNotIn)),
+          validateField_(std::move(validateField)),
+          validateWarning_(std::move(validateWarning)) {}
+    bool skipDescription() const { return false; }
+    bool skipSave() const { return false; }
     void dumpDescription(RawConfig &config) const {
         config.setValueByPath("Placeholder", text_);
         if (compact_) {
             config.setValueByPath("Compact", "True");
         }
+        if (!tooltip_.empty()) {
+            config.setValueByPath("Tooltip", tooltip_);
+        }
+        if (!validateNotIn_.empty()) {
+            config.setValueByPath("ValidateNotIn", validateNotIn_);
+            config.setValueByPath("ValidateNotInField", validateField_);
+            config.setValueByPath("ValidateNotInWarning", validateWarning_);
+        }
     }
 private:
     std::string text_;
     bool compact_;
+    std::string tooltip_;
+    std::string validateNotIn_;
+    std::string validateField_;
+    std::string validateWarning_;
 };
 
 /// Annotation that requests inline editing in fcitx5-configtool.
 struct ListEditInlineAnnotation {
-    bool skipDescription() { return false; }
-    bool skipSave() { return false; }
+    bool skipDescription() const { return false; }
+    bool skipSave() const { return false; }
     void dumpDescription(RawConfig &config) const {
         config.setValueByPath("ListEditInline", "True");
     }
@@ -91,12 +114,19 @@ FCITX_CONFIGURATION(
         "\xe2\x9a\xa0 Custom Leader 1", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey{
         this, "CustomKey", "  \xe2\x86\xb3 Key", "",
-        {}, {}, PlaceholderAnnotation("e.g. ; or #", true)};
+        {}, {}, PlaceholderAnnotation("e.g. ; or #", true,
+            "Single character. Must not be a mapped input key.",
+            "Mappings/Entries", "Input",
+            "Conflicts with a mapped input \xe2\x80\x94 cannot trigger its own mapping")};
     Option<bool> customKey2Enabled{this, "CustomKey2Enabled",
         "\xe2\x9a\xa0 Custom Leader 2 (hand-split)", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey2{
         this, "CustomKey2", "  \xe2\x86\xb3 Key", "",
-        {}, {}, PlaceholderAnnotation("e.g. j or f", true)};
+        {}, {}, PlaceholderAnnotation("e.g. j or f", true,
+            "Single character on the opposite keyboard half of Leader 1.\n"
+            "Must not be a mapped input key.",
+            "Mappings/Entries", "Input",
+            "Conflicts with a mapped input \xe2\x80\x94 cannot trigger its own mapping")};
 );
 
 FCITX_CONFIGURATION(
@@ -356,7 +386,7 @@ public:
                 if (state->altGestureSession_) {
                     // Alt-led gesture on KWin Wayland: defer commit.
                     // Auto-repeat sends release-press pairs; committing here
-                    // would destroy cycling state. A 30ms timer distinguishes
+                    // would destroy cycling state. A short timer distinguishes
                     // auto-repeat from real release.
                     state->inputKeyPressed_ = false;
                     scheduleDeferredCyclingCommit(ic, state);
@@ -679,6 +709,18 @@ private:
         cachedCustomKey2_ = *config_.leader->customKey2Enabled
             ? sanitizeCustomKey(*config_.leader->customKey2) : "";
 
+        // Warn if a custom leader key collides with a mapped input
+        if (!cachedCustomKey_.empty() && umlautMap_.count(cachedCustomKey_)) {
+            FCITX_WARN() << "Schnelle: CustomKey '" << cachedCustomKey_
+                         << "' is also a mapped input"
+                         << " — it cannot trigger its own mapping";
+        }
+        if (!cachedCustomKey2_.empty() && umlautMap_.count(cachedCustomKey2_)) {
+            FCITX_WARN() << "Schnelle: CustomKey2 '" << cachedCustomKey2_
+                         << "' is also a mapped input"
+                         << " — it cannot trigger its own mapping";
+        }
+
         // Warn about dual custom leader conflicts
         if (!cachedCustomKey_.empty() && !cachedCustomKey2_.empty()) {
             if (cachedCustomKey_ == cachedCustomKey2_) {
@@ -690,16 +732,6 @@ private:
                              << "' and CustomKey2 '" << cachedCustomKey2_
                              << "' are on the same keyboard half"
                              << " — dual split disabled, both trigger all mappings";
-            }
-            if (umlautMap_.count(cachedCustomKey_)) {
-                FCITX_WARN() << "Schnelle: CustomKey '" << cachedCustomKey_
-                             << "' is also a mapped input"
-                             << " — it cannot trigger its own mapping";
-            }
-            if (umlautMap_.count(cachedCustomKey2_)) {
-                FCITX_WARN() << "Schnelle: CustomKey2 '" << cachedCustomKey2_
-                             << "' is also a mapped input"
-                             << " — it cannot trigger its own mapping";
             }
         }
 

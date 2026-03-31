@@ -63,6 +63,10 @@ DefaultValue=
 Description=  ↳ Key
 Placeholder=e.g. ; or #
 Compact=True
+Tooltip=Single character. Must not be a mapped input key.
+ValidateNotIn=Mappings/Entries
+ValidateNotInField=Input
+ValidateNotInWarning=Conflicts with a mapped input — cannot trigger its own mapping
 
 [Leader/CustomKey2Enabled]
 Type=Boolean
@@ -75,6 +79,10 @@ DefaultValue=
 Description=  ↳ Key
 Placeholder=e.g. j or f
 Compact=True
+Tooltip=Single character on the opposite keyboard half of Leader 1. Must not be a mapped input key.
+ValidateNotIn=Mappings/Entries
+ValidateNotInField=Input
+ValidateNotInWarning=Conflicts with a mapped input — cannot trigger its own mapping
 
 [Mappings]
 Name=Mappings
