@@ -60,7 +60,9 @@ Description=⚠ Custom Leader 1
 [Leader/CustomKey]
 Type=String
 DefaultValue=
-Description=  ↳ Key (e.g. ; or #)
+Description=  ↳ Key
+Placeholder=e.g. ; or #
+Compact=True
 
 [Leader/CustomKey2Enabled]
 Type=Boolean
@@ -70,7 +72,9 @@ Description=⚠ Custom Leader 2 (hand-split)
 [Leader/CustomKey2]
 Type=String
 DefaultValue=
-Description=  ↳ Key (e.g. j or f)
+Description=  ↳ Key
+Placeholder=e.g. j or f
+Compact=True
 
 [Mappings]
 Name=Mappings
@@ -79,7 +83,7 @@ Description=Mappings
 [Mappings/Entries]
 Type=List|MappingEntry
 Description=Mappings
-ListDisplayOption=Input
+ListEditInline=True
 
 [MappingEntry/Input]
 Type=String

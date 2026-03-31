@@ -47,6 +47,32 @@ private:
     int step_;
 };
 
+/// Annotation that sets placeholder text on String fields in fcitx5-configtool.
+struct PlaceholderAnnotation {
+    PlaceholderAnnotation(std::string text, bool compact = false)
+        : text_(std::move(text)), compact_(compact) {}
+    bool skipDescription() { return false; }
+    bool skipSave() { return false; }
+    void dumpDescription(RawConfig &config) const {
+        config.setValueByPath("Placeholder", text_);
+        if (compact_) {
+            config.setValueByPath("Compact", "True");
+        }
+    }
+private:
+    std::string text_;
+    bool compact_;
+};
+
+/// Annotation that requests inline editing in fcitx5-configtool.
+struct ListEditInlineAnnotation {
+    bool skipDescription() { return false; }
+    bool skipSave() { return false; }
+    void dumpDescription(RawConfig &config) const {
+        config.setValueByPath("ListEditInline", "True");
+    }
+};
+
 FCITX_CONFIGURATION(
     DelayConfig,
     Option<int, IntConstrainWithStep> lowercase{this, "Lowercase", "Lowercase (ms)", 400, IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
@@ -63,12 +89,14 @@ FCITX_CONFIGURATION(
     Option<bool> alt{this, "Alt", "\xe2\x9a\xa0 experimental \xe2\x80\x93 Alt/AltGr", false};
     Option<bool> customKeyEnabled{this, "CustomKeyEnabled",
         "\xe2\x9a\xa0 Custom Leader 1", false};
-    Option<std::string> customKey{this, "CustomKey",
-        "  \xe2\x86\xb3 Key (e.g. ; or #)", ""};
+    OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey{
+        this, "CustomKey", "  \xe2\x86\xb3 Key", "",
+        {}, {}, PlaceholderAnnotation("e.g. ; or #", true)};
     Option<bool> customKey2Enabled{this, "CustomKey2Enabled",
         "\xe2\x9a\xa0 Custom Leader 2 (hand-split)", false};
-    Option<std::string> customKey2{this, "CustomKey2",
-        "  \xe2\x86\xb3 Key (e.g. j or f)", ""};
+    OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey2{
+        this, "CustomKey2", "  \xe2\x86\xb3 Key", "",
+        {}, {}, PlaceholderAnnotation("e.g. j or f", true)};
 );
 
 FCITX_CONFIGURATION(
@@ -79,10 +107,10 @@ FCITX_CONFIGURATION(
 
 FCITX_CONFIGURATION(
     MappingsConfig,
-    OptionWithAnnotation<std::vector<MappingEntry>, ListDisplayOptionAnnotation>
+    OptionWithAnnotation<std::vector<MappingEntry>, ListEditInlineAnnotation>
         entries{this, "Entries", "Mappings",
                 defaultMappings(),
-                {}, {}, ListDisplayOptionAnnotation("Input")};
+                {}, {}, {}};
 
     static std::vector<MappingEntry> defaultMappings() {
         std::vector<MappingEntry> m;
