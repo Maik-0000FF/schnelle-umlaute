@@ -898,6 +898,10 @@ Built with:
 - **CMake** - Build system
 - **Extra CMake Modules (ECM)** - KDE build tools
 
+## Acknowledgments
+
+Thanks to [wengxt](https://github.com/wengxt) for creating Fcitx5 and for the guidance on building custom config widgets.
+
 ---
 
 **Version:** 0.1.5-rc1
