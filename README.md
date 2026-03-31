@@ -365,24 +365,15 @@ All addon settings can be changed in two ways:
 
 **After config file changes**, restart Fcitx5 with `fcitx5 -r`. GUI changes apply immediately after clicking Apply.
 
-**KDE System Settings:**
+**Addon Settings (Delay, Leader Keys):**
 
-![Schnelle Umlaute Configuration (KDE)](docs/configtool-after-kde.png)
+<!-- TODO: Screenshot of fcitx5-config-qt addon settings (Delay + Leader Keys) -->
 
-**fcitx5-config-qt:**
+**Mapping Editor:**
 
-![Schnelle Umlaute Configuration (Qt)](docs/configtool-after-qt.png)
+<!-- TODO: Screenshot of custom mapping editor widget (QTableView with Input/Output) -->
 
-> **Note:** The screenshots above show a patched fcitx5-configtool with enhanced UI features. With the **original fcitx5-configtool**, all addon functionality works identically, but the GUI is less polished:
->
-> | Feature | Original configtool | Patched configtool |
-> |---------|--------------------|--------------------|
-> | Inline mapping editing | Add/Edit dialog | Inline text fields |
-> | Placeholder text in leader key fields | — | Shown |
-> | Conflict warning (leader key = mapped input) | — | Dynamic warning |
-> | Tooltip on hover | Shown | Shown |
->
-> The addon configuration via config file (`~/.config/fcitx5/conf/schnelle-umlaute.conf`) is fully functional regardless of which configtool version is used.
+The mapping editor opens automatically when you click **Configure** on the addon. It provides a dedicated table view for managing all key mappings.
 
 #### Delays
 
