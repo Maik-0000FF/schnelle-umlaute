@@ -225,10 +225,25 @@ public:
     }
 
     void setSubConfig(const std::string &path,
-                      const RawConfig & /*unused*/) override {
+                      const RawConfig &config) override {
         if (path == "mappings.txt") {
-            loadMappingsFromFile();
-            FCITX_INFO() << "Schnelle: Mappings reloaded from file, count="
+            // If RawConfig contains mapping data, use it directly.
+            // Otherwise, reload from file (normal configtool path).
+            umlautMap_.clear();
+            for (int i = 0; ; ++i) {
+                auto input = config.valueByPath(
+                    std::to_string(i) + "/Input");
+                auto output = config.valueByPath(
+                    std::to_string(i) + "/Output");
+                if (!input || input->empty()) break;
+                if (output && !output->empty()) {
+                    umlautMap_[*input] = splitOutputs(*output);
+                }
+            }
+            if (umlautMap_.empty()) {
+                loadMappingsFromFile();
+            }
+            FCITX_INFO() << "Schnelle: Mappings reloaded, count="
                          << umlautMap_.size();
         }
     }

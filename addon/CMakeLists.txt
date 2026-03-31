@@ -61,3 +61,7 @@ install(FILES data/schnelle-umlaute-inputmethod.conf
 
 # Config editor Qt plugin
 add_subdirectory(config-editor)
+
+# Tests
+enable_testing()
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../tests tests)
