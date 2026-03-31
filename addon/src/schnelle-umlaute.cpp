@@ -9,6 +9,8 @@
 #include <fcitx-utils/utf8.h>
 #include <fcitx-utils/event.h>
 #include <fcitx-utils/log.h>
+#include <fcitx-utils/standardpaths.h>
+#include <fcitx-utils/fs.h>
 #include <fcitx-config/configuration.h>
 #include <fcitx-config/iniparser.h>
 #include <string>
@@ -47,21 +49,12 @@ private:
     int step_;
 };
 
-/// Annotation that sets placeholder text, optional tooltip, and optional
-/// cross-field validation on String fields in fcitx5-configtool.
-/// ValidateNotIn: path to a List in the same config (e.g. "Mappings/Entries").
-/// ValidateNotInField: sub-field within each list entry to check against.
-/// ValidateNotInWarning: warning message shown when a conflict is found.
+/// Annotation that sets placeholder text, optional compact mode, and tooltip.
 struct PlaceholderAnnotation {
     PlaceholderAnnotation(std::string text, bool compact = false,
-                          std::string tooltip = "",
-                          std::string validateNotIn = "",
-                          std::string validateField = "",
-                          std::string validateWarning = "")
-        : text_(std::move(text)), compact_(compact), tooltip_(std::move(tooltip)),
-          validateNotIn_(std::move(validateNotIn)),
-          validateField_(std::move(validateField)),
-          validateWarning_(std::move(validateWarning)) {}
+                          std::string tooltip = "")
+        : text_(std::move(text)), compact_(compact),
+          tooltip_(std::move(tooltip)) {}
     bool skipDescription() const { return false; }
     bool skipSave() const { return false; }
     void dumpDescription(RawConfig &config) const {
@@ -72,29 +65,13 @@ struct PlaceholderAnnotation {
         if (!tooltip_.empty()) {
             config.setValueByPath("Tooltip", tooltip_);
         }
-        if (!validateNotIn_.empty()) {
-            config.setValueByPath("ValidateNotIn", validateNotIn_);
-            config.setValueByPath("ValidateNotInField", validateField_);
-            config.setValueByPath("ValidateNotInWarning", validateWarning_);
-        }
     }
 private:
     std::string text_;
     bool compact_;
     std::string tooltip_;
-    std::string validateNotIn_;
-    std::string validateField_;
-    std::string validateWarning_;
 };
 
-/// Annotation that requests inline editing in fcitx5-configtool.
-struct ListEditInlineAnnotation {
-    bool skipDescription() const { return false; }
-    bool skipSave() const { return false; }
-    void dumpDescription(RawConfig &config) const {
-        config.setValueByPath("ListEditInline", "True");
-    }
-};
 
 FCITX_CONFIGURATION(
     DelayConfig,
@@ -115,57 +92,21 @@ FCITX_CONFIGURATION(
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey{
         this, "CustomKey", "  \xe2\x86\xb3 Key", "",
         {}, {}, PlaceholderAnnotation("e.g. ; or #", true,
-            "Single character. Must not be a mapped input key.",
-            "Mappings/Entries", "Input",
-            "Conflicts with a mapped input \xe2\x80\x94 cannot trigger its own mapping")};
+            "Single character. Must not be a mapped input key.")};
     Option<bool> customKey2Enabled{this, "CustomKey2Enabled",
         "\xe2\x9a\xa0 Custom Leader 2 (hand-split)", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey2{
         this, "CustomKey2", "  \xe2\x86\xb3 Key", "",
         {}, {}, PlaceholderAnnotation("e.g. j or f", true,
-            "Single character on the opposite keyboard half of Leader 1.\n"
-            "Must not be a mapped input key.",
-            "Mappings/Entries", "Input",
-            "Conflicts with a mapped input \xe2\x80\x94 cannot trigger its own mapping")};
-);
-
-FCITX_CONFIGURATION(
-    MappingEntry,
-    Option<std::string> input{this, "Input", "Input"};
-    Option<std::string> output{this, "Output", "Output"};
-);
-
-FCITX_CONFIGURATION(
-    MappingsConfig,
-    OptionWithAnnotation<std::vector<MappingEntry>, ListEditInlineAnnotation>
-        entries{this, "Entries", "Mappings",
-                defaultMappings(),
-                {}, {}, {}};
-
-    static std::vector<MappingEntry> defaultMappings() {
-        std::vector<MappingEntry> m;
-        auto add = [&](const char *in, const char *out) {
-            MappingEntry e;
-            e.input.setValue(in);
-            e.output.setValue(out);
-            m.push_back(std::move(e));
-        };
-        add("a", "\xc3\xa4");  // ä
-        add("o", "\xc3\xb6");  // ö
-        add("u", "\xc3\xbc");  // ü
-        add("s", "\xc3\x9f");  // ß
-        add("A", "\xc3\x84");  // Ä
-        add("O", "\xc3\x96");  // Ö
-        add("U", "\xc3\x9c");  // Ü
-        return m;
-    }
+            "Single character on the opposite keyboard half of Leader 1.")};
 );
 
 FCITX_CONFIGURATION(
     SchnelleUmlauteConfig,
     Option<DelayConfig> delay{this, "Delay", "Delay"};
     Option<LeaderConfig> leader{this, "Leader", "Leader Keys"};
-    Option<MappingsConfig> mappings{this, "Mappings", "Mappings"};
+    ExternalOption mappingEditor{this, "MappingEditor", "Mapping Editor",
+        "fcitx://config/addon/schnelle-umlaute/mappings.txt"};
 );
 
 // =============================================================================
@@ -281,6 +222,15 @@ public:
     void reloadConfig() override {
         readAsIni(config_, "conf/schnelle-umlaute.conf");
         applyConfig();
+    }
+
+    void setSubConfig(const std::string &path,
+                      const RawConfig & /*unused*/) override {
+        if (path == "mappings.txt") {
+            loadMappingsFromFile();
+            FCITX_INFO() << "Schnelle: Mappings reloaded from file, count="
+                         << umlautMap_.size();
+        }
     }
 
     std::vector<InputMethodEntry> listInputMethods() override {
@@ -699,7 +649,7 @@ private:
     // Apply in-memory config: rebuild mappings, sanitize custom key, log.
     // Shared by setConfig (values already loaded) and reloadConfig (read from disk).
     void applyConfig() {
-        loadMappingsFromConfig();
+        loadMappingsFromFile();
 
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
@@ -855,17 +805,42 @@ private:
         return outputs;
     }
 
-    void loadMappingsFromConfig() {
+    void loadMappingsFromFile() {
         umlautMap_.clear();
-        for (const auto &entry : *config_.mappings->entries) {
-            const auto &input = *entry.input;
-            const auto &output = *entry.output;
-            if (!input.empty() && !output.empty()) {
-                auto outputs = splitOutputs(output);
-                if (!outputs.empty()) {
-                    umlautMap_[input] = outputs;
+        auto file = StandardPaths::global().open(
+            StandardPathsType::PkgConfig, "schnelle-umlaute/mappings.txt");
+        if (file.isValid()) {
+            auto fp = fs::openFD(file, "r");
+            if (fp) {
+                char buf[4096];
+                while (fgets(buf, sizeof(buf), fp.get())) {
+                    std::string line(buf);
+                    // Trim trailing newline
+                    while (!line.empty() &&
+                           (line.back() == '\n' || line.back() == '\r')) {
+                        line.pop_back();
+                    }
+                    if (line.empty() || line[0] == '#') continue;
+                    auto tab = line.find('\t');
+                    if (tab != std::string::npos && tab > 0) {
+                        auto input = line.substr(0, tab);
+                        auto output = line.substr(tab + 1);
+                        if (!output.empty()) {
+                            umlautMap_[input] = splitOutputs(output);
+                        }
+                    }
                 }
             }
+        }
+        if (umlautMap_.empty()) {
+            // Default mappings
+            umlautMap_["a"] = {"\xc3\xa4"};
+            umlautMap_["o"] = {"\xc3\xb6"};
+            umlautMap_["u"] = {"\xc3\xbc"};
+            umlautMap_["s"] = {"\xc3\x9f"};
+            umlautMap_["A"] = {"\xc3\x84"};
+            umlautMap_["O"] = {"\xc3\x96"};
+            umlautMap_["U"] = {"\xc3\x9c"};
         }
     }
 

@@ -17,6 +17,10 @@ set(FCITX_INSTALL_USE_FCITX_SYS_PATHS ON CACHE BOOL
 find_package(Fcitx5Core REQUIRED)
 find_package(Gettext REQUIRED)
 
+set(QT_MAJOR_VERSION 6)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+find_package(Fcitx5Qt${QT_MAJOR_VERSION}WidgetsAddons REQUIRED)
+
 include(GNUInstallDirs)
 
 # Sources
@@ -54,3 +58,6 @@ install(FILES data/schnelle-umlaute.conf.in
 install(FILES data/schnelle-umlaute-inputmethod.conf
         DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod"
         RENAME schnelle-umlaute.conf)
+
+# Config editor Qt plugin
+add_subdirectory(config-editor)
