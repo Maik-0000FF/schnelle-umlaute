@@ -17,7 +17,7 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã)
 - Snippets: Map single keys to entire text phrases
 - Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
-- Configurable activation keys and 30 mapping slots
+- Configurable activation keys and unlimited mapping slots
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
 
@@ -152,7 +152,7 @@ sequenceDiagram
 
 **Note:** The uppercase delay is longer because typing <kbd>Shift</kbd> + Letter + <kbd>Space</kbd> requires more finger coordination.
 
-**All character mappings are fully customizable!** You can configure up to 30 custom input→output mappings via `fcitx5-config-qt`. See the "Customizing Character Mappings" section below for details.
+**All character mappings are fully customizable!** You can add as many input→output mappings as you need via `fcitx5-config-qt`. See the "Customizing Character Mappings" section below for details.
 
 ## 📋 Requirements
 
@@ -221,7 +221,7 @@ cd addon
 
 ```bash
 cd build
-sudo make install
+sudo cmake --install .
 ```
 
 **4. Configure Environment Variables**
@@ -272,7 +272,7 @@ cd addon
 
 ```bash
 cd build
-sudo make install
+sudo cmake --install .
 ```
 
 **4. Configure Environment Variables**
@@ -365,7 +365,13 @@ All addon settings can be changed in two ways:
 
 **After config file changes**, restart Fcitx5 with `fcitx5 -r`. GUI changes apply immediately after clicking Apply.
 
-![Schnelle Umlaute Addon Configuration](docs/screenshot-addon-config.png)
+**KDE System Settings:**
+
+![Schnelle Umlaute Configuration (KDE)](docs/configtool-after-kde.png)
+
+**fcitx5-config-qt:**
+
+![Schnelle Umlaute Configuration (Qt)](docs/configtool-after-qt.png)
 
 #### Delays
 
@@ -379,11 +385,9 @@ Customize the timing delays to match your typing speed:
 Valid range: 50-2000ms, any exact value accepted.
 
 ```ini
-[DelayLowercase]
-Value=400
-
-[DelayUppercase]
-Value=700
+[Delay]
+Lowercase=400
+Uppercase=700
 ```
 
 **Tips:**
@@ -403,7 +407,8 @@ Customize which keys activate the umlaut transformation. Multiple leader keys ca
 | Up | disabled | <kbd>↑</kbd> |
 | Down | disabled | <kbd>↓</kbd> |
 | ⚠ Alt | disabled | <kbd>Alt</kbd> / <kbd>AltGr</kbd> |
-| ⚠ Custom Key | disabled | Any single key |
+| ⚠ Custom Leader 1 | disabled | Any single key |
+| ⚠ Custom Leader 2 | disabled | Any single key (hand-split) |
 
 ```ini
 [Leader]
@@ -413,35 +418,47 @@ Right=False
 Up=False
 Down=False
 Alt=False
+CustomKeyEnabled=False
 CustomKey=
+CustomKey2Enabled=False
+CustomKey2=
 ```
 
 > **⚠ Experimental: Alt / AltGr Leader**
 > Enables <kbd>Alt</kbd> (Left/Right Alt) and <kbd>AltGr</kbd> (ISO_Level3_Shift on EU layouts) as leader keys. On KWin Wayland, auto-repeat sends release-press pairs which can cause input leaks. Works reliably under XIM (e.g. WezTerm).
 
-> **⚠ Experimental: Custom Leader Key**
-> Assign any single character as an additional leader key (e.g. `#`, `§`, `^`). Enter the character in the config GUI or config file. Multi-character input is trimmed to the first UTF-8 character, whitespace is ignored.
+> **⚠ Experimental: Custom Leader Keys**
+> Assign one or two single characters as additional leader keys (e.g. `#`, `;`, `j`). Multi-character input is trimmed to the first UTF-8 character, whitespace is ignored. Matching is case-insensitive for ASCII letters, so <kbd>Shift</kbd>+<kbd>f</kbd> matches custom leader `f`.
+>
+> When both custom leaders are set on **opposite keyboard halves** (US QWERTY), dual-split mode activates: each leader only triggers mappings on the other hand (e.g. left-hand leader `;` triggers right-hand inputs `u`, `o`, `i`). Same-hand or identical keys disable the split — both trigger all mappings.
+>
+> **Warning:** A custom leader key must not be a mapped input key — it cannot trigger its own mapping. The config GUI shows a warning if a conflict is detected.
 
 #### Character Mappings
 
-The addon provides **30 mapping slots** that you can configure freely. The first 7 slots are pre-configured with German umlauts (see [Supported Characters](#supported-characters)).
+The addon uses a **dynamic mapping list** — add as many input→output mappings as you need. The first 7 entries are pre-configured with German umlauts (see [Supported Characters](#supported-characters)).
 
-In the GUI, scroll down to see mapping fields (**Input 1** / **Output 1** through **Input 30** / **Output 30**). Empty slots are ignored. Click **"Defaults"** to restore German umlauts.
+In the GUI, the mappings are shown as an inline list with Input → Output fields. Use the **+** button to add new entries, the **×** button to remove them, and drag handles to reorder. Click **"Defaults"** to restore German umlauts.
 
 ```ini
-# Default German mappings
-Mapping1Input=a
-Mapping1Output=ä
+# ~/.config/fcitx5/conf/schnelle-umlaute.conf
 
-Mapping2Input=o
-Mapping2Output=ö
+[Mappings/Entries/0]
+Input=a
+Output=ä
+
+[Mappings/Entries/1]
+Input=o
+Output=ö
 
 # Add your own mappings
-Mapping8Input=e
-Mapping8Output=é
+[Mappings/Entries/7]
+Input=e
+Output=é
 
-Mapping9Input=n
-Mapping9Output=ñ
+[Mappings/Entries/8]
+Input=n
+Output=ñ
 ```
 
 **Quick examples:** French accents (é, è, ê), Spanish (ñ, á), Math symbols (π, ∂), Braille characters (⠁⠃⠉). See sections below for Accent Cycling, Snippets, and Emoji mappings.
@@ -465,18 +482,22 @@ In the GUI, enter comma-separated variants in any Output field (e.g., Output 8: 
 # ~/.config/fcitx5/conf/schnelle-umlaute.conf
 
 # Single output (no cycling)
-Mapping1Input=a
-Mapping1Output=ä
+[Mappings/Entries/0]
+Input=a
+Output=ä
 
 # Multiple outputs with cycling
-Mapping8Input=e
-Mapping8Output=é,è,ê,ë
+[Mappings/Entries/7]
+Input=e
+Output=é,è,ê,ë
 
-Mapping9Input=a
-Mapping9Output=á,à,â,ã,å
+[Mappings/Entries/8]
+Input=a
+Output=á,à,â,ã,å
 
-Mapping10Input=c
-Mapping10Output=ç,ć,č
+[Mappings/Entries/9]
+Input=c
+Output=ç,ć,č
 ```
 
 **Example cycling mappings:**
@@ -500,14 +521,17 @@ Map a single key to an entire phrase or longer text. Useful for frequently typed
 | <kbd>t</kbd> | TODO: | Code annotation |
 
 ```ini
-Mapping11Input=g
-Mapping11Output=Guten Tag
+[Mappings/Entries/10]
+Input=g
+Output=Guten Tag
 
-Mapping12Input=m
-Mapping12Output=Mit freundlichen Grüßen
+[Mappings/Entries/11]
+Input=m
+Output=Mit freundlichen Grüßen
 
-Mapping13Input=@
-Mapping13Output=name@example.com
+[Mappings/Entries/12]
+Input=@
+Output=name@example.com
 ```
 
 Hold <kbd>g</kbd> + press <kbd>Space</kbd> → "Guten Tag" is inserted.
@@ -516,12 +540,14 @@ Hold <kbd>g</kbd> + press <kbd>Space</kbd> → "Guten Tag" is inserted.
 
 ```ini
 # Snippet with comma: "Hello, World"
-Mapping14Input=h
-Mapping14Output=Hello,, World
+[Mappings/Entries/13]
+Input=h
+Output=Hello,, World
 
 # Snippet with multiple commas: "a, b, c"
-Mapping15Input=l
-Mapping15Output=a,, b,, c
+[Mappings/Entries/14]
+Input=l
+Output=a,, b,, c
 ```
 
 | Config value | Result |
@@ -544,7 +570,7 @@ Map keys to emoji for quick insertion without opening an emoji picker.
 | <kbd>s</kbd> | 😊 | Smile |
 | <kbd>c</kbd> | ✓ | Checkmark |
 
-Emoji cycling also works: `Mapping14Output=😊,😀,😁,🙂` cycles through smileys.
+Emoji cycling also works: set Output to `😊,😀,😁,🙂` to cycle through smileys.
 
 ## 🏗️ Architecture
 
@@ -590,7 +616,7 @@ ls /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf  # This is important!
 If missing, reinstall:
 ```bash
 cd addon/build
-sudo make install
+sudo cmake --install .
 fcitx5 -r
 ```
 
@@ -605,7 +631,7 @@ If the addon appears but you can't see DelayLowercase/DelayUppercase settings:
 
 2. If missing, reinstall the addon:
    ```bash
-   cd addon && ./build.sh && cd build && sudo make install && fcitx5 -r
+   cd addon && ./build.sh && cd build && sudo cmake --install . && fcitx5 -r
    ```
 
 ### Works in terminal but not in other apps (Firefox, Kate, etc.)
