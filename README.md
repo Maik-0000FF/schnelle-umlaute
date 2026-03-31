@@ -373,6 +373,17 @@ All addon settings can be changed in two ways:
 
 ![Schnelle Umlaute Configuration (Qt)](docs/configtool-after-qt.png)
 
+> **Note:** The screenshots above show a patched fcitx5-configtool with enhanced UI features. With the **original fcitx5-configtool**, all addon functionality works identically, but the GUI is less polished:
+>
+> | Feature | Original configtool | Patched configtool |
+> |---------|--------------------|--------------------|
+> | Inline mapping editing | Add/Edit dialog | Inline text fields |
+> | Placeholder text in leader key fields | — | Shown |
+> | Conflict warning (leader key = mapped input) | — | Dynamic warning |
+> | Tooltip on hover | Shown | Shown |
+>
+> The addon configuration via config file (`~/.config/fcitx5/conf/schnelle-umlaute.conf`) is fully functional regardless of which configtool version is used.
+
 #### Delays
 
 Customize the timing delays to match your typing speed:
@@ -432,7 +443,7 @@ CustomKey2=
 >
 > When both custom leaders are set on **opposite keyboard halves** (US QWERTY), dual-split mode activates: each leader only triggers mappings on the other hand (e.g. left-hand leader `;` triggers right-hand inputs `u`, `o`, `i`). Same-hand or identical keys disable the split — both trigger all mappings.
 >
-> **Warning:** A custom leader key must not be a mapped input key — it cannot trigger its own mapping. The config GUI shows a warning if a conflict is detected.
+> **Warning:** A custom leader key must not be a mapped input key — it cannot trigger its own mapping. The patched config GUI shows a dynamic warning if a conflict is detected; with the original configtool, check the fcitx5 log for warnings.
 
 #### Character Mappings
 
