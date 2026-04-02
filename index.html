@@ -153,9 +153,9 @@
             { "@type": "Question", "name": "What is Schnelle Umlaute?", "acceptedAnswer": { "@type": "Answer", "text": "A native Fcitx5 addon for Linux. Type German umlauts, French accents, or any Unicode character using the same hold + space gesture as Windows PowerToys Quick Accent. System-wide, lightweight, no root needed." } },
             { "@type": "Question", "name": "Does it work on Wayland?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Natively on both X11 and Wayland, no extra configuration. It integrates directly with Fcitx5." } },
             { "@type": "Question", "name": "Does it touch the clipboard?", "acceptedAnswer": { "@type": "Answer", "text": "Never. Unlike xdotool-based workarounds, Schnelle Umlaute uses Fcitx5's commitString() API — direct insertion, clipboard untouched." } },
-            { "@type": "Question", "name": "What characters can I type?", "acceptedAnswer": { "@type": "Answer", "text": "German umlauts by default (ä ö ü ß). With unlimited configurable mappings: French accents, Spanish, Portuguese, Braille Unicode, emojis, math symbols, full text snippets." } },
+            { "@type": "Question", "name": "What characters can I type?", "acceptedAnswer": { "@type": "Answer", "text": "German umlauts by default (ä ö ü ß Ä Ö Ü). With unlimited configurable mappings: French accents, Spanish, Portuguese, Braille Unicode, emojis, math symbols, full text snippets." } },
             { "@type": "Question", "name": "Which distros are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Supported on Arch Linux, Ubuntu/Debian, Fedora, and openSUSE. Works on any distro with Fcitx5." } },
-            { "@type": "Question", "name": "Can I adjust the timing?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, via fcitx5-config-qt. Default: 400ms lowercase, 700ms uppercase. Tune to your typing speed." } },
+            { "@type": "Question", "name": "Can I adjust the timing?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, via fcitx5-config-qt. Default: 400ms lowercase, 700ms uppercase. Adjustable from 50ms to 2000ms to match your typing speed." } },
             { "@type": "Question", "name": "Can I use it for text snippets?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Map any key to a full phrase — e.g. hold m + Space to insert your email address, g for a Vim command like ggVG, or u for sudo apt update. Works with any length of text." } },
             { "@type": "Question", "name": "What leader keys are available?", "acceptedAnswer": { "@type": "Answer", "text": "Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing." } }
         ]
@@ -1502,7 +1502,7 @@
         </details>
         <details class="q">
             <summary>What characters can I type?</summary>
-            <p class="q-body">German umlauts by default (ä ö ü ß). With unlimited configurable mappings: French accents, Spanish, Portuguese, Braille Unicode, emojis, math symbols, full text snippets.</p>
+            <p class="q-body">German umlauts by default (ä ö ü ß Ä Ö Ü). With unlimited configurable mappings: French accents, Spanish, Portuguese, Braille Unicode, emojis, math symbols, full text snippets.</p>
         </details>
         <details class="q">
             <summary>Which distros are supported?</summary>
@@ -1510,7 +1510,7 @@
         </details>
         <details class="q">
             <summary>Can I adjust the timing?</summary>
-            <p class="q-body">Yes, via <code>fcitx5-config-qt</code>. Default: 400ms lowercase, 700ms uppercase. Tune to your typing speed.</p>
+            <p class="q-body">Yes, via <code>fcitx5-config-qt</code>. Default: 400ms lowercase, 700ms uppercase. Adjustable from 50ms to 2000ms to match your typing speed.</p>
         </details>
         <details class="q">
             <summary>Can I use it for text snippets?</summary>
