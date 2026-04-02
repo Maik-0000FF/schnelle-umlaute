@@ -13,6 +13,44 @@ echo -e "${BLUE}  Schnelle Umlaute - Uninstallation${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo
 
+# --- Distribution Detection ---
+
+detect_distro() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        case "$ID" in
+            arch|manjaro|endeavouros|garuda|artix|cachyos)
+                echo "arch" ;;
+            debian|ubuntu|linuxmint|pop|kali|elementary|zorin|mx|neon)
+                echo "debian" ;;
+            *)
+                case "${ID_LIKE:-}" in
+                    *arch*)                 echo "arch" ;;
+                    *debian*|*ubuntu*)      echo "debian" ;;
+                    *)                      echo "unknown" ;;
+                esac ;;
+        esac
+    elif command -v pacman >/dev/null 2>&1; then
+        echo "arch"
+    elif command -v apt >/dev/null 2>&1; then
+        echo "debian"
+    else
+        echo "unknown"
+    fi
+}
+
+DISTRO=$(detect_distro)
+
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    DISTRO_NAME="${PRETTY_NAME:-$ID}"
+else
+    DISTRO_NAME="Unknown"
+fi
+
+echo -e "${BLUE}Distribution:${NC} $DISTRO_NAME"
+echo
+
 # Check if running with sudo (should NOT be)
 if [ "$EUID" -eq 0 ]; then
     echo -e "${RED}Error: Do not run this script with sudo!${NC}"
@@ -20,28 +58,46 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
-# Check if addon is installed (also check /usr/local in case a previous
-# install used the default CMake prefix)
-FILES=(
-    "/usr/lib/fcitx5/schnelle-umlaute.so"
-    "/usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so"
-    "/usr/share/fcitx5/addon/schnelle-umlaute.conf"
-    "/usr/share/fcitx5/addon/schnelle-umlaute.conf.in"
-    "/usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml"
-    "/usr/share/fcitx5/inputmethod/schnelle-umlaute.conf"
-    "/usr/local/lib/fcitx5/schnelle-umlaute.so"
-    "/usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so"
-    "/usr/local/share/fcitx5/addon/schnelle-umlaute.conf"
-    "/usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in"
-    "/usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml"
-    "/usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf"
+# --- Find Installed Files ---
+
+# Check all possible library paths
+LIB_PATHS=(
+    /usr/lib/fcitx5
+    /usr/local/lib/fcitx5
 )
 
+# Debian uses multiarch lib paths
+if [ "$DISTRO" = "debian" ] || [ "$DISTRO" = "unknown" ]; then
+    LIB_PATHS+=(
+        /usr/lib/x86_64-linux-gnu/fcitx5
+        /usr/lib/aarch64-linux-gnu/fcitx5
+        /usr/local/lib/x86_64-linux-gnu/fcitx5
+        /usr/local/lib/aarch64-linux-gnu/fcitx5
+    )
+fi
+
 FOUND_FILES=()
-for file in "${FILES[@]}"; do
-    if [ -f "$file" ]; then
-        FOUND_FILES+=("$file")
-    fi
+
+for lib_path in "${LIB_PATHS[@]}"; do
+    [ -f "$lib_path/schnelle-umlaute.so" ] && \
+        FOUND_FILES+=("$lib_path/schnelle-umlaute.so")
+    [ -f "$lib_path/qt6/libschnelle-umlaute-config-editor.so" ] && \
+        FOUND_FILES+=("$lib_path/qt6/libschnelle-umlaute-config-editor.so")
+done
+
+DATA_FILES=(
+    /usr/share/fcitx5/addon/schnelle-umlaute.conf
+    /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
+    /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
+    /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf
+    /usr/local/share/fcitx5/addon/schnelle-umlaute.conf
+    /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in
+    /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
+    /usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf
+)
+
+for file in "${DATA_FILES[@]}"; do
+    [ -f "$file" ] && FOUND_FILES+=("$file")
 done
 
 if [ ${#FOUND_FILES[@]} -eq 0 ]; then
@@ -62,7 +118,8 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-# Remove files
+# --- Remove Files ---
+
 echo -e "${BLUE}Removing files (requires sudo)...${NC}"
 sudo rm -f "${FOUND_FILES[@]}"
 for file in "${FOUND_FILES[@]}"; do
@@ -70,7 +127,8 @@ for file in "${FOUND_FILES[@]}"; do
 done
 echo
 
-# Ask about user configuration
+# --- User Configuration ---
+
 USER_CONFIG="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
 if [ -f "$USER_CONFIG" ]; then
     echo -e "${YELLOW}User configuration found: $USER_CONFIG${NC}"
@@ -85,7 +143,8 @@ if [ -f "$USER_CONFIG" ]; then
     echo
 fi
 
-# Ask about environment variables
+# --- Environment Variables ---
+
 ENV_FILE="$HOME/.config/environment.d/fcitx5.conf"
 if [ -f "$ENV_FILE" ]; then
     echo -e "${YELLOW}Environment configuration found: $ENV_FILE${NC}"
@@ -101,36 +160,68 @@ if [ -f "$ENV_FILE" ]; then
     echo
 fi
 
-# Restart Fcitx5
+# --- Autostart (Debian) ---
+
+AUTOSTART_FILES=(
+    "$HOME/.config/autostart/org.fcitx.Fcitx5.desktop"
+    "$HOME/.config/autostart/fcitx5.desktop"
+)
+
+for autostart in "${AUTOSTART_FILES[@]}"; do
+    if [ -f "$autostart" ]; then
+        echo -e "${YELLOW}Autostart configuration found: $autostart${NC}"
+        read -p "Remove autostart configuration? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            rm -f "$autostart"
+            echo -e "${GREEN}✓ Autostart configuration removed${NC}"
+        else
+            echo -e "${YELLOW}Keeping autostart configuration${NC}"
+        fi
+        echo
+        break
+    fi
+done
+
+# --- Restart Fcitx5 ---
+
 echo -e "${BLUE}Restarting Fcitx5...${NC}"
 if pgrep -x fcitx5 > /dev/null; then
     if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
         fcitx5-remote -r 2>/dev/null && \
             echo -e "${GREEN}✓ Fcitx5 config reloaded${NC}" || \
-            echo -e "${YELLOW}⚠ Could not reload fcitx5 config${NC}"
+            echo -e "${YELLOW}Could not reload fcitx5 config${NC}"
         echo -e "${YELLOW}  Logout/login to fully apply changes${NC}"
     else
-        killall fcitx5 2>/dev/null || true
+        killall fcitx5 2>/dev/null || pkill fcitx5 2>/dev/null || true
         sleep 1
-        fcitx5 -d 2>/dev/null
+        fcitx5 -d 2>/dev/null &
         sleep 2
         if pgrep -x fcitx5 > /dev/null; then
             echo -e "${GREEN}✓ Fcitx5 restarted successfully${NC}"
         else
-            echo -e "${YELLOW}⚠ Fcitx5 stopped (will start on next login)${NC}"
+            echo -e "${YELLOW}Fcitx5 stopped (will start on next login)${NC}"
         fi
     fi
 else
-    echo -e "${YELLOW}⚠ Fcitx5 not running (will start on next login)${NC}"
+    echo -e "${YELLOW}Fcitx5 not running${NC}"
 fi
 echo
+
+# --- Done ---
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  Uninstallation Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo
-echo -e "${YELLOW}Note:${NC} If you kept the environment configuration,"
-echo "Fcitx5 will still be active as input method."
-echo "To fully remove Fcitx5, delete $ENV_FILE"
-echo "and logout/login."
+echo -e "${YELLOW}Notes:${NC}"
+if [ "$DISTRO" = "debian" ]; then
+    echo "  - Fcitx5 packages are still installed (remove with: sudo apt remove fcitx5)"
+elif [ "$DISTRO" = "arch" ]; then
+    echo "  - Fcitx5 packages are still installed (remove with: sudo pacman -R fcitx5)"
+fi
+echo "  - Logout/login to fully apply changes"
+if [ -f "$ENV_FILE" ]; then
+    echo "  - Environment config kept at: $ENV_FILE"
+fi
 echo

@@ -13,12 +13,71 @@ echo -e "${BLUE}  Schnelle Umlaute - Installation${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo
 
-# Check if running on Arch-based distro
-if ! command -v pacman >/dev/null 2>&1; then
-    echo -e "${RED}Error: This installer is designed for Arch Linux and derivatives.${NC}"
-    echo "Please install dependencies manually and use the build.sh script in addon/"
-    exit 1
+# --- Distribution Detection ---
+
+detect_distro() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        case "$ID" in
+            arch|manjaro|endeavouros|garuda|artix|cachyos)
+                echo "arch" ;;
+            debian|ubuntu|linuxmint|pop|kali|elementary|zorin|mx|neon)
+                echo "debian" ;;
+            *)
+                # Fallback to ID_LIKE
+                case "${ID_LIKE:-}" in
+                    *arch*)                 echo "arch" ;;
+                    *debian*|*ubuntu*)      echo "debian" ;;
+                    *)                      echo "unknown" ;;
+                esac ;;
+        esac
+    elif command -v pacman >/dev/null 2>&1; then
+        echo "arch"
+    elif command -v apt >/dev/null 2>&1; then
+        echo "debian"
+    else
+        echo "unknown"
+    fi
+}
+
+DISTRO=$(detect_distro)
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+# Show detected distro
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    DISTRO_NAME="${PRETTY_NAME:-$ID}"
+else
+    DISTRO_NAME="Unknown"
 fi
+
+echo -e "${BLUE}Distribution:${NC} $DISTRO_NAME"
+echo
+
+case "$DISTRO" in
+    arch)
+        echo -e "${GREEN}Arch Linux installer${NC}"
+        ;;
+    debian)
+        echo -e "${GREEN}Debian/Ubuntu installer${NC}"
+        echo -e "${YELLOW}Supported: Ubuntu 24.04+, Debian Trixie (13)+, Kali Linux (rolling)${NC}"
+        echo -e "${YELLOW}Debian Bookworm (12) requires bookworm-backports enabled.${NC}"
+        ;;
+    *)
+        echo -e "${RED}Error: Unsupported distribution: $DISTRO_NAME${NC}"
+        echo
+        echo -e "${YELLOW}Supported distributions:${NC}"
+        echo "  - Arch Linux and derivatives (Manjaro, EndeavourOS, Garuda, CachyOS, ...)"
+        echo "  - Debian and derivatives (Ubuntu, Linux Mint, Pop!_OS, Kali, ...)"
+        echo
+        echo "Manual build:"
+        echo "  1. Install: fcitx5, fcitx5 dev libraries, cmake, extra-cmake-modules, g++"
+        echo "  2. cd addon && mkdir build && cd build && cmake .. && make -j\$(nproc)"
+        echo "  3. sudo make install"
+        exit 1
+        ;;
+esac
+echo
 
 # Check if running with sudo (should NOT be)
 if [ "$EUID" -eq 0 ]; then
@@ -34,14 +93,40 @@ echo "  - Installing the addon to system directories"
 echo "You may be prompted for your password."
 echo
 
-# Function to check if package is installed
+# --- Dependency Management ---
+
 is_installed() {
-    pacman -Q "$1" >/dev/null 2>&1
+    case "$DISTRO" in
+        arch)   pacman -Q "$1" >/dev/null 2>&1 ;;
+        debian) dpkg -l "$1" 2>/dev/null | grep -q "^ii" ;;
+    esac
 }
 
-# Check dependencies
+install_deps() {
+    case "$DISTRO" in
+        arch)
+            sudo pacman -S --needed "$@"
+            ;;
+        debian)
+            echo -e "${BLUE}Updating package list...${NC}"
+            sudo apt update
+            sudo apt install -y "$@"
+            ;;
+    esac
+}
+
+case "$DISTRO" in
+    arch)
+        DEPS=(fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc)
+        ;;
+    debian)
+        DEPS=(fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4
+              fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev qt6-base-dev
+              libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext)
+        ;;
+esac
+
 MISSING_DEPS=()
-DEPS=(fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc)
 
 echo -e "${YELLOW}Checking dependencies...${NC}"
 for dep in "${DEPS[@]}"; do
@@ -54,14 +139,13 @@ for dep in "${DEPS[@]}"; do
 done
 echo
 
-# Install missing dependencies
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     echo -e "${YELLOW}Missing dependencies: ${MISSING_DEPS[*]}${NC}"
     read -p "Install missing dependencies? [Y/n] " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         echo -e "${BLUE}Installing dependencies...${NC}"
-        sudo pacman -S --needed "${MISSING_DEPS[@]}"
+        install_deps "${MISSING_DEPS[@]}"
         echo -e "${GREEN}✓ Dependencies installed${NC}"
         echo
     else
@@ -73,27 +157,57 @@ else
     echo
 fi
 
-# Build the addon first — stale files are only removed after a successful build
-# so the user is never left with no working installation.
-echo -e "${BLUE}Building addon...${NC}"
-cd addon || { echo -e "${RED}Error: addon directory not found${NC}"; exit 1; }
-./build.sh
+# --- Build ---
 
-# Now that build succeeded, check for and remove stale installations.
-# fcitx5 may be under /usr (distro package) or /usr/local (from-source).
+echo -e "${BLUE}Building addon...${NC}"
+cd "$PROJECT_ROOT/addon" || { echo -e "${RED}Error: addon directory not found${NC}"; exit 1; }
+
+rm -rf build
+mkdir -p build
+cd build
+
+echo "Configuring with CMake..."
+cmake ..
+
+echo "Building..."
+make -j"$(nproc)"
+
+echo -e "${GREEN}✓ Build successful!${NC}"
+echo
+
+# --- Remove Stale Installations ---
+
+STALE_CANDIDATES=(
+    /usr/lib/fcitx5/schnelle-umlaute.so
+    /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/share/fcitx5/addon/schnelle-umlaute.conf
+    /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
+    /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
+    /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf
+    /usr/local/lib/fcitx5/schnelle-umlaute.so
+    /usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/local/share/fcitx5/addon/schnelle-umlaute.conf
+    /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in
+    /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
+    /usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf
+)
+
+# Debian uses multiarch lib paths
+if [ "$DISTRO" = "debian" ]; then
+    STALE_CANDIDATES+=(
+        /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
+        /usr/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+        /usr/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so
+        /usr/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+        /usr/local/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
+        /usr/local/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+        /usr/local/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so
+        /usr/local/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    )
+fi
+
 STALE_FILES=()
-for stale in /usr/lib/fcitx5/schnelle-umlaute.so \
-             /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so \
-             /usr/share/fcitx5/addon/schnelle-umlaute.conf \
-             /usr/share/fcitx5/addon/schnelle-umlaute.conf.in \
-             /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml \
-             /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf \
-             /usr/local/lib/fcitx5/schnelle-umlaute.so \
-             /usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so \
-             /usr/local/share/fcitx5/addon/schnelle-umlaute.conf \
-             /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in \
-             /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml \
-             /usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf; do
+for stale in "${STALE_CANDIDATES[@]}"; do
     if [ -f "$stale" ]; then
         STALE_FILES+=("$stale")
     fi
@@ -116,17 +230,34 @@ if [ ${#STALE_FILES[@]} -ne 0 ]; then
     echo
 fi
 
-# Install
-echo
+# --- Install ---
+
 echo -e "${BLUE}Installing addon...${NC}"
-cd build || { echo -e "${RED}Error: build directory not found${NC}"; exit 1; }
-sudo cmake --install .
+case "$DISTRO" in
+    arch)   sudo cmake --install . ;;
+    debian) sudo make install ;;
+esac
 echo -e "${GREEN}✓ Addon installed${NC}"
 echo
 
-# Setup environment variables
+# --- Environment Variables ---
+
+cd "$PROJECT_ROOT"
+
 ENV_FILE="$HOME/.config/environment.d/fcitx5.conf"
 echo -e "${BLUE}Setting up environment variables...${NC}"
+
+mkdir -p "$HOME/.config/environment.d"
+
+write_env_file() {
+    cat > "$ENV_FILE" << 'EOF'
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+GLFW_IM_MODULE=ibus
+EOF
+    echo -e "${GREEN}✓ Environment variables configured${NC}"
+}
 
 if [ -f "$ENV_FILE" ]; then
     echo -e "${YELLOW}Environment file already exists: $ENV_FILE${NC}"
@@ -138,28 +269,28 @@ if [ -f "$ENV_FILE" ]; then
     if [[ $REPLY =~ ^[Nn]$ ]]; then
         echo -e "${YELLOW}Skipping environment setup. Make sure GTK_IM_MODULE, QT_IM_MODULE, and XMODIFIERS are set to fcitx.${NC}"
     else
-        mkdir -p "$HOME/.config/environment.d"
-        cat > "$ENV_FILE" << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
-GLFW_IM_MODULE=ibus
-EOF
-        echo -e "${GREEN}✓ Environment variables configured${NC}"
+        write_env_file
     fi
 else
-    mkdir -p "$HOME/.config/environment.d"
-    cat > "$ENV_FILE" << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
-GLFW_IM_MODULE=ibus
-EOF
-    echo -e "${GREEN}✓ Environment variables configured${NC}"
+    write_env_file
 fi
 echo
 
-# Check for old configuration format and migrate if needed
+# --- Debian: im-config ---
+
+if [ "$DISTRO" = "debian" ]; then
+    echo -e "${BLUE}Configuring input method framework...${NC}"
+    if ! command -v im-config >/dev/null 2>&1; then
+        echo -e "${YELLOW}Installing im-config...${NC}"
+        sudo apt install -y im-config
+    fi
+    im-config -n fcitx5 2>/dev/null || true
+    echo -e "${GREEN}✓ Fcitx5 set as default input method${NC}"
+    echo
+fi
+
+# --- Config Migration ---
+
 CONFIG_FILE="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
 
 echo -e "${BLUE}Checking configuration...${NC}"
@@ -210,7 +341,7 @@ if [ -f "$CONFIG_FILE" ]; then
             echo -e "${RED}Warning: Old config format may not work correctly!${NC}"
         fi
     elif grep -q "^DelayLowercase=" "$CONFIG_FILE" || grep -q "^LeaderSpace=" "$CONFIG_FILE" || grep -q "^Mapping1Input=" "$CONFIG_FILE"; then
-        # Flat config format (pre-grouping) – can be auto-migrated
+        # Flat config format (pre-grouping) - can be auto-migrated
         echo -e "${YELLOW}Detected old flat configuration format${NC}"
         echo -e "${YELLOW}The new version uses grouped sections ([Delay], [Leader], [Mappings])${NC}"
         read -p "Auto-migrate configuration? [Y/n] " -n 1 -r
@@ -230,15 +361,16 @@ else
 fi
 echo
 
-# Fix Shift+L conflict (before restart so the config is picked up)
+# --- Fix Shift+L Conflict ---
+
 echo -e "${BLUE}Configuring Fcitx5 to avoid Shift conflicts...${NC}"
 CONFIG_DIR="$HOME/.config/fcitx5"
-CONFIG_FILE="$CONFIG_DIR/config"
+FCITX_CONFIG="$CONFIG_DIR/config"
 
 mkdir -p "$CONFIG_DIR"
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    cat > "$CONFIG_FILE" << 'EOF'
+if [ ! -f "$FCITX_CONFIG" ]; then
+    cat > "$FCITX_CONFIG" << 'EOF'
 [Hotkey]
 TriggerKeys=Control+space
 
@@ -247,8 +379,8 @@ ShareInputState=No
 EOF
     echo -e "${GREEN}✓ Fcitx5 configured (Shift_L disabled)${NC}"
 else
-    if grep -q "TriggerKeys.*Shift" "$CONFIG_FILE"; then
-        sed -i 's/^TriggerKeys=.*/TriggerKeys=Control+space/' "$CONFIG_FILE"
+    if grep -q "TriggerKeys.*Shift" "$FCITX_CONFIG"; then
+        sed -i 's/^TriggerKeys=.*/TriggerKeys=Control+space/' "$FCITX_CONFIG"
         echo -e "${GREEN}✓ Shift conflict resolved (switched to Ctrl+Space only)${NC}"
     else
         echo -e "${GREEN}✓ No Shift conflict detected${NC}"
@@ -256,12 +388,11 @@ else
 fi
 echo
 
-# On KDE Wayland, KWin runs fcitx5 internally. The system autostart
-# (/etc/xdg/autostart/org.fcitx.Fcitx5.desktop) launches a second instance
-# that conflicts via DBus, causing duplicate key events and input loss.
+# --- KDE Wayland: Disable Duplicate Autostart ---
+
 if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
     AUTOSTART_FILE="$HOME/.config/autostart/org.fcitx.Fcitx5.desktop"
-    if [ ! -f "$AUTOSTART_FILE" ]; then
+    if [ ! -f "$AUTOSTART_FILE" ] || ! grep -q "Hidden=true" "$AUTOSTART_FILE"; then
         echo -e "${BLUE}Disabling redundant fcitx5 autostart (KWin handles this)...${NC}"
         mkdir -p "$HOME/.config/autostart"
         cat > "$AUTOSTART_FILE" << 'EOF'
@@ -271,38 +402,58 @@ EOF
         echo -e "${GREEN}✓ Duplicate autostart disabled${NC}"
     fi
 fi
+
+# --- Debian (non-KDE-Wayland): Setup Autostart ---
+
+if [ "$DISTRO" = "debian" ]; then
+    if ! ([ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]); then
+        echo -e "${BLUE}Setting up autostart...${NC}"
+        AUTOSTART_DIR="$HOME/.config/autostart"
+        mkdir -p "$AUTOSTART_DIR"
+
+        if [ -f /usr/share/applications/org.fcitx.Fcitx5.desktop ]; then
+            cp /usr/share/applications/org.fcitx.Fcitx5.desktop "$AUTOSTART_DIR/"
+            echo -e "${GREEN}✓ Fcitx5 will autostart on login${NC}"
+        elif [ -f /usr/share/applications/fcitx5.desktop ]; then
+            cp /usr/share/applications/fcitx5.desktop "$AUTOSTART_DIR/"
+            echo -e "${GREEN}✓ Fcitx5 will autostart on login${NC}"
+        else
+            echo -e "${YELLOW}Could not find Fcitx5 desktop file for autostart${NC}"
+            echo "  You may need to manually add Fcitx5 to startup applications"
+        fi
+    fi
+fi
 echo
 
-# Restart Fcitx5
+# --- Restart Fcitx5 ---
+
 echo -e "${BLUE}Checking Fcitx5 status...${NC}"
 if pgrep -x fcitx5 > /dev/null; then
-    # On KDE Wayland, fcitx5 runs inside KWin. killall would kill the
-    # KWin-integrated instance and cause total keyboard loss. Instead,
-    # use fcitx5-remote to safely reload the config, or ask for re-login.
     if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
         fcitx5-remote -r 2>/dev/null && \
             echo -e "${GREEN}✓ Fcitx5 config reloaded${NC}" || \
-            echo -e "${YELLOW}⚠ Could not reload fcitx5 config${NC}"
+            echo -e "${YELLOW}Could not reload fcitx5 config${NC}"
         echo -e "${YELLOW}  To fully restart fcitx5: right-click the system tray icon → Exit${NC}"
         echo -e "${YELLOW}  KWin will restart it automatically${NC}"
     else
         killall fcitx5 2>/dev/null || true
         sleep 1
-        fcitx5 -d 2>/dev/null
+        fcitx5 -d 2>/dev/null &
         sleep 2
         if pgrep -x fcitx5 > /dev/null; then
             echo -e "${GREEN}✓ Fcitx5 restarted successfully${NC}"
         else
-            echo -e "${YELLOW}⚠ Fcitx5 stopped (will start on next login)${NC}"
+            echo -e "${YELLOW}Fcitx5 stopped (will start on next login)${NC}"
         fi
     fi
 else
-    echo -e "${YELLOW}⚠ Fcitx5 not running yet${NC}"
+    echo -e "${YELLOW}Fcitx5 not running yet${NC}"
     echo -e "${YELLOW}  It will start automatically on next login${NC}"
 fi
 echo
 
-# Final instructions
+# --- Final Instructions ---
+
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  Installation Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
@@ -317,6 +468,9 @@ echo
 echo "3. In the configuration window:"
 echo "   - Go to 'Input Method' tab"
 echo "   - Click '+' to add"
+if [ "$DISTRO" = "debian" ]; then
+    echo "   - Uncheck 'Only Show Current Language'"
+fi
 echo "   - Search for 'Schnelle Umlaute'"
 echo "   - Add it to your input methods"
 echo
@@ -330,9 +484,21 @@ echo "   - Hold 's' and press Space → ß"
 echo
 echo -e "${YELLOW}Troubleshooting:${NC}"
 echo "  - Run 'fcitx5-diagnose' to check setup"
+if [ "$DISTRO" = "debian" ]; then
+    echo "  - Make sure IBus is not running: pkill ibus-daemon"
+    echo "  - Check env vars after login: echo \$GTK_IM_MODULE"
+fi
 echo "  - See README.md for more help"
 echo
-echo -e "${BLUE}For KDE Wayland users:${NC}"
-echo "  Set 'System Settings → Virtual Keyboard' to 'Fcitx 5'"
-echo "  (This eliminates KWin warnings)"
-echo
+if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+    echo -e "${BLUE}For KDE Wayland users:${NC}"
+    echo "  Set 'System Settings → Virtual Keyboard' to 'Fcitx 5'"
+    echo "  (This eliminates KWin warnings)"
+    echo
+fi
+if [ "$DISTRO" = "debian" ] && [ "$XDG_CURRENT_DESKTOP" = "GNOME" ]; then
+    echo -e "${BLUE}GNOME Users:${NC}"
+    echo "  If Fcitx5 doesn't work in GNOME apps, try:"
+    echo "  gsettings set org.gnome.settings-daemon.plugins.xsettings overrides \"{'Gtk/IMModule':<'fcitx'>}\""
+    echo
+fi

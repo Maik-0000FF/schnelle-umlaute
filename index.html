@@ -1770,17 +1770,17 @@
         var cursor = document.getElementById('term-cursor');
         if (!body || !cursor) return;
 
-        /* Installation script — alternates Arch / Ubuntu */
+        /* Installation script — single unified installer */
         var groups = [
             [
                 { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
                 { cmd: 'cd schnelle-umlaute', out: null },
-                { cmd: './install.sh', out: '[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
+                { cmd: './install.sh', out: 'Distribution: Arch Linux\n[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
             ],
             [
                 { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
                 { cmd: 'cd schnelle-umlaute', out: null },
-                { cmd: './install-debian.sh', out: '[✓] apt packages installed\n[✓] Build complete\n[✓] Addon installed' },
+                { cmd: './install.sh', out: 'Distribution: Ubuntu 24.04 LTS\n[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
             ],
         ];
 

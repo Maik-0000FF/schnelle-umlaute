@@ -158,14 +158,12 @@ sequenceDiagram
 
 - **Linux** with Fcitx5 support
   - **Arch Linux** - Fully tested and supported
-  - **Debian-based** (Ubuntu, Debian, Kali, etc.) - Supported (via `install-debian.sh`)
+  - **Debian-based** (Ubuntu, Debian, Kali, etc.) - Supported
 - **Fcitx5** - Input Method Framework
 - **CMake** and **extra-cmake-modules** - For building
 - **GCC with C++20 support** - For compilation
 
 ## 📦 Installation
-
-### Arch Linux (Recommended)
 
 ```bash
 git clone https://github.com/Maik-0000FF/schnelle-umlaute.git
@@ -173,28 +171,11 @@ cd schnelle-umlaute
 ./install.sh
 ```
 
-The script will:
-- Check and install dependencies
+The installer automatically detects your distribution (Arch, Debian, Ubuntu, etc.) and will:
+- Check and install dependencies via the appropriate package manager
 - Build and install the addon
 - Configure environment variables automatically
 - Guide you through the setup
-
-**After installation:** Logout and login, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
-
-### Debian-based (Ubuntu, Debian, Kali, etc.)
-
-```bash
-git clone https://github.com/Maik-0000FF/schnelle-umlaute.git
-cd schnelle-umlaute
-./install-debian.sh
-```
-
-The script will:
-- Install all required packages via `apt`
-- Build and install the addon
-- Configure Fcitx5 as default input method (replaces IBus)
-- Set up environment variables for GNOME
-- Configure autostart
 
 **After installation:** Logout and login, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
 
@@ -258,7 +239,8 @@ If you prefer manual installation:
 ```bash
 sudo apt update
 sudo apt install fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 \
-    fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev cmake extra-cmake-modules g++ gettext
+    fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev qt6-base-dev \
+    libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext
 ```
 
 **2. Build the Addon**
@@ -783,19 +765,11 @@ Applications with custom text rendering or non-standard input handling may not w
 
 ## 🗑️ Uninstallation
 
-### Arch Linux
-
 ```bash
 ./uninstall.sh
 ```
 
-### Debian-based (Ubuntu, Debian, Kali, etc.)
-
-```bash
-./uninstall-debian.sh
-```
-
-Both scripts will:
+The uninstaller automatically detects your distribution and will:
 - Remove all installed addon files
 - Ask if you want to remove environment/autostart configuration
 - Restart Fcitx5
