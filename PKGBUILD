@@ -1,7 +1,7 @@
 # Maintainer: Maik <https://github.com/Maik-0000FF>
 
 pkgname=fcitx5-schnelle-umlaute
-pkgver=0.1.4
+pkgver=1.0.0
 pkgrel=1
 pkgdesc='Quick umlaut and accent input for Fcitx5 using hold-and-press gestures'
 arch=('x86_64')
