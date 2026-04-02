@@ -17,4 +17,4 @@ target_link_libraries(schnelle-umlaute-config-editor
 )
 
 install(TARGETS schnelle-umlaute-config-editor
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/fcitx5/qt${QT_MAJOR_VERSION})
+        DESTINATION "${FCITX_INSTALL_ADDONDIR}/qt${QT_MAJOR_VERSION}")

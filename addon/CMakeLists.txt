@@ -62,6 +62,9 @@ install(FILES data/schnelle-umlaute-inputmethod.conf
 # Config editor Qt plugin
 add_subdirectory(config-editor)
 
-# Tests
-enable_testing()
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../tests tests)
+# Tests (off by default — install scripts and end users don't need them)
+option(BUILD_TESTING "Build tests" OFF)
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../tests tests)
+endif()

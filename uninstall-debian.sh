@@ -9,7 +9,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Schnelle Umlaute - Ubuntu Uninstall${NC}"
+echo -e "${BLUE}  Schnelle Umlaute - Debian Uninstall${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo
 
@@ -34,10 +34,13 @@ LIB_PATHS=(
 # Find addon files
 FOUND_FILES=()
 
-# Check library in all possible paths
+# Check library and config editor plugin in all possible paths
 for lib_path in "${LIB_PATHS[@]}"; do
     if [ -f "$lib_path/schnelle-umlaute.so" ]; then
         FOUND_FILES+=("$lib_path/schnelle-umlaute.so")
+    fi
+    if [ -f "$lib_path/qt6/libschnelle-umlaute-config-editor.so" ]; then
+        FOUND_FILES+=("$lib_path/qt6/libschnelle-umlaute-config-editor.so")
     fi
 done
 

@@ -17,6 +17,10 @@ public:
     void save() override;
     QString title() override;
     QString icon() override;
+    QSize sizeHint() const override;
+
+protected:
+    void showEvent(QShowEvent *event) override;
 
 private Q_SLOTS:
     void addMapping();

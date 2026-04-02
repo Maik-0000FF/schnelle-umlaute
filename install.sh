@@ -83,11 +83,13 @@ cd addon || { echo -e "${RED}Error: addon directory not found${NC}"; exit 1; }
 # fcitx5 may be under /usr (distro package) or /usr/local (from-source).
 STALE_FILES=()
 for stale in /usr/lib/fcitx5/schnelle-umlaute.so \
+             /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so \
              /usr/share/fcitx5/addon/schnelle-umlaute.conf \
              /usr/share/fcitx5/addon/schnelle-umlaute.conf.in \
              /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml \
              /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf \
              /usr/local/lib/fcitx5/schnelle-umlaute.so \
+             /usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so \
              /usr/local/share/fcitx5/addon/schnelle-umlaute.conf \
              /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in \
              /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml \

@@ -24,11 +24,13 @@ fi
 # install used the default CMake prefix)
 FILES=(
     "/usr/lib/fcitx5/schnelle-umlaute.so"
+    "/usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so"
     "/usr/share/fcitx5/addon/schnelle-umlaute.conf"
     "/usr/share/fcitx5/addon/schnelle-umlaute.conf.in"
     "/usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml"
     "/usr/share/fcitx5/inputmethod/schnelle-umlaute.conf"
     "/usr/local/lib/fcitx5/schnelle-umlaute.so"
+    "/usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so"
     "/usr/local/share/fcitx5/addon/schnelle-umlaute.conf"
     "/usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in"
     "/usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml"

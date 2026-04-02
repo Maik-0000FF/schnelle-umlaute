@@ -9,13 +9,16 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Schnelle Umlaute - Ubuntu Installation${NC}"
+echo -e "${BLUE}  Schnelle Umlaute - Debian Installation${NC}"
 echo -e "${BLUE}========================================${NC}"
+echo
+echo -e "${YELLOW}Supported: Ubuntu 24.04+, Debian Trixie (13)+, Kali Linux (rolling)${NC}"
+echo -e "${YELLOW}Debian Bookworm (12) requires bookworm-backports enabled.${NC}"
 echo
 
 # Check if running on Debian-based distro
 if ! command -v apt >/dev/null 2>&1; then
-    echo -e "${RED}Error: This installer is designed for Ubuntu/Debian.${NC}"
+    echo -e "${RED}Error: This installer is designed for Debian-based distros (Ubuntu, Debian, Kali, etc.).${NC}"
     echo "For Arch Linux, use: ./install.sh"
     exit 1
 fi
@@ -48,6 +51,8 @@ DEPS=(
     fcitx5-frontend-qt5
     libfcitx5core-dev
     fcitx5-modules-dev
+    qt6-base-dev
+    libfcitx5-qt6-dev
     cmake
     extra-cmake-modules
     g++
@@ -112,15 +117,21 @@ echo
 # fcitx5 may be under /usr (distro package) or /usr/local (from-source).
 STALE_FILES=()
 for stale in /usr/lib/fcitx5/schnelle-umlaute.so \
+             /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so \
              /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so \
+             /usr/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so \
              /usr/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so \
+             /usr/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so \
              /usr/share/fcitx5/addon/schnelle-umlaute.conf \
              /usr/share/fcitx5/addon/schnelle-umlaute.conf.in \
              /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml \
              /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf \
              /usr/local/lib/fcitx5/schnelle-umlaute.so \
+             /usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so \
              /usr/local/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so \
+             /usr/local/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so \
              /usr/local/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so \
+             /usr/local/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so \
              /usr/local/share/fcitx5/addon/schnelle-umlaute.conf \
              /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in \
              /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml \
