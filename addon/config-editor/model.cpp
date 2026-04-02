@@ -118,10 +118,10 @@ void MappingModel::load() {
                 if (line.isEmpty() || line.startsWith('#')) {
                     continue;
                 }
-                int eq = line.indexOf('=');
-                if (eq > 0) {
+                // Format: first char = input, '=' separator, rest = output
+                if (line.size() >= 3 && line[1] == '=') {
                     entries_.push_back(
-                        {line.left(eq), line.mid(eq + 1)});
+                        {line.left(1), line.mid(2)});
                 }
             }
         }
