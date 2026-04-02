@@ -343,7 +343,9 @@ This addon is **not a standalone keyboard layout** - it works **alongside** your
 All addon settings can be changed in two ways:
 
 - **Via GUI** (recommended): `fcitx5-config-qt` → select "Schnelle Umlaute" → click **Configure** (wrench icon)
-- **Via config file**: edit `~/.config/fcitx5/conf/schnelle-umlaute.conf`
+- **Via config files**: Settings and mappings are stored in two separate locations:
+  - `~/.config/fcitx5/conf/schnelle-umlaute.conf` — Delays and Leader Keys (INI format)
+  - `~/.config/fcitx5/schnelle-umlaute/mappings.txt` — Character Mappings (`Input=Output`, one per line)
 
 **After config file changes**, restart Fcitx5 with `fcitx5 -r`. GUI changes apply immediately after clicking Apply.
 
@@ -424,26 +426,23 @@ The addon uses a **dynamic mapping list** — add as many input→output mapping
 
 In the GUI, the mappings are shown as an inline list with Input → Output fields. Use the **+** button to add new entries, the **×** button to remove them, and drag handles to reorder. Click **"Defaults"** to restore German umlauts.
 
-```ini
-# ~/.config/fcitx5/conf/schnelle-umlaute.conf
+Mappings are stored in a separate file using `Input=Output` format (one mapping per line):
 
-[Mappings/Entries/0]
-Input=a
-Output=ä
-
-[Mappings/Entries/1]
-Input=o
-Output=ö
-
-# Add your own mappings
-[Mappings/Entries/7]
-Input=e
-Output=é
-
-[Mappings/Entries/8]
-Input=n
-Output=ñ
 ```
+# ~/.config/fcitx5/schnelle-umlaute/mappings.txt
+
+a=ä
+o=ö
+u=ü
+s=ß
+A=Ä
+O=Ö
+U=Ü
+e=é
+n=ñ
+```
+
+> **Note:** Only the first `=` is used as separator — Output values can contain `=` characters.
 
 **Quick examples:** French accents (é, è, ê), Spanish (ñ, á), Math symbols (π, ∂), Braille characters (⠁⠃⠉). See sections below for Accent Cycling, Snippets, and Emoji mappings.
 
@@ -458,31 +457,20 @@ Cycle through multiple accent variants by pressing the leader key repeatedly. In
 4. Keep pressing → cycles through all variants (è → ê → ë → é → ...)
 5. Release input key → cycling stops, current selection is kept
 
-In the GUI, enter comma-separated variants in any Output field (e.g., Output 8: `é,è,ê,ë` for Input 8: `e`). To include a literal comma in an output, use double comma (`,,`) as escape — see [Snippets](#snippets-text-expansion) for details.
+In the GUI, enter comma-separated variants in any Output field (e.g., `é,è,ê,ë` for Input `e`). To include a literal comma in an output, use double comma (`,,`) as escape — see [Snippets](#snippets-text-expansion) for details.
 
 **Config file example:**
 
-```ini
-# ~/.config/fcitx5/conf/schnelle-umlaute.conf
-
-# Single output (no cycling)
-[Mappings/Entries/0]
-Input=a
-Output=ä
-
-# Multiple outputs with cycling
-[Mappings/Entries/7]
-Input=e
-Output=é,è,ê,ë
-
-[Mappings/Entries/8]
-Input=a
-Output=á,à,â,ã,å
-
-[Mappings/Entries/9]
-Input=c
-Output=ç,ć,č
 ```
+# ~/.config/fcitx5/schnelle-umlaute/mappings.txt
+
+a=ä
+e=é,è,ê,ë
+a=á,à,â,ã,å
+c=ç,ć,č
+```
+
+> **Note:** Comma-separated values in the Output define cycling variants.
 
 **Example cycling mappings:**
 
@@ -504,34 +492,21 @@ Map a single key to an entire phrase or longer text. Useful for frequently typed
 | <kbd>@</kbd> | name@example.com | Email address |
 | <kbd>t</kbd> | TODO: | Code annotation |
 
-```ini
-[Mappings/Entries/10]
-Input=g
-Output=Guten Tag
+```
+# ~/.config/fcitx5/schnelle-umlaute/mappings.txt
 
-[Mappings/Entries/11]
-Input=m
-Output=Mit freundlichen Grüßen
-
-[Mappings/Entries/12]
-Input=@
-Output=name@example.com
+g=Guten Tag
+m=Mit freundlichen Grüßen
+@=name@example.com
 ```
 
 Hold <kbd>g</kbd> + press <kbd>Space</kbd> → "Guten Tag" is inserted.
 
 **Commas in snippets:** Since commas separate cycling variants, use double comma (`,,`) to include a literal comma in your output:
 
-```ini
-# Snippet with comma: "Hello, World"
-[Mappings/Entries/13]
-Input=h
-Output=Hello,, World
-
-# Snippet with multiple commas: "a, b, c"
-[Mappings/Entries/14]
-Input=l
-Output=a,, b,, c
+```
+h=Hello,, World
+l=a,, b,, c
 ```
 
 | Config value | Result |

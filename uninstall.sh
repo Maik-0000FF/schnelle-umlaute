@@ -130,12 +130,17 @@ echo
 # --- User Configuration ---
 
 USER_CONFIG="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
-if [ -f "$USER_CONFIG" ]; then
-    echo -e "${YELLOW}User configuration found: $USER_CONFIG${NC}"
+MAPPINGS_DIR="$HOME/.config/fcitx5/schnelle-umlaute"
+
+if [ -f "$USER_CONFIG" ] || [ -d "$MAPPINGS_DIR" ]; then
+    echo -e "${YELLOW}User configuration found:${NC}"
+    [ -f "$USER_CONFIG" ] && echo "  - $USER_CONFIG (settings)"
+    [ -d "$MAPPINGS_DIR" ] && echo "  - $MAPPINGS_DIR/ (mappings)"
     read -p "Remove user configuration? [y/N] " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        rm -f "$USER_CONFIG"
+        [ -f "$USER_CONFIG" ] && rm -f "$USER_CONFIG"
+        [ -d "$MAPPINGS_DIR" ] && rm -rf "$MAPPINGS_DIR"
         echo -e "${GREEN}✓ User configuration removed${NC}"
     else
         echo -e "${YELLOW}Keeping user configuration${NC}"

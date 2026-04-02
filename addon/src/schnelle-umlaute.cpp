@@ -836,10 +836,10 @@ private:
                         line.pop_back();
                     }
                     if (line.empty() || line[0] == '#') continue;
-                    auto tab = line.find('\t');
-                    if (tab != std::string::npos && tab > 0) {
-                        auto input = line.substr(0, tab);
-                        auto output = line.substr(tab + 1);
+                    auto eq = line.find('=');
+                    if (eq != std::string::npos && eq > 0) {
+                        auto input = line.substr(0, eq);
+                        auto output = line.substr(eq + 1);
                         if (!output.empty()) {
                             umlautMap_[input] = splitOutputs(output);
                         }

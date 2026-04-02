@@ -118,10 +118,10 @@ void MappingModel::load() {
                 if (line.isEmpty() || line.startsWith('#')) {
                     continue;
                 }
-                int tab = line.indexOf('\t');
-                if (tab > 0) {
+                int eq = line.indexOf('=');
+                if (eq > 0) {
                     entries_.push_back(
-                        {line.left(tab), line.mid(tab + 1)});
+                        {line.left(eq), line.mid(eq + 1)});
                 }
             }
         }
@@ -143,7 +143,7 @@ void MappingModel::save() {
                 return false;
             }
             for (const auto &e : entries_) {
-                fprintf(fp.get(), "%s\t%s\n",
+                fprintf(fp.get(), "%s=%s\n",
                         e.input.toUtf8().constData(),
                         e.output.toUtf8().constData());
             }
