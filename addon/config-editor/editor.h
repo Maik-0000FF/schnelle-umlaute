@@ -3,6 +3,7 @@
 
 #include "ui_editor.h"
 #include <fcitxqtconfiguiwidget.h>
+#include <QLabel>
 
 namespace fcitx {
 
@@ -28,7 +29,11 @@ private Q_SLOTS:
     void itemFocusChanged();
 
 private:
+    void showInputError(const QString &msg);
+    void clearInputError();
+
     MappingModel *model_;
+    QLabel *inputStatus_;
 };
 
 } // namespace fcitx

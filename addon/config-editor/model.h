@@ -29,6 +29,8 @@ public:
     void moveUp(int row);
     void moveDown(int row);
     bool needSave() const;
+    bool hasInput(const QString &input, int excludeRow = -1) const;
+    static bool isValidInput(const QString &input);
 
 Q_SIGNALS:
     void needSaveChanged(bool);

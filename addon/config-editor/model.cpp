@@ -51,7 +51,14 @@ bool MappingModel::setData(const QModelIndex &index, const QVariant &value,
     }
     auto &e = entries_[index.row()];
     if (index.column() == 0) {
-        e.input = value.toString();
+        QString input = value.toString().trimmed();
+        if (!isValidInput(input)) {
+            return false;
+        }
+        if (hasInput(input, index.row())) {
+            return false;
+        }
+        e.input = input;
     } else {
         e.output = value.toString();
     }
@@ -167,6 +174,24 @@ void MappingModel::loadDefaults() {
         {"s", "\xc3\x9f"}, {"A", "\xc3\x84"}, {"O", "\xc3\x96"},
         {"U", "\xc3\x9c"},
     };
+}
+
+bool MappingModel::isValidInput(const QString &input) {
+    if (input.isEmpty()) return false;
+    // Exactly 1 Unicode codepoint
+    auto ucs4 = input.toUcs4();
+    if (ucs4.size() != 1) return false;
+    QChar ch = input[0];
+    // Must be printable and not whitespace
+    return ch.isPrint() && !ch.isSpace();
+}
+
+bool MappingModel::hasInput(const QString &input, int excludeRow) const {
+    for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
+        if (i == excludeRow) continue;
+        if (entries_[i].input == input) return true;
+    }
+    return false;
 }
 
 } // namespace fcitx

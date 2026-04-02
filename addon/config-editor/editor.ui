@@ -32,8 +32,8 @@
       </item>
       <item>
        <widget class="QLineEdit" name="inputEdit">
-        <property name="placeholderText">
-         <string>e.g. a</string>
+        <property name="maxLength">
+         <number>1</number>
         </property>
         <property name="maximumWidth">
          <number>80</number>
@@ -55,11 +55,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QLineEdit" name="outputEdit">
-        <property name="placeholderText">
-         <string>e.g. ä</string>
-        </property>
-       </widget>
+       <widget class="QLineEdit" name="outputEdit"/>
       </item>
      </layout>
     </widget>
@@ -74,7 +70,7 @@
      </property>
     </widget>
    </item>
-   <item row="1" column="0">
+   <item row="4" column="0">
     <widget class="QTableView" name="mappingView">
      <property name="selectionMode">
       <enum>QAbstractItemView::SingleSelection</enum>
@@ -84,7 +80,7 @@
      </property>
     </widget>
    </item>
-   <item row="1" column="1" alignment="Qt::AlignTop">
+   <item row="4" column="1" alignment="Qt::AlignTop">
     <layout class="QVBoxLayout" name="buttonLayout">
      <item>
       <widget class="QPushButton" name="moveUpButton">
