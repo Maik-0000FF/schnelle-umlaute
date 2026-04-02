@@ -16,96 +16,76 @@
     <height>480</height>
    </size>
   </property>
-  <layout class="QHBoxLayout" name="mainLayout">
-   <item>
-    <layout class="QVBoxLayout" name="contentLayout">
-     <item>
-      <widget class="QGroupBox" name="addGroup">
-       <property name="title">
-        <string>New Mapping</string>
-       </property>
-       <layout class="QHBoxLayout" name="addLayout">
-        <item>
-         <widget class="QLabel" name="inputLabel">
-          <property name="text">
-           <string>Input:</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="inputEdit">
-          <property name="placeholderText">
-           <string>e.g. a</string>
-          </property>
-          <property name="maximumWidth">
-           <number>80</number>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="arrowLabel">
-          <property name="text">
-           <string>&#x2192;</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="outputLabel">
-          <property name="text">
-           <string>Output:</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="outputEdit">
-          <property name="placeholderText">
-           <string>e.g. ä</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-     </item>
-     <item>
-      <widget class="QTableView" name="mappingView">
-       <property name="selectionMode">
-        <enum>QAbstractItemView::SingleSelection</enum>
-       </property>
-       <property name="selectionBehavior">
-        <enum>QAbstractItemView::SelectRows</enum>
-       </property>
-      </widget>
-     </item>
-    </layout>
+  <layout class="QGridLayout" name="mainLayout">
+   <item row="0" column="0">
+    <widget class="QGroupBox" name="addGroup">
+     <property name="title">
+      <string>New Mapping</string>
+     </property>
+     <layout class="QHBoxLayout" name="addLayout">
+      <item>
+       <widget class="QLabel" name="inputLabel">
+        <property name="text">
+         <string>Input:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="inputEdit">
+        <property name="placeholderText">
+         <string>e.g. a</string>
+        </property>
+        <property name="maximumWidth">
+         <number>80</number>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="arrowLabel">
+        <property name="text">
+         <string>&#x2192;</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="outputLabel">
+        <property name="text">
+         <string>Output:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="outputEdit">
+        <property name="placeholderText">
+         <string>e.g. ä</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
    </item>
-   <item>
+   <item row="0" column="1" alignment="Qt::AlignTop">
+    <widget class="QPushButton" name="addButton">
+     <property name="text">
+      <string>&amp;Add</string>
+     </property>
+     <property name="icon">
+      <iconset theme="list-add"/>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QTableView" name="mappingView">
+     <property name="selectionMode">
+      <enum>QAbstractItemView::SingleSelection</enum>
+     </property>
+     <property name="selectionBehavior">
+      <enum>QAbstractItemView::SelectRows</enum>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1" alignment="Qt::AlignTop">
     <layout class="QVBoxLayout" name="buttonLayout">
-     <item>
-      <widget class="QPushButton" name="addButton">
-       <property name="text">
-        <string>&amp;Add</string>
-       </property>
-       <property name="icon">
-        <iconset theme="list-add"/>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="buttonSeparator">
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
-       </property>
-       <property name="sizeType">
-        <enum>QSizePolicy::Fixed</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>0</width>
-         <height>32</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
      <item>
       <widget class="QPushButton" name="moveUpButton">
        <property name="text">
@@ -135,13 +115,6 @@
         <iconset theme="list-remove"/>
        </property>
       </widget>
-     </item>
-     <item>
-      <spacer name="verticalSpacer">
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
-       </property>
-      </spacer>
      </item>
     </layout>
    </item>
