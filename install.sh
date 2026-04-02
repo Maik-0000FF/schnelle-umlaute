@@ -23,11 +23,17 @@ detect_distro() {
                 echo "arch" ;;
             debian|ubuntu|linuxmint|pop|kali|elementary|zorin|mx|neon)
                 echo "debian" ;;
+            fedora|nobara)
+                echo "fedora" ;;
+            opensuse*|suse)
+                echo "suse" ;;
             *)
                 # Fallback to ID_LIKE
                 case "${ID_LIKE:-}" in
                     *arch*)                 echo "arch" ;;
                     *debian*|*ubuntu*)      echo "debian" ;;
+                    *fedora*)               echo "fedora" ;;
+                    *suse*)                 echo "suse" ;;
                     *)                      echo "unknown" ;;
                 esac ;;
         esac
@@ -35,6 +41,10 @@ detect_distro() {
         echo "arch"
     elif command -v apt >/dev/null 2>&1; then
         echo "debian"
+    elif command -v dnf >/dev/null 2>&1; then
+        echo "fedora"
+    elif command -v zypper >/dev/null 2>&1; then
+        echo "suse"
     else
         echo "unknown"
     fi
@@ -63,12 +73,20 @@ case "$DISTRO" in
         echo -e "${YELLOW}Supported: Ubuntu 24.04+, Debian Trixie (13)+, Kali Linux (rolling)${NC}"
         echo -e "${YELLOW}Debian Bookworm (12) requires bookworm-backports enabled.${NC}"
         ;;
+    fedora)
+        echo -e "${GREEN}Fedora installer${NC}"
+        ;;
+    suse)
+        echo -e "${GREEN}openSUSE installer${NC}"
+        ;;
     *)
         echo -e "${RED}Error: Unsupported distribution: $DISTRO_NAME${NC}"
         echo
         echo -e "${YELLOW}Supported distributions:${NC}"
         echo "  - Arch Linux and derivatives (Manjaro, EndeavourOS, Garuda, CachyOS, ...)"
         echo "  - Debian and derivatives (Ubuntu, Linux Mint, Pop!_OS, Kali, ...)"
+        echo "  - Fedora and derivatives (Nobara, ...)"
+        echo "  - openSUSE (Tumbleweed, Leap)"
         echo
         echo "Manual build:"
         echo "  1. Install: fcitx5, fcitx5 dev libraries, cmake, extra-cmake-modules, g++"
@@ -97,8 +115,9 @@ echo
 
 is_installed() {
     case "$DISTRO" in
-        arch)   pacman -Q "$1" >/dev/null 2>&1 ;;
-        debian) dpkg -l "$1" 2>/dev/null | grep -q "^ii" ;;
+        arch)           pacman -Q "$1" >/dev/null 2>&1 ;;
+        debian)         dpkg -l "$1" 2>/dev/null | grep -q "^ii" ;;
+        fedora|suse)    rpm -q "$1" >/dev/null 2>&1 ;;
     esac
 }
 
@@ -112,6 +131,12 @@ install_deps() {
             sudo apt update
             sudo apt install -y "$@"
             ;;
+        fedora)
+            sudo dnf install -y "$@"
+            ;;
+        suse)
+            sudo zypper install -y "$@"
+            ;;
     esac
 }
 
@@ -123,6 +148,16 @@ case "$DISTRO" in
         DEPS=(fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4
               fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev qt6-base-dev
               libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext)
+        ;;
+    fedora)
+        DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
+              fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel
+              cmake extra-cmake-modules gcc-c++ gettext)
+        ;;
+    suse)
+        DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
+              fcitx5-devel fcitx5-qt-devel qt6-base-devel
+              cmake extra-cmake-modules gcc-c++ gettext)
         ;;
 esac
 
@@ -180,12 +215,16 @@ echo
 STALE_CANDIDATES=(
     /usr/lib/fcitx5/schnelle-umlaute.so
     /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/lib64/fcitx5/schnelle-umlaute.so
+    /usr/lib64/fcitx5/qt6/libschnelle-umlaute-config-editor.so
     /usr/share/fcitx5/addon/schnelle-umlaute.conf
     /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
     /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
     /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf
     /usr/local/lib/fcitx5/schnelle-umlaute.so
     /usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/local/lib64/fcitx5/schnelle-umlaute.so
+    /usr/local/lib64/fcitx5/qt6/libschnelle-umlaute-config-editor.so
     /usr/local/share/fcitx5/addon/schnelle-umlaute.conf
     /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in
     /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
@@ -234,8 +273,8 @@ fi
 
 echo -e "${BLUE}Installing addon...${NC}"
 case "$DISTRO" in
-    arch)   sudo cmake --install . ;;
     debian) sudo make install ;;
+    *)      sudo cmake --install . ;;
 esac
 echo -e "${GREEN}✓ Addon installed${NC}"
 echo
@@ -403,9 +442,9 @@ EOF
     fi
 fi
 
-# --- Debian (non-KDE-Wayland): Setup Autostart ---
+# --- Non-Arch (non-KDE-Wayland): Setup Autostart ---
 
-if [ "$DISTRO" = "debian" ]; then
+if [ "$DISTRO" != "arch" ]; then
     if ! ([ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]); then
         echo -e "${BLUE}Setting up autostart...${NC}"
         AUTOSTART_DIR="$HOME/.config/autostart"
@@ -468,7 +507,7 @@ echo
 echo "3. In the configuration window:"
 echo "   - Go to 'Input Method' tab"
 echo "   - Click '+' to add"
-if [ "$DISTRO" = "debian" ]; then
+if [ "$DISTRO" != "arch" ]; then
     echo "   - Uncheck 'Only Show Current Language'"
 fi
 echo "   - Search for 'Schnelle Umlaute'"
@@ -484,7 +523,7 @@ echo "   - Hold 's' and press Space → ß"
 echo
 echo -e "${YELLOW}Troubleshooting:${NC}"
 echo "  - Run 'fcitx5-diagnose' to check setup"
-if [ "$DISTRO" = "debian" ]; then
+if [ "$DISTRO" != "arch" ]; then
     echo "  - Make sure IBus is not running: pkill ibus-daemon"
     echo "  - Check env vars after login: echo \$GTK_IM_MODULE"
 fi
@@ -496,7 +535,7 @@ if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; th
     echo "  (This eliminates KWin warnings)"
     echo
 fi
-if [ "$DISTRO" = "debian" ] && [ "$XDG_CURRENT_DESKTOP" = "GNOME" ]; then
+if [ "$XDG_CURRENT_DESKTOP" = "GNOME" ]; then
     echo -e "${BLUE}GNOME Users:${NC}"
     echo "  If Fcitx5 doesn't work in GNOME apps, try:"
     echo "  gsettings set org.gnome.settings-daemon.plugins.xsettings overrides \"{'Gtk/IMModule':<'fcitx'>}\""

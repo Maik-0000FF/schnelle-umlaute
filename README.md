@@ -159,6 +159,8 @@ sequenceDiagram
 - **Linux** with Fcitx5 support
   - **Arch Linux** - Fully tested and supported
   - **Debian-based** (Ubuntu, Debian, Kali, etc.) - Supported
+  - **Fedora** (and derivatives like Nobara) - Supported
+  - **openSUSE** (Tumbleweed, Leap) - Supported
 - **Fcitx5** - Input Method Framework
 - **CMake** and **extra-cmake-modules** - For building
 - **GCC with C++20 support** - For compilation
@@ -301,6 +303,90 @@ fcitx5 -r
 ```bash
 gsettings set org.gnome.settings-daemon.plugins.xsettings overrides "{'Gtk/IMModule':<'fcitx'>}"
 ```
+
+### 🔧 Manual Installation (Fedora)
+
+If you prefer manual installation:
+
+**1. Install Dependencies**
+
+```bash
+sudo dnf install fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6 \
+    fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel \
+    cmake extra-cmake-modules gcc-c++ gettext
+```
+
+**2. Build the Addon**
+
+```bash
+cd addon
+./build.sh
+```
+
+**3. Install**
+
+```bash
+cd build
+sudo cmake --install .
+```
+
+**4. Configure Environment Variables**
+
+```bash
+mkdir -p ~/.config/environment.d
+cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+GLFW_IM_MODULE=ibus
+EOF
+```
+
+**5. Logout and Login**
+
+**IMPORTANT:** You must logout and login again for the environment variables to take effect!
+
+### 🔧 Manual Installation (openSUSE)
+
+If you prefer manual installation:
+
+**1. Install Dependencies**
+
+```bash
+sudo zypper install fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6 \
+    fcitx5-devel fcitx5-qt-devel qt6-base-devel \
+    cmake extra-cmake-modules gcc-c++ gettext
+```
+
+**2. Build the Addon**
+
+```bash
+cd addon
+./build.sh
+```
+
+**3. Install**
+
+```bash
+cd build
+sudo cmake --install .
+```
+
+**4. Configure Environment Variables**
+
+```bash
+mkdir -p ~/.config/environment.d
+cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+GLFW_IM_MODULE=ibus
+EOF
+```
+
+**5. Logout and Login**
+
+**IMPORTANT:** You must logout and login again for the environment variables to take effect!
 
 ## 🎮 Setup & Usage
 
@@ -595,7 +681,7 @@ If the addon appears but you can't see DelayLowercase/DelayUppercase settings:
 
 ### Works in terminal but not in other apps (Firefox, Kate, etc.)
 
-Environment variables must be set correctly. See the environment variables step in [Manual Installation (Arch)](#-manual-installation-arch-linux) or [Manual Installation (Ubuntu)](#-manual-installation-ubuntu--debian) for your platform.
+Environment variables must be set correctly. See the environment variables step in the manual installation section for your platform: [Arch](#-manual-installation-arch-linux), [Ubuntu/Debian](#-manual-installation-ubuntu--debian), [Fedora](#-manual-installation-fedora), or [openSUSE](#-manual-installation-opensuse).
 
 Then **logout and login again** for changes to take effect.
 
@@ -765,6 +851,9 @@ sudo rm /usr/lib/fcitx5/schnelle-umlaute.so
 
 # Ubuntu/Debian (x86_64)
 sudo rm /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
+
+# Fedora / openSUSE (x86_64)
+sudo rm /usr/lib64/fcitx5/schnelle-umlaute.so
 
 # Common data files (all distributions)
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf

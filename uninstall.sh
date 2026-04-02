@@ -23,10 +23,16 @@ detect_distro() {
                 echo "arch" ;;
             debian|ubuntu|linuxmint|pop|kali|elementary|zorin|mx|neon)
                 echo "debian" ;;
+            fedora|nobara)
+                echo "fedora" ;;
+            opensuse*|suse)
+                echo "suse" ;;
             *)
                 case "${ID_LIKE:-}" in
                     *arch*)                 echo "arch" ;;
                     *debian*|*ubuntu*)      echo "debian" ;;
+                    *fedora*)               echo "fedora" ;;
+                    *suse*)                 echo "suse" ;;
                     *)                      echo "unknown" ;;
                 esac ;;
         esac
@@ -34,6 +40,10 @@ detect_distro() {
         echo "arch"
     elif command -v apt >/dev/null 2>&1; then
         echo "debian"
+    elif command -v dnf >/dev/null 2>&1; then
+        echo "fedora"
+    elif command -v zypper >/dev/null 2>&1; then
+        echo "suse"
     else
         echo "unknown"
     fi
@@ -63,7 +73,9 @@ fi
 # Check all possible library paths
 LIB_PATHS=(
     /usr/lib/fcitx5
+    /usr/lib64/fcitx5
     /usr/local/lib/fcitx5
+    /usr/local/lib64/fcitx5
 )
 
 # Debian uses multiarch lib paths
@@ -220,11 +232,12 @@ echo -e "${GREEN}  Uninstallation Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo
 echo -e "${YELLOW}Notes:${NC}"
-if [ "$DISTRO" = "debian" ]; then
-    echo "  - Fcitx5 packages are still installed (remove with: sudo apt remove fcitx5)"
-elif [ "$DISTRO" = "arch" ]; then
-    echo "  - Fcitx5 packages are still installed (remove with: sudo pacman -R fcitx5)"
-fi
+case "$DISTRO" in
+    arch)   echo "  - Fcitx5 packages are still installed (remove with: sudo pacman -R fcitx5)" ;;
+    debian) echo "  - Fcitx5 packages are still installed (remove with: sudo apt remove fcitx5)" ;;
+    fedora) echo "  - Fcitx5 packages are still installed (remove with: sudo dnf remove fcitx5)" ;;
+    suse)   echo "  - Fcitx5 packages are still installed (remove with: sudo zypper remove fcitx5)" ;;
+esac
 echo "  - Logout/login to fully apply changes"
 if [ -f "$ENV_FILE" ]; then
     echo "  - Environment config kept at: $ENV_FILE"

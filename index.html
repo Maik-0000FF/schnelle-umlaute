@@ -7,7 +7,7 @@
     <title>Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux</title>
     <meta name="title" content="Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux">
     <meta name="description" content="PowerToys Quick Accent Alternative for Linux - Type German umlauts (ä, ö, ü, ß), French accents (é, è, ê, ç), Spanish characters (ñ, á, í), Portuguese accents (ã, õ, ç), Braille Unicode characters (⠁⠃⠉⠙⠑) with hold + space gesture. Native Fcitx5 addon with accent cycling, snippets, emoji mappings. No clipboard interference, works on X11 and Wayland.">
-    <meta name="keywords" content="PowerToys, Quick Accent, Linux, German umlauts, Fcitx5, keyboard, input method, umlaut, ä, ö, ü, ß, Arch Linux, Wayland, X11, accent cycling, snippets, text expansion, emoji, special characters, diacritics, accented characters, Linux input method, keyboard layout, Umlaute tippen Linux, deutsche Sonderzeichen, Umlaute ohne Nummernblock, accents français Linux, caractères accentués, accent aigu grave circonflexe, é è ê ë à ç, clavier français, acentos español Linux, tilde eñe, á é í ó ú ñ, teclado español, caracteres especiales, acentos português Linux, caracteres acentuados, teclado português, ã õ á é í ó ú â ê ô à ç, cedilha, til, digitar acentos Linux, Sonderzeichen Linux, diakritische Zeichen, Braille Unicode, ⠁⠃⠉⠙⠑, Braille input Linux">
+    <meta name="keywords" content="PowerToys, Quick Accent, Linux, German umlauts, Fcitx5, keyboard, input method, umlaut, ä, ö, ü, ß, Arch Linux, Ubuntu, Fedora, openSUSE, Wayland, X11, accent cycling, snippets, text expansion, emoji, special characters, diacritics, accented characters, Linux input method, keyboard layout, Umlaute tippen Linux, deutsche Sonderzeichen, Umlaute ohne Nummernblock, accents français Linux, caractères accentués, accent aigu grave circonflexe, é è ê ë à ç, clavier français, acentos español Linux, tilde eñe, á é í ó ú ñ, teclado español, caracteres especiales, acentos português Linux, caracteres acentuados, teclado português, ã õ á é í ó ú â ê ô à ç, cedilha, til, digitar acentos Linux, Sonderzeichen Linux, diakritische Zeichen, Braille Unicode, ⠁⠃⠉⠙⠑, Braille input Linux">
     <meta name="author" content="Maik-0000FF">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="googlebot" content="index, follow">
@@ -154,7 +154,7 @@
             { "@type": "Question", "name": "Does Schnelle Umlaute work on Wayland?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, Schnelle Umlaute works natively on both X11 and Wayland display protocols without any additional configuration." } },
             { "@type": "Question", "name": "Does Schnelle Umlaute interfere with the clipboard?", "acceptedAnswer": { "@type": "Answer", "text": "No, Schnelle Umlaute uses direct text insertion via Fcitx5's commitString() API. Your clipboard stays completely untouched." } },
             { "@type": "Question", "name": "What characters can I type with Schnelle Umlaute?", "acceptedAnswer": { "@type": "Answer", "text": "By default, German umlauts (ä, ö, ü, ß). With 30 customizable mapping slots you can add French accents, Spanish characters, Portuguese accents, Braille Unicode, emojis, math symbols, or full text snippets." } },
-            { "@type": "Question", "name": "Which Linux distributions are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Fully tested on Arch Linux and Ubuntu/Debian. Works on any distribution with Fcitx5 installed." } },
+            { "@type": "Question", "name": "Which Linux distributions are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Supported on Arch Linux, Ubuntu/Debian, Fedora, and openSUSE. Works on any distribution with Fcitx5 installed." } },
             { "@type": "Question", "name": "Can I adjust the timing?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, via fcitx5-config-qt. Default is 400ms for lowercase and 600ms for uppercase. Adjust to your typing speed." } }
         ]
     }
@@ -1379,6 +1379,8 @@
                 <span class="tag">Arch Linux</span>
                 <span class="tag">Ubuntu</span>
                 <span class="tag">Debian</span>
+                <span class="tag">Fedora</span>
+                <span class="tag">openSUSE</span>
             </div>
         </article>
 
@@ -1502,7 +1504,7 @@
         </details>
         <details class="q">
             <summary>Which distros are supported?</summary>
-            <p class="q-body">Fully tested on Arch Linux and Ubuntu/Debian. Works on any distro with Fcitx5.</p>
+            <p class="q-body">Supported on Arch Linux, Ubuntu/Debian, Fedora, and openSUSE. Works on any distro with Fcitx5.</p>
         </details>
         <details class="q">
             <summary>Can I adjust the timing?</summary>
@@ -1770,7 +1772,7 @@
         var cursor = document.getElementById('term-cursor');
         if (!body || !cursor) return;
 
-        /* Installation script — single unified installer */
+        /* Installation script — single unified installer, cycles distros */
         var groups = [
             [
                 { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
@@ -1781,6 +1783,16 @@
                 { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
                 { cmd: 'cd schnelle-umlaute', out: null },
                 { cmd: './install.sh', out: 'Distribution: Ubuntu 24.04 LTS\n[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
+            ],
+            [
+                { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
+                { cmd: 'cd schnelle-umlaute', out: null },
+                { cmd: './install.sh', out: 'Distribution: Fedora 41\n[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
+            ],
+            [
+                { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
+                { cmd: 'cd schnelle-umlaute', out: null },
+                { cmd: './install.sh', out: 'Distribution: openSUSE Tumbleweed\n[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
             ],
         ];
 
