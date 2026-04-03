@@ -50,8 +50,6 @@ cd schnelle-umlaute
 
 After installation: **Logout and login**, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
 
-> **Note:** Make sure to uncheck "Only Show Current Language" when searching for the addon.
-
 ![Input Method Configuration](docs/assets/screenshot-input-method.png)
 
 ## Usage
