@@ -1,0 +1,6 @@
+#ifndef _TEST_TESTDIR_H_
+#define _TEST_TESTDIR_H_
+
+#define TESTING_BINARY_DIR "@CMAKE_BINARY_DIR@"
+
+#endif // _TEST_TESTDIR_H_
