@@ -1,6 +1,6 @@
 # Installation
 
-## Quick Install (all distributions)
+## Quick Install (supported distributions)
 
 ```bash
 git clone https://github.com/Maik-0000FF/schnelle-umlaute.git
