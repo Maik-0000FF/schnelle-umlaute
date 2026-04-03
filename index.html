@@ -16,11 +16,6 @@
 
     <meta name="language" content="English">
     <meta http-equiv="content-language" content="en">
-    <link rel="alternate" hreflang="en"       href="https://maik-0000ff.github.io/schnelle-umlaute/">
-    <link rel="alternate" hreflang="de"       href="https://maik-0000ff.github.io/schnelle-umlaute/">
-    <link rel="alternate" hreflang="fr"       href="https://maik-0000ff.github.io/schnelle-umlaute/">
-    <link rel="alternate" hreflang="es"       href="https://maik-0000ff.github.io/schnelle-umlaute/">
-    <link rel="alternate" hreflang="pt"       href="https://maik-0000ff.github.io/schnelle-umlaute/">
     <link rel="alternate" hreflang="x-default" href="https://maik-0000ff.github.io/schnelle-umlaute/">
 
     <link rel="icon" type="image/svg+xml" href="docs/assets/schnelle-umlaute-icon.svg">
@@ -196,6 +191,16 @@
             overflow-x: hidden;
             line-height: 1.6;
         }
+
+        /* ─── SKIP LINK ─── */
+        .skip-link {
+            position: absolute; top: -100%; left: 16px;
+            background: var(--green); color: var(--bg);
+            padding: 8px 16px; border-radius: 8px;
+            font-weight: 600; font-size: 0.9em;
+            z-index: 9999; text-decoration: none;
+        }
+        .skip-link:focus { top: 16px; }
 
         /* ─── CUSTOM CURSOR ─── */
         @media (pointer: fine) {
@@ -444,9 +449,10 @@
             text-align: center;
             flex-shrink: 0;
             position: relative; overflow: hidden;
-            transform-style: preserve-3d; will-change: transform;
+            transform-style: preserve-3d;
             transition: border-color 0.3s, transform 0.3s;
         }
+        .hero-demo-card:hover { will-change: transform; }
 
         .hero-demo-card::after {
             content: '';
@@ -475,9 +481,10 @@
             box-shadow: 0 24px 60px rgba(0,0,0,0.5);
             height: 282px;
             display: flex; flex-direction: column;
-            transform-style: preserve-3d; will-change: transform;
+            transform-style: preserve-3d;
             transition: border-color 0.3s, transform 0.3s;
         }
+        .terminal-window:hover { will-change: transform; }
 
         .terminal-bar {
             background: #1c1c1c;
@@ -672,8 +679,8 @@
             position: relative; overflow: hidden;
             transition: border-color 0.3s, transform 0.3s;
             transform-style: preserve-3d;
-            will-change: transform;
         }
+        .feat-card:hover { will-change: transform; }
 
         .feat-card::before {
             content: '';
@@ -860,9 +867,10 @@
             border-radius: var(--r-lg);
             padding: 52px 56px;
             position: relative; overflow: hidden;
-            transform-style: preserve-3d; will-change: transform;
+            transform-style: preserve-3d;
             transition: border-color 0.3s, transform 0.3s;
         }
+        .testi-card:hover { will-change: transform; }
 
         .testi-card::after {
             content: '';
@@ -951,9 +959,10 @@
             background: rgba(124,58,237,0.06);
             border: 1px solid rgba(124,58,237,0.2);
             animation: support-glow 4s ease-in-out infinite;
-            transform-style: preserve-3d; will-change: transform;
+            transform-style: preserve-3d;
             transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
         }
+        .support-card:hover { will-change: transform; }
 
         @keyframes support-glow {
             0%,100% { box-shadow: 0 0 40px rgba(124,58,237,0.08), 0 0 0 1px rgba(124,58,237,0.15); }
@@ -968,14 +977,6 @@
         }
         .support-card:hover::after { opacity: 1; }
         .support-card:hover { border-color: rgba(124,58,237,0.45); }
-
-        .support-visual {
-            display: flex; align-items: center; justify-content: center;
-            padding: 52px 40px;
-            background: rgba(124,58,237,0.04);
-            border-right: 1px solid rgba(124,58,237,0.15);
-            position: relative; z-index: 1;
-        }
 
         .support-text {
             padding: 52px 56px; position: relative; z-index: 1;
@@ -1022,8 +1023,6 @@
         }
 
 @media (max-width: 960px) {
-            .support-card { grid-template-columns: 1fr; }
-            .support-visual { border-right: none; border-bottom: 1px solid rgba(124,58,237,0.15); padding: 40px; }
             .support-text { padding: 40px; }
         }
         @media (max-width: 640px) {
@@ -1206,6 +1205,8 @@
 </head>
 <body>
 
+<a href="#features" class="skip-link">Skip to content</a>
+
 <!-- Custom cursor -->
 <div class="cursor-dot" id="cdot"  aria-hidden="true"></div>
 <div class="cursor-ring" id="cring" aria-hidden="true"></div>
@@ -1304,7 +1305,7 @@
 </section>
 
 <!-- Features -->
-<div class="section">
+<div class="section" id="features">
     <div class="section-eyebrow reveal">Features</div>
     <h2 class="section-h2 reveal">
         Built different.<br><span class="g">Works everywhere.</span>
@@ -1578,21 +1579,12 @@
     var dot  = document.getElementById('cdot');
     var ring = document.getElementById('cring');
 
+    var rx = 0, ry = 0;
     if (dot && ring && window.matchMedia('(pointer: fine)').matches) {
-        var rx = 0, ry = 0;
         document.addEventListener('mousemove', function (e) {
             dot.style.left  = e.clientX + 'px';
             dot.style.top   = e.clientY + 'px';
-            /* Ring follows with RAF for smooth lag */
-            rx += (e.clientX - rx) * 0.18;
-            ry += (e.clientY - ry) * 0.18;
         }, { passive: true });
-
-        (function loop() {
-            ring.style.left = rx + 'px';
-            ring.style.top  = ry + 'px';
-            requestAnimationFrame(loop);
-        })();
     }
 
     /* ── Clean up fadeUp animations (hero elements) ── */
@@ -1766,12 +1758,11 @@
         });
     });
 
-    /* ── Cursor ring ring loop (rAF for smooth follow) ── */
+    /* ── Cursor ring smooth lerp ── */
     if (dot && ring && window.matchMedia('(pointer: fine)').matches) {
         var mx = window.innerWidth / 2;
         var my = window.innerHeight / 2;
         document.addEventListener('mousemove', function (e) { mx = e.clientX; my = e.clientY; }, { passive: true });
-        /* Overwrite the simple ring update with smooth lerp */
         (function lerpLoop() {
             rx += (mx - rx) * 0.14;
             ry += (my - ry) * 0.14;
@@ -1811,7 +1802,6 @@
             ],
         ];
 
-        var MAX_LINES = 20;
         var lines = [];
         var gi = 0;
         var si = 0;
