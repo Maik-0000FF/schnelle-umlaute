@@ -53,9 +53,7 @@ cd schnelle-umlaute
 ./install.sh
 ```
 
-After installation: **Logout and login**, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
-
-![Input Method Configuration](docs/assets/screenshot-input-method-qt.png)
+After installation: **Logout and login**, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods. See [Configuration](docs/CONFIGURATION.md) for details and screenshots.
 
 ## Usage
 
