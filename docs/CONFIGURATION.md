@@ -11,6 +11,19 @@ All addon settings can be changed in two ways:
 
 ---
 
+## Adding Schnelle Umlaute to your Input Methods
+
+1. Open Fcitx5 configuration: `fcitx5-config-qt`
+2. Go to **"Input Method"** tab
+3. Click **"Add Input Method..."** and search for **"Schnelle Umlaute"**
+4. Add it to your input methods and click **"Apply"**
+
+| KDE System Settings | fcitx5-config-qt |
+|:-:|:-:|
+| ![KDE](assets/screenshot-input-method-kde.png) | ![Qt](assets/screenshot-input-method-qt.png) |
+
+---
+
 ## Keyboard Layout Requirement
 
 This addon is **not a standalone keyboard layout** - it works **alongside** your existing keyboard layout.
