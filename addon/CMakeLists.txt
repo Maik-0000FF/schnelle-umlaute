@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(fcitx5-schnelle-umlaute VERSION 0.1.5)
+project(fcitx5-schnelle-umlaute VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,6 +17,10 @@ set(FCITX_INSTALL_USE_FCITX_SYS_PATHS ON CACHE BOOL
 find_package(Fcitx5Core REQUIRED)
 find_package(Gettext REQUIRED)
 
+set(QT_MAJOR_VERSION 6)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+find_package(Fcitx5Qt${QT_MAJOR_VERSION}WidgetsAddons REQUIRED)
+
 include(GNUInstallDirs)
 
 # Sources
@@ -27,6 +31,7 @@ set(SCHNELLE_UMLAUTE_SOURCES
 # Build addon shared library
 add_library(schnelle-umlaute MODULE ${SCHNELLE_UMLAUTE_SOURCES})
 target_link_libraries(schnelle-umlaute Fcitx5::Core)
+target_compile_options(schnelle-umlaute PRIVATE -Wall -Wextra -Wpedantic)
 set_target_properties(schnelle-umlaute PROPERTIES PREFIX "")
 
 # Install addon library to fcitx5's own addon directory.
@@ -53,3 +58,13 @@ install(FILES data/schnelle-umlaute.conf.in
 install(FILES data/schnelle-umlaute-inputmethod.conf
         DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod"
         RENAME schnelle-umlaute.conf)
+
+# Config editor Qt plugin
+add_subdirectory(config-editor)
+
+# Tests (off by default — install scripts and end users don't need them)
+option(BUILD_TESTING "Build tests" OFF)
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../tests tests)
+endif()

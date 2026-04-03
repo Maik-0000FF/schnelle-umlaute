@@ -7,7 +7,7 @@
     <title>Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux</title>
     <meta name="title" content="Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux">
     <meta name="description" content="PowerToys Quick Accent Alternative for Linux - Type German umlauts (ä, ö, ü, ß), French accents (é, è, ê, ç), Spanish characters (ñ, á, í), Portuguese accents (ã, õ, ç), Braille Unicode characters (⠁⠃⠉⠙⠑) with hold + space gesture. Native Fcitx5 addon with accent cycling, snippets, emoji mappings. No clipboard interference, works on X11 and Wayland.">
-    <meta name="keywords" content="PowerToys, Quick Accent, Linux, German umlauts, Fcitx5, keyboard, input method, umlaut, ä, ö, ü, ß, Arch Linux, Wayland, X11, accent cycling, snippets, text expansion, emoji, special characters, diacritics, accented characters, Linux input method, keyboard layout, Umlaute tippen Linux, deutsche Sonderzeichen, Umlaute ohne Nummernblock, accents français Linux, caractères accentués, accent aigu grave circonflexe, é è ê ë à ç, clavier français, acentos español Linux, tilde eñe, á é í ó ú ñ, teclado español, caracteres especiales, acentos português Linux, caracteres acentuados, teclado português, ã õ á é í ó ú â ê ô à ç, cedilha, til, digitar acentos Linux, Sonderzeichen Linux, diakritische Zeichen, Braille Unicode, ⠁⠃⠉⠙⠑, Braille input Linux">
+    <meta name="keywords" content="PowerToys, Quick Accent, Linux, German umlauts, Fcitx5, keyboard, input method, umlaut, ä, ö, ü, ß, Arch Linux, Ubuntu, Fedora, openSUSE, Wayland, X11, accent cycling, snippets, text expansion, emoji, special characters, diacritics, accented characters, Linux input method, keyboard layout, Umlaute tippen Linux, deutsche Sonderzeichen, Umlaute ohne Nummernblock, accents français Linux, caractères accentués, accent aigu grave circonflexe, é è ê ë à ç, clavier français, acentos español Linux, tilde eñe, á é í ó ú ñ, teclado español, caracteres especiales, acentos português Linux, caracteres acentuados, teclado português, ã õ á é í ó ú â ê ô à ç, cedilha, til, digitar acentos Linux, Sonderzeichen Linux, diakritische Zeichen, Braille Unicode, ⠁⠃⠉⠙⠑, Braille input Linux">
     <meta name="author" content="Maik-0000FF">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="googlebot" content="index, follow">
@@ -23,11 +23,11 @@
     <link rel="alternate" hreflang="pt"       href="https://maik-0000ff.github.io/schnelle-umlaute/">
     <link rel="alternate" hreflang="x-default" href="https://maik-0000ff.github.io/schnelle-umlaute/">
 
-    <link rel="icon" type="image/svg+xml" href="docs/schnelle-umlaute-icon.svg">
-    <link rel="icon" type="image/x-icon" href="docs/favicon.ico">
-    <link rel="apple-touch-icon" href="docs/apple-touch-icon.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="docs/apple-touch-icon-152.png">
-    <link rel="apple-touch-icon" sizes="120x120" href="docs/apple-touch-icon-120.png">
+    <link rel="icon" type="image/svg+xml" href="docs/assets/schnelle-umlaute-icon.svg">
+    <link rel="icon" type="image/x-icon" href="docs/assets/favicon.ico">
+    <link rel="apple-touch-icon" href="docs/assets/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="docs/assets/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="docs/assets/apple-touch-icon-120.png">
 
     <meta name="theme-color" content="#060a07">
     <meta name="msapplication-TileColor" content="#060a07">
@@ -150,12 +150,14 @@
         "@context": "https://schema.org",
         "@type": "FAQPage",
         "mainEntity": [
-            { "@type": "Question", "name": "What is Schnelle Umlaute?", "acceptedAnswer": { "@type": "Answer", "text": "Schnelle Umlaute is a native Fcitx5 addon for Linux that enables fast German umlaut input using the same hold + space gesture as Windows PowerToys Quick Accent." } },
-            { "@type": "Question", "name": "Does Schnelle Umlaute work on Wayland?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, Schnelle Umlaute works natively on both X11 and Wayland display protocols without any additional configuration." } },
-            { "@type": "Question", "name": "Does Schnelle Umlaute interfere with the clipboard?", "acceptedAnswer": { "@type": "Answer", "text": "No, Schnelle Umlaute uses direct text insertion via Fcitx5's commitString() API. Your clipboard stays completely untouched." } },
-            { "@type": "Question", "name": "What characters can I type with Schnelle Umlaute?", "acceptedAnswer": { "@type": "Answer", "text": "By default, German umlauts (ä, ö, ü, ß). With 30 customizable mapping slots you can add French accents, Spanish characters, Portuguese accents, Braille Unicode, emojis, math symbols, or full text snippets." } },
-            { "@type": "Question", "name": "Which Linux distributions are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Fully tested on Arch Linux and Ubuntu/Debian. Works on any distribution with Fcitx5 installed." } },
-            { "@type": "Question", "name": "Can I adjust the timing?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, via fcitx5-config-qt. Default is 400ms for lowercase and 700ms for uppercase. Adjust to your typing speed." } }
+            { "@type": "Question", "name": "What is Schnelle Umlaute?", "acceptedAnswer": { "@type": "Answer", "text": "A native Fcitx5 addon for Linux. Type German umlauts, French accents, or any Unicode character using the same hold + space gesture as Windows PowerToys Quick Accent. System-wide, lightweight, no root needed." } },
+            { "@type": "Question", "name": "Does it work on Wayland?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Natively on both X11 and Wayland, no extra configuration. It integrates directly with Fcitx5." } },
+            { "@type": "Question", "name": "Does it touch the clipboard?", "acceptedAnswer": { "@type": "Answer", "text": "Never. Unlike xdotool-based workarounds, Schnelle Umlaute uses Fcitx5's commitString() API — direct insertion, clipboard untouched." } },
+            { "@type": "Question", "name": "What characters can I type?", "acceptedAnswer": { "@type": "Answer", "text": "German umlauts by default (ä ö ü ß Ä Ö Ü). With unlimited configurable mappings: French accents, Spanish, Portuguese, Braille Unicode, emojis, math symbols, full text snippets." } },
+            { "@type": "Question", "name": "Which distros are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Supported on Arch Linux, Ubuntu/Debian, Fedora, and openSUSE. Works on any distro with Fcitx5." } },
+            { "@type": "Question", "name": "Can I adjust the timing?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, via fcitx5-config-qt. Default: 400ms lowercase, 700ms uppercase. Adjustable from 50ms to 2000ms to match your typing speed." } },
+            { "@type": "Question", "name": "Can I use it for text snippets?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Map any key to a full phrase — e.g. hold m + Space to insert your email address, g for a Vim command like ggVGy (select all + yank), or u for sudo apt update. Works with any length of text." } },
+            { "@type": "Question", "name": "What leader keys are available?", "acceptedAnswer": { "@type": "Answer", "text": "Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing." } }
         ]
     }
     </script>
@@ -1210,7 +1212,7 @@
 
 <!-- Navigation -->
 <nav id="main-nav" aria-label="Main navigation">
-    <a href="#" class="nav-logo"><img src="docs/apple-touch-icon.png" alt="" class="nav-icon" width="42" height="42"><span class="nl-w">Schnelle</span> <span class="nl-g">Umlaute</span></a>
+    <a href="#" class="nav-logo"><img src="docs/assets/apple-touch-icon.png" alt="" class="nav-icon" width="42" height="42"><span class="nl-w">Schnelle</span> <span class="nl-g">Umlaute</span></a>
     <div class="nav-right">
         <a href="https://github.com/Maik-0000FF/schnelle-umlaute" class="nav-cta" rel="noopener">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0">
@@ -1379,6 +1381,8 @@
                 <span class="tag">Arch Linux</span>
                 <span class="tag">Ubuntu</span>
                 <span class="tag">Debian</span>
+                <span class="tag">Fedora</span>
+                <span class="tag">openSUSE</span>
             </div>
         </article>
 
@@ -1387,7 +1391,7 @@
             <span class="feat-num" aria-hidden="true">06</span>
             <div class="feat-icon" aria-hidden="true">◈</div>
             <h3 class="feat-title" id="f6">Fully Configurable</h3>
-            <p class="feat-body">30 mapping slots · adjustable delay · Space or Arrow keys as leader.</p>
+            <p class="feat-body">Unlimited mappings · adjustable delay · Space, Arrow, Alt, or custom leader keys.</p>
             <div class="map-mini" aria-label="Example mappings">
                 <div class="map-row"><span class="map-key">a</span><span class="map-arr">→</span><span class="map-val">ä</span></div>
                 <div class="map-row"><span class="map-key">o</span><span class="map-arr">→</span><span class="map-val">ö, ô, ó</span></div>
@@ -1498,15 +1502,23 @@
         </details>
         <details class="q">
             <summary>What characters can I type?</summary>
-            <p class="q-body">German umlauts by default (ä ö ü ß). With 30 configurable slots: French accents, Spanish, Portuguese, Braille Unicode, emojis, math symbols, full text snippets.</p>
+            <p class="q-body">German umlauts by default (ä ö ü ß Ä Ö Ü). With unlimited configurable mappings: French accents, Spanish, Portuguese, Braille Unicode, emojis, math symbols, full text snippets.</p>
         </details>
         <details class="q">
             <summary>Which distros are supported?</summary>
-            <p class="q-body">Fully tested on Arch Linux and Ubuntu/Debian. Works on any distro with Fcitx5.</p>
+            <p class="q-body">Supported on Arch Linux, Ubuntu/Debian, Fedora, and openSUSE. Works on any distro with Fcitx5.</p>
         </details>
         <details class="q">
             <summary>Can I adjust the timing?</summary>
-            <p class="q-body">Yes, via <code>fcitx5-config-qt</code>. Default: 400ms lowercase, 700ms uppercase. Tune to your typing speed.</p>
+            <p class="q-body">Yes, via <code>fcitx5-config-qt</code>. Default: 400ms lowercase, 700ms uppercase. Adjustable from 50ms to 2000ms to match your typing speed.</p>
+        </details>
+        <details class="q">
+            <summary>Can I use it for text snippets?</summary>
+            <p class="q-body">Yes. Map any key to a full phrase — e.g. hold <kbd>m</kbd> + Space to insert your email address, <kbd>g</kbd> for a Vim command like <code>ggVGy</code> (select all + yank), or <kbd>u</kbd> for <code>sudo apt update</code>. Works with any length of text.</p>
+        </details>
+        <details class="q">
+            <summary>What leader keys are available?</summary>
+            <p class="q-body">Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing.</p>
         </details>
     </div>
 </div>
@@ -1770,17 +1782,27 @@
         var cursor = document.getElementById('term-cursor');
         if (!body || !cursor) return;
 
-        /* Installation script — alternates Arch / Ubuntu */
+        /* Installation script — single unified installer, cycles distros */
         var groups = [
             [
                 { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
                 { cmd: 'cd schnelle-umlaute', out: null },
-                { cmd: './install.sh', out: '[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
+                { cmd: './install.sh', out: 'Distribution: Arch Linux\n[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
             ],
             [
                 { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
                 { cmd: 'cd schnelle-umlaute', out: null },
-                { cmd: './install-ubuntu.sh', out: '[✓] apt packages installed\n[✓] Build complete\n[✓] Addon installed' },
+                { cmd: './install.sh', out: 'Distribution: Ubuntu 24.04 LTS\n[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
+            ],
+            [
+                { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
+                { cmd: 'cd schnelle-umlaute', out: null },
+                { cmd: './install.sh', out: 'Distribution: Fedora 41\n[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
+            ],
+            [
+                { cmd: 'git clone https://github.com/Maik-0000FF/schnelle-umlaute.git', out: "Cloning into 'schnelle-umlaute'..." },
+                { cmd: 'cd schnelle-umlaute', out: null },
+                { cmd: './install.sh', out: 'Distribution: openSUSE Tumbleweed\n[✓] Dependencies found\n[✓] Build complete\n[✓] Addon installed' },
             ],
         ];
 

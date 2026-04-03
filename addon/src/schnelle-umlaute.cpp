@@ -9,6 +9,8 @@
 #include <fcitx-utils/utf8.h>
 #include <fcitx-utils/event.h>
 #include <fcitx-utils/log.h>
+#include <fcitx-utils/standardpaths.h>
+#include <fcitx-utils/fs.h>
 #include <fcitx-config/configuration.h>
 #include <fcitx-config/iniparser.h>
 #include <string>
@@ -16,7 +18,6 @@
 #include <unordered_set>
 #include <vector>
 #include <memory>
-#include <ctime>
 #include <algorithm>
 
 namespace fcitx {
@@ -29,6 +30,7 @@ constexpr uint64_t kMicrosecondsPerMillisecond = 1'000;
 constexpr int kDelayMin = 50;
 constexpr int kDelayMax = 2000;
 constexpr int kDelayStep = 25;
+constexpr int kDeferredCommitDelayMs = 5;
 
 class IntConstrainWithStep {
 public:
@@ -47,6 +49,30 @@ private:
     int step_;
 };
 
+/// Annotation that sets placeholder text, optional compact mode, and tooltip.
+struct PlaceholderAnnotation {
+    PlaceholderAnnotation(std::string text, bool compact = false,
+                          std::string tooltip = "")
+        : text_(std::move(text)), compact_(compact),
+          tooltip_(std::move(tooltip)) {}
+    bool skipDescription() const { return false; }
+    bool skipSave() const { return false; }
+    void dumpDescription(RawConfig &config) const {
+        config.setValueByPath("Placeholder", text_);
+        if (compact_) {
+            config.setValueByPath("Compact", "True");
+        }
+        if (!tooltip_.empty()) {
+            config.setValueByPath("Tooltip", tooltip_);
+        }
+    }
+private:
+    std::string text_;
+    bool compact_;
+    std::string tooltip_;
+};
+
+
 FCITX_CONFIGURATION(
     DelayConfig,
     Option<int, IntConstrainWithStep> lowercase{this, "Lowercase", "Lowercase (ms)", 400, IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
@@ -60,79 +86,27 @@ FCITX_CONFIGURATION(
     Option<bool> right{this, "Right", "Right Arrow", false};
     Option<bool> up{this, "Up", "Up Arrow", false};
     Option<bool> down{this, "Down", "Down Arrow", false};
-    Option<bool> alt{this, "Alt", "\xe2\x9a\xa0 experimental \xe2\x80\x93 Alt/AltGr", false};
-    Option<std::string> customKey{this, "CustomKey", "\xe2\x9a\xa0 experimental \xe2\x80\x93 Custom Leader Key", ""};
-);
-
-FCITX_CONFIGURATION(
-    MappingsConfig,
-    Option<std::string> input1{this, "Input1", "Input 1", "a"};
-    Option<std::string> output1{this, "Output1", "Output 1", "\xc3\xa4"};
-    Option<std::string> input2{this, "Input2", "Input 2", "o"};
-    Option<std::string> output2{this, "Output2", "Output 2", "\xc3\xb6"};
-    Option<std::string> input3{this, "Input3", "Input 3", "u"};
-    Option<std::string> output3{this, "Output3", "Output 3", "\xc3\xbc"};
-    Option<std::string> input4{this, "Input4", "Input 4", "s"};
-    Option<std::string> output4{this, "Output4", "Output 4", "\xc3\x9f"};
-    Option<std::string> input5{this, "Input5", "Input 5", "A"};
-    Option<std::string> output5{this, "Output5", "Output 5", "\xc3\x84"};
-    Option<std::string> input6{this, "Input6", "Input 6", "O"};
-    Option<std::string> output6{this, "Output6", "Output 6", "\xc3\x96"};
-    Option<std::string> input7{this, "Input7", "Input 7", "U"};
-    Option<std::string> output7{this, "Output7", "Output 7", "\xc3\x9c"};
-    Option<std::string> input8{this, "Input8", "Input 8", ""};
-    Option<std::string> output8{this, "Output8", "Output 8", ""};
-    Option<std::string> input9{this, "Input9", "Input 9", ""};
-    Option<std::string> output9{this, "Output9", "Output 9", ""};
-    Option<std::string> input10{this, "Input10", "Input 10", ""};
-    Option<std::string> output10{this, "Output10", "Output 10", ""};
-    Option<std::string> input11{this, "Input11", "Input 11", ""};
-    Option<std::string> output11{this, "Output11", "Output 11", ""};
-    Option<std::string> input12{this, "Input12", "Input 12", ""};
-    Option<std::string> output12{this, "Output12", "Output 12", ""};
-    Option<std::string> input13{this, "Input13", "Input 13", ""};
-    Option<std::string> output13{this, "Output13", "Output 13", ""};
-    Option<std::string> input14{this, "Input14", "Input 14", ""};
-    Option<std::string> output14{this, "Output14", "Output 14", ""};
-    Option<std::string> input15{this, "Input15", "Input 15", ""};
-    Option<std::string> output15{this, "Output15", "Output 15", ""};
-    Option<std::string> input16{this, "Input16", "Input 16", ""};
-    Option<std::string> output16{this, "Output16", "Output 16", ""};
-    Option<std::string> input17{this, "Input17", "Input 17", ""};
-    Option<std::string> output17{this, "Output17", "Output 17", ""};
-    Option<std::string> input18{this, "Input18", "Input 18", ""};
-    Option<std::string> output18{this, "Output18", "Output 18", ""};
-    Option<std::string> input19{this, "Input19", "Input 19", ""};
-    Option<std::string> output19{this, "Output19", "Output 19", ""};
-    Option<std::string> input20{this, "Input20", "Input 20", ""};
-    Option<std::string> output20{this, "Output20", "Output 20", ""};
-    Option<std::string> input21{this, "Input21", "Input 21", ""};
-    Option<std::string> output21{this, "Output21", "Output 21", ""};
-    Option<std::string> input22{this, "Input22", "Input 22", ""};
-    Option<std::string> output22{this, "Output22", "Output 22", ""};
-    Option<std::string> input23{this, "Input23", "Input 23", ""};
-    Option<std::string> output23{this, "Output23", "Output 23", ""};
-    Option<std::string> input24{this, "Input24", "Input 24", ""};
-    Option<std::string> output24{this, "Output24", "Output 24", ""};
-    Option<std::string> input25{this, "Input25", "Input 25", ""};
-    Option<std::string> output25{this, "Output25", "Output 25", ""};
-    Option<std::string> input26{this, "Input26", "Input 26", ""};
-    Option<std::string> output26{this, "Output26", "Output 26", ""};
-    Option<std::string> input27{this, "Input27", "Input 27", ""};
-    Option<std::string> output27{this, "Output27", "Output 27", ""};
-    Option<std::string> input28{this, "Input28", "Input 28", ""};
-    Option<std::string> output28{this, "Output28", "Output 28", ""};
-    Option<std::string> input29{this, "Input29", "Input 29", ""};
-    Option<std::string> output29{this, "Output29", "Output 29", ""};
-    Option<std::string> input30{this, "Input30", "Input 30", ""};
-    Option<std::string> output30{this, "Output30", "Output 30", ""};
+    Option<bool> alt{this, "Alt", "Alt/AltGr", false};
+    Option<bool> customKeyEnabled{this, "CustomKeyEnabled",
+        "Custom Leader 1", false};
+    OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey{
+        this, "CustomKey", "  \xe2\x86\xb3 Key", "",
+        {}, {}, PlaceholderAnnotation("e.g. ; or #", true,
+            "Single character. Must not be a mapped input key.")};
+    Option<bool> customKey2Enabled{this, "CustomKey2Enabled",
+        "Custom Leader 2 (hand-split)", false};
+    OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey2{
+        this, "CustomKey2", "  \xe2\x86\xb3 Key", "",
+        {}, {}, PlaceholderAnnotation("e.g. j or f", true,
+            "Single character on the opposite keyboard half of Leader 1.")};
 );
 
 FCITX_CONFIGURATION(
     SchnelleUmlauteConfig,
     Option<DelayConfig> delay{this, "Delay", "Delay"};
     Option<LeaderConfig> leader{this, "Leader", "Leader Keys"};
-    Option<MappingsConfig> mappings{this, "Mappings", "Mappings"};
+    ExternalOption mappingEditor{this, "MappingEditor", "Mapping Editor",
+        "fcitx://config/addon/schnelle-umlaute/mappings.txt"};
 );
 
 // =============================================================================
@@ -250,6 +224,30 @@ public:
         applyConfig();
     }
 
+    void setSubConfig(const std::string &path,
+                      const RawConfig &config) override {
+        if (path == "mappings.txt") {
+            // If RawConfig contains mapping data, use it directly.
+            // Otherwise, reload from file (normal configtool path).
+            umlautMap_.clear();
+            for (int i = 0; ; ++i) {
+                auto input = config.valueByPath(
+                    std::to_string(i) + "/Input");
+                auto output = config.valueByPath(
+                    std::to_string(i) + "/Output");
+                if (!input || input->empty()) break;
+                if (output && !output->empty()) {
+                    umlautMap_[*input] = splitOutputs(*output);
+                }
+            }
+            if (umlautMap_.empty()) {
+                loadMappingsFromFile();
+            }
+            FCITX_INFO() << "Schnelle: Mappings reloaded, count="
+                         << umlautMap_.size();
+        }
+    }
+
     std::vector<InputMethodEntry> listInputMethods() override {
         std::vector<InputMethodEntry> methods;
         InputMethodEntry entry("schnelle-umlaute", "Schnelle Umlaute", "de", "schnelle-umlaute");
@@ -258,7 +256,7 @@ public:
         return methods;
     }
 
-    void keyEvent(const InputMethodEntry &entry, KeyEvent &keyEvent) override {
+    void keyEvent(const InputMethodEntry & /*entry*/, KeyEvent &keyEvent) override {
         auto *ic = keyEvent.inputContext();
         auto *state = ic->propertyFor(&factory_);
 
@@ -353,7 +351,7 @@ public:
                 if (state->altGestureSession_) {
                     // Alt-led gesture on KWin Wayland: defer commit.
                     // Auto-repeat sends release-press pairs; committing here
-                    // would destroy cycling state. A 30ms timer distinguishes
+                    // would destroy cycling state. A short timer distinguishes
                     // auto-repeat from real release.
                     state->inputKeyPressed_ = false;
                     scheduleDeferredCyclingCommit(ic, state);
@@ -367,6 +365,7 @@ public:
                     ic->inputPanel().reset();
                     ic->commitString(it->second[state->cyclingIndex_]);
                     ic->updatePreedit();
+                    state->recentlyCommitted_ = true;
                 }
 
                 state->inputKeyPressed_ = false;
@@ -458,7 +457,22 @@ public:
         // =========================================
         // HANDLE LEADER KEY (Space/Arrows/Alt/Custom)
         // =========================================
-        if (isLeaderKey(key, keyChar)) {
+        auto leaderType = classifyLeader(key, keyChar);
+
+        // Dual custom leader split: downgrade to None if this leader is
+        // not allowed for the currently active input key's keyboard half.
+        if (leaderType != LeaderType::None) {
+            std::string activeInput;
+            if (state->cyclingInput_) activeInput = *state->cyclingInput_;
+            else if (state->waitingKey_) activeInput = *state->waitingKey_;
+
+            if (!activeInput.empty() &&
+                !isDualCustomAllowed(leaderType, activeInput)) {
+                leaderType = LeaderType::None;
+            }
+        }
+
+        if (leaderType != LeaderType::None) {
             bool isAlt = isAltLeaderSym(key.sym());
 
             // CASE 1: Currently in cycling mode
@@ -650,12 +664,41 @@ private:
     // Apply in-memory config: rebuild mappings, sanitize custom key, log.
     // Shared by setConfig (values already loaded) and reloadConfig (read from disk).
     void applyConfig() {
-        loadMappingsFromConfig();
+        loadMappingsFromFile();
 
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
         // stores the original value so the UI round-trips correctly.
-        cachedCustomKey_ = sanitizeCustomKey(*config_.leader->customKey);
+        cachedCustomKey_ = *config_.leader->customKeyEnabled
+            ? sanitizeCustomKey(*config_.leader->customKey) : "";
+        cachedCustomKey2_ = *config_.leader->customKey2Enabled
+            ? sanitizeCustomKey(*config_.leader->customKey2) : "";
+
+        // Warn if a custom leader key collides with a mapped input
+        if (!cachedCustomKey_.empty() && umlautMap_.count(cachedCustomKey_)) {
+            FCITX_WARN() << "Schnelle: CustomKey '" << cachedCustomKey_
+                         << "' is also a mapped input"
+                         << " — it cannot trigger its own mapping";
+        }
+        if (!cachedCustomKey2_.empty() && umlautMap_.count(cachedCustomKey2_)) {
+            FCITX_WARN() << "Schnelle: CustomKey2 '" << cachedCustomKey2_
+                         << "' is also a mapped input"
+                         << " — it cannot trigger its own mapping";
+        }
+
+        // Warn about dual custom leader conflicts
+        if (!cachedCustomKey_.empty() && !cachedCustomKey2_.empty()) {
+            if (cachedCustomKey_ == cachedCustomKey2_) {
+                FCITX_WARN() << "Schnelle: CustomKey and CustomKey2 are identical"
+                             << " — dual split disabled, both trigger all mappings";
+            } else if (isLeftHandUSQwerty(cachedCustomKey_) ==
+                       isLeftHandUSQwerty(cachedCustomKey2_)) {
+                FCITX_WARN() << "Schnelle: CustomKey '" << cachedCustomKey_
+                             << "' and CustomKey2 '" << cachedCustomKey2_
+                             << "' are on the same keyboard half"
+                             << " — dual split disabled, both trigger all mappings";
+            }
+        }
 
         std::string leaders;
         if (*config_.leader->space) leaders += "Space ";
@@ -664,7 +707,8 @@ private:
         if (*config_.leader->up) leaders += "Up ";
         if (*config_.leader->down) leaders += "Down ";
         if (*config_.leader->alt) leaders += "Alt/AltGr ";
-        if (!cachedCustomKey_.empty()) leaders += "Custom('" + cachedCustomKey_ + "') ";
+        if (!cachedCustomKey_.empty()) leaders += "Custom1('" + cachedCustomKey_ + "') ";
+        if (!cachedCustomKey2_.empty()) leaders += "Custom2('" + cachedCustomKey2_ + "') ";
         if (leaders.empty()) leaders = "None ";
 
         FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=" << *config_.delay->lowercase
@@ -682,7 +726,7 @@ private:
 
     // Deferred cycling commit for Alt-led gestures on KWin Wayland.
     // Auto-repeat sends release-press pairs; committing on release would
-    // destroy cycling state. Instead, wait 30ms — if a re-press arrives,
+    // destroy cycling state. Instead, wait 5ms — if a re-press arrives,
     // it cancels this timer and cycling continues. If not (real release),
     // the timer fires and commits the cycling value.
     void scheduleDeferredCyclingCommit(InputContext *ic, SchnelleUmlauteState *state) {
@@ -691,11 +735,13 @@ private:
         auto savedRef = ic->watch();
         auto *eventLoop = &instance_->eventLoop();
         uint64_t now = SchnelleUmlauteState::nowUsec();
-        uint64_t target = now + 25 * kMicrosecondsPerMillisecond;
+        uint64_t target = now + kDeferredCommitDelayMs * kMicrosecondsPerMillisecond;
 
         state->timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC, target, 0,
             [state, savedRef, this](EventSourceTime *, uint64_t) {
+                // Safety: see scheduleTimeout — single-threaded event loop
+                // guarantees state outlives savedRef.get() != nullptr.
                 auto *ctx = savedRef.get();
                 if (!ctx) return false;
 
@@ -745,69 +791,72 @@ private:
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs
     // are valid (e.g. mapping a key to " " so terminal commands skip history).
-    // Empty segments between commas are skipped: "a,,b" → ["a", "b"].
-    // A literal comma cannot be used as output.
+    // Comma is the separator between cycling variants: "a,b" → ["a", "b"].
+    // Double comma escapes a literal comma: "a,,b" → ["a,b"].
+    // Empty segments are skipped: "a,,,b" → ["a", ",b"] (escape wins).
     std::vector<std::string> splitOutputs(const std::string &output) {
         std::vector<std::string> outputs;
         if (output.empty()) return outputs;
 
-        size_t start = 0;
+        std::string current;
         for (size_t i = 0; i < output.length(); ++i) {
             if (output[i] == ',') {
-                if (i > start) {
-                    outputs.push_back(output.substr(start, i - start));
+                if (i + 1 < output.length() && output[i + 1] == ',') {
+                    current += ',';
+                    ++i;
+                } else {
+                    if (!current.empty()) {
+                        outputs.push_back(std::move(current));
+                        current.clear();
+                    }
                 }
-                start = i + 1;
+            } else {
+                current += output[i];
             }
         }
-        if (start < output.length()) {
-            outputs.push_back(output.substr(start));
+        if (!current.empty()) {
+            outputs.push_back(std::move(current));
         }
         return outputs;
     }
 
-    void loadMappingsFromConfig() {
+    void loadMappingsFromFile() {
         umlautMap_.clear();
-        auto addMapping = [this](const std::string& input, const std::string& output) {
-            if (!input.empty() && !output.empty()) {
-                auto outputs = splitOutputs(output);
-                if (!outputs.empty()) {
-                    umlautMap_[input] = outputs;
+        auto file = StandardPaths::global().open(
+            StandardPathsType::PkgConfig, "schnelle-umlaute/mappings.txt");
+        if (file.isValid()) {
+            auto fp = fs::openFD(file, "r");
+            if (fp) {
+                char buf[4096];
+                while (fgets(buf, sizeof(buf), fp.get())) {
+                    std::string line(buf);
+                    // Trim trailing newline
+                    while (!line.empty() &&
+                           (line.back() == '\n' || line.back() == '\r')) {
+                        line.pop_back();
+                    }
+                    if (line.empty() || line[0] == '#') continue;
+                    // Format: first char = input, '=' separator, rest = output
+                    if (line.size() >= 3 && line[1] == '=') {
+                        auto input = line.substr(0, 1);
+                        auto output = line.substr(2);
+                        if (!output.empty()) {
+                            umlautMap_[input] = splitOutputs(output);
+                        }
+                    }
                 }
             }
-        };
-
-        const auto *m = &*config_.mappings;
-        addMapping(*m->input1, *m->output1);
-        addMapping(*m->input2, *m->output2);
-        addMapping(*m->input3, *m->output3);
-        addMapping(*m->input4, *m->output4);
-        addMapping(*m->input5, *m->output5);
-        addMapping(*m->input6, *m->output6);
-        addMapping(*m->input7, *m->output7);
-        addMapping(*m->input8, *m->output8);
-        addMapping(*m->input9, *m->output9);
-        addMapping(*m->input10, *m->output10);
-        addMapping(*m->input11, *m->output11);
-        addMapping(*m->input12, *m->output12);
-        addMapping(*m->input13, *m->output13);
-        addMapping(*m->input14, *m->output14);
-        addMapping(*m->input15, *m->output15);
-        addMapping(*m->input16, *m->output16);
-        addMapping(*m->input17, *m->output17);
-        addMapping(*m->input18, *m->output18);
-        addMapping(*m->input19, *m->output19);
-        addMapping(*m->input20, *m->output20);
-        addMapping(*m->input21, *m->output21);
-        addMapping(*m->input22, *m->output22);
-        addMapping(*m->input23, *m->output23);
-        addMapping(*m->input24, *m->output24);
-        addMapping(*m->input25, *m->output25);
-        addMapping(*m->input26, *m->output26);
-        addMapping(*m->input27, *m->output27);
-        addMapping(*m->input28, *m->output28);
-        addMapping(*m->input29, *m->output29);
-        addMapping(*m->input30, *m->output30);
+        }
+        if (umlautMap_.empty()) {
+            // Default mappings
+            umlautMap_["a"] = {"\xc3\xa4"};
+            umlautMap_["o"] = {"\xc3\xb6"};
+            umlautMap_["u"] = {"\xc3\xbc"};
+            umlautMap_["s"] = {"\xc3\x9f"};
+            umlautMap_["A"] = {"\xc3\x84"};
+            umlautMap_["O"] = {"\xc3\x96"};
+            umlautMap_["U"] = {"\xc3\x9c"};
+        }
     }
 
     // Check for Ctrl/Alt/Super in key state. Shift is intentionally
@@ -823,35 +872,102 @@ private:
                sym == FcitxKey_ISO_Level3_Shift;
     }
 
-    bool isLeaderKey(const Key &key, const std::string &keyChar) const {
+    // Case-insensitive match for ASCII letters, exact match otherwise.
+    // Allows Shift+f to match custom leader "f" so uppercase mappings
+    // work naturally while holding Shift (e.g. Shift+O + Shift+F → Ö).
+    static bool matchCustomKey(const std::string &keyChar, const std::string &customKey) {
+        if (keyChar == customKey) return true;
+        if (keyChar.size() == 1 && customKey.size() == 1) {
+            char a = keyChar[0], b = customKey[0];
+            if (a >= 'A' && a <= 'Z') a += 32;
+            if (b >= 'A' && b <= 'Z') b += 32;
+            if (a >= 'a' && a <= 'z') return a == b;
+        }
+        return false;
+    }
+
+    // Leader classification for dual custom leader support.
+    // Built-in leaders (Space, Arrows, Alt) are unrestricted.
+    // Custom1/Custom2 may be restricted by dual-split logic.
+    enum class LeaderType { None, BuiltIn, Custom1, Custom2 };
+
+    LeaderType classifyLeader(const Key &key, const std::string &keyChar) const {
         KeySym sym = key.sym();
 
-        // Check Alt/AltGr leader (works on all layouts)
-        // - Alt_L/Alt_R: Left/Right Alt on US layouts
-        // - ISO_Level3_Shift: AltGr on European layouts (physical Right Alt)
-        if (*config_.leader->alt && isAltLeaderSym(sym)) {
+        // Alt/AltGr — built-in, unrestricted
+        if (*config_.leader->alt && isAltLeaderSym(sym))
+            return LeaderType::BuiltIn;
+
+        // Custom Key 1 (sanitized at config load, case-insensitive for letters)
+        if (!cachedCustomKey_.empty() && !keyChar.empty() &&
+            matchCustomKey(keyChar, cachedCustomKey_))
+            return LeaderType::Custom1;
+
+        // Custom Key 2
+        if (!cachedCustomKey2_.empty() && !keyChar.empty() &&
+            matchCustomKey(keyChar, cachedCustomKey2_))
+            return LeaderType::Custom2;
+
+        // Built-in leader toggles
+        if (*config_.leader->space && sym == FcitxKey_space) return LeaderType::BuiltIn;
+        if (*config_.leader->left && sym == FcitxKey_Left) return LeaderType::BuiltIn;
+        if (*config_.leader->right && sym == FcitxKey_Right) return LeaderType::BuiltIn;
+        if (*config_.leader->up && sym == FcitxKey_Up) return LeaderType::BuiltIn;
+        if (*config_.leader->down && sym == FcitxKey_Down) return LeaderType::BuiltIn;
+
+        return LeaderType::None;
+    }
+
+    // US QWERTY hand classification for dual custom leader split.
+    // Left hand: qwertasdfgzxcvb + digits 1-5 + symbols `~!@#$%
+    // Everything else (including non-ASCII) defaults to right hand.
+    static bool isLeftHandUSQwerty(const std::string &key) {
+        if (key.size() != 1) return false;
+        char c = key[0];
+        if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+        return c == 'q' || c == 'w' || c == 'e' || c == 'r' || c == 't' ||
+               c == 'a' || c == 's' || c == 'd' || c == 'f' || c == 'g' ||
+               c == 'z' || c == 'x' || c == 'c' || c == 'v' || c == 'b' ||
+               c == '`' || c == '1' || c == '2' || c == '3' || c == '4' ||
+               c == '5' || c == '~' || c == '!' || c == '@' || c == '#' ||
+               c == '$' || c == '%';
+    }
+
+    // Dual custom leader split: when BOTH custom keys are set and on
+    // opposite hands, each only triggers inputs on the OTHER hand.
+    // Single custom key or same-hand keys → no restriction.
+    // Built-in leaders always unrestricted.
+    bool isDualCustomAllowed(LeaderType leader, const std::string &inputKey) const {
+        if (leader == LeaderType::BuiltIn || leader == LeaderType::None)
             return true;
-        }
 
-        // Check custom leader key (sanitized at config load)
-        if (!cachedCustomKey_.empty() && !keyChar.empty() && keyChar == cachedCustomKey_) {
+        // Dual mode only when BOTH custom keys are set
+        if (cachedCustomKey_.empty() || cachedCustomKey2_.empty())
             return true;
-        }
 
-        // Check individual leader key toggles
-        if (*config_.leader->space && sym == FcitxKey_space) return true;
-        if (*config_.leader->left && sym == FcitxKey_Left) return true;
-        if (*config_.leader->right && sym == FcitxKey_Right) return true;
-        if (*config_.leader->up && sym == FcitxKey_Up) return true;
-        if (*config_.leader->down && sym == FcitxKey_Down) return true;
+        // Identical keys → no split
+        if (cachedCustomKey_ == cachedCustomKey2_)
+            return true;
 
-        return false;
+        bool key1Left = isLeftHandUSQwerty(cachedCustomKey_);
+        bool key2Left = isLeftHandUSQwerty(cachedCustomKey2_);
+
+        // Both keys on same hand → no split possible, allow all
+        if (key1Left == key2Left) return true;
+
+        bool inputLeft = isLeftHandUSQwerty(inputKey);
+
+        // Left-hand leader triggers RIGHT-hand inputs (and vice versa)
+        if (leader == LeaderType::Custom1)
+            return key1Left ? !inputLeft : inputLeft;
+        else  // Custom2
+            return key2Left ? !inputLeft : inputLeft;
     }
 
     int getEffectiveDelay(const SchnelleUmlauteState *state) const {
         if (!state->waitingKey_) return *config_.delay->lowercase;
         bool isUpper = state->waitingKey_->length() == 1 &&
-                       std::isupper(static_cast<unsigned char>((*state->waitingKey_)[0]));
+                       (*state->waitingKey_)[0] >= 'A' && (*state->waitingKey_)[0] <= 'Z';
         return isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
     }
 
@@ -873,7 +989,11 @@ private:
             target_usec,
             0,
             [state, savedKey, savedRef](EventSourceTime *, uint64_t) {
-                // Validate IC first — if destroyed, state is gone too.
+                // Safety: state is owned by IC (InputContextProperty). If IC
+                // is destroyed, savedRef.get() returns nullptr and we bail
+                // before touching state. No race: fcitx5's event loop is
+                // single-threaded, so IC can't be destroyed between the
+                // check and the access.
                 auto *ctx = savedRef.get();
                 if (!ctx) return false;
 
@@ -903,17 +1023,9 @@ private:
         if (start == std::string::npos) return "";
         size_t end = raw.find_last_not_of(" \t\n\r");
         std::string trimmed = raw.substr(start, end - start + 1);
-        if (trimmed.length() > 1) {
-            unsigned char first = static_cast<unsigned char>(trimmed[0]);
-            size_t charLen = 1;
-            if (first >= 0xF0) charLen = 4;
-            else if (first >= 0xE0) charLen = 3;
-            else if (first >= 0xC0) charLen = 2;
-            if (charLen <= trimmed.length()) {
-                trimmed = trimmed.substr(0, charLen);
-            }
-        }
-        return trimmed;
+        if (!utf8::validate(trimmed)) return "";
+        size_t firstCharBytes = utf8::ncharByteLength(trimmed.begin(), 1);
+        return trimmed.substr(0, firstCharBytes);
     }
 
     Instance *instance_;
@@ -922,8 +1034,9 @@ private:
 
     // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
-    // Sanitized custom leader key (trimmed, single UTF-8 char)
+    // Sanitized custom leader keys (trimmed, single UTF-8 char each)
     std::string cachedCustomKey_;
+    std::string cachedCustomKey2_;
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {

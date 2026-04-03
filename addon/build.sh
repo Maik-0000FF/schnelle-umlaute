@@ -4,13 +4,11 @@ set -e
 echo "===  Schnelle Umlaute Fcitx5 Addon - Build Script ==="
 echo
 
-# Check dependencies
-echo "Checking dependencies..."
-command -v cmake >/dev/null 2>&1 || { echo "Error: cmake not found. Install with: sudo pacman -S cmake"; exit 1; }
-pacman -Q extra-cmake-modules >/dev/null 2>&1 || { echo "Error: extra-cmake-modules not found. Install with: sudo pacman -S extra-cmake-modules"; exit 1; }
-pacman -Q fcitx5 >/dev/null 2>&1 || { echo "Error: fcitx5 not found. Install with: sudo pacman -S fcitx5"; exit 1; }
-
-echo "✓ All dependencies found"
+# Check basic build tools
+echo "Checking build tools..."
+command -v cmake >/dev/null 2>&1 || { echo "Error: cmake not found."; exit 1; }
+command -v g++ >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || { echo "Error: g++/gcc not found."; exit 1; }
+echo "All build tools found"
 echo
 
 # Create build directory
@@ -19,16 +17,16 @@ rm -rf build
 mkdir -p build
 cd build
 
-# Configure with CMake
+# Configure with CMake (cmake will check for fcitx5, Qt6, ECM etc.)
 echo "Configuring with CMake..."
 cmake ..
 
 # Build
 echo "Building..."
-make -j$(nproc)
+make -j"$(nproc)"
 
 echo
-echo "✓ Build successful!"
+echo "Build successful!"
 echo
 echo "To install, run:"
-echo "  cd build && sudo make install"
+echo "  cd build && sudo cmake --install ."
