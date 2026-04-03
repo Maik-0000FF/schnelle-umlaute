@@ -22,7 +22,7 @@ This addon is **not a standalone keyboard layout** - it works **alongside** your
 
 ---
 
-| KDE Systemeinstellungen | fcitx5-config-qt |
+| KDE System Settings | fcitx5-config-qt |
 |:-:|:-:|
 | ![KDE](assets/screenshot-addon-config-kde.png) | ![Qt](assets/screenshot-addon-config-qt.png) |
 

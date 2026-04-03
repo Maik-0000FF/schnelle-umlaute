@@ -55,9 +55,7 @@ cd schnelle-umlaute
 
 After installation: **Logout and login**, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
 
-| KDE Systemeinstellungen | fcitx5-config-qt |
-|:-:|:-:|
-| ![KDE](docs/assets/screenshot-input-method-kde.png) | ![Qt](docs/assets/screenshot-input-method-qt.png) |
+![Input Method Configuration](docs/assets/screenshot-input-method-qt.png)
 
 ## Usage
 

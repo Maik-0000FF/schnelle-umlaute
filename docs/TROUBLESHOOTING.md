@@ -165,7 +165,7 @@ gcc --version  # Should be 11 or newer
 
 **Fix:** Open `fcitx5-config-qt` → **Global Options** → enable **"Show Preedit In Application"**.
 
-| KDE Systemeinstellungen | fcitx5-config-qt |
+| KDE System Settings | fcitx5-config-qt |
 |:-:|:-:|
 | ![KDE](assets/screenshot-global-options-kde.png) | ![Qt](assets/screenshot-global-options-qt.png) |
 
