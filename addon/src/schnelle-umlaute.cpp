@@ -814,6 +814,8 @@ private:
                 current += output[i];
             }
         }
+        // Trailing comma produces an empty segment which is intentionally
+        // skipped — an empty cycling variant would be useless.
         if (!current.empty()) {
             outputs.push_back(std::move(current));
         }
@@ -837,6 +839,9 @@ private:
                     }
                     if (line.empty() || line[0] == '#') continue;
                     // Format: first char = input, '=' separator, rest = output
+                    // Format: single ASCII byte + '=' + output.
+                    // Multi-byte UTF-8 inputs (e.g. ñ) are not supported
+                    // since input keys correspond to physical keyboard keys.
                     if (line.size() >= 3 && line[1] == '=') {
                         auto input = line.substr(0, 1);
                         auto output = line.substr(2);
@@ -964,6 +969,8 @@ private:
             return key2Left ? !inputLeft : inputLeft;
     }
 
+    // ASCII-only uppercase check — sufficient because input keys are
+    // physical keyboard keys which are always single ASCII bytes.
     int getEffectiveDelay(const SchnelleUmlauteState *state) const {
         if (!state->waitingKey_) return *config_.delay->lowercase;
         bool isUpper = state->waitingKey_->length() == 1 &&
