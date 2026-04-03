@@ -21,6 +21,8 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
 
+### Documentation
+
 - **[Quick Start](#quick-start)**
 - **[Usage](#usage)**
 - **[How It Works](docs/HOW-IT-WORKS.md)**
