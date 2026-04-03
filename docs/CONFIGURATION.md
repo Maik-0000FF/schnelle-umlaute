@@ -162,6 +162,7 @@ Map a single key to an entire phrase or longer text. Useful for frequently typed
 | <kbd>m</kbd> | Mit freundlichen Grüßen | Email signature |
 | <kbd>@</kbd> | name@example.com | Email address |
 | <kbd>t</kbd> | TODO: | Code annotation |
+| <kbd>g</kbd> | ggVGy | Neovim: select all + yank (works in normal mode) |
 
 ```
 # ~/.config/fcitx5/schnelle-umlaute/mappings.txt
