@@ -116,7 +116,7 @@ Created by [Maik-0000FF](https://github.com/Maik-0000FF)
 
 ## Credits
 
-Inspired by [Windows PowerToys Quick Accent](https://learn.microsoft.com/en-us/windows/powertoys/quick-accent)
+Inspired by [PowerAccent](https://github.com/damienleroy/PowerAccent) by Damien Leroy, which was later integrated into [Windows PowerToys](https://learn.microsoft.com/en-us/windows/powertoys/quick-accent) as Quick Accent.
 
 Built with:
 - **Fcitx5** - Input Method Framework
