@@ -21,6 +21,8 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
 
+**[Quick Start](#quick-start)** · **[Usage](#usage)** · **[How It Works](docs/HOW-IT-WORKS.md)** · **[Installation](docs/INSTALLATION.md)** · **[Configuration](docs/CONFIGURATION.md)** · **[Troubleshooting](docs/TROUBLESHOOTING.md)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Upgrading](docs/UPGRADING.md)**
+
 ## What Makes This Special?
 
 Unlike clipboard-based or keyboard simulation solutions, this Fcitx5 addon uses **direct text insertion** (`commitString()`):
@@ -70,17 +72,6 @@ All mappings are fully customizable — add French, Spanish, Emoji, Braille, or 
 - **Linux** with Fcitx5 (Arch, Ubuntu/Debian, Fedora, openSUSE)
 - **CMake** and **extra-cmake-modules**
 - **GCC with C++20 support**
-
-## Documentation
-
-| Topic | Description |
-|-------|-------------|
-| [How It Works](docs/HOW-IT-WORKS.md) | Gesture flow, timing diagrams, why typing feels different |
-| [Installation](docs/INSTALLATION.md) | Manual installation per distro, environment variables, uninstallation |
-| [Configuration](docs/CONFIGURATION.md) | Delays, leader keys, character mappings, accent cycling, snippets, emoji |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues, WezTerm, XWayland, security fields |
-| [Architecture](docs/ARCHITECTURE.md) | Internal design, comparison with other approaches |
-| [Upgrading](docs/UPGRADING.md) | Migration from v0.x to v1.0.0 |
 
 ## Uninstallation
 
