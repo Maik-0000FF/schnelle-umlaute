@@ -21,7 +21,14 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
 
-**[Quick Start](#quick-start)** · **[Usage](#usage)** · **[How It Works](docs/HOW-IT-WORKS.md)** · **[Installation](docs/INSTALLATION.md)** · **[Configuration](docs/CONFIGURATION.md)** · **[Troubleshooting](docs/TROUBLESHOOTING.md)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Upgrading](docs/UPGRADING.md)**
+- **[Quick Start](#quick-start)**
+- **[Usage](#usage)**
+- **[How It Works](docs/HOW-IT-WORKS.md)**
+- **[Installation](docs/INSTALLATION.md)**
+- **[Configuration](docs/CONFIGURATION.md)**
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)**
+- **[Architecture](docs/ARCHITECTURE.md)**
+- **[Upgrading](docs/UPGRADING.md)**
 
 ## What Makes This Special?
 
@@ -87,17 +94,17 @@ Contributions welcome! This addon is written in **C++20**, uses **Fcitx5 InputMe
 
 ## Support
 
-If you find this project useful, consider supporting its development:
-
-<p>
-  <a href="https://github.com/sponsors/Maik-0000FF">
-    <img src="https://img.shields.io/badge/GitHub_Sponsors-Support_this_project-ea4aaa?style=for-the-badge&logo=github" alt="GitHub Sponsors">
-  </a>
-  &nbsp;
-  <a href="https://ko-fi.com/maik0000ff">
-    <img src="https://img.shields.io/badge/Ko--fi-Buy_me_a_coffee-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi">
-  </a>
-</p>
+> If you find Schnelle Umlaute useful, you can support its development:
+>
+> <a href="https://github.com/sponsors/Maik-0000FF">
+>   <img src="https://img.shields.io/badge/GitHub_Sponsors-Support_this_project-ea4aaa?style=for-the-badge&logo=github" alt="GitHub Sponsors">
+> </a>
+> &nbsp;
+> <a href="https://ko-fi.com/maik0000ff">
+>   <img src="https://img.shields.io/badge/Ko--fi-Buy_me_a_coffee-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi">
+> </a>
+>
+> A star also helps — it makes this project easier to discover.
 
 ## License
 
