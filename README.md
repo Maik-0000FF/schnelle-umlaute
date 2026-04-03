@@ -17,7 +17,8 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã)
 - Snippets: Map single keys to entire text phrases
 - Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
-- Configurable activation keys and unlimited mapping slots
+- Configurable leader keys (Space, Arrow, Alt, or any custom key) — avoid unwanted spaces
+- Unlimited mapping slots
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
 
@@ -75,6 +76,8 @@ After installation: **Logout and login**, then run `fcitx5-config-qt` to add "Sc
 | <kbd>Shift</kbd>+<kbd>u</kbd> | + | <kbd>Space</kbd> | = | Ü |
 
 All mappings are fully customizable — add French, Spanish, Emoji, Braille, or any Unicode character. See [Configuration](docs/CONFIGURATION.md).
+
+> **Tip:** Space adds an unwanted space at the end of a word? Switch the leader key to an arrow key or assign a custom key (e.g. `f`, `j`) in [Configuration → Leader Key](docs/CONFIGURATION.md#leader-key). This eliminates the space problem entirely.
 
 ## Requirements
 
