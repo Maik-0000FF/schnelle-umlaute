@@ -88,9 +88,9 @@ All mappings are fully customizable — add French, Spanish, Emoji, Braille, or 
 
 See [Installation Guide](docs/INSTALLATION.md#uninstallation) for manual uninstallation.
 
-## Contributing
+## Feedback
 
-Contributions welcome! This addon is written in **C++20**, uses **Fcitx5 InputMethodEngineV2 API**, and is built with **CMake**.
+Found a bug or have a feature idea? Open an [issue](https://github.com/Maik-0000FF/schnelle-umlaute/issues).
 
 ## Support
 
