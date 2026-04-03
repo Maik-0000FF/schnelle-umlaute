@@ -50,12 +50,12 @@ Description=Down Arrow
 [Leader/Alt]
 Type=Boolean
 DefaultValue=False
-Description=⚠ experimental – Alt/AltGr
+Description=Alt/AltGr
 
 [Leader/CustomKeyEnabled]
 Type=Boolean
 DefaultValue=False
-Description=⚠ Custom Leader 1
+Description=Custom Leader 1
 
 [Leader/CustomKey]
 Type=String
@@ -68,7 +68,7 @@ Tooltip=Single character. Must not be a mapped input key.
 [Leader/CustomKey2Enabled]
 Type=Boolean
 DefaultValue=False
-Description=⚠ Custom Leader 2 (hand-split)
+Description=Custom Leader 2 (hand-split)
 
 [Leader/CustomKey2]
 Type=String

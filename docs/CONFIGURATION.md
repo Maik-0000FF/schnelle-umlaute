@@ -57,9 +57,9 @@ Customize which keys activate the umlaut transformation. Multiple leader keys ca
 | Right | disabled | <kbd>→</kbd> |
 | Up | disabled | <kbd>↑</kbd> |
 | Down | disabled | <kbd>↓</kbd> |
-| ⚠ Alt | disabled | <kbd>Alt</kbd> / <kbd>AltGr</kbd> |
-| ⚠ Custom Leader 1 | disabled | Any single key |
-| ⚠ Custom Leader 2 | disabled | Any single key (hand-split) |
+| Alt | disabled | <kbd>Alt</kbd> / <kbd>AltGr</kbd> |
+| Custom Leader 1 | disabled | Any single key |
+| Custom Leader 2 | disabled | Any single key (hand-split) |
 
 ```ini
 [Leader]
@@ -75,15 +75,15 @@ CustomKey2Enabled=False
 CustomKey2=
 ```
 
-> **⚠ Experimental: Alt / AltGr Leader**
+> **Alt / AltGr Leader**
 > Enables <kbd>Alt</kbd> (Left/Right Alt) and <kbd>AltGr</kbd> (ISO_Level3_Shift on EU layouts) as leader keys. On KWin Wayland, auto-repeat sends release-press pairs which can cause input leaks. Works reliably under XIM (e.g. WezTerm).
 
-> **⚠ Experimental: Custom Leader Keys**
-> Assign one or two single characters as additional leader keys (e.g. `#`, `;`, `j`). Multi-character input is trimmed to the first UTF-8 character, whitespace is ignored. Matching is case-insensitive for ASCII letters, so <kbd>Shift</kbd>+<kbd>f</kbd> matches custom leader `f`.
+> **Custom Leader Keys**
+> Assign one or two single characters as additional leader keys (e.g. `f`, `j`). Multi-character input is trimmed to the first UTF-8 character, whitespace is ignored. Matching is case-insensitive for ASCII letters, so <kbd>Shift</kbd>+<kbd>f</kbd> matches custom leader `f`.
 >
 > When both custom leaders are set on **opposite keyboard halves** (US QWERTY), dual-split mode activates: each leader only triggers mappings on the other hand (e.g. left-hand leader `;` triggers right-hand inputs `u`, `o`, `i`). Same-hand or identical keys disable the split — both trigger all mappings.
 >
-> **Warning:** A custom leader key must not be a mapped input key — it cannot trigger its own mapping. The patched config GUI shows a dynamic warning if a conflict is detected; with the original configtool, check the fcitx5 log for warnings.
+> **Note:** A custom leader key must not be a mapped input key — it cannot trigger its own mapping. The config GUI shows a warning if a conflict is detected.
 
 ---
 

@@ -1,5 +1,27 @@
 # Troubleshooting
 
+## Accidental accents when typing fast
+
+**Symptom:** When typing fast with Space as leader key, accents appear at word boundaries instead of a normal letter + space.
+
+**Examples:**
+
+| Language | Expected | Actual (fast typing) | Cause |
+|----------|----------|---------------------|-------|
+| German | Der Bus kommt gleich. | Der Buß kommt gleich. | `s` still held when Space is pressed → ß |
+| French | Je mange une pomme chaque jour. | Je mange une pommé chaque jour. | `e` still held when Space is pressed → é |
+| Spanish | El tren sale a las ocho. | El treñ sale a las ocho. | `n` still held when Space is pressed → ñ |
+
+**Cause:** Space serves as both word separator and leader key. When typing quickly, the mapped key at the end of a word hasn't been released yet when Space is pressed — the addon interprets this as a hold+space gesture and outputs the accent instead of the normal letter + space.
+
+**Solution:** Switch to a leader key that doesn't conflict with normal typing:
+
+- **Arrow keys** (<kbd>←</kbd> / <kbd>→</kbd>) — dedicated, no conflict
+- **Alt / AltGr** — works well under XIM (e.g. WezTerm)
+- **Custom keys** (e.g. `f`, `j`) — tested across multiple languages with few conflicts
+
+See [Configuration → Leader Key](CONFIGURATION.md#leader-key) for setup instructions.
+
 ## Addon stops working after moving/switching windows (fcitx5 5.1.18+)
 
 KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) can interfere with the addon — mapped keys stop producing output. Disable the tiling script to fix this.

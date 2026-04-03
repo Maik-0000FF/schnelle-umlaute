@@ -86,15 +86,15 @@ FCITX_CONFIGURATION(
     Option<bool> right{this, "Right", "Right Arrow", false};
     Option<bool> up{this, "Up", "Up Arrow", false};
     Option<bool> down{this, "Down", "Down Arrow", false};
-    Option<bool> alt{this, "Alt", "\xe2\x9a\xa0 experimental \xe2\x80\x93 Alt/AltGr", false};
+    Option<bool> alt{this, "Alt", "Alt/AltGr", false};
     Option<bool> customKeyEnabled{this, "CustomKeyEnabled",
-        "\xe2\x9a\xa0 Custom Leader 1", false};
+        "Custom Leader 1", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey{
         this, "CustomKey", "  \xe2\x86\xb3 Key", "",
         {}, {}, PlaceholderAnnotation("e.g. ; or #", true,
             "Single character. Must not be a mapped input key.")};
     Option<bool> customKey2Enabled{this, "CustomKey2Enabled",
-        "\xe2\x9a\xa0 Custom Leader 2 (hand-split)", false};
+        "Custom Leader 2 (hand-split)", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey2{
         this, "CustomKey2", "  \xe2\x86\xb3 Key", "",
         {}, {}, PlaceholderAnnotation("e.g. j or f", true,
