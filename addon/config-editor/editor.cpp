@@ -40,13 +40,14 @@ MappingEditor::MappingEditor(QWidget *parent)
     connect(deleteButton, &QPushButton::clicked, this,
             &MappingEditor::deleteMapping);
     connect(moveUpButton, &QPushButton::clicked, this, [this]() {
-        if (auto idx = mappingView->currentIndex(); idx.isValid()) {
+        if (auto idx = mappingView->currentIndex(); idx.isValid() && idx.row() > 0) {
             model_->moveUp(idx.row());
             mappingView->setCurrentIndex(model_->index(idx.row() - 1, 0));
         }
     });
     connect(moveDownButton, &QPushButton::clicked, this, [this]() {
-        if (auto idx = mappingView->currentIndex(); idx.isValid()) {
+        if (auto idx = mappingView->currentIndex();
+            idx.isValid() && idx.row() + 1 < model_->rowCount()) {
             model_->moveDown(idx.row());
             mappingView->setCurrentIndex(model_->index(idx.row() + 1, 0));
         }
