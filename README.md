@@ -42,6 +42,8 @@ Unlike clipboard-based or keyboard simulation solutions, this Fcitx5 addon uses 
 
 ## Quick Start
 
+Supported: **Arch Linux** · **Ubuntu/Debian** · **Fedora** · **openSUSE**
+
 ```bash
 git clone https://github.com/Maik-0000FF/schnelle-umlaute.git
 cd schnelle-umlaute
