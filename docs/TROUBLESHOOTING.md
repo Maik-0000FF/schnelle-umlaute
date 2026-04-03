@@ -165,7 +165,9 @@ gcc --version  # Should be 11 or newer
 
 **Fix:** Open `fcitx5-config-qt` → **Global Options** → enable **"Show Preedit In Application"**.
 
-![Global Options - Show Preedit In Application](assets/screenshot-global-options.png)
+| KDE Systemeinstellungen | fcitx5-config-qt |
+|:-:|:-:|
+| ![KDE](assets/screenshot-global-options-kde.png) | ![Qt](assets/screenshot-global-options-qt.png) |
 
 **Cause 2 - Terminal emulators:** Many terminal emulators don't display preedit (composition) text visually, even when the setting is enabled. The cycling still works internally.
 

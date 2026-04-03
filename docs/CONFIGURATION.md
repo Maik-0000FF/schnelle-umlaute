@@ -22,6 +22,10 @@ This addon is **not a standalone keyboard layout** - it works **alongside** your
 
 ---
 
+| KDE Systemeinstellungen | fcitx5-config-qt |
+|:-:|:-:|
+| ![KDE](assets/screenshot-addon-config-kde.png) | ![Qt](assets/screenshot-addon-config-qt.png) |
+
 ## Delays
 
 Customize the timing delays to match your typing speed:
@@ -88,6 +92,8 @@ CustomKey2=
 ---
 
 ## Character Mappings
+
+![Mapping Editor](assets/screenshot-mapping-editor.png)
 
 The addon uses a **dynamic mapping list** — add as many input→output mappings as you need. The first 7 entries are pre-configured with German umlauts (see default mappings in the [README](../README.md)).
 
