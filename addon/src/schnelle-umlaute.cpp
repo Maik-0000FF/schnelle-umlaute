@@ -811,7 +811,7 @@ private:
     // are valid (e.g. mapping a key to " " so terminal commands skip history).
     // Comma is the separator between cycling variants: "a,b" → ["a", "b"].
     // Double comma escapes a literal comma: "a,,b" → ["a,b"].
-    // Empty segments are skipped: "a,,,b" → ["a", ",b"] (escape wins).
+    // Empty segments are skipped: "a,,,b" → ["a,", "b"] (greedy from left).
     std::vector<std::string> splitOutputs(const std::string &output) {
         std::vector<std::string> outputs;
         if (output.empty()) return outputs;
