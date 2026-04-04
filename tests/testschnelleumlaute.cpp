@@ -32,6 +32,18 @@ constexpr int kCodeAltL = 64;
 constexpr int kCodeAltGr = 108;
 constexpr int kCodeHash = 20;
 
+// Helper: load mappings via setSubConfig (the path loadMappingsFromFile reads)
+static void setMappings(Instance *instance,
+                        const std::vector<std::pair<std::string,std::string>> &entries) {
+    auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+    RawConfig mc;
+    for (size_t i = 0; i < entries.size(); ++i) {
+        mc.setValueByPath(std::to_string(i) + "/Input", entries[i].first);
+        mc.setValueByPath(std::to_string(i) + "/Output", entries[i].second);
+    }
+    addon->setSubConfig("mappings.txt", mc);
+}
+
 // Helper: create IC and activate schnelle-umlaute
 static ICUUID createAndActivate(Instance *instance, AddonInstance *testfrontend,
                                 const std::string &name) {
@@ -58,21 +70,12 @@ static void configureLeaders(Instance *instance,
     config.setValueByPath("Leader/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/CustomKey", custom);
-    config.setValueByPath("Mappings/Entries/0/Input", "a");
-    config.setValueByPath("Mappings/Entries/0/Output", "ä");
-    config.setValueByPath("Mappings/Entries/1/Input", "o");
-    config.setValueByPath("Mappings/Entries/1/Output", "ö");
-    config.setValueByPath("Mappings/Entries/2/Input", "u");
-    config.setValueByPath("Mappings/Entries/2/Output", "ü");
-    config.setValueByPath("Mappings/Entries/3/Input", "s");
-    config.setValueByPath("Mappings/Entries/3/Output", "ß");
-    config.setValueByPath("Mappings/Entries/4/Input", "A");
-    config.setValueByPath("Mappings/Entries/4/Output", "Ä");
-    config.setValueByPath("Mappings/Entries/5/Input", "O");
-    config.setValueByPath("Mappings/Entries/5/Output", "Ö");
-    config.setValueByPath("Mappings/Entries/6/Input", "U");
-    config.setValueByPath("Mappings/Entries/6/Output", "Ü");
     addon->setConfig(config);
+    setMappings(instance, {
+        {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"}, {"u", "\xc3\xbc"},
+        {"s", "\xc3\x9f"}, {"A", "\xc3\x84"}, {"O", "\xc3\x96"},
+        {"U", "\xc3\x9c"},
+    });
 }
 
 // =========================================================================
@@ -209,55 +212,22 @@ static void configureMultilingualCycling(Instance *instance,
     config.setValueByPath("Leader/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/CustomKey", custom);
-    // a → ä,à,á,â,ã
-    config.setValueByPath("Mappings/Entries/0/Input", "a");
-    config.setValueByPath("Mappings/Entries/0/Output",
-        "\xc3\xa4,\xc3\xa0,\xc3\xa1,\xc3\xa2,\xc3\xa3");
-    // e → é,è,ê,ë
-    config.setValueByPath("Mappings/Entries/1/Input", "e");
-    config.setValueByPath("Mappings/Entries/1/Output",
-        "\xc3\xa9,\xc3\xa8,\xc3\xaa,\xc3\xab");
-    // i → í,ì,î,ï
-    config.setValueByPath("Mappings/Entries/2/Input", "i");
-    config.setValueByPath("Mappings/Entries/2/Output",
-        "\xc3\xad,\xc3\xac,\xc3\xae,\xc3\xaf");
-    // o → ö,ò,ó,ô,õ
-    config.setValueByPath("Mappings/Entries/3/Input", "o");
-    config.setValueByPath("Mappings/Entries/3/Output",
-        "\xc3\xb6,\xc3\xb2,\xc3\xb3,\xc3\xb4,\xc3\xb5");
-    // u → ü,ù,ú,û
-    config.setValueByPath("Mappings/Entries/4/Input", "u");
-    config.setValueByPath("Mappings/Entries/4/Output",
-        "\xc3\xbc,\xc3\xb9,\xc3\xba,\xc3\xbb");
-    // s → ß (single output, no cycling)
-    config.setValueByPath("Mappings/Entries/5/Input", "s");
-    config.setValueByPath("Mappings/Entries/5/Output", "\xc3\x9f");
-    // c → ç,ć
-    config.setValueByPath("Mappings/Entries/6/Input", "c");
-    config.setValueByPath("Mappings/Entries/6/Output", "\xc3\xa7,\xc4\x87");
-    // n → ñ,ń
-    config.setValueByPath("Mappings/Entries/7/Input", "n");
-    config.setValueByPath("Mappings/Entries/7/Output", "\xc3\xb1,\xc5\x84");
-    // y → ý,ÿ
-    config.setValueByPath("Mappings/Entries/8/Input", "y");
-    config.setValueByPath("Mappings/Entries/8/Output", "\xc3\xbd,\xc3\xbf");
-    // A → Ä,À,Á,Â,Ã
-    config.setValueByPath("Mappings/Entries/9/Input", "A");
-    config.setValueByPath("Mappings/Entries/9/Output",
-        "\xc3\x84,\xc3\x80,\xc3\x81,\xc3\x82,\xc3\x83");
-    // E → É,È,Ê,Ë
-    config.setValueByPath("Mappings/Entries/10/Input", "E");
-    config.setValueByPath("Mappings/Entries/10/Output",
-        "\xc3\x89,\xc3\x88,\xc3\x8a,\xc3\x8b");
-    // O → Ö,Ò,Ó,Ô,Õ
-    config.setValueByPath("Mappings/Entries/11/Input", "O");
-    config.setValueByPath("Mappings/Entries/11/Output",
-        "\xc3\x96,\xc3\x92,\xc3\x93,\xc3\x94,\xc3\x95");
-    // U → Ü,Ù,Ú,Û
-    config.setValueByPath("Mappings/Entries/12/Input", "U");
-    config.setValueByPath("Mappings/Entries/12/Output",
-        "\xc3\x9c,\xc3\x99,\xc3\x9a,\xc3\x9b");
     addon->setConfig(config);
+    setMappings(instance, {
+        {"a", "\xc3\xa4,\xc3\xa0,\xc3\xa1,\xc3\xa2,\xc3\xa3"},
+        {"e", "\xc3\xa9,\xc3\xa8,\xc3\xaa,\xc3\xab"},
+        {"i", "\xc3\xad,\xc3\xac,\xc3\xae,\xc3\xaf"},
+        {"o", "\xc3\xb6,\xc3\xb2,\xc3\xb3,\xc3\xb4,\xc3\xb5"},
+        {"u", "\xc3\xbc,\xc3\xb9,\xc3\xba,\xc3\xbb"},
+        {"s", "\xc3\x9f"},
+        {"c", "\xc3\xa7,\xc4\x87"},
+        {"n", "\xc3\xb1,\xc5\x84"},
+        {"y", "\xc3\xbd,\xc3\xbf"},
+        {"A", "\xc3\x84,\xc3\x80,\xc3\x81,\xc3\x82,\xc3\x83"},
+        {"E", "\xc3\x89,\xc3\x88,\xc3\x8a,\xc3\x8b"},
+        {"O", "\xc3\x96,\xc3\x92,\xc3\x93,\xc3\x94,\xc3\x95"},
+        {"U", "\xc3\x9c,\xc3\x99,\xc3\x9a,\xc3\x9b"},
+    });
 }
 
 // Type a single char with clean typing (press+release).
@@ -933,9 +903,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
         config.setValueByPath("Leader/CustomKey", "");
-        config.setValueByPath("Mappings/Entries/0/Input", "a");
-        config.setValueByPath("Mappings/Entries/0/Output", "a,,b");
         addon->setConfig(config);
+        setMappings(instance, {{"a", "a,,b"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test30");
@@ -969,9 +938,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
         config.setValueByPath("Leader/CustomKey", "");
-        config.setValueByPath("Mappings/Entries/0/Input", "a");
-        config.setValueByPath("Mappings/Entries/0/Output", "x,,y,z");
         addon->setConfig(config);
+        setMappings(instance, {{"a", "x,,y,z"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test31");
@@ -1011,9 +979,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
         config.setValueByPath("Leader/CustomKey", "");
-        config.setValueByPath("Mappings/Entries/0/Input", "a");
-        config.setValueByPath("Mappings/Entries/0/Output", ",,,");
         addon->setConfig(config);
+        setMappings(instance, {{"a", ",,,"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test32");
@@ -1395,9 +1362,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
         config.setValueByPath("Leader/CustomKey", "");
-        config.setValueByPath("Mappings/Entries/0/Input", "a");
-        config.setValueByPath("Mappings/Entries/0/Output", "\xc3\xa4,ae,@");
         addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4,ae,@"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test40");
@@ -1439,9 +1405,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
         config.setValueByPath("Leader/CustomKey", "");
-        config.setValueByPath("Mappings/Entries/0/Input", "a");
-        config.setValueByPath("Mappings/Entries/0/Output", "\xc3\xa4,ae");
         addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4,ae"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test41");
@@ -1575,11 +1540,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
         config.setValueByPath("Leader/CustomKey", "");
-        config.setValueByPath("Mappings/Entries/0/Input", "a");
-        config.setValueByPath("Mappings/Entries/0/Output", "\xc3\xa4,ae");
-        config.setValueByPath("Mappings/Entries/1/Input", "s");
-        config.setValueByPath("Mappings/Entries/1/Output", "\xc3\x9f");
         addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4,ae"}, {"s", "\xc3\x9f"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test45");
@@ -1629,9 +1591,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
         config.setValueByPath("Leader/CustomKey", "");
-        config.setValueByPath("Mappings/Entries/0/Input", "a");
-        config.setValueByPath("Mappings/Entries/0/Output", "\xc3\xa4,ae");
         addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4,ae"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test46");
@@ -1948,9 +1909,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/CustomKey", "");
         config.setValueByPath("Leader/CustomKey2Enabled", "True");
         config.setValueByPath("Leader/CustomKey2", "#");
-        config.setValueByPath("Mappings/Entries/0/Input", "a");
-        config.setValueByPath("Mappings/Entries/0/Output", "\xc3\xa4");
         addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test55");
@@ -1990,11 +1950,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/CustomKey", "z");
         config.setValueByPath("Leader/CustomKey2Enabled", "True");
         config.setValueByPath("Leader/CustomKey2", "/");
-        config.setValueByPath("Mappings/Entries/0/Input", "u");
-        config.setValueByPath("Mappings/Entries/0/Output", "\xc3\xbc");
-        config.setValueByPath("Mappings/Entries/1/Input", "a");
-        config.setValueByPath("Mappings/Entries/1/Output", "\xc3\xa4");
         addon->setConfig(config);
+        setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test56");
@@ -2034,11 +1991,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/CustomKey", "z");
         config.setValueByPath("Leader/CustomKey2Enabled", "True");
         config.setValueByPath("Leader/CustomKey2", "/");
-        config.setValueByPath("Mappings/Entries/0/Input", "u");
-        config.setValueByPath("Mappings/Entries/0/Output", "\xc3\xbc");
-        config.setValueByPath("Mappings/Entries/1/Input", "a");
-        config.setValueByPath("Mappings/Entries/1/Output", "\xc3\xa4");
         addon->setConfig(config);
+        setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test57");
@@ -2078,11 +2032,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/CustomKey", "z");
         config.setValueByPath("Leader/CustomKey2Enabled", "True");
         config.setValueByPath("Leader/CustomKey2", "/");
-        config.setValueByPath("Mappings/Entries/0/Input", "u");
-        config.setValueByPath("Mappings/Entries/0/Output", "\xc3\xbc");
-        config.setValueByPath("Mappings/Entries/1/Input", "a");
-        config.setValueByPath("Mappings/Entries/1/Output", "\xc3\xa4");
         addon->setConfig(config);
+        setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test58");
@@ -2121,9 +2072,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/CustomKeyEnabled", "True");
         config.setValueByPath("Leader/CustomKey", "z");
         config.setValueByPath("Leader/CustomKey2", "");
-        config.setValueByPath("Mappings/Entries/0/Input", "a");
-        config.setValueByPath("Mappings/Entries/0/Output", "\xc3\xa4");
         addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test59");
@@ -2165,9 +2115,8 @@ void scheduleTests(Instance *instance) {
         config.setValueByPath("Leader/CustomKey", "z");
         config.setValueByPath("Leader/CustomKey2Enabled", "True");
         config.setValueByPath("Leader/CustomKey2", "/");
-        config.setValueByPath("Mappings/Entries/0/Input", "a");
-        config.setValueByPath("Mappings/Entries/0/Output", "\xc3\xa4");
         addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test60");
