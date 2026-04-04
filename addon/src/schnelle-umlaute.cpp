@@ -232,7 +232,12 @@ public:
     void setConfig(const RawConfig &config) override {
         config_.load(config);
         // IntConstrainWithStep rejects out-of-range delay values (uses default).
-        // Custom leader key is sanitized at runtime in applyConfig().
+        // Normalize custom leader keys to a single character before saving,
+        // so the config file always reflects what is actually used.
+        config_.leader.mutableValue()->customKey.setValue(
+            sanitizeCustomKey(*config_.leader->customKey));
+        config_.leader.mutableValue()->customKey2.setValue(
+            sanitizeCustomKey(*config_.leader->customKey2));
         safeSaveAsIni(config_, "conf/schnelle-umlaute.conf");
         applyConfig();
     }
@@ -1050,8 +1055,9 @@ private:
     }
 
     // Sanitize custom leader key: trim whitespace, keep only first UTF-8
-    // character.  Only a single key is valid — spaces would silently shadow
-    // the Space toggle, and multi-char strings would never match a keypress.
+    // character, lowercase ASCII letters.  Only a single key is valid —
+    // spaces would silently shadow the Space toggle, and multi-char strings
+    // would never match a keypress.
     static std::string sanitizeCustomKey(const std::string &raw) {
         size_t start = raw.find_first_not_of(" \t\n\r");
         if (start == std::string::npos) return "";
@@ -1059,7 +1065,10 @@ private:
         std::string trimmed = raw.substr(start, end - start + 1);
         if (!utf8::validate(trimmed)) return "";
         size_t firstCharBytes = utf8::ncharByteLength(trimmed.begin(), 1);
-        return trimmed.substr(0, firstCharBytes);
+        std::string result = trimmed.substr(0, firstCharBytes);
+        if (result.size() == 1 && result[0] >= 'A' && result[0] <= 'Z')
+            result[0] = result[0] - 'A' + 'a';
+        return result;
     }
 
     Instance *instance_;
