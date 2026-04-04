@@ -816,6 +816,106 @@ void scheduleTests(Instance *instance) {
     // consuming commit expectations. Timeout behavior is tested manually.
 
     // =========================================================================
+    // TEST 61: Shift-invariant custom leader — Shift+A + Shift+/ → Ä
+    // When Shift is held for uppercase input, Shift+/ produces '?' keysym.
+    // The leader must still match '/' via US QWERTY unshift mapping.
+    // Uses dual-split config (z + /) with default mappings (A→Ä, U→Ü).
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 61: Shift+A + Shift+/ → Ä ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "False");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/CustomKey", "z");
+        config.setValueByPath("Leader/CustomKey2Enabled", "True");
+        config.setValueByPath("Leader/CustomKey2", "/");
+        addon->setConfig(config);
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test61");
+
+        // Press Shift
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+
+        // Hold Shift+A (uppercase mapped input)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
+
+        // Press Shift+/ = '?' (keysym FcitxKey_question, same physical key as '/')
+        // Must be recognized as '/' leader via US QWERTY unshift mapping.
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\x84");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_question, KeyState::Shift, 61), false);
+        FCITX_ASSERT(consumed)
+            << "Shift+/ ('?') must match custom leader '/' for uppercase input";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 61 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 62: Shift-invariant custom leader — Shift+U + Shift+Z → Ü
+    // Shift+Z = 'Z', should match leader 'z' via case-insensitive match.
+    // Verifies existing letter matching still works in dual-split context.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 62: Shift+U + Shift+Z → Ü ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "False");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/CustomKey", "z");
+        config.setValueByPath("Leader/CustomKey2Enabled", "True");
+        config.setValueByPath("Leader/CustomKey2", "/");
+        addon->setConfig(config);
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test62");
+
+        // Press Shift
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+
+        // Hold Shift+U (right-hand uppercase input)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_U, KeyState::Shift, 30), false);
+
+        // Press Shift+Z = 'Z' (left-hand leader, opposite hand → allowed)
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\x9c");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Z, KeyState::Shift, 52), false);
+        FCITX_ASSERT(consumed)
+            << "Shift+Z ('Z') must match custom leader 'z' for uppercase input";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_U, KeyState::Shift, 30), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 62 PASSED";
+    });
+
+    // =========================================================================
     // TEST 30: Double-comma escape — literal comma in output
     // Output "a,,b" should produce single output "a,b" (escaped comma).
     // Must run before configureLeaders tests to avoid inotify interference.
@@ -2001,6 +2101,7 @@ void scheduleTests(Instance *instance) {
         FCITX_INFO() << "Test 58 PASSED";
     });
 
+
     // =========================================================================
     // TEST 59: Single custom key — no split, triggers all mappings
     // Only CustomKey="z" set (no CustomKey2) → 'z' triggers ALL inputs.
@@ -2097,7 +2198,7 @@ int main() {
     setupTestingEnvironment(
         TESTING_BINARY_DIR,
         {"."},
-        {"test"});
+        {"tests"});
 
     char arg0[] = "testschnelleumlaute";
     char arg1[] = "--disable=all";

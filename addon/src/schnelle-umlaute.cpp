@@ -13,6 +13,8 @@
 #include <fcitx-utils/fs.h>
 #include <fcitx-config/configuration.h>
 #include <fcitx-config/iniparser.h>
+#include "mappings-io.h"
+#include <xkbcommon/xkbcommon.h>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -207,7 +209,23 @@ public:
           factory_([](InputContext &) { return new SchnelleUmlauteState; }) {
         instance_->inputContextManager().registerProperty(
             "schnelle-umlaute-state", &factory_);
+
+        // Build XKB keymap from system defaults so we can resolve the
+        // unshifted (Level 0) character for any physical key.  This lets
+        // Shift+symbol custom leaders work (e.g. Shift+/ → '?' is
+        // resolved back to '/' via the keymap).
+        xkbCtx_ = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+        if (xkbCtx_) {
+            xkbKeymap_ = xkb_keymap_new_from_names(
+                xkbCtx_, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
+        }
+
         reloadConfig();
+    }
+
+    ~SchnelleUmlauteEngine() {
+        if (xkbKeymap_) xkb_keymap_unref(xkbKeymap_);
+        if (xkbCtx_) xkb_context_unref(xkbCtx_);
     }
 
     const Configuration *getConfig() const override { return &config_; }
@@ -457,7 +475,7 @@ public:
         // =========================================
         // HANDLE LEADER KEY (Space/Arrows/Alt/Custom)
         // =========================================
-        auto leaderType = classifyLeader(key, keyChar);
+        auto leaderType = classifyLeader(key, keyChar, rawCode);
 
         // Dual custom leader split: downgrade to None if this leader is
         // not allowed for the currently active input key's keyboard half.
@@ -829,38 +847,15 @@ private:
         if (file.isValid()) {
             auto fp = fs::openFD(file, "r");
             if (fp) {
-                char buf[4096];
-                while (fgets(buf, sizeof(buf), fp.get())) {
-                    std::string line(buf);
-                    // Trim trailing newline
-                    while (!line.empty() &&
-                           (line.back() == '\n' || line.back() == '\r')) {
-                        line.pop_back();
-                    }
-                    if (line.empty() || line[0] == '#') continue;
-                    // Format: first char = input, '=' separator, rest = output
-                    // Format: single ASCII byte + '=' + output.
-                    // Multi-byte UTF-8 inputs (e.g. ñ) are not supported
-                    // since input keys correspond to physical keyboard keys.
-                    if (line.size() >= 3 && line[1] == '=') {
-                        auto input = line.substr(0, 1);
-                        auto output = line.substr(2);
-                        if (!output.empty()) {
-                            umlautMap_[input] = splitOutputs(output);
-                        }
-                    }
+                for (const auto &m : schnelle_umlaute::parseMappings(fp.get())) {
+                    umlautMap_[m.input] = splitOutputs(m.output);
                 }
             }
         }
         if (umlautMap_.empty()) {
-            // Default mappings
-            umlautMap_["a"] = {"\xc3\xa4"};
-            umlautMap_["o"] = {"\xc3\xb6"};
-            umlautMap_["u"] = {"\xc3\xbc"};
-            umlautMap_["s"] = {"\xc3\x9f"};
-            umlautMap_["A"] = {"\xc3\x84"};
-            umlautMap_["O"] = {"\xc3\x96"};
-            umlautMap_["U"] = {"\xc3\x9c"};
+            for (const auto &m : schnelle_umlaute::defaultMappings()) {
+                umlautMap_[m.input] = splitOutputs(m.output);
+            }
         }
     }
 
@@ -891,26 +886,58 @@ private:
         return false;
     }
 
+    // Resolve the base (unshifted, Level 0) character for a physical key
+    // using the XKB keymap.  Returns empty string if unavailable.
+    std::string getBaseChar(int rawCode) const {
+        if (!xkbKeymap_) return "";
+        auto code = static_cast<xkb_keycode_t>(rawCode);
+        const xkb_keysym_t *syms;
+        int n = xkb_keymap_key_get_syms_by_level(xkbKeymap_, code, 0, 0, &syms);
+        if (n > 0) {
+            uint32_t uc = xkb_keysym_to_utf32(syms[0]);
+            if (uc > 0 && uc <= kMaxUnicodeCodepoint) {
+                return utf8::UCS4ToUTF8(uc);
+            }
+        }
+        return "";
+    }
+
+    // Match a keypress against a custom leader key.  First tries the
+    // character directly (handles letters via case-folding).  If that
+    // fails (Shift turned '/' into '?'), resolves the physical key's
+    // base character via the XKB keymap and retries.
+    bool matchCustomKeyOrBase(const std::string &keyChar,
+                              const std::string &customKey,
+                              int rawCode) const {
+        if (!keyChar.empty() && matchCustomKey(keyChar, customKey))
+            return true;
+        std::string base = getBaseChar(rawCode);
+        return !base.empty() && matchCustomKey(base, customKey);
+    }
+
     // Leader classification for dual custom leader support.
     // Built-in leaders (Space, Arrows, Alt) are unrestricted.
     // Custom1/Custom2 may be restricted by dual-split logic.
     enum class LeaderType { None, BuiltIn, Custom1, Custom2 };
 
-    LeaderType classifyLeader(const Key &key, const std::string &keyChar) const {
+    LeaderType classifyLeader(const Key &key, const std::string &keyChar,
+                              int rawCode) const {
         KeySym sym = key.sym();
 
         // Alt/AltGr — built-in, unrestricted
         if (*config_.leader->alt && isAltLeaderSym(sym))
             return LeaderType::BuiltIn;
 
-        // Custom Key 1 (sanitized at config load, case-insensitive for letters)
-        if (!cachedCustomKey_.empty() && !keyChar.empty() &&
-            matchCustomKey(keyChar, cachedCustomKey_))
+        // Custom Key 1 (sanitized at config load, case-insensitive for letters).
+        // When Shift changes the character (e.g. Shift+/ → ?), fall back to
+        // the XKB keymap to resolve the physical key's base character.
+        if (!cachedCustomKey_.empty() &&
+            matchCustomKeyOrBase(keyChar, cachedCustomKey_, rawCode))
             return LeaderType::Custom1;
 
         // Custom Key 2
-        if (!cachedCustomKey2_.empty() && !keyChar.empty() &&
-            matchCustomKey(keyChar, cachedCustomKey2_))
+        if (!cachedCustomKey2_.empty() &&
+            matchCustomKeyOrBase(keyChar, cachedCustomKey2_, rawCode))
             return LeaderType::Custom2;
 
         // Built-in leader toggles
@@ -1044,6 +1071,11 @@ private:
     // Sanitized custom leader keys (trimmed, single UTF-8 char each)
     std::string cachedCustomKey_;
     std::string cachedCustomKey2_;
+    // XKB keymap for resolving the base (unshifted) character of a physical
+    // key.  Lets Shift+symbol custom leaders work (e.g. Shift+/ → '?' is
+    // resolved back to '/' so the leader still matches).
+    struct xkb_context *xkbCtx_ = nullptr;
+    struct xkb_keymap *xkbKeymap_ = nullptr;
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {
