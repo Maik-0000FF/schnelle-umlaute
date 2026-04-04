@@ -4,6 +4,7 @@
 #include "ui_editor.h"
 #include <fcitxqtconfiguiwidget.h>
 #include <QLabel>
+#include <QStringList>
 
 namespace fcitx {
 
@@ -30,10 +31,14 @@ private Q_SLOTS:
 
 private:
     void showInputError(const QString &msg);
+    void showInputWarning(const QString &msg);
     void clearInputError();
+    void loadLeaderKeys();
+    bool isLeaderKeyConflict(const QString &input) const;
 
     MappingModel *model_;
     QLabel *inputStatus_;
+    QStringList leaderKeys_;
 };
 
 } // namespace fcitx

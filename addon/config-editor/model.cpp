@@ -1,4 +1,5 @@
 #include "model.h"
+#include "mappings-io.h"
 #include <QTextStream>
 #include <fcitx-utils/i18n.h>
 #include <fcitx-utils/standardpaths.h>
@@ -119,17 +120,10 @@ void MappingModel::load() {
     if (file.isValid()) {
         auto fp = fs::openFD(file, "r");
         if (fp) {
-            char buf[4096];
-            while (fgets(buf, sizeof(buf), fp.get())) {
-                QString line = QString::fromUtf8(buf).trimmed();
-                if (line.isEmpty() || line.startsWith('#')) {
-                    continue;
-                }
-                // Format: first char = input, '=' separator, rest = output
-                if (line.size() >= 3 && line[1] == '=') {
-                    entries_.push_back(
-                        {line.left(1), line.mid(2)});
-                }
+            for (const auto &m : schnelle_umlaute::parseMappings(fp.get())) {
+                entries_.push_back(
+                    {QString::fromStdString(m.input),
+                     QString::fromStdString(m.output)});
             }
         }
     }
@@ -169,11 +163,12 @@ void MappingModel::setNeedSave(bool needSave) {
 }
 
 void MappingModel::loadDefaults() {
-    entries_ = {
-        {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"}, {"u", "\xc3\xbc"},
-        {"s", "\xc3\x9f"}, {"A", "\xc3\x84"}, {"O", "\xc3\x96"},
-        {"U", "\xc3\x9c"},
-    };
+    entries_.clear();
+    for (const auto &m : schnelle_umlaute::defaultMappings()) {
+        entries_.push_back(
+            {QString::fromStdString(m.input),
+             QString::fromStdString(m.output)});
+    }
 }
 
 bool MappingModel::isValidInput(const QString &input) {

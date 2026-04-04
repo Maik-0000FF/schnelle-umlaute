@@ -5,6 +5,8 @@
 #include <QScreen>
 #include <QShowEvent>
 #include <QLabel>
+#include <QSettings>
+#include <QStandardPaths>
 
 namespace fcitx {
 
@@ -71,10 +73,15 @@ MappingEditor::MappingEditor(QWidget *parent)
                 showInputError(_("Input must be exactly one printable character"));
             } else if (model_->hasInput(text)) {
                 showInputError(_("This input key is already mapped"));
+            } else if (isLeaderKeyConflict(text)) {
+                showInputWarning(
+                    _("This key is configured as a Custom Leader — "
+                      "it will not work as a mapped input"));
             }
         }
     });
 
+    loadLeaderKeys();
     load();
     itemFocusChanged();
 }
@@ -107,7 +114,9 @@ void MappingEditor::save() { model_->save(); }
 
 void MappingEditor::addMapping() {
     auto input = inputEdit->text().trimmed();
-    auto output = outputEdit->text().trimmed();
+    // Output is NOT trimmed — leading/trailing whitespace is intentional
+    // (e.g. " ls" to skip terminal history, or tab characters).
+    auto output = outputEdit->text();
     if (input.isEmpty() || output.isEmpty()) {
         return;
     }
@@ -129,8 +138,16 @@ void MappingEditor::addMapping() {
 
 void MappingEditor::showInputError(const QString &msg) {
     inputStatus_->setText(msg);
+    inputStatus_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
     inputStatus_->setVisible(true);
     inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc0000; }");
+}
+
+void MappingEditor::showInputWarning(const QString &msg) {
+    inputStatus_->setText(msg);
+    inputStatus_->setStyleSheet("QLabel { color: #cc8800; font-size: 11px; }");
+    inputStatus_->setVisible(true);
+    inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc8800; }");
 }
 
 void MappingEditor::clearInputError() {
@@ -150,6 +167,31 @@ void MappingEditor::itemFocusChanged() {
     moveUpButton->setEnabled(sel && mappingView->currentIndex().row() > 0);
     moveDownButton->setEnabled(
         sel && mappingView->currentIndex().row() + 1 < model_->rowCount());
+}
+
+void MappingEditor::loadLeaderKeys() {
+    leaderKeys_.clear();
+    QString configPath =
+        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+        + "/fcitx5/conf/schnelle-umlaute.conf";
+    QSettings settings(configPath, QSettings::IniFormat);
+    settings.beginGroup("Leader");
+    if (settings.value("CustomKeyEnabled", false).toBool()) {
+        QString key = settings.value("CustomKey").toString().trimmed();
+        if (!key.isEmpty()) leaderKeys_ << key.left(1);
+    }
+    if (settings.value("CustomKey2Enabled", false).toBool()) {
+        QString key = settings.value("CustomKey2").toString().trimmed();
+        if (!key.isEmpty()) leaderKeys_ << key.left(1);
+    }
+    settings.endGroup();
+}
+
+bool MappingEditor::isLeaderKeyConflict(const QString &input) const {
+    for (const auto &leader : leaderKeys_) {
+        if (input.compare(leader, Qt::CaseInsensitive) == 0) return true;
+    }
+    return false;
 }
 
 } // namespace fcitx
