@@ -176,9 +176,10 @@ bool MappingModel::isValidInput(const QString &input) {
     // Exactly 1 Unicode codepoint
     auto ucs4 = input.toUcs4();
     if (ucs4.size() != 1) return false;
-    QChar ch = input[0];
-    // Must be printable and not whitespace
-    return ch.isPrint() && !ch.isSpace();
+    // Use UCS-4 codepoint for property checks — QChar only covers BMP,
+    // characters above U+FFFF would appear as surrogates and fail isPrint().
+    uint cp = ucs4[0];
+    return QChar::isPrint(cp) && !QChar::isSpace(cp);
 }
 
 bool MappingModel::hasInput(const QString &input, int excludeRow) const {
