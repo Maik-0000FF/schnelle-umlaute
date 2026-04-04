@@ -178,11 +178,13 @@ void MappingEditor::loadLeaderKeys() {
     settings.beginGroup("Leader");
     if (settings.value("CustomKeyEnabled", false).toBool()) {
         QString key = settings.value("CustomKey").toString().trimmed();
-        if (!key.isEmpty()) leaderKeys_ << key.left(1);
+        auto ucs4 = key.toUcs4();
+        if (!ucs4.isEmpty()) leaderKeys_ << QString::fromUcs4(reinterpret_cast<const char32_t *>(&ucs4[0]), 1);
     }
     if (settings.value("CustomKey2Enabled", false).toBool()) {
         QString key = settings.value("CustomKey2").toString().trimmed();
-        if (!key.isEmpty()) leaderKeys_ << key.left(1);
+        auto ucs4 = key.toUcs4();
+        if (!ucs4.isEmpty()) leaderKeys_ << QString::fromUcs4(reinterpret_cast<const char32_t *>(&ucs4[0]), 1);
     }
     settings.endGroup();
 }
