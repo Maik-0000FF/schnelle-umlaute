@@ -13,9 +13,21 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <fcitx-config/rawconfig.h>
+#include <ctime>
+#include <memory>
 #include <vector>
 
 using namespace fcitx;
+
+// Delay (in microseconds) to wait for the deferred Alt cycling commit timer
+// (5ms) to fire before verifying the committed string.
+constexpr uint64_t kDeferredVerifyDelayUsec = 10'000;  // 10ms
+
+static uint64_t nowUsec() {
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return static_cast<uint64_t>(ts.tv_sec) * 1'000'000 + ts.tv_nsec / 1'000;
+}
 
 // Physical key codes (arbitrary but consistent per key)
 constexpr int kCodeA = 38;
@@ -485,6 +497,10 @@ static const char *kSpanish1000 =
     "se\xc3\xb1""ora mayor se sienta en el porche leyendo un libro "
     "mientras su gato duerme al sol. Por el camino un granjero lleva "
     "sus productos frescos al mercado de la ciudad vecina.";
+
+// Tests 20+ are scheduled from within the Alt leader timer chain (Tests 17-19)
+// to guarantee deferred commits are verified before any subsequent test runs.
+static void scheduleTestsAfterAltVerify(Instance *instance);
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -1095,12 +1111,19 @@ void scheduleTests(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 17: Alt_L as leader — consumed and enters cycling
-    // NOTE: Alt leader always uses deferred commit (5ms timer via
-    // scheduleDeferredCyclingCommit). The timer fires asynchronously after
-    // this callback returns, so pushCommitExpectation cannot verify it —
-    // the IC would be destroyed before the timer fires. We verify the
-    // consumed status instead; commit correctness is covered by manual test.
+    // Tests 17-19: Alt/AltGr leader with deferred commit verification.
+    // Alt leader uses a 5ms deferred commit timer. To verify the committed
+    // string, we wait 10ms via addTimeEvent before checking. These tests
+    // are chained: each timer callback schedules the next test, so no
+    // synchronous tests run during the verification window.
+    //
+    // The addTimeEvent return value (unique_ptr<EventSourceTime>) must be
+    // kept alive — if it goes out of scope, the timer is cancelled. We use
+    // a shared_ptr to a holder struct captured by all lambdas in the chain.
+    //
+    // IMPORTANT: Tests 20+ are scheduled via scheduleTestsAfterAltVerify()
+    // from the last timer callback, guaranteeing all deferred commits are
+    // verified before any subsequent test starts.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
         FCITX_INFO() << "=== Test 17: Alt_L as leader ===";
@@ -1115,68 +1138,84 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
         FCITX_ASSERT(consumed) << "Alt_L leader during gesture should be consumed";
 
+        // Release 'a' — triggers deferred commit (5ms timer)
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
-        tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 17 PASSED";
+        // Shared holder keeps all chained timers alive
+        struct TimerHolder { std::unique_ptr<EventSourceTime> timer; };
+        auto holder = std::make_shared<TimerHolder>();
+
+        // Wait for deferred commit, then clean up and chain to Test 18
+        holder->timer = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
+            [instance, uuid, holder](EventSourceTime *, uint64_t) {
+                auto *tf = instance->addonManager().addon("testfrontend");
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 17 PASSED";
+
+                // --- Test 18: AltGr as leader ---
+                FCITX_INFO() << "=== Test 18: AltGr (ISO_Level3_Shift) as leader ===";
+                configureLeaders(instance, false, false, false, false, false, true);
+                auto uuid18 = createAndActivate(instance, tf, "test18");
+
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid18, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+                bool consumed18 = tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid18, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr), false);
+                FCITX_ASSERT(consumed18) << "AltGr leader during gesture should be consumed";
+
+                tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+                tf->call<ITestFrontend::keyEvent>(
+                    uuid18, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+                holder->timer = instance->eventLoop().addTimeEvent(
+                    CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
+                    [instance, uuid18, holder](EventSourceTime *, uint64_t) {
+                        auto *tf = instance->addonManager().addon("testfrontend");
+                        tf->call<ITestFrontend::destroyInputContext>(uuid18);
+                        FCITX_INFO() << "Test 18 PASSED";
+
+                        // --- Test 19: Alt release consumed, commits "ä" ---
+                        FCITX_INFO() << "=== Test 19: Alt release consumed after leader use ===";
+                        configureLeaders(instance, false, false, false, false, false, true);
+                        auto uuid19 = createAndActivate(instance, tf, "test19");
+
+                        tf->call<ITestFrontend::sendKeyEvent>(
+                            uuid19, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+                        tf->call<ITestFrontend::sendKeyEvent>(
+                            uuid19, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+
+                        bool c = tf->call<ITestFrontend::sendKeyEvent>(
+                            uuid19, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+                        FCITX_ASSERT(c) << "Alt release after leader should be consumed";
+
+                        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+                        c = tf->call<ITestFrontend::sendKeyEvent>(
+                            uuid19, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+                        FCITX_ASSERT(c) << "Accent key release during Alt gesture should be consumed";
+
+                        holder->timer = instance->eventLoop().addTimeEvent(
+                            CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
+                            [instance, uuid19, holder](EventSourceTime *, uint64_t) {
+                                auto *tf = instance->addonManager().addon("testfrontend");
+                                tf->call<ITestFrontend::destroyInputContext>(uuid19);
+                                FCITX_INFO() << "Test 19 PASSED";
+                                // All deferred commits verified — safe to continue
+                                scheduleTestsAfterAltVerify(instance);
+                                return false;
+                            });
+                        return false;
+                    });
+                return false;
+            });
     });
+}
 
-    // =========================================================================
-    // TEST 18: AltGr (ISO_Level3_Shift) as leader — consumed and enters cycling
-    // NOTE: Same deferred-commit limitation as Test 17 (see note there).
-    // =========================================================================
-    instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 18: AltGr (ISO_Level3_Shift) as leader ===";
-        configureLeaders(instance, false, false, false, false, false, true);
-        auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test18");
-
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-
-        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr), false);
-        FCITX_ASSERT(consumed) << "AltGr leader during gesture should be consumed";
-
-        tf->call<ITestFrontend::keyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
-
-        tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 18 PASSED";
-    });
-
-    // =========================================================================
-    // TEST 19: consumedAltCode_ — Alt release consumed after leader use
-    // NOTE: Same deferred-commit limitation as Test 17. Commit verification
-    // removed; this test focuses on consumed status of Alt and input key
-    // releases during an Alt-led gesture.
-    // =========================================================================
-    instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 19: Alt release consumed after leader use ===";
-        configureLeaders(instance, false, false, false, false, false, true);
-        auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test19");
-
-        // Hold 'a' + Alt_L → enters cycling (preedit "ä", deferred commit)
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
-
-        // Release Alt_L — should be consumed (consumedAltCode_)
-        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
-        FCITX_ASSERT(consumed) << "Alt release after leader should be consumed";
-
-        // Release 'a' — consumed by cycling-release handler (defers commit)
-        consumed = tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
-        FCITX_ASSERT(consumed) << "Accent key release during Alt gesture should be consumed";
-
-        tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 19 PASSED";
-    });
+// Remaining tests — scheduled only after Alt leader deferred commits are verified.
+static void scheduleTestsAfterAltVerify(Instance *instance) {
 
     // =========================================================================
     // TEST 20: committedKeyCode_ — auto-repeat suppression after commit
@@ -2136,7 +2175,7 @@ void scheduleTests(Instance *instance) {
         FCITX_INFO() << "Test 60 PASSED";
     });
 
-    // All tests done — exit
+    // All synchronous tests done — exit
     instance->eventDispatcher().schedule([instance]() {
         FCITX_INFO() << "=== All tests PASSED ===";
         instance->exit();
