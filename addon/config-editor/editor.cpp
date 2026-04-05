@@ -179,12 +179,19 @@ void MappingEditor::loadLeaderKeys() {
     if (settings.value("CustomKeyEnabled", false).toBool()) {
         QString key = settings.value("CustomKey").toString().trimmed();
         auto ucs4 = key.toUcs4();
-        if (!ucs4.isEmpty()) leaderKeys_ << QString::fromUcs4(reinterpret_cast<const char32_t *>(&ucs4[0]), 1);
+        if (!ucs4.isEmpty()) {
+            // Copy to char32_t to avoid reinterpret_cast from uint.
+            char32_t cp = static_cast<char32_t>(ucs4[0]);
+            leaderKeys_ << QString::fromUcs4(&cp, 1);
+        }
     }
     if (settings.value("CustomKey2Enabled", false).toBool()) {
         QString key = settings.value("CustomKey2").toString().trimmed();
         auto ucs4 = key.toUcs4();
-        if (!ucs4.isEmpty()) leaderKeys_ << QString::fromUcs4(reinterpret_cast<const char32_t *>(&ucs4[0]), 1);
+        if (!ucs4.isEmpty()) {
+            char32_t cp = static_cast<char32_t>(ucs4[0]);
+            leaderKeys_ << QString::fromUcs4(&cp, 1);
+        }
     }
     settings.endGroup();
 }

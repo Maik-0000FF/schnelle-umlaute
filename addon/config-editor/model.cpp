@@ -50,6 +50,10 @@ bool MappingModel::setData(const QModelIndex &index, const QVariant &value,
     if (role != Qt::EditRole || !index.isValid()) {
         return false;
     }
+    // Guard against out-of-range indices (e.g. stale edit delegate after row removal).
+    if (index.row() < 0 || index.row() >= static_cast<int>(entries_.size())) {
+        return false;
+    }
     auto &e = entries_[index.row()];
     if (index.column() == 0) {
         QString input = value.toString().trimmed();
