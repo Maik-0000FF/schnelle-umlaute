@@ -7,29 +7,46 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-24.04
+    name: ${{ matrix.distro }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Arch Linux
+            image: archlinux:base-devel
+            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext
+            cmake_extra: -DBUILD_TESTING=ON
+            run_tests: true
+          - distro: Ubuntu 24.04
+            image: ubuntu:24.04
+            install: apt-get update && apt-get install -y build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
+            cmake_extra: ""
+            run_tests: false
+          - distro: Fedora
+            image: fedora:latest
+            install: dnf install -y gcc-c++ make cmake extra-cmake-modules git gettext fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel libxkbcommon-devel
+            cmake_extra: ""
+            run_tests: false
+          - distro: openSUSE
+            image: opensuse/tumbleweed
+            install: zypper --non-interactive install gcc-c++ make cmake extra-cmake-modules git gettext fcitx5-devel fcitx5-qt-devel qt6-base-devel libxkbcommon-devel
+            cmake_extra: ""
+            run_tests: false
+
+    container:
+      image: ${{ matrix.image }}
 
     steps:
+      - name: Install dependencies
+        run: ${{ matrix.install }}
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libfcitx5core-dev \
-            fcitx5-modules-dev \
-            libfcitx5-qt6-dev \
-            qt6-base-dev \
-            extra-cmake-modules \
-            libxkbcommon-dev \
-            pkg-config \
-            gettext \
-            g++
-
       - name: Configure
-        run: cmake -B build -DBUILD_TESTING=ON
+        run: cmake -B build ${{ matrix.cmake_extra }}
         working-directory: addon
 
       - name: Build
@@ -37,5 +54,6 @@ jobs:
         working-directory: addon
 
       - name: Test
+        if: matrix.run_tests
         run: ctest --test-dir build --output-on-failure
         working-directory: addon
