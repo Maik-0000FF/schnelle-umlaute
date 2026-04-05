@@ -152,7 +152,9 @@ void MappingModel::save() {
                         e.input.toUtf8().constData(),
                         e.output.toUtf8().constData());
             }
-            return true;
+            // Catch write errors (e.g. disk full mid-write) so safeSave
+            // discards the incomplete temp file instead of replacing the original.
+            return ferror(fp.get()) == 0;
         });
     if (ok) {
         setNeedSave(false);
