@@ -266,6 +266,16 @@ public:
             if (umlautMap_.empty()) {
                 loadMappingsFromFile();
             }
+            // Cancel active gestures on all ICs so no cycling state
+            // references stale mappings (e.g. a removed or shortened entry).
+            instance_->inputContextManager().foreach([this](InputContext *ic) {
+                auto *s = ic->propertyFor(&factory_);
+                s->clearAllState();
+                s->recentlyCommitted_ = false;
+                ic->inputPanel().reset();
+                ic->updatePreedit();
+                return true;
+            });
             FCITX_INFO() << "Schnelle: Mappings reloaded, count="
                          << umlautMap_.size();
         }
