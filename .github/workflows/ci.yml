@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfcitx5core-dev \
+            fcitx5-modules-dev \
+            libfcitx5-qt6-dev \
+            qt6-base-dev \
+            extra-cmake-modules \
+            libxkbcommon-dev \
+            pkg-config \
+            gettext \
+            g++
+
+      - name: Configure
+        run: cmake -B build -DBUILD_TESTING=ON
+        working-directory: addon
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+        working-directory: addon
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+        working-directory: addon
