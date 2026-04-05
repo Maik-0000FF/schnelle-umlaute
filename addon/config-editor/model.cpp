@@ -135,7 +135,7 @@ void MappingModel::load() {
 }
 
 void MappingModel::save() {
-    StandardPaths::global().safeSave(
+    bool ok = StandardPaths::global().safeSave(
         StandardPathsType::PkgConfig, "schnelle-umlaute/mappings.txt",
         [this](int fd) {
             UnixFD ufd(fd);
@@ -150,7 +150,9 @@ void MappingModel::save() {
             }
             return true;
         });
-    setNeedSave(false);
+    if (ok) {
+        setNeedSave(false);
+    }
 }
 
 bool MappingModel::needSave() const { return needSave_; }
