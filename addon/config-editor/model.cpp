@@ -128,13 +128,14 @@ void MappingModel::load() {
 #if SU_HAS_NEW_STDPATHS
     auto file = StandardPaths::global().open(StandardPathsType::PkgConfig,
                                              "schnelle-umlaute/mappings.txt");
-#else
-    auto file_ = StandardPath::global().open(
-        StandardPath::Type::PkgConfig, "schnelle-umlaute/mappings.txt", O_RDONLY);
-    auto &file = file_.fd();
-#endif
     if (file.isValid()) {
         auto fp = fs::openFD(file, "r");
+#else
+    auto file = StandardPath::global().open(
+        StandardPath::Type::PkgConfig, "schnelle-umlaute/mappings.txt", O_RDONLY);
+    if (file.fd() >= 0) {
+        auto fp = fs::openFD(file, "r");
+#endif
         if (fp) {
             for (const auto &m : schnelle_umlaute::parseMappings(fp.get())) {
                 entries_.push_back(
