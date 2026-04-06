@@ -545,8 +545,31 @@ public:
                         // Cycle to next variant
                         state->cyclingIndex_ = (state->cyclingIndex_ + 1) % it->second.size();
                         updateClientPreedit(ic, it->second[state->cyclingIndex_]);
+                    } else if (state->altGestureSession_ &&
+                               !(isAlt && rawCode == state->consumedAltCode_)) {
+                        // Single-output Alt cycling: a different leader (not
+                        // the same Alt auto-repeat) signals the user wants to
+                        // commit and continue typing.  Matches the immediate-
+                        // commit behavior of non-Alt leaders with single output.
+                        ic->inputPanel().reset();
+                        ic->commitString(it->second[0]);
+                        ic->updatePreedit();
+                        state->recentlyCommitted_ = true;
+                        state->inputKeyPressed_ = false;
+                        state->resetCycling();
+                        state->altGestureSession_ = false;
+                        state->consumedAltCode_ = 0;
+                        // Emit the leader's character if printable so it
+                        // appears as typed text instead of an Alt shortcut.
+                        if (!keyChar.empty() &&
+                            (keyChar.size() > 1 ||
+                             static_cast<unsigned char>(keyChar[0]) >= ' ')) {
+                            ic->commitString(keyChar);
+                        }
+                        keyEvent.filterAndAccept();
+                        return;
                     }
-                    // Single-output: preedit unchanged, just consume the leader.
+                    // Single-output same-Alt repeat: preedit unchanged, consume.
 
                     if (isAlt) state->consumedAltCode_ = rawCode;
                     keyEvent.filterAndAccept();
