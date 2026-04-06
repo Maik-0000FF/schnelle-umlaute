@@ -13,8 +13,11 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <fcitx-config/rawconfig.h>
+#include <xkbcommon/xkbcommon.h>
+#include <fcitx-utils/utf8.h>
 #include <ctime>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 using namespace fcitx;
@@ -2138,18 +2141,178 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 56: Alt deferred re-press — cancels deferred commit
+    // TEST 56: Layout-independent hand classification
+    // Verify that physical keycode classification works correctly across
+    // different keyboard layouts (QWERTY, QWERTZ, AZERTY, Dvorak).
+    // The same physical key must always be classified to the same hand,
+    // regardless of which character the layout assigns to it.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 56: Layout-independent hand classification ===";
+
+        // Mirror engine logic: isLeftHandKeycode + char→keycode reverse map
+        auto isLeftKeycode = [](int kc) {
+            return (kc >= 24 && kc <= 28) ||  // Q W E R T row
+                   (kc >= 38 && kc <= 42) ||  // A S D F G row
+                   (kc >= 52 && kc <= 56) ||  // Z X C V B row
+                   kc == 49 ||                 // ` ~
+                   (kc >= 10 && kc <= 14);     // 1 2 3 4 5
+        };
+
+        auto buildMap = [](struct xkb_keymap *km) {
+            std::unordered_map<std::string, int> m;
+            xkb_keycode_t min = xkb_keymap_min_keycode(km);
+            xkb_keycode_t max = xkb_keymap_max_keycode(km);
+            for (xkb_keycode_t code = min; code <= max; ++code) {
+                const xkb_keysym_t *syms;
+                int n = xkb_keymap_key_get_syms_by_level(km, code, 0, 0, &syms);
+                if (n > 0) {
+                    uint32_t uc = xkb_keysym_to_utf32(syms[0]);
+                    if (uc > 0 && uc <= 0x10FFFF) {
+                        std::string ch = utf8::UCS4ToUTF8(uc);
+                        m.emplace(std::move(ch), static_cast<int>(code));
+                    }
+                }
+            }
+            return m;
+        };
+
+        auto isLeft = [&isLeftKeycode](
+                const std::unordered_map<std::string, int> &m,
+                const std::string &key) {
+            std::string lookup = key;
+            if (lookup.size() == 1 && lookup[0] >= 'A' && lookup[0] <= 'Z')
+                lookup[0] = lookup[0] - 'A' + 'a';
+            auto it = m.find(lookup);
+            if (it == m.end()) return false;
+            return isLeftKeycode(it->second);
+        };
+
+        auto *ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+        FCITX_ASSERT(ctx) << "XKB context creation failed";
+
+        // Layout → expected left/right chars (based on physical position)
+        struct LayoutCheck {
+            const char *layout;
+            const char *variant;
+            // {char, expectedLeft} — chars that differ across layouts
+            std::vector<std::pair<std::string, bool>> checks;
+        };
+
+        LayoutCheck layouts[] = {
+            {"us", nullptr, {
+                {"q", true}, {"w", true}, {"e", true}, {"t", true},
+                {"a", true}, {"s", true}, {"d", true}, {"f", true}, {"g", true},
+                {"z", true}, {"x", true}, {"c", true}, {"v", true}, {"b", true},
+                {"y", false}, {"u", false}, {"i", false}, {"o", false}, {"p", false},
+                {"h", false}, {"j", false}, {"k", false}, {"l", false},
+                {"n", false}, {"m", false},
+            }},
+            {"de", nullptr, {
+                // QWERTZ: z/y swapped vs QWERTY
+                {"q", true}, {"w", true}, {"e", true}, {"r", true}, {"t", true},
+                {"a", true}, {"s", true}, {"d", true}, {"f", true}, {"g", true},
+                {"y", true},   // keycode 52 (left) — QWERTY has 'z' here
+                {"x", true}, {"c", true}, {"v", true}, {"b", true},
+                {"z", false},  // keycode 29 (right) — QWERTY has 'y' here
+                {"u", false}, {"i", false}, {"o", false}, {"p", false},
+                {"h", false}, {"j", false}, {"k", false}, {"l", false},
+                {"n", false}, {"m", false},
+            }},
+            {"fr", nullptr, {
+                // AZERTY: a↔q, w↔z swapped, m moved
+                {"a", true},   // keycode 24 (left)
+                {"z", true},   // keycode 25 (left)
+                {"e", true}, {"r", true}, {"t", true},
+                {"q", true},   // keycode 38 (left)
+                {"s", true}, {"d", true}, {"f", true}, {"g", true},
+                {"w", true},   // keycode 52 (left)
+                {"x", true}, {"c", true}, {"v", true}, {"b", true},
+                {"y", false}, {"u", false}, {"i", false}, {"o", false}, {"p", false},
+                {"h", false}, {"j", false}, {"k", false}, {"l", false},
+                {"n", false},
+            }},
+            {"us", "dvorak", {
+                // Dvorak: heavily rearranged
+                {"a", true},   // keycode 38 (left)
+                {"o", true},   // keycode 39 (left)
+                {"e", true},   // keycode 40 (left)
+                {"u", true},   // keycode 41 (left)
+                {"i", true},   // keycode 42 (left)
+                {"p", true},   // keycode 27 (left)
+                {"q", true},   // keycode 53 (left)
+                {"j", true},   // keycode 54 (left)
+                {"k", true},   // keycode 55 (left)
+                {"x", true},   // keycode 56 (left)
+                {"d", false},  // keycode 43 (right)
+                {"h", false},  // keycode 44 (right)
+                {"t", false},  // keycode 45 (right)
+                {"n", false},  // keycode 46 (right)
+                {"s", false},  // keycode 57 (right) — left in QWERTY!
+                {"f", false},  // keycode 29 (right)
+                {"g", false},  // keycode 30 (right)
+                {"c", false},  // keycode 31 (right)
+                {"r", false},  // keycode 32 (right)
+                {"l", false},  // keycode 33 (right)
+            }},
+        };
+
+        int layoutsTested = 0;
+        for (const auto &lc : layouts) {
+            xkb_rule_names names{};
+            names.layout = lc.layout;
+            names.variant = lc.variant;
+            auto *km = xkb_keymap_new_from_names(
+                ctx, &names, XKB_KEYMAP_COMPILE_NO_FLAGS);
+            if (!km) {
+                FCITX_INFO() << "Skipping layout "
+                             << lc.layout
+                             << (lc.variant ? std::string("/") + lc.variant : "")
+                             << " (not installed)";
+                continue;
+            }
+
+            auto charMap = buildMap(km);
+
+            for (const auto &[ch, expectLeft] : lc.checks) {
+                bool got = isLeft(charMap, ch);
+                FCITX_ASSERT(got == expectLeft)
+                    << lc.layout
+                    << (lc.variant ? std::string("/") + lc.variant : "")
+                    << ": '" << ch << "' expected "
+                    << (expectLeft ? "left" : "right")
+                    << " but got "
+                    << (got ? "left" : "right");
+            }
+
+            xkb_keymap_unref(km);
+            ++layoutsTested;
+            FCITX_INFO() << "Layout "
+                         << lc.layout
+                         << (lc.variant ? std::string("/") + lc.variant : "")
+                         << " — all " << lc.checks.size() << " checks passed";
+        }
+
+        FCITX_ASSERT(layoutsTested >= 2)
+            << "At least 2 layouts must be available for meaningful coverage";
+
+        xkb_context_unref(ctx);
+        FCITX_INFO() << "Test 56 PASSED — " << layoutsTested << " layouts verified";
+    });
+
+    // =========================================================================
+    // TEST 57: Alt deferred re-press — cancels deferred commit
     // On KWin Wayland, Alt auto-repeat sends release-press pairs. The
     // release schedules a 5ms deferred commit; re-press must cancel it
     // and continue cycling. Only the final release commits.
     // Timer-based: exits after deferred commit verification.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 56: Alt deferred re-press ===";
+        FCITX_INFO() << "=== Test 57: Alt deferred re-press ===";
         configureLeaders(instance, false, false, false, false, false, true);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}});
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test56");
+        auto uuid = createAndActivate(instance, tf, "test57");
 
         // Hold 'a' → waiting
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -2188,7 +2351,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             [instance, uuid, holder](EventSourceTime *, uint64_t) {
                 auto *tf = instance->addonManager().addon("testfrontend");
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
-                FCITX_INFO() << "Test 56 PASSED";
+                FCITX_INFO() << "Test 57 PASSED";
 
                 FCITX_INFO() << "=== All tests PASSED ===";
                 instance->exit();
