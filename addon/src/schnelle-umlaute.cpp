@@ -478,7 +478,15 @@ public:
                 state->inputKeyPressed_ = false;
                 return;  // Let the shortcut through
             }
-            // Alt-only during gesture: fall through to normal key handling
+            // Alt-only during gesture: resolve the physical key's base
+            // character.  Some backends change the keysym when Alt is held
+            // (e.g. number keys → symbols), which would prevent the accent
+            // key handler from finding the mapping.  Using the Level 0
+            // character from the XKB keymap ensures correct recognition.
+            std::string baseChar = getBaseChar(rawCode);
+            if (!baseChar.empty()) {
+                keyChar = baseChar;
+            }
         }
 
         // Re-press of gesture key during deferred Alt cycling commit.

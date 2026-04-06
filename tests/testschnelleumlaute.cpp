@@ -2141,14 +2141,52 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 56: Layout-independent hand classification
+    // TEST 56: Alt leader — new mapped key commits cycling and starts gesture
+    // While cycling with Alt held, pressing a different mapped key should
+    // commit the cycling value and start a new gesture for the new key.
+    // The Alt modifier must not leak through as a shortcut.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 56: Alt leader — new key during cycling ===";
+        configureLeaders(instance, false, false, false, false, false, true);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test56");
+
+        // Hold 'a' → waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Press Alt → starts cycling (ä in preedit)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+
+        // Press 's' with Alt held → must commit ä and start 's' gesture
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyState::Alt, kCodeS), false);
+        FCITX_ASSERT(consumed)
+            << "New mapped key during Alt cycling must be consumed";
+
+        // Release 's' → commits 's' as original (no leader pressed for it)
+        tf->call<ITestFrontend::pushCommitExpectation>("s");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyState::Alt, kCodeS), true);
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 56 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 57: Layout-independent hand classification
     // Verify that physical keycode classification works correctly across
     // different keyboard layouts (QWERTY, QWERTZ, AZERTY, Dvorak).
     // The same physical key must always be classified to the same hand,
     // regardless of which character the layout assigns to it.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 56: Layout-independent hand classification ===";
+        FCITX_INFO() << "=== Test 57: Layout-independent hand classification ===";
 
         // Mirror engine logic: isLeftHandKeycode + char→keycode reverse map
         auto isLeftKeycode = [](int kc) {
@@ -2297,7 +2335,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             << "At least 2 layouts must be available for meaningful coverage";
 
         xkb_context_unref(ctx);
-        FCITX_INFO() << "Test 56 PASSED — " << layoutsTested << " layouts verified";
+        FCITX_INFO() << "Test 57 PASSED — " << layoutsTested << " layouts verified";
     });
 
     // =========================================================================
@@ -2308,11 +2346,11 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Timer-based: exits after deferred commit verification.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 57: Alt deferred re-press ===";
+        FCITX_INFO() << "=== Test 58: Alt deferred re-press ===";
         configureLeaders(instance, false, false, false, false, false, true);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}});
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test57");
+        auto uuid = createAndActivate(instance, tf, "test58");
 
         // Hold 'a' → waiting
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -2351,7 +2389,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             [instance, uuid, holder](EventSourceTime *, uint64_t) {
                 auto *tf = instance->addonManager().addon("testfrontend");
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
-                FCITX_INFO() << "Test 57 PASSED";
+                FCITX_INFO() << "Test 58 PASSED";
 
                 FCITX_INFO() << "=== All tests PASSED ===";
                 instance->exit();
