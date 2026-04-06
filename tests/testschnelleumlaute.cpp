@@ -1992,10 +1992,208 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         FCITX_INFO() << "Test 50 PASSED";
     });
 
-    // All synchronous tests done — exit
+    // =========================================================================
+    // TEST 51: Ordering guard skips Super+Space
+    // After a commit, modifier+Space must NOT be consumed by the guard.
+    // Uses Super (not Ctrl+Space which is the IM toggle in tests).
+    // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== All tests PASSED ===";
-        instance->exit();
+        FCITX_INFO() << "=== Test 51: Ordering guard skips Super+Space ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test51");
+
+        // Hold 'a' + Space → ä (sets recentlyCommitted_)
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Super+Space → must NOT be consumed (shortcut, not bare Space)
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyState::Super, kCodeSpace), false);
+        FCITX_ASSERT(!consumed)
+            << "Super+Space after commit must pass through ordering guard";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 51 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 52: Ordering guard skips Alt+Space
+    // Alt+Space is a common window manager shortcut — must pass through.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 52: Ordering guard skips Alt+Space ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test52");
+
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyState::Alt, kCodeSpace), false);
+        FCITX_ASSERT(!consumed)
+            << "Alt+Space after commit must pass through ordering guard";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 52 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 53: Same-hand dual leaders — no split
+    // CustomKey="z" (left), CustomKey2="x" (left) → same hand → no split.
+    // Both leaders trigger all mappings regardless of input hand.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 53: Same-hand dual leaders — no split ===";
+        configureLeaders(instance, false, false, false, false, false, false, "z", "x");
+        setMappings(instance, {{"a", "\xc3\xa4"}, {"u", "\xc3\xbc"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test53");
+
+        // Hold 'a' (left) + 'z' (left leader) → ä (same hand, no split)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_z, KeyStates(), 52), false);
+        FCITX_ASSERT(consumed)
+            << "Same-hand leader 'z' must trigger same-hand 'a' (no split)";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 53 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 54: Accent key repeat during waiting — consumed
+    // Auto-repeat of held accent key must be consumed without affecting
+    // the waiting state. Space should still trigger conversion.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 54: Accent key repeat during waiting ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test54");
+
+        // Press 'a' → enters waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Auto-repeat 'a' (same keycode, no release) → consumed
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(consumed)
+            << "Accent key repeat during waiting must be consumed";
+
+        // Space → still converts (waiting state preserved)
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed)
+            << "Space must still convert after accent repeat";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 54 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 55: Modifier during waiting — commits pending key
+    // Ctrl+c while accent key is waiting must commit the original char
+    // and let the shortcut through unconsumed.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 55: Modifier during waiting commits pending ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test55");
+
+        // Press 'a' → enters waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Ctrl+c → commits 'a' as original, passes through
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_c, KeyState::Ctrl, 54), false);
+        FCITX_ASSERT(!consumed)
+            << "Ctrl+c must pass through after committing pending key";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 55 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 56: Alt deferred re-press — cancels deferred commit
+    // On KWin Wayland, Alt auto-repeat sends release-press pairs. The
+    // release schedules a 5ms deferred commit; re-press must cancel it
+    // and continue cycling. Only the final release commits.
+    // Timer-based: exits after deferred commit verification.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 56: Alt deferred re-press ===";
+        configureLeaders(instance, false, false, false, false, false, true);
+        setMappings(instance, {{"a", "\xc3\xa4,ae"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test56");
+
+        // Hold 'a' → waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Press Alt → starts cycling at index 0 (ä)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+
+        // Press Alt again → cycle to index 1 (ae)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+
+        // Release 'a' → deferred commit timer starts (5ms)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Re-press 'a' immediately → cancels deferred timer
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Press Alt → cycle wraps to index 0 (ä)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+
+        // Final release 'a' → new deferred commit timer
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Wait for deferred commit to fire
+        struct TimerHolder { std::unique_ptr<EventSourceTime> timer; };
+        auto holder = std::make_shared<TimerHolder>();
+        holder->timer = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
+            [instance, uuid, holder](EventSourceTime *, uint64_t) {
+                auto *tf = instance->addonManager().addon("testfrontend");
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 56 PASSED";
+
+                FCITX_INFO() << "=== All tests PASSED ===";
+                instance->exit();
+                return false;
+            });
     });
 }
 
