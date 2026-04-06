@@ -68,7 +68,8 @@ static ICUUID createAndActivate(Instance *instance, AddonInstance *testfrontend,
 static void configureLeaders(Instance *instance,
                               bool space, bool left, bool right,
                               bool up, bool down, bool alt,
-                              const std::string &custom = "") {
+                              const std::string &custom = "",
+                              const std::string &custom2 = "") {
     auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
     RawConfig config;
     config.setValueByPath("Delay/Lowercase", "400");
@@ -82,6 +83,9 @@ static void configureLeaders(Instance *instance,
     config.setValueByPath("Leader/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/CustomKey", custom);
+    config.setValueByPath("Leader/CustomKey2Enabled",
+                          custom2.empty() ? "False" : "True");
+    config.setValueByPath("Leader/CustomKey2", custom2);
     addon->setConfig(config);
     setMappings(instance, {
         {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"}, {"u", "\xc3\xbc"},
@@ -498,7 +502,7 @@ static const char *kSpanish1000 =
     "mientras su gato duerme al sol. Por el camino un granjero lleva "
     "sus productos frescos al mercado de la ciudad vecina.";
 
-// Tests 20+ are scheduled from within the Alt leader timer chain (Tests 17-19)
+// Tests 24+ are scheduled from within the Alt leader timer chain (Tests 21-23)
 // to guarantee deferred commits are verified before any subsequent test runs.
 static void scheduleTestsAfterAltVerify(Instance *instance);
 
@@ -808,25 +812,11 @@ void scheduleTests(Instance *instance) {
     // Uses dual-split config (z + /) with default mappings (A→Ä, U→Ü).
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 61: Shift+A + Shift+/ → Ä ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "False");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "z");
-        config.setValueByPath("Leader/CustomKey2Enabled", "True");
-        config.setValueByPath("Leader/CustomKey2", "/");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 12: Shift+A + Shift+/ → Ä ===";
+        configureLeaders(instance, false, false, false, false, false, false, "z", "/");
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test61");
+        auto uuid = createAndActivate(instance, tf, "test12");
 
         // Press Shift
         tf->call<ITestFrontend::keyEvent>(
@@ -849,7 +839,7 @@ void scheduleTests(Instance *instance) {
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 61 PASSED";
+        FCITX_INFO() << "Test 12 PASSED";
     });
 
     // =========================================================================
@@ -858,25 +848,11 @@ void scheduleTests(Instance *instance) {
     // Verifies existing letter matching still works in dual-split context.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 62: Shift+U + Shift+Z → Ü ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "False");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "z");
-        config.setValueByPath("Leader/CustomKey2Enabled", "True");
-        config.setValueByPath("Leader/CustomKey2", "/");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 13: Shift+U + Shift+Z → Ü ===";
+        configureLeaders(instance, false, false, false, false, false, false, "z", "/");
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test62");
+        auto uuid = createAndActivate(instance, tf, "test13");
 
         // Press Shift
         tf->call<ITestFrontend::keyEvent>(
@@ -898,7 +874,7 @@ void scheduleTests(Instance *instance) {
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 62 PASSED";
+        FCITX_INFO() << "Test 13 PASSED";
     });
 
     // =========================================================================
@@ -907,23 +883,12 @@ void scheduleTests(Instance *instance) {
     // Must run before configureLeaders tests to avoid inotify interference.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 30: Double-comma escape in output ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "True");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKey", "");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 14: Double-comma escape in output ===";
+        configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "a,,b"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test30");
+        auto uuid = createAndActivate(instance, tf, "test14");
 
         // Hold 'a' + Space → should commit "a,b" (single output, not cycling)
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -935,30 +900,19 @@ void scheduleTests(Instance *instance) {
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 30 PASSED";
+        FCITX_INFO() << "Test 14 PASSED";
     });
 
     // =========================================================================
     // TEST 31: Double-comma with cycling — "x,,y,z" → ["x,y", "z"]
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 31: Double-comma with cycling ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "True");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKey", "");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 15: Double-comma with cycling ===";
+        configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "x,,y,z"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test31");
+        auto uuid = createAndActivate(instance, tf, "test15");
 
         // Hold 'a' + Space → enters cycling, preedit shows "x,y"
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -976,30 +930,19 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 31 PASSED";
+        FCITX_INFO() << "Test 15 PASSED";
     });
 
     // =========================================================================
     // TEST 32: Triple comma ",,," → [","] (escaped comma + separator)
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 32: Triple comma output ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "True");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKey", "");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 16: Triple comma output ===";
+        configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", ",,,"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test32");
+        auto uuid = createAndActivate(instance, tf, "test16");
 
         // Hold 'a' + Space → single output "," (literal comma)
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -1011,17 +954,17 @@ void scheduleTests(Instance *instance) {
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 32 PASSED";
+        FCITX_INFO() << "Test 16 PASSED";
     });
 
     // =========================================================================
     // TEST 13: Left Arrow as leader
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 13: Left Arrow as leader ===";
+        FCITX_INFO() << "=== Test 17: Left Arrow as leader ===";
         configureLeaders(instance, false, true, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test13");
+        auto uuid = createAndActivate(instance, tf, "test17");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -1035,17 +978,17 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 13 PASSED";
+        FCITX_INFO() << "Test 17 PASSED";
     });
 
     // =========================================================================
     // TEST 14: Right Arrow as leader
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 14: Right Arrow as leader ===";
+        FCITX_INFO() << "=== Test 18: Right Arrow as leader ===";
         configureLeaders(instance, false, false, true, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test14");
+        auto uuid = createAndActivate(instance, tf, "test18");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -1059,17 +1002,17 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 14 PASSED";
+        FCITX_INFO() << "Test 18 PASSED";
     });
 
     // =========================================================================
     // TEST 15: Up Arrow as leader
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 15: Up Arrow as leader ===";
+        FCITX_INFO() << "=== Test 19: Up Arrow as leader ===";
         configureLeaders(instance, false, false, false, true, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test15");
+        auto uuid = createAndActivate(instance, tf, "test19");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -1083,17 +1026,17 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 15 PASSED";
+        FCITX_INFO() << "Test 19 PASSED";
     });
 
     // =========================================================================
     // TEST 16: Down Arrow as leader
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 16: Down Arrow as leader ===";
+        FCITX_INFO() << "=== Test 20: Down Arrow as leader ===";
         configureLeaders(instance, false, false, false, false, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test16");
+        auto uuid = createAndActivate(instance, tf, "test20");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -1107,11 +1050,11 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 16 PASSED";
+        FCITX_INFO() << "Test 20 PASSED";
     });
 
     // =========================================================================
-    // Tests 17-19: Alt/AltGr leader with deferred commit verification.
+    // Tests 21-23: Alt/AltGr leader with deferred commit verification.
     // Alt leader uses a 5ms deferred commit timer. To verify the committed
     // string, we wait 10ms via addTimeEvent before checking. These tests
     // are chained: each timer callback schedules the next test, so no
@@ -1121,15 +1064,15 @@ void scheduleTests(Instance *instance) {
     // kept alive — if it goes out of scope, the timer is cancelled. We use
     // a shared_ptr to a holder struct captured by all lambdas in the chain.
     //
-    // IMPORTANT: Tests 20+ are scheduled via scheduleTestsAfterAltVerify()
+    // IMPORTANT: Tests 24+ are scheduled via scheduleTestsAfterAltVerify()
     // from the last timer callback, guaranteeing all deferred commits are
     // verified before any subsequent test starts.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 17: Alt_L as leader ===";
+        FCITX_INFO() << "=== Test 21: Alt_L as leader ===";
         configureLeaders(instance, false, false, false, false, false, true);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test17");
+        auto uuid = createAndActivate(instance, tf, "test21");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -1153,56 +1096,56 @@ void scheduleTests(Instance *instance) {
             [instance, uuid, holder](EventSourceTime *, uint64_t) {
                 auto *tf = instance->addonManager().addon("testfrontend");
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
-                FCITX_INFO() << "Test 17 PASSED";
+                FCITX_INFO() << "Test 21 PASSED";
 
-                // --- Test 18: AltGr as leader ---
-                FCITX_INFO() << "=== Test 18: AltGr (ISO_Level3_Shift) as leader ===";
+                // --- Test 22: AltGr as leader ---
+                FCITX_INFO() << "=== Test 22: AltGr (ISO_Level3_Shift) as leader ===";
                 configureLeaders(instance, false, false, false, false, false, true);
-                auto uuid18 = createAndActivate(instance, tf, "test18");
+                auto uuid22 = createAndActivate(instance, tf, "test22");
 
                 tf->call<ITestFrontend::sendKeyEvent>(
-                    uuid18, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+                    uuid22, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-                bool consumed18 = tf->call<ITestFrontend::sendKeyEvent>(
-                    uuid18, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr), false);
-                FCITX_ASSERT(consumed18) << "AltGr leader during gesture should be consumed";
+                bool consumed22 = tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid22, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr), false);
+                FCITX_ASSERT(consumed22) << "AltGr leader during gesture should be consumed";
 
                 tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
                 tf->call<ITestFrontend::keyEvent>(
-                    uuid18, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+                    uuid22, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
                 holder->timer = instance->eventLoop().addTimeEvent(
                     CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
-                    [instance, uuid18, holder](EventSourceTime *, uint64_t) {
+                    [instance, uuid22, holder](EventSourceTime *, uint64_t) {
                         auto *tf = instance->addonManager().addon("testfrontend");
-                        tf->call<ITestFrontend::destroyInputContext>(uuid18);
-                        FCITX_INFO() << "Test 18 PASSED";
+                        tf->call<ITestFrontend::destroyInputContext>(uuid22);
+                        FCITX_INFO() << "Test 22 PASSED";
 
-                        // --- Test 19: Alt release consumed, commits "ä" ---
-                        FCITX_INFO() << "=== Test 19: Alt release consumed after leader use ===";
+                        // --- Test 23: Alt release consumed, commits "ä" ---
+                        FCITX_INFO() << "=== Test 23: Alt release consumed after leader use ===";
                         configureLeaders(instance, false, false, false, false, false, true);
-                        auto uuid19 = createAndActivate(instance, tf, "test19");
+                        auto uuid23 = createAndActivate(instance, tf, "test23");
 
                         tf->call<ITestFrontend::sendKeyEvent>(
-                            uuid19, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+                            uuid23, Key(FcitxKey_a, KeyStates(), kCodeA), false);
                         tf->call<ITestFrontend::sendKeyEvent>(
-                            uuid19, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+                            uuid23, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
 
                         bool c = tf->call<ITestFrontend::sendKeyEvent>(
-                            uuid19, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+                            uuid23, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
                         FCITX_ASSERT(c) << "Alt release after leader should be consumed";
 
                         tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
                         c = tf->call<ITestFrontend::sendKeyEvent>(
-                            uuid19, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+                            uuid23, Key(FcitxKey_a, KeyStates(), kCodeA), true);
                         FCITX_ASSERT(c) << "Accent key release during Alt gesture should be consumed";
 
                         holder->timer = instance->eventLoop().addTimeEvent(
                             CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
-                            [instance, uuid19, holder](EventSourceTime *, uint64_t) {
+                            [instance, uuid23, holder](EventSourceTime *, uint64_t) {
                                 auto *tf = instance->addonManager().addon("testfrontend");
-                                tf->call<ITestFrontend::destroyInputContext>(uuid19);
-                                FCITX_INFO() << "Test 19 PASSED";
+                                tf->call<ITestFrontend::destroyInputContext>(uuid23);
+                                FCITX_INFO() << "Test 23 PASSED";
                                 // All deferred commits verified — safe to continue
                                 scheduleTestsAfterAltVerify(instance);
                                 return false;
@@ -1221,10 +1164,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // TEST 20: committedKeyCode_ — auto-repeat suppression after commit
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 20: Auto-repeat suppression after commit ===";
+        FCITX_INFO() << "=== Test 24: Auto-repeat suppression after commit ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test20");
+        auto uuid = createAndActivate(instance, tf, "test24");
 
         // Hold 'a' + Space → commit 'ä'
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -1244,17 +1187,17 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         FCITX_ASSERT(consumed) << "Release of committed key should be consumed";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 20 PASSED";
+        FCITX_INFO() << "Test 24 PASSED";
     });
 
     // =========================================================================
     // TEST 21: Custom leader key
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 21: Custom leader key '#' ===";
+        FCITX_INFO() << "=== Test 25: Custom leader key '#' ===";
         configureLeaders(instance, false, false, false, false, false, false, "#");
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test21");
+        auto uuid = createAndActivate(instance, tf, "test25");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -1268,10 +1211,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 21 PASSED";
+        FCITX_INFO() << "Test 25 PASSED";
     });
 
-    // NOTE: Test 22 (disabled leader passthrough) removed — triggers a
+    // NOTE: Disabled leader passthrough test removed — triggers a
     // pre-existing testfrontend commit-expectation issue where commits via
     // the "OTHER KEYS" path (commitPendingKey) silently fail the global
     // checkExpectation_ assertion regardless of push timing.
@@ -1281,11 +1224,11 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Validates utf8::validate/ncharByteLength sanitization path.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 24: Custom leader with UTF-8 char § ===";
+        FCITX_INFO() << "=== Test 26: Custom leader with UTF-8 char § ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "\xc2\xa7");  // § in UTF-8
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test24");
+        auto uuid = createAndActivate(instance, tf, "test26");
 
         constexpr int kCodeSection = 21;
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -1300,7 +1243,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 24 PASSED";
+        FCITX_INFO() << "Test 26 PASSED";
     });
 
     // =========================================================================
@@ -1308,10 +1251,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Config "#x" should sanitize to "#" and work as leader.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 25: Custom leader multi-char sanitized ===";
+        FCITX_INFO() << "=== Test 27: Custom leader multi-char sanitized ===";
         configureLeaders(instance, false, false, false, false, false, false, "#x");
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test25");
+        auto uuid = createAndActivate(instance, tf, "test27");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -1325,7 +1268,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 25 PASSED";
+        FCITX_INFO() << "Test 27 PASSED";
     });
 
     // =========================================================================
@@ -1333,10 +1276,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Config "  #  " should sanitize to "#" and work as leader.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 26: Custom leader whitespace trimmed ===";
+        FCITX_INFO() << "=== Test 28: Custom leader whitespace trimmed ===";
         configureLeaders(instance, false, false, false, false, false, false, "  #  ");
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test26");
+        auto uuid = createAndActivate(instance, tf, "test28");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -1350,22 +1293,22 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 26 PASSED";
+        FCITX_INFO() << "Test 28 PASSED";
     });
 
-    // NOTE: Test 27 (whitespace-only custom leader rejected) removed — same
-    // testfrontend commit-expectation issue as Test 22 (OTHER KEYS path).
+    // NOTE: Whitespace-only custom leader rejected test removed — same
+    // testfrontend commit-expectation issue (OTHER KEYS path).
 
     // =========================================================================
     // TEST 28: Custom leader sanitization — multi-byte UTF-8 trimmed from longer
     // Config "§xyz" should sanitize to "§" (2 bytes kept, rest dropped).
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 28: Multi-byte UTF-8 trimmed from longer ===";
+        FCITX_INFO() << "=== Test 29: Multi-byte UTF-8 trimmed from longer ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "\xc2\xa7xyz");  // "§xyz"
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test28");
+        auto uuid = createAndActivate(instance, tf, "test29");
 
         constexpr int kCodeSection = 21;
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -1380,7 +1323,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 28 PASSED";
+        FCITX_INFO() << "Test 29 PASSED";
     });
 
     // =========================================================================
@@ -1389,23 +1332,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Release 'a' after second Space → commits "ae" (index 1).
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 40: Cycling through multiple outputs ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "True");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKey", "");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 30: Cycling through multiple outputs ===";
+        configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae,@"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test40");
+        auto uuid = createAndActivate(instance, tf, "test30");
 
         // Hold 'a' + Space → enters cycling at index 0 (preedit "ä")
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -1423,7 +1355,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 40 PASSED";
+        FCITX_INFO() << "Test 30 PASSED";
     });
 
     // =========================================================================
@@ -1432,23 +1364,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Release 'a' → commits "ä" (index 0 after wrap).
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 41: Cycling wraps around ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "True");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKey", "");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 31: Cycling wraps around ===";
+        configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test41");
+        auto uuid = createAndActivate(instance, tf, "test31");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -1469,7 +1390,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 41 PASSED";
+        FCITX_INFO() << "Test 31 PASSED";
     });
 
     // =========================================================================
@@ -1477,10 +1398,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Pressing a second mapped key should commit 'a' and start 's' gesture.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 42: Overlapping gestures ===";
+        FCITX_INFO() << "=== Test 32: Overlapping gestures ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test42");
+        auto uuid = createAndActivate(instance, tf, "test32");
 
         // Press 'a' → enters waiting
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -1500,7 +1421,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_s, KeyStates(), kCodeS), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 42 PASSED";
+        FCITX_INFO() << "Test 32 PASSED";
     });
 
     // =========================================================================
@@ -1508,10 +1429,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Space alone (no key held) should pass through unconsumed.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 43: Space passthrough without gesture ===";
+        FCITX_INFO() << "=== Test 33: Space passthrough without gesture ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test43");
+        auto uuid = createAndActivate(instance, tf, "test33");
 
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
@@ -1522,7 +1443,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         FCITX_ASSERT(!consumed) << "Space release without gesture should pass through";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 43 PASSED";
+        FCITX_INFO() << "Test 33 PASSED";
     });
 
     // =========================================================================
@@ -1531,10 +1452,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // it without consuming. A subsequent Space then also passes through.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 44: Ordering guard clears on non-Space ===";
+        FCITX_INFO() << "=== Test 34: Ordering guard clears on non-Space ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test44");
+        auto uuid = createAndActivate(instance, tf, "test34");
 
         // Hold 'a' + Space → 'ä' (sets recentlyCommitted_)
         tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
@@ -1558,7 +1479,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         FCITX_ASSERT(!consumed) << "Space after guard cleared should pass through";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 44 PASSED";
+        FCITX_INFO() << "Test 34 PASSED";
     });
 
     // =========================================================================
@@ -1567,23 +1488,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // so a new gesture can start without interference.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 45: New gesture after cycling commit ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "True");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKey", "");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 35: New gesture after cycling commit ===";
+        configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}, {"s", "\xc3\x9f"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test45");
+        auto uuid = createAndActivate(instance, tf, "test35");
 
         // Cycling gesture: hold 'a' + Space + Space → index 1 ("ae")
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -1608,7 +1518,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_s, KeyStates(), kCodeS), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 45 PASSED";
+        FCITX_INFO() << "Test 35 PASSED";
     });
 
     // =========================================================================
@@ -1618,23 +1528,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Without this, Space could arrive before the committed text in terminals.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 46: Ordering guard after cycling release ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "True");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKey", "");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 36: Ordering guard after cycling release ===";
+        configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test46");
+        auto uuid = createAndActivate(instance, tf, "test36");
 
         // Cycling: hold 'a' + Space → preedit "ä"
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -1654,7 +1553,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         FCITX_ASSERT(consumed) << "Space after cycling commit must be consumed by ordering guard";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 46 PASSED";
+        FCITX_INFO() << "Test 36 PASSED";
     });
 
     // =========================================================================
@@ -1664,10 +1563,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Mapped chars: a,e,i,o,u,s,c,n,y (multilingual cycling)
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 47: Space leader — German 1000 chars ===";
+        FCITX_INFO() << "=== Test 37: Space leader — German 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test47");
+        auto uuid = createAndActivate(instance, tf, "test37");
 
         int collisions = typeTextWordBoundaryOverlap(
             tf, uuid, kGerman1000, true);
@@ -1677,7 +1576,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             << " (got " << collisions << ")";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 47 PASSED — German: "
+        FCITX_INFO() << "Test 37 PASSED — German: "
                       << collisions << " collisions with Space leader";
     });
 
@@ -1685,10 +1584,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // TEST 48: Writing flow — Space leader, English 1000 chars
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 48: Space leader — English 1000 chars ===";
+        FCITX_INFO() << "=== Test 38: Space leader — English 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test48");
+        auto uuid = createAndActivate(instance, tf, "test38");
 
         int collisions = typeTextWordBoundaryOverlap(
             tf, uuid, kEnglish1000, true);
@@ -1698,7 +1597,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             << " (got " << collisions << ")";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 48 PASSED — English: "
+        FCITX_INFO() << "Test 38 PASSED — English: "
                       << collisions << " collisions with Space leader";
     });
 
@@ -1706,10 +1605,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // TEST 49: Writing flow — Space leader, French 1000 chars
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 49: Space leader — French 1000 chars ===";
+        FCITX_INFO() << "=== Test 39: Space leader — French 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test49");
+        auto uuid = createAndActivate(instance, tf, "test39");
 
         int collisions = typeTextWordBoundaryOverlap(
             tf, uuid, kFrench1000, true);
@@ -1719,7 +1618,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             << " (got " << collisions << ")";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 49 PASSED — French: "
+        FCITX_INFO() << "Test 39 PASSED — French: "
                       << collisions << " collisions with Space leader";
     });
 
@@ -1727,10 +1626,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // TEST 50: Writing flow — Space leader, Portuguese 1000 chars
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 50: Space leader — Portuguese 1000 chars ===";
+        FCITX_INFO() << "=== Test 40: Space leader — Portuguese 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test50");
+        auto uuid = createAndActivate(instance, tf, "test40");
 
         int collisions = typeTextWordBoundaryOverlap(
             tf, uuid, kPortuguese1000, true);
@@ -1740,7 +1639,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             << " (got " << collisions << ")";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 50 PASSED — Portuguese: "
+        FCITX_INFO() << "Test 40 PASSED — Portuguese: "
                       << collisions << " collisions with Space leader";
     });
 
@@ -1750,10 +1649,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // This proves Alt is superior to Space for fast typing.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 51: Alt leader — German 1000 chars ===";
+        FCITX_INFO() << "=== Test 41: Alt leader — German 1000 chars ===";
         configureMultilingualCycling(instance, false, true);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test51");
+        auto uuid = createAndActivate(instance, tf, "test41");
 
         int collisions = typeTextWordBoundaryOverlap(
             tf, uuid, kGerman1000, false);
@@ -1762,7 +1661,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             << "Alt leader must have zero collisions in normal typing";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 51 PASSED — Alt leader: "
+        FCITX_INFO() << "Test 41 PASSED — Alt leader: "
                       << collisions << " collisions (zero!)";
     });
 
@@ -1772,10 +1671,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Same advantage as Alt but key position may differ ergonomically.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 52: Custom leader (#) — German 1000 chars ===";
+        FCITX_INFO() << "=== Test 42: Custom leader (#) — German 1000 chars ===";
         configureMultilingualCycling(instance, false, false, "#");
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test52");
+        auto uuid = createAndActivate(instance, tf, "test42");
 
         int collisions = typeTextWordBoundaryOverlap(
             tf, uuid, kGerman1000, false);
@@ -1784,7 +1683,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             << "Custom leader must have zero collisions in normal typing";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 52 PASSED — Custom leader (#): "
+        FCITX_INFO() << "Test 42 PASSED — Custom leader (#): "
                       << collisions << " collisions (zero!)";
     });
 
@@ -1794,10 +1693,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // presses Space → 'u' converts to 'ü'. Output: "anbaü" not "anbau ".
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 53: anbau overlap collision demo ===";
+        FCITX_INFO() << "=== Test 43: anbau overlap collision demo ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test53");
+        auto uuid = createAndActivate(instance, tf, "test43");
 
         // Type "anba" with clean typing (release before next key)
         // 'a' is mapped → press, expect "a", release
@@ -1836,7 +1735,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_u, KeyStates(), 30), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 53 PASSED — anbau → anbaü confirmed";
+        FCITX_INFO() << "Test 43 PASSED — anbau → anbaü confirmed";
     });
 
     // =========================================================================
@@ -1854,7 +1753,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // ';' leader never appears in normal text → 0 collisions.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 54: Dual leader collision analysis ===";
+        FCITX_INFO() << "=== Test 44: Dual leader collision analysis ===";
 
         struct LangResult {
             const char *name;
@@ -1926,7 +1825,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
                     + p.rightLeader + ":" + std::to_string(rightL) + ") ";
             }
         }
-        FCITX_INFO() << "Test 54 PASSED — " << result;
+        FCITX_INFO() << "Test 44 PASSED — " << result;
     });
 
     // =========================================================================
@@ -1934,25 +1833,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // CustomKey2="#", hold 'a' + '#' → ä
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 55: CustomKey2 basic ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "False");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKey", "");
-        config.setValueByPath("Leader/CustomKey2Enabled", "True");
-        config.setValueByPath("Leader/CustomKey2", "#");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 45: CustomKey2 basic ===";
+        configureLeaders(instance, false, false, false, false, false, false, "", "#");
         setMappings(instance, {{"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test55");
+        auto uuid = createAndActivate(instance, tf, "test45");
 
         // Hold 'a' + press '#' (CustomKey2) → ä
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -1965,7 +1851,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 55 PASSED";
+        FCITX_INFO() << "Test 45 PASSED";
     });
 
     // =========================================================================
@@ -1974,26 +1860,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Hold 'u' (right-hand input) + press 'z' (left-hand leader) → ü
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 56: Dual split — allowed ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "False");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "z");
-        config.setValueByPath("Leader/CustomKey2Enabled", "True");
-        config.setValueByPath("Leader/CustomKey2", "/");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 46: Dual split — allowed ===";
+        configureLeaders(instance, false, false, false, false, false, false, "z", "/");
         setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test56");
+        auto uuid = createAndActivate(instance, tf, "test46");
 
         // Hold 'u' (right) + press 'z' (left leader) → ü (allowed: opposite hands)
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -2006,7 +1878,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_u, KeyStates(), 30), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 56 PASSED";
+        FCITX_INFO() << "Test 46 PASSED";
     });
 
     // =========================================================================
@@ -2015,26 +1887,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // 'z' falls through to OTHER KEYS, commits 'a' as original, 'z' passes through.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 57: Dual split — blocked ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "False");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "z");
-        config.setValueByPath("Leader/CustomKey2Enabled", "True");
-        config.setValueByPath("Leader/CustomKey2", "/");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 47: Dual split — blocked ===";
+        configureLeaders(instance, false, false, false, false, false, false, "z", "/");
         setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test57");
+        auto uuid = createAndActivate(instance, tf, "test47");
 
         // Hold 'a' (left) + press 'z' (left leader) → BLOCKED
         // 'z' is not allowed for left-hand input 'a', falls through to OTHER KEYS
@@ -2048,7 +1906,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             << "'z' must NOT convert same-hand 'a' — should pass through";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 57 PASSED";
+        FCITX_INFO() << "Test 47 PASSED";
     });
 
     // =========================================================================
@@ -2056,26 +1914,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Hold 'a' (left) + press '/' (right leader) → ä (allowed: opposite hands)
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 58: Dual split — reverse ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "False");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "z");
-        config.setValueByPath("Leader/CustomKey2Enabled", "True");
-        config.setValueByPath("Leader/CustomKey2", "/");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 48: Dual split — reverse ===";
+        configureLeaders(instance, false, false, false, false, false, false, "z", "/");
         setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test58");
+        auto uuid = createAndActivate(instance, tf, "test48");
 
         // Hold 'a' (left) + press '/' (right leader) → ä (allowed)
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -2088,7 +1932,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 58 PASSED";
+        FCITX_INFO() << "Test 48 PASSED";
     });
 
 
@@ -2097,25 +1941,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Only CustomKey="z" set (no CustomKey2) → 'z' triggers ALL inputs.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 59: Single custom key — no split ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "False");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "z");
-        config.setValueByPath("Leader/CustomKey2", "");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 49: Single custom key — no split ===";
+        configureLeaders(instance, false, false, false, false, false, false, "z");
         setMappings(instance, {{"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test59");
+        auto uuid = createAndActivate(instance, tf, "test49");
 
         // Hold 'a' (left) + press 'z' (left, single custom key) → ä
         // No split because CustomKey2 is empty → triggers ALL mappings
@@ -2130,7 +1961,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 59 PASSED";
+        FCITX_INFO() << "Test 49 PASSED";
     });
 
     // =========================================================================
@@ -2139,26 +1970,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Space is BuiltIn → ignores hand split, triggers all mappings.
     // =========================================================================
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 60: Built-in leader ignores split ===";
-        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
-        RawConfig config;
-        config.setValueByPath("Delay/Lowercase", "400");
-        config.setValueByPath("Delay/Uppercase", "700");
-        config.setValueByPath("Leader/Space", "True");
-        config.setValueByPath("Leader/Left", "False");
-        config.setValueByPath("Leader/Right", "False");
-        config.setValueByPath("Leader/Up", "False");
-        config.setValueByPath("Leader/Down", "False");
-        config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "z");
-        config.setValueByPath("Leader/CustomKey2Enabled", "True");
-        config.setValueByPath("Leader/CustomKey2", "/");
-        addon->setConfig(config);
+        FCITX_INFO() << "=== Test 50: Built-in leader ignores split ===";
+        configureLeaders(instance, true, false, false, false, false, false, "z", "/");
         setMappings(instance, {{"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test60");
+        auto uuid = createAndActivate(instance, tf, "test50");
 
         // Hold 'a' (left) + Space → ä (Space is BuiltIn, ignores split)
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -2172,7 +1989,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 60 PASSED";
+        FCITX_INFO() << "Test 50 PASSED";
     });
 
     // All synchronous tests done — exit

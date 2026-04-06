@@ -226,6 +226,7 @@ public:
             xkbKeymap_ = xkb_keymap_new_from_names(
                 xkbCtx_, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
         }
+        buildCharToKeycode();
 
         reloadConfig();
     }
@@ -731,8 +732,8 @@ private:
             if (cachedCustomKey_ == cachedCustomKey2_) {
                 FCITX_WARN() << "Schnelle: CustomKey and CustomKey2 are identical"
                              << " — dual split disabled, both trigger all mappings";
-            } else if (isLeftHandUSQwerty(cachedCustomKey_) ==
-                       isLeftHandUSQwerty(cachedCustomKey2_)) {
+            } else if (isLeftHand(cachedCustomKey_) ==
+                       isLeftHand(cachedCustomKey2_)) {
                 FCITX_WARN() << "Schnelle: CustomKey '" << cachedCustomKey_
                              << "' and CustomKey2 '" << cachedCustomKey2_
                              << "' are on the same keyboard half"
@@ -979,19 +980,52 @@ private:
         return LeaderType::None;
     }
 
-    // US QWERTY hand classification for dual custom leader split.
-    // Left hand: qwertasdfgzxcvb + digits 1-5 + symbols `~!@#$%
-    // Everything else (including non-ASCII) defaults to right hand.
-    static bool isLeftHandUSQwerty(const std::string &key) {
-        if (key.size() != 1) return false;
-        char c = key[0];
-        if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
-        return c == 'q' || c == 'w' || c == 'e' || c == 'r' || c == 't' ||
-               c == 'a' || c == 's' || c == 'd' || c == 'f' || c == 'g' ||
-               c == 'z' || c == 'x' || c == 'c' || c == 'v' || c == 'b' ||
-               c == '`' || c == '1' || c == '2' || c == '3' || c == '4' ||
-               c == '5' || c == '~' || c == '!' || c == '@' || c == '#' ||
-               c == '$' || c == '%';
+    // Physical keycode-based left-hand classification — layout-independent.
+    // Uses standard PC keyboard evdev codes: the physical key position
+    // determines the hand, not the character printed on the keycap.
+    // Works correctly for QWERTY, QWERTZ, AZERTY, Dvorak, Colemak, etc.
+    static bool isLeftHandKeycode(int keycode) {
+        return (keycode >= 24 && keycode <= 28) ||  // Q W E R T row
+               (keycode >= 38 && keycode <= 42) ||  // A S D F G row
+               (keycode >= 52 && keycode <= 56) ||  // Z X C V B row
+               keycode == 49 ||                      // ` ~
+               (keycode >= 10 && keycode <= 14);     // 1 2 3 4 5
+    }
+
+    // Check if a character is on the left hand of the keyboard.
+    // Uses reverse XKB keymap lookup (char → keycode → physical position).
+    // Falls back to right hand (false) for unknown chars or missing keymap,
+    // which disables dual split (both leaders seen as same hand).
+    bool isLeftHand(const std::string &key) const {
+        std::string lookup = key;
+        if (lookup.size() == 1 && lookup[0] >= 'A' && lookup[0] <= 'Z')
+            lookup[0] = lookup[0] - 'A' + 'a';
+        auto it = charToKeycode_.find(lookup);
+        if (it == charToKeycode_.end()) return false;
+        return isLeftHandKeycode(it->second);
+    }
+
+    // Build reverse mapping (character → physical keycode) from the XKB
+    // keymap.  Only stores the first keycode for each character so shifted
+    // duplicates don't overwrite.
+    void buildCharToKeycode() {
+        charToKeycode_.clear();
+        if (!xkbKeymap_) return;
+        xkb_keycode_t min = xkb_keymap_min_keycode(xkbKeymap_);
+        xkb_keycode_t max = xkb_keymap_max_keycode(xkbKeymap_);
+        for (xkb_keycode_t code = min; code <= max; ++code) {
+            const xkb_keysym_t *syms;
+            int n = xkb_keymap_key_get_syms_by_level(
+                xkbKeymap_, code, 0, 0, &syms);
+            if (n > 0) {
+                uint32_t uc = xkb_keysym_to_utf32(syms[0]);
+                if (uc > 0 && uc <= kMaxUnicodeCodepoint) {
+                    std::string ch = utf8::UCS4ToUTF8(uc);
+                    charToKeycode_.emplace(std::move(ch),
+                                           static_cast<int>(code));
+                }
+            }
+        }
     }
 
     // Dual custom leader split: when BOTH custom keys are set and on
@@ -1010,13 +1044,13 @@ private:
         if (cachedCustomKey_ == cachedCustomKey2_)
             return true;
 
-        bool key1Left = isLeftHandUSQwerty(cachedCustomKey_);
-        bool key2Left = isLeftHandUSQwerty(cachedCustomKey2_);
+        bool key1Left = isLeftHand(cachedCustomKey_);
+        bool key2Left = isLeftHand(cachedCustomKey2_);
 
         // Both keys on same hand → no split possible, allow all
         if (key1Left == key2Left) return true;
 
-        bool inputLeft = isLeftHandUSQwerty(inputKey);
+        bool inputLeft = isLeftHand(inputKey);
 
         // Left-hand leader triggers RIGHT-hand inputs (and vice versa)
         if (leader == LeaderType::Custom1)
@@ -1109,6 +1143,9 @@ private:
     // resolved back to '/' so the leader still matches).
     struct xkb_context *xkbCtx_ = nullptr;
     struct xkb_keymap *xkbKeymap_ = nullptr;
+    // Reverse mapping: character → physical evdev keycode.
+    // Built from the XKB keymap for layout-independent hand classification.
+    std::unordered_map<std::string, int> charToKeycode_;
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {
