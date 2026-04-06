@@ -458,6 +458,7 @@ public:
         // Unlike the pure modifier early-return above (Shift/Ctrl alone),
         // this handles a modifier HELD + another key pressed.
         // =========================================
+        bool didAltBypass = false;
         if (hasModifiers(key)) {
             // When Alt is the leader key and a gesture is active, ignore
             // Alt-only modifier state — input key repeats with Alt held
@@ -487,6 +488,7 @@ public:
             if (!baseChar.empty()) {
                 keyChar = baseChar;
             }
+            didAltBypass = true;
         }
 
         // Re-press of gesture key during deferred Alt cycling commit.
@@ -670,6 +672,18 @@ public:
         // Clean up stale Alt gesture state
         state->altGestureSession_ = false;
         state->consumedAltCode_ = 0;
+        // When Alt leader bypass was active, the key carries an Alt modifier
+        // that would trigger application shortcuts (Alt+v → menu etc.).
+        // Emit printable characters through commitString and consume the
+        // event so the Alt modifier doesn't leak to the application.
+        if (didAltBypass && !keyChar.empty() &&
+            (keyChar.size() > 1 ||
+             static_cast<unsigned char>(keyChar[0]) >= ' ')) {
+            ic->commitString(keyChar);
+            state->recentlyCommitted_ = true;
+            keyEvent.filterAndAccept();
+            return;
+        }
         // Let key through
     }
 
