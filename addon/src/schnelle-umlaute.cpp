@@ -1006,8 +1006,13 @@ private:
     }
 
     // Build reverse mapping (character → physical keycode) from the XKB
-    // keymap.  Only stores the first keycode for each character so shifted
-    // duplicates don't overwrite.
+    // keymap.  Intentionally level 0 (unshifted) only — shifted symbols
+    // like @ (Shift+2) or ? (Shift+/) are not mapped.  Unknown chars
+    // fall back to right hand in isLeftHand(), which means two shifted-
+    // symbol leaders disable the split rather than enforce a wrong one.
+    // This is the safer default: custom keyboards may place higher-level
+    // characters on arbitrary physical positions (e.g. thumb clusters),
+    // so assuming the base key's position would be incorrect.
     void buildCharToKeycode() {
         charToKeycode_.clear();
         if (!xkbKeymap_) return;
