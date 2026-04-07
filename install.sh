@@ -444,9 +444,6 @@ echo
 echo "3. In the configuration window:"
 echo "   - Go to 'Input Method' tab"
 echo "   - Click '+' to add"
-if [ "$DISTRO" != "arch" ]; then
-    echo "   - Uncheck 'Only Show Current Language'"
-fi
 echo "   - Search for 'Schnelle Umlaute'"
 echo "   - Add it to your input methods"
 echo

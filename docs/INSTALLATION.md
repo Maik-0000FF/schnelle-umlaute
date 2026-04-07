@@ -17,8 +17,6 @@ The installer automatically detects your distribution (Arch, Debian, Ubuntu, Fed
 
 **After installation:** Logout and login, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
 
-**Note:** Make sure to uncheck "Only Show Current Language" when searching for the addon.
-
 ---
 
 ## Manual Installation (Arch Linux)
