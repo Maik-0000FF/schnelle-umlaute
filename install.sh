@@ -91,7 +91,7 @@ case "$DISTRO" in
         echo "Manual build:"
         echo "  1. Install: fcitx5, fcitx5 dev libraries, cmake, extra-cmake-modules, g++"
         echo "  2. cd addon && mkdir build && cd build && cmake .. && make -j\$(nproc)"
-        echo "  3. sudo make install"
+        echo "  3. sudo cmake --install ."
         exit 1
         ;;
 esac
