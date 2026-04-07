@@ -250,18 +250,26 @@ Otherwise, remove files manually. The addon library path depends on your distrib
 ```bash
 # Arch Linux
 sudo rm /usr/lib/fcitx5/schnelle-umlaute.so
+sudo rm /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
 
 # Ubuntu/Debian (x86_64)
 sudo rm /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
+sudo rm /usr/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
 
 # Fedora / openSUSE (x86_64)
 sudo rm /usr/lib64/fcitx5/schnelle-umlaute.so
+sudo rm /usr/lib64/fcitx5/qt6/libschnelle-umlaute-config-editor.so
 
 # Common data files (all distributions)
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
 sudo rm /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
 sudo rm /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf
-rm ~/.config/environment.d/fcitx5.conf  # Optional: remove environment config
+
+# Optional: remove user configuration
+rm ~/.config/fcitx5/conf/schnelle-umlaute.conf
+rm -r ~/.config/fcitx5/schnelle-umlaute/
+rm ~/.config/environment.d/fcitx5.conf
+
 fcitx5 -r
 ```

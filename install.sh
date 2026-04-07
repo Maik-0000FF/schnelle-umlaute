@@ -272,10 +272,7 @@ fi
 # --- Install ---
 
 echo -e "${BLUE}Installing addon...${NC}"
-case "$DISTRO" in
-    debian) sudo make install ;;
-    *)      sudo cmake --install . ;;
-esac
+sudo cmake --install .
 echo -e "${GREEN}✓ Addon installed${NC}"
 echo
 
