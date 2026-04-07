@@ -450,7 +450,7 @@ fi
 echo "   - Search for 'Schnelle Umlaute'"
 echo "   - Add it to your input methods"
 echo
-echo -e "4. Switch to 'Schnelle Umlaute' using ${BLUE}Ctrl+Space${NC}"
+echo "4. Switch to 'Schnelle Umlaute' using your configured trigger key (default: Ctrl+Space)"
 echo
 echo "5. Test it:"
 echo "   - Hold 'a' and press Space → ä"
