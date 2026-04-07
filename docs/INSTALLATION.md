@@ -12,6 +12,7 @@ The installer automatically detects your distribution (Arch, Debian, Ubuntu, Fed
 - Check and install dependencies via the appropriate package manager
 - Build and install the addon
 - Configure environment variables automatically
+- Detect Shift trigger key conflicts that break uppercase mappings
 - Guide you through the setup
 
 **After installation:** Logout and login, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
