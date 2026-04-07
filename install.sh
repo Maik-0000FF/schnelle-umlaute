@@ -328,57 +328,42 @@ if [ "$DISTRO" = "debian" ]; then
     echo
 fi
 
-# --- Config Migration ---
-
-CONFIG_FILE="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
+# --- Config Status ---
 
 echo -e "${BLUE}Checking configuration...${NC}"
-
-if [ -f "$CONFIG_FILE" ]; then
-    if grep -q "^\[Mapping1\]" "$CONFIG_FILE" || grep -q "^DelayLowercase=" "$CONFIG_FILE" || grep -q "^LeaderSpace=" "$CONFIG_FILE" || grep -q "^Mapping1Input=" "$CONFIG_FILE"; then
-        # Old config format (v0.x) — incompatible with v1.0+
-        echo -e "${YELLOW}Detected old configuration format (v0.x)${NC}"
-        read -p "Remove old config and regenerate defaults? [Y/n] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            mv "$CONFIG_FILE" "$CONFIG_FILE.backup"
-            echo -e "${GREEN}✓ Old config backed up to: $CONFIG_FILE.backup${NC}"
-            echo -e "${GREEN}✓ Defaults will be regenerated on next start${NC}"
-        else
-            echo -e "${RED}Warning: Old config format may not work correctly!${NC}"
-        fi
-    else
-        echo -e "${GREEN}✓ Configuration looks good${NC}"
-    fi
+CONFIG_FILE="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
+if [ -f "$CONFIG_FILE" ] && grep -q -E "^\[Mapping1\]|^DelayLowercase=|^LeaderSpace=|^Mapping1Input=" "$CONFIG_FILE"; then
+    echo -e "${YELLOW}Old v0.x config found: $CONFIG_FILE${NC}"
+    echo -e "${YELLOW}This config is not used by v1.0+ and can be safely deleted.${NC}"
+elif [ -f "$CONFIG_FILE" ]; then
+    echo -e "${GREEN}✓ Configuration found${NC}"
 else
-    echo -e "${GREEN}✓ No existing config (defaults will be used)${NC}"
+    echo -e "${GREEN}✓ No existing config (defaults will be used on first start)${NC}"
 fi
 echo
 
 # --- Fix Shift+L Conflict ---
 
-echo -e "${BLUE}Configuring Fcitx5 to avoid Shift conflicts...${NC}"
+echo -e "${BLUE}Checking Fcitx5 hotkey configuration...${NC}"
 CONFIG_DIR="$HOME/.config/fcitx5"
 FCITX_CONFIG="$CONFIG_DIR/config"
 
-mkdir -p "$CONFIG_DIR"
-
-if [ ! -f "$FCITX_CONFIG" ]; then
-    cat > "$FCITX_CONFIG" << 'EOF'
-[Hotkey]
-TriggerKeys=Control+space
-
-[Behavior]
-ShareInputState=No
-EOF
-    echo -e "${GREEN}✓ Fcitx5 configured (Shift_L disabled)${NC}"
-else
-    if grep -q "TriggerKeys.*Shift" "$FCITX_CONFIG"; then
-        sed -i 's/^TriggerKeys=.*/TriggerKeys=Control+space/' "$FCITX_CONFIG"
-        echo -e "${GREEN}✓ Shift conflict resolved (switched to Ctrl+Space only)${NC}"
+if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_CONFIG" | grep -q "Shift"; then
+    echo -e "${YELLOW}Shift is configured as an input method trigger key.${NC}"
+    echo -e "${YELLOW}This conflicts with Schnelle Umlaute, which uses Shift for uppercase${NC}"
+    echo -e "${YELLOW}mappings (e.g. Shift+A → Ä). With Shift as trigger, fcitx5 will${NC}"
+    echo -e "${YELLOW}switch input methods instead.${NC}"
+    echo
+    read -p "Replace trigger key with Ctrl+Space? [Y/n] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        sed -i '/\[Hotkey\/TriggerKeys\]/,/^\[/{s/^0=.*/0=Control+space/}' "$FCITX_CONFIG"
+        echo -e "${GREEN}✓ Trigger key changed to Ctrl+Space${NC}"
     else
-        echo -e "${GREEN}✓ No Shift conflict detected${NC}"
+        echo -e "${YELLOW}Keeping current trigger key. Shift+key mappings may not work.${NC}"
     fi
+else
+    echo -e "${GREEN}✓ No Shift conflict detected${NC}"
 fi
 echo
 
