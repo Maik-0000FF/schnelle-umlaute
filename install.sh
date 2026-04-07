@@ -334,61 +334,16 @@ CONFIG_FILE="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
 
 echo -e "${BLUE}Checking configuration...${NC}"
 
-# Migrate old flat config format to new sectioned format.
-# Old format had top-level keys like DelayLowercase=, LeaderSpace=, Mapping1Input=.
-# New format uses sections: [Delay] Lowercase=, [Leader] Space=, [Mappings] Input1=.
-migrate_flat_config() {
-    local cfg="$1"
-    local tmp="${cfg}.migrating"
-
-    echo "[Delay]" > "$tmp"
-    grep -oP '^DelayLowercase=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Lowercase=$v"; done >> "$tmp"
-    grep -oP '^DelayUppercase=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Uppercase=$v"; done >> "$tmp"
-    echo "" >> "$tmp"
-
-    echo "[Leader]" >> "$tmp"
-    grep -oP '^LeaderSpace=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Space=$v"; done >> "$tmp"
-    grep -oP '^LeaderLeft=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Left=$v"; done >> "$tmp"
-    grep -oP '^LeaderRight=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Right=$v"; done >> "$tmp"
-    grep -oP '^LeaderUp=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Up=$v"; done >> "$tmp"
-    grep -oP '^LeaderDown=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Down=$v"; done >> "$tmp"
-    grep -oP '^LeaderAlt=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Alt=$v"; done >> "$tmp"
-    grep -oP '^CustomLeaderKey=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "CustomKey=$v"; done >> "$tmp"
-    echo "" >> "$tmp"
-
-    echo "[Mappings]" >> "$tmp"
-    for i in $(seq 1 30); do
-        grep -oP "^Mapping${i}Input=\\K.*" "$cfg" 2>/dev/null | while read -r v; do echo "Input${i}=$v"; done >> "$tmp"
-        grep -oP "^Mapping${i}Output=\\K.*" "$cfg" 2>/dev/null | while read -r v; do echo "Output${i}=$v"; done >> "$tmp"
-    done
-    echo "" >> "$tmp"
-
-    mv "$tmp" "$cfg"
-}
-
 if [ -f "$CONFIG_FILE" ]; then
-    if grep -q "^\[Mapping1\]" "$CONFIG_FILE"; then
-        # Very old SubConfiguration format
-        echo -e "${YELLOW}Detected very old configuration format (SubConfiguration structure)${NC}"
+    if grep -q "^\[Mapping1\]" "$CONFIG_FILE" || grep -q "^DelayLowercase=" "$CONFIG_FILE" || grep -q "^LeaderSpace=" "$CONFIG_FILE" || grep -q "^Mapping1Input=" "$CONFIG_FILE"; then
+        # Old config format (v0.x) — incompatible with v1.0+
+        echo -e "${YELLOW}Detected old configuration format (v0.x)${NC}"
         read -p "Remove old config and regenerate defaults? [Y/n] " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
             mv "$CONFIG_FILE" "$CONFIG_FILE.backup"
             echo -e "${GREEN}✓ Old config backed up to: $CONFIG_FILE.backup${NC}"
             echo -e "${GREEN}✓ Defaults will be regenerated on next start${NC}"
-        else
-            echo -e "${RED}Warning: Old config format may not work correctly!${NC}"
-        fi
-    elif grep -q "^DelayLowercase=" "$CONFIG_FILE" || grep -q "^LeaderSpace=" "$CONFIG_FILE" || grep -q "^Mapping1Input=" "$CONFIG_FILE"; then
-        # Flat config format (pre-grouping) - can be auto-migrated
-        echo -e "${YELLOW}Detected old flat configuration format${NC}"
-        echo -e "${YELLOW}The new version uses grouped sections ([Delay], [Leader], [Mappings])${NC}"
-        read -p "Auto-migrate configuration? [Y/n] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            cp "$CONFIG_FILE" "$CONFIG_FILE.backup"
-            migrate_flat_config "$CONFIG_FILE"
-            echo -e "${GREEN}✓ Config migrated (backup: $CONFIG_FILE.backup)${NC}"
         else
             echo -e "${RED}Warning: Old config format may not work correctly!${NC}"
         fi
