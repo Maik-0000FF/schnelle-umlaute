@@ -24,6 +24,22 @@ All addon settings can be changed in two ways:
 
 ---
 
+## Fcitx5 Global Settings
+
+These settings are not part of the addon itself, but they affect how it works. Open `fcitx5-config-qt` → **"Global Options"** tab (or KDE System Settings → Input Method → Global Options).
+
+| KDE System Settings | fcitx5-config-qt |
+|:-:|:-:|
+| ![KDE](assets/screenshot-global-options-kde.png) | ![Qt](assets/screenshot-global-options-qt.png) |
+
+| Setting | Recommended | Why |
+|---------|-------------|-----|
+| **Trigger Key** | <kbd>Ctrl</kbd>+<kbd>Space</kbd> | Switches between your base layout and Schnelle Umlaute. You can change it to any key combination. |
+| **Share Input State** | All | Keeps Schnelle Umlaute active across all windows. Without this, you may need to toggle the addon in each window separately. |
+| **Preedit** | enabled (default) | Shows a live preview of the current character before it's committed. Disabling it removes the visual feedback during gestures. |
+
+---
+
 ## Keyboard Layout Requirement
 
 This addon is **not a standalone keyboard layout** - it works **alongside** your existing keyboard layout.
