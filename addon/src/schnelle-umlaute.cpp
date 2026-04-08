@@ -225,6 +225,13 @@ public:
         if (xkbCtx_) {
             xkbKeymap_ = xkb_keymap_new_from_names(
                 xkbCtx_, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
+            if (!xkbKeymap_) {
+                FCITX_WARN() << "Schnelle: XKB keymap creation failed"
+                             << " — custom leader resolution disabled";
+            }
+        } else {
+            FCITX_WARN() << "Schnelle: XKB context creation failed"
+                         << " — custom leader resolution disabled";
         }
         buildCharToKeycode();
 
@@ -268,7 +275,14 @@ public:
                     std::to_string(i) + "/Output");
                 if (!input || input->empty()) break;
                 if (output && !output->empty()) {
-                    umlautMap_[*input] = splitOutputs(*output);
+                    auto outputs = splitOutputs(*output);
+                    if (outputs.empty()) {
+                        FCITX_WARN() << "Schnelle: Mapping '"
+                                     << *input << "' has no valid outputs"
+                                     << " — skipped";
+                        continue;
+                    }
+                    umlautMap_[*input] = std::move(outputs);
                 }
             }
             if (umlautMap_.empty()) {
@@ -540,7 +554,7 @@ public:
                 }
 
                 auto it = umlautMap_.find(*state->cyclingInput_);
-                if (it != umlautMap_.end()) {
+                if (it != umlautMap_.end() && !it->second.empty()) {
                     if (it->second.size() > 1) {
                         // Cycle to next variant
                         state->cyclingIndex_ = (state->cyclingIndex_ + 1) % it->second.size();
@@ -923,7 +937,14 @@ private:
 #endif
             if (fp) {
                 for (const auto &m : schnelle_umlaute::parseMappings(fp.get())) {
-                    umlautMap_[m.input] = splitOutputs(m.output);
+                    auto outputs = splitOutputs(m.output);
+                    if (outputs.empty()) {
+                        FCITX_WARN() << "Schnelle: Mapping '"
+                                     << m.input << "' has no valid outputs"
+                                     << " — skipped";
+                        continue;
+                    }
+                    umlautMap_[m.input] = std::move(outputs);
                 }
             }
         }
