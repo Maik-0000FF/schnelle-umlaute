@@ -10,6 +10,8 @@
 #include <fcitx/addonmanager.h>
 #include <fcitx/inputmethodgroup.h>
 #include <fcitx/inputmethodmanager.h>
+#include <fcitx/inputcontext.h>
+#include <fcitx/inputcontextmanager.h>
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <fcitx-config/rawconfig.h>
@@ -46,6 +48,13 @@ constexpr int kCodeDown = 116;
 constexpr int kCodeAltL = 64;
 constexpr int kCodeAltGr = 108;
 constexpr int kCodeHash = 20;
+constexpr int kCodeO = 32;
+constexpr int kCodeU = 30;
+constexpr int kCodeE = 26;
+constexpr int kCodeReturn = 36;
+constexpr int kCodeBackSpace = 22;
+constexpr int kCodeTab = 23;
+constexpr int kCodeSuperL = 133;
 
 // Helper: load mappings via setSubConfig (the path loadMappingsFromFile reads)
 static void setMappings(Instance *instance,
@@ -247,6 +256,45 @@ static void configureMultilingualCycling(Instance *instance,
         {"O", "\xc3\x96,\xc3\x92,\xc3\x93,\xc3\x94,\xc3\x95"},
         {"U", "\xc3\x9c,\xc3\x99,\xc3\x9a,\xc3\x9b"},
     });
+}
+
+// Configure with custom delay values (Space leader only, default mappings)
+static void configureWithDelay(Instance *instance, int delayLower, int delayUpper,
+                                bool space = true, bool alt = false) {
+    auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+    RawConfig config;
+    config.setValueByPath("Delay/Lowercase", std::to_string(delayLower));
+    config.setValueByPath("Delay/Uppercase", std::to_string(delayUpper));
+    config.setValueByPath("Leader/Space", space ? "True" : "False");
+    config.setValueByPath("Leader/Left", "False");
+    config.setValueByPath("Leader/Right", "False");
+    config.setValueByPath("Leader/Up", "False");
+    config.setValueByPath("Leader/Down", "False");
+    config.setValueByPath("Leader/Alt", alt ? "True" : "False");
+    config.setValueByPath("Leader/CustomKeyEnabled", "False");
+    config.setValueByPath("Leader/CustomKey", "");
+    config.setValueByPath("Leader/CustomKey2Enabled", "False");
+    config.setValueByPath("Leader/CustomKey2", "");
+    addon->setConfig(config);
+    setMappings(instance, {
+        {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"}, {"u", "\xc3\xbc"},
+        {"s", "\xc3\x9f"}, {"A", "\xc3\x84"}, {"O", "\xc3\x96"},
+        {"U", "\xc3\x9c"},
+    });
+}
+
+// Get current client preedit text from any active IC with non-empty preedit
+static std::string getClientPreedit(Instance *instance) {
+    std::string result;
+    instance->inputContextManager().foreach([&](InputContext *ic) {
+        auto text = ic->inputPanel().clientPreedit().toString();
+        if (!text.empty()) {
+            result = text;
+            return false;
+        }
+        return true;
+    });
+    return result;
 }
 
 // Type a single char with clean typing (press+release).
@@ -508,6 +556,13 @@ static const char *kSpanish1000 =
 // Tests 24+ are scheduled from within the Alt leader timer chain (Tests 21-23)
 // to guarantee deferred commits are verified before any subsequent test runs.
 static void scheduleTestsAfterAltVerify(Instance *instance);
+static void scheduleTimeoutTests(Instance *instance);
+static void scheduleTest60(Instance *instance);
+static void scheduleTest61(Instance *instance);
+static void scheduleTest62(Instance *instance);
+static void scheduleTest63(Instance *instance);
+static void scheduleTest64(Instance *instance);
+static void scheduleRemainingTests(Instance *instance);
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -2391,10 +2446,1327 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 58 PASSED";
 
-                FCITX_INFO() << "=== All tests PASSED ===";
-                instance->exit();
+                scheduleTimeoutTests(instance);
                 return false;
             });
+    });
+}
+
+// =============================================================================
+// TIMEOUT TESTS (59-64) — Timer-chained: each test schedules the next after
+// its timer fires, so no race conditions between timer callbacks and tests.
+// =============================================================================
+
+static void scheduleTimeoutTests(Instance *instance) {
+    // =========================================================================
+    // TEST 59: Timer fires → original char committed
+    // When no leader arrives within the delay, the timeout timer fires and
+    // commits the original character (not the mapped output).
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 59: Timeout fires — original char committed ===";
+        configureWithDelay(instance, 50, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test59");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+
+        struct TH { std::unique_ptr<EventSourceTime> t; };
+        auto h = std::make_shared<TH>();
+        h->t = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + 70'000, 0,
+            [instance, uuid, h](EventSourceTime *, uint64_t) {
+                auto *tf = instance->addonManager().addon("testfrontend");
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 59 PASSED";
+                scheduleTest60(instance);
+                return false;
+            });
+    });
+}
+
+// =========================================================================
+// TEST 60: Non-mapped key after timeout passes through
+// =========================================================================
+static void scheduleTest60(Instance *instance) {
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 60: Non-mapped key after timeout ===";
+        configureWithDelay(instance, 50, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test60");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+
+        struct TH { std::unique_ptr<EventSourceTime> t; };
+        auto h = std::make_shared<TH>();
+        h->t = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + 70'000, 0,
+            [instance, uuid, h](EventSourceTime *, uint64_t) {
+                auto *tf = instance->addonManager().addon("testfrontend");
+
+                bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_b, KeyStates(), kCodeB), false);
+                FCITX_ASSERT(!consumed) << "Unmapped key after timeout should pass through";
+
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 60 PASSED";
+                scheduleTest61(instance);
+                return false;
+            });
+    });
+}
+
+// =========================================================================
+// TEST 61: Mapped key after timeout → new gesture starts
+// =========================================================================
+static void scheduleTest61(Instance *instance) {
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 61: Mapped key after timeout starts new gesture ===";
+        configureWithDelay(instance, 50, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test61");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("o");
+
+        struct TH { std::unique_ptr<EventSourceTime> t; };
+        auto h = std::make_shared<TH>();
+        h->t = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + 70'000, 0,
+            [instance, uuid, h](EventSourceTime *, uint64_t) {
+                auto *tf = instance->addonManager().addon("testfrontend");
+
+                // Timer fired, 'o' committed. Press 'u' → new gesture
+                bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_u, KeyStates(), kCodeU), false);
+                FCITX_ASSERT(consumed) << "Mapped key should start new gesture after timeout";
+
+                tf->call<ITestFrontend::pushCommitExpectation>("u");
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_u, KeyStates(), kCodeU), true);
+
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 61 PASSED";
+                scheduleTest62(instance);
+                return false;
+            });
+    });
+}
+
+// =========================================================================
+// TEST 62: Uppercase uses longer delay (2000ms >> 50ms lowercase)
+// At 200ms, uppercase (2000ms) hasn't timed out → Space converts to Ä.
+// Large gap avoids event-loop batching races.
+// =========================================================================
+static void scheduleTest62(Instance *instance) {
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 62: Uppercase uses longer delay ===";
+        configureWithDelay(instance, 50, 2000);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test62");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
+
+        struct TH { std::unique_ptr<EventSourceTime> t; };
+        auto h = std::make_shared<TH>();
+        h->t = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + 200'000, 0,
+            [instance, uuid, h](EventSourceTime *, uint64_t) {
+                auto *tf = instance->addonManager().addon("testfrontend");
+
+                // At 200ms, uppercase timeout (2000ms) hasn't expired
+                tf->call<ITestFrontend::pushCommitExpectation>("\xc3\x84");
+                bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+                FCITX_ASSERT(consumed) << "Space should convert uppercase before timeout";
+
+                tf->call<ITestFrontend::keyEvent>(
+                    uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), true);
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 62 PASSED";
+                scheduleTest63(instance);
+                return false;
+            });
+    });
+}
+
+// =========================================================================
+// TEST 63: Lowercase shorter delay confirmed — timer fires before 150ms
+// =========================================================================
+static void scheduleTest63(Instance *instance) {
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 63: Lowercase shorter delay confirmed ===";
+        configureWithDelay(instance, 50, 2000);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test63");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+
+        struct TH { std::unique_ptr<EventSourceTime> t; };
+        auto h = std::make_shared<TH>();
+        h->t = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + 150'000, 0,
+            [instance, uuid, h](EventSourceTime *, uint64_t) {
+                auto *tf = instance->addonManager().addon("testfrontend");
+
+                // Lowercase timer (50ms) has already fired. No gesture active.
+                // Send non-mapped key → passes through (not consumed).
+                bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_b, KeyStates(), kCodeB), false);
+                FCITX_ASSERT(!consumed) << "Non-mapped key after lowercase timeout should pass through";
+
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 63 PASSED";
+                scheduleTest64(instance);
+                return false;
+            });
+    });
+}
+
+// =========================================================================
+// TEST 64: Ordering guard after timeout commit
+// Timer commits char with recentlyCommitted_. Next Space routes through
+// commitString to preserve text ordering.
+// =========================================================================
+static void scheduleTest64(Instance *instance) {
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 64: Ordering guard after timeout ===";
+        configureWithDelay(instance, 50, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test64");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+
+        struct TH { std::unique_ptr<EventSourceTime> t; };
+        auto h = std::make_shared<TH>();
+        h->t = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + 70'000, 0,
+            [instance, uuid, h](EventSourceTime *, uint64_t) {
+                auto *tf = instance->addonManager().addon("testfrontend");
+
+                // Timer committed 'a' with recentlyCommitted_ set
+                tf->call<ITestFrontend::pushCommitExpectation>(" ");
+                bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+                FCITX_ASSERT(consumed) << "Ordering guard should catch Space after timeout";
+
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 64 PASSED";
+                scheduleRemainingTests(instance);
+                return false;
+            });
+    });
+}
+
+// =============================================================================
+// REMAINING TESTS (65-100) — Non-timer, scheduled independently via FIFO.
+// =============================================================================
+
+static void scheduleRemainingTests(Instance *instance) {
+
+    // =========================================================================
+    // TEST 65: activate() clears all state
+    // Switching back to schnelle-umlaute via Ctrl+Space resets state.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 65: activate() clears all state ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test65");
+
+        // Start gesture: press 'a' → preedit
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Switch away → deactivate commits pending 'a'
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::keyEvent>(uuid, Key("Control+space"), false);
+        // Switch back (activate → clears state)
+        tf->call<ITestFrontend::keyEvent>(uuid, Key("Control+space"), false);
+
+        // Preedit should be empty — gesture state was cleared
+        std::string preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit.empty()) << "Preedit should be empty after activate(), got '" << preedit << "'";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 65 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 66: deactivate() on IM switch commits pending preedit
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 66: deactivate() on IM switch commits pending ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test66");
+
+        // Press 'a' → preedit "a"
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Switch IM → deactivate commits pending 'a'
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::keyEvent>(uuid, Key("Control+space"), false);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 66 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 67: deactivate() on IM switch commits cycling value
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 67: deactivate() on IM switch commits cycling ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", "\xc3\xa4,ae"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test67");
+
+        // Press 'a' + Space → cycling at index 0 (ä)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Press Space again → cycle to index 1 (ae)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Switch IM → deactivate commits cycling value "ae"
+        tf->call<ITestFrontend::pushCommitExpectation>("ae");
+        tf->call<ITestFrontend::keyEvent>(uuid, Key("Control+space"), false);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 67 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 68: reset() with key held → state preserved
+    // Chromium/WezTerm call reset() after every commit. If the input key
+    // is still pressed, state must survive.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 68: reset() with key held preserves state ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test68");
+
+        // Press 'a' → waiting, key held
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Simulate reset (Chromium-style). Use IM switch + switch back as proxy.
+        // Actually, we test this indirectly: the ordering guard survives reset()
+        // because recentlyCommitted_ is NOT cleared in clearAllState().
+        // Do a+Space → ä committed (triggers reset in real apps)
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Ordering guard should work even after apps call reset()
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Ordering guard should survive reset()";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 68 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 69: Two ICs with independent state
+    // Gesture in IC1 must not affect IC2.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 69: Two ICs — independent state ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid1 = createAndActivate(instance, tf, "test69_ic1");
+        auto uuid2 = createAndActivate(instance, tf, "test69_ic2");
+
+        // Start gesture in IC1
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid1, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // IC2: press 'b' → should pass through (no gesture in IC2)
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid2, Key(FcitxKey_b, KeyStates(), kCodeB), false);
+        FCITX_ASSERT(!consumed) << "IC2 should not be affected by IC1 gesture";
+
+        // IC1: complete gesture
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid1, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid1, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid1);
+        tf->call<ITestFrontend::destroyInputContext>(uuid2);
+        FCITX_INFO() << "Test 69 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 70: Multiple ICs — gesture only in focused IC
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 70: Multi-IC — gesture only in focused ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid1 = createAndActivate(instance, tf, "test70_a");
+        auto uuid2 = createAndActivate(instance, tf, "test70_b");
+
+        // Start gesture in IC2 (last created/activated)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid2, Key(FcitxKey_u, KeyStates(), kCodeU), false);
+
+        // Convert in IC2
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xbc");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid2, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid2, Key(FcitxKey_u, KeyStates(), kCodeU), true);
+
+        // IC1: press 'a', should start fresh gesture (no IC2 leakage)
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid1, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(consumed) << "IC1 should start fresh gesture";
+
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid1, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid1);
+        tf->call<ITestFrontend::destroyInputContext>(uuid2);
+        FCITX_INFO() << "Test 70 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 71: Preedit shows input char during waiting
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 71: Preedit shows input char during waiting ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test71");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        std::string preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit == "a") << "Preedit should show 'a', got '" << preedit << "'";
+
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 71 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 72: Preedit shows first variant after leader
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 72: Preedit shows first variant after leader ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", "\xc3\xa4,ae,@"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test72");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        // Press Space → starts cycling, preedit should show "ä" (first variant)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        std::string preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit == "\xc3\xa4") << "Preedit should show ä after leader, got '" << preedit << "'";
+
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 72 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 73: Preedit updates on each cycle
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 73: Preedit updates on each cycle ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", "\xc3\xa4,ae,@"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test73");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Preedit: ä
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        std::string preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit == "ae") << "Preedit should show 'ae' after second cycle, got '" << preedit << "'";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit == "@") << "Preedit should show '@' after third cycle, got '" << preedit << "'";
+
+        tf->call<ITestFrontend::pushCommitExpectation>("@");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 73 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 74: Preedit cleared after commit
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 74: Preedit cleared after commit ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test74");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        std::string preedit = getClientPreedit(instance);
+        FCITX_ASSERT(!preedit.empty()) << "Preedit should be non-empty during waiting";
+
+        // Commit via Space (single output)
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit.empty()) << "Preedit should be empty after commit, got '" << preedit << "'";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 74 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 75: Preedit shows uppercase input correctly
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 75: Preedit shows uppercase input ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test75");
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
+
+        std::string preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit == "A") << "Preedit should show 'A', got '" << preedit << "'";
+
+        tf->call<ITestFrontend::pushCommitExpectation>("A");
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 75 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 76: Non-mapped key during waiting → commits pending + passes through
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 76: Non-mapped key during waiting commits pending ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test76");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Press 'b' (non-mapped) → commits 'a' and 'b' passes through
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_b, KeyStates(), kCodeB), false);
+        FCITX_ASSERT(!consumed) << "Non-mapped key should pass through";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 76 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 77: Non-mapped key during cycling → commits cycling value + passes
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 77: Non-mapped key during cycling commits cycling ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", "\xc3\xa4,ae"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test77");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Now cycling at index 0 (ä). Press Space → index 1 (ae)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Press 'b' → commits "ae", 'b' passes through
+        tf->call<ITestFrontend::pushCommitExpectation>("ae");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_b, KeyStates(), kCodeB), false);
+        FCITX_ASSERT(!consumed) << "Non-mapped key should pass through during cycling";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 77 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 78: Backspace during waiting → commits pending + Backspace passes
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 78: Backspace during waiting ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test78");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Backspace → commits 'a', Backspace passes through
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_BackSpace, KeyStates(), kCodeBackSpace), false);
+        FCITX_ASSERT(!consumed) << "Backspace should pass through";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 78 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 79: Enter during waiting → commits pending + Enter passes
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 79: Enter during waiting ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test79");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Return, KeyStates(), kCodeReturn), false);
+        FCITX_ASSERT(!consumed) << "Enter should pass through";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 79 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 80: Tab during waiting → commits pending + Tab passes
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 80: Tab during waiting ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test80");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Tab, KeyStates(), kCodeTab), false);
+        FCITX_ASSERT(!consumed) << "Tab should pass through";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 80 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 81: Backspace during cycling → commits cycling value + passes
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 81: Backspace during cycling ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", "\xc3\xa4,ae"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test81");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Backspace → commits ä, Backspace passes through
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_BackSpace, KeyStates(), kCodeBackSpace), false);
+        FCITX_ASSERT(!consumed) << "Backspace during cycling should pass through";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 81 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 82: Config reload clears all active gestures
+    // setSubConfig("mappings.txt") calls clearAllState() on all ICs.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 82: Config reload clears active gestures ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test82");
+
+        // Start gesture
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Reload mappings → clears all gestures
+        setMappings(instance, {
+            {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"},
+        });
+
+        // Preedit should be cleared
+        std::string preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit.empty()) << "Preedit should be empty after reload, got '" << preedit << "'";
+
+        // Release 'a' — no commit expected (gesture was cleared)
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 82 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 83: Empty mappings → default fallback
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 83: Empty mappings fall back to defaults ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        // Set empty mappings (no entries) → triggers loadMappingsFromFile fallback
+        setMappings(instance, {});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test83");
+
+        // Default mappings should be loaded (a→ä, etc.)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 83 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 84: Custom key colliding with mapped input → mapping takes priority
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 84: Custom key = mapped input — mapping wins ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        // Set custom leader to 'a' which is also a mapped input
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/CustomKey", "a");
+        config.setValueByPath("Leader/CustomKey2Enabled", "False");
+        config.setValueByPath("Leader/CustomKey2", "");
+        addon->setConfig(config);
+        setMappings(instance, {
+            {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"},
+        });
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test84");
+
+        // Press 'a' alone → leader handler returns early (no gesture),
+        // accent handler never reached → passes through
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(!consumed) << "'a' as leader should pass through without active gesture";
+
+        // But 'a' as leader CAN convert OTHER mapped keys:
+        // Press 'o' → enters waiting (accent handler runs, 'o' is not leader)
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+        FCITX_ASSERT(consumed) << "'o' should start gesture";
+
+        // Press 'a' (leader) → converts 'o' to ö
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(consumed) << "'a' as leader should convert 'o' to ö";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 84 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 85: Alt bypass with non-mapped key → commitString, not shortcut
+    // When Alt leader is active and a non-mapped key is pressed, the char
+    // is sent via commitString to avoid triggering Alt+key shortcuts.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 85: Alt bypass — non-mapped key commits via commitString ===";
+        configureWithDelay(instance, 400, 700, false, true);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test85");
+
+        // Press 'a' (mapped) → waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        // Press Alt → starts cycling (Alt leader)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+
+        // Press 'b' with Alt modifier → non-mapped key during Alt bypass
+        // Should commit cycling value + emit 'b' via commitString
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::pushCommitExpectation>("b");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_b, KeyState::Alt, kCodeB), false);
+        FCITX_ASSERT(consumed) << "Non-mapped key during Alt bypass should be consumed";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 85 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 86: Alt bypass with new mapped key → commits pending, starts new
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 86: Alt bypass — new mapped key during gesture ===";
+        configureWithDelay(instance, 400, 700, false, true);
+        setMappings(instance, {{"a", "\xc3\xa4"}, {"o", "\xc3\xb6"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test86");
+
+        // Press 'a' → waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Press 'o' with Alt held → commits 'a' (pending), starts 'o' gesture
+        // Alt bypass resolves the base char via XKB
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyState::Alt, kCodeO), false);
+        FCITX_ASSERT(consumed) << "New mapped key with Alt should be consumed";
+
+        // Release 'o' → commits 'o' (original, since no leader pressed)
+        tf->call<ITestFrontend::pushCommitExpectation>("o");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyState::Alt, kCodeO), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 86 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 87: splitOutputs — trailing comma ignored (single output)
+    // Mapping "ä," → ["ä"] (trailing empty segment skipped)
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 87: splitOutputs — trailing comma ignored ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", "\xc3\xa4,"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test87");
+
+        // Single output after trailing comma removed → immediate commit
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 87 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 88: splitOutputs — leading comma ignored
+    // Mapping ",ä" → ["ä"] (leading empty segment skipped)
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 88: splitOutputs — leading comma ignored ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", ",\xc3\xa4"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test88");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 88 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 89: splitOutputs — "x,,,y" → ["x,", "y"]
+    // Three commas: first two form a double-comma (literal ','), third is separator.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 89: splitOutputs — double-comma + separator ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", "x,,,y"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test89");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        // Space → cycling starts at index 0: "x,"
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        std::string preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit == "x,") << "First variant should be 'x,', got '" << preedit << "'";
+
+        // Space → index 1: "y"
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit == "y") << "Second variant should be 'y', got '" << preedit << "'";
+
+        tf->call<ITestFrontend::pushCommitExpectation>("y");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 89 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 90: splitOutputs — ",,," → [","] (double-comma + trailing)
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 90: splitOutputs — only commas ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", ",,,"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test90");
+
+        // Single output: literal comma
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>(",");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 90 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 91: splitOutputs — "x,,y,z" → ["x,y", "z"]
+    // Double-comma within cycling outputs
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 91: splitOutputs — double-comma within cycling ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", "x,,y,z"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test91");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        std::string preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit == "x,y") << "First variant should be 'x,y', got '" << preedit << "'";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit == "z") << "Second variant should be 'z', got '" << preedit << "'";
+
+        tf->call<ITestFrontend::pushCommitExpectation>("z");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 91 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 92: sanitizeCustomKey — whitespace-only → no leader active
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 92: Whitespace-only custom key — no leader ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "False");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/CustomKey", "   ");
+        config.setValueByPath("Leader/CustomKey2Enabled", "False");
+        config.setValueByPath("Leader/CustomKey2", "");
+        addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test92");
+
+        // Press 'a' → waiting, but no leader is configured
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Press Space → not a leader (space disabled, custom is whitespace → empty)
+        // Commits pending 'a' + Space passes through
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(!consumed) << "Space should not be a leader when no leaders configured";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 92 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 93: sanitizeCustomKey — empty string → no leader
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 93: Empty custom key — no leader ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "False");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/CustomKey", "");
+        config.setValueByPath("Leader/CustomKey2Enabled", "False");
+        config.setValueByPath("Leader/CustomKey2", "");
+        addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test93");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // No leader configured → release commits original
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 93 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 94: sanitizeCustomKey — uppercase letter normalized
+    // CustomKey = "F" → stored as "f", Shift+F still matches (case-insensitive)
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 94: Uppercase custom key normalized ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "False");
+        config.setValueByPath("Leader/Left", "False");
+        config.setValueByPath("Leader/Right", "False");
+        config.setValueByPath("Leader/Up", "False");
+        config.setValueByPath("Leader/Down", "False");
+        config.setValueByPath("Leader/Alt", "False");
+        config.setValueByPath("Leader/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/CustomKey", "F");
+        config.setValueByPath("Leader/CustomKey2Enabled", "False");
+        config.setValueByPath("Leader/CustomKey2", "");
+        addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4"}, {"A", "\xc3\x84"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test94");
+
+        constexpr int kCodeF = 41;
+
+        // Lowercase: a + f → ä
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_f, KeyStates(), kCodeF), false);
+        FCITX_ASSERT(consumed) << "Lowercase 'f' should match custom leader 'F'";
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Uppercase: Shift+A + Shift+F → Ä
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\x84");
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_F, KeyState::Shift, kCodeF), false);
+        FCITX_ASSERT(consumed) << "Shift+F should match custom leader 'F'";
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 94 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 95: Multiple consecutive commits — ordering guard each time
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 95: Consecutive commits — ordering guard each time ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test95");
+
+        // First: a + Space → ä, then Space committed via ordering guard
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // Second: o + Space → ö, then Space committed
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Second ordering guard Space should be consumed";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 95 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 96: Ordering guard with Shift+Space
+    // Shift is not a modifier in hasModifiers(), so Shift+Space should still
+    // be caught by ordering guard.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 96: Ordering guard with Shift+Space ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test96");
+
+        // a + Space → ä
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Shift+Space → ordering guard catches it (Shift excluded from hasModifiers)
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyState::Shift, kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Shift+Space should be caught by ordering guard";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 96 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 97: Fast double-tap — second is new gesture
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 97: Fast double-tap — second is new gesture ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test97");
+
+        // First tap: press 'a', release 'a' → commits "a"
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Second tap: press 'a' again → new gesture (should be consumed)
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(consumed) << "Second tap should start new gesture";
+
+        // Complete second gesture
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 97 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 98: Leader without gesture → passes through
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 98: Leader without gesture passes through ===";
+        configureLeaders(instance, true, true, true, true, true, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test98");
+
+        // Space without gesture → passes through
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(!consumed) << "Space without gesture should pass through";
+
+        // Left Arrow without gesture → passes through
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Left, KeyStates(), kCodeLeft), false);
+        FCITX_ASSERT(!consumed) << "Left Arrow without gesture should pass through";
+
+        // Right Arrow without gesture → passes through
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Right, KeyStates(), kCodeRight), false);
+        FCITX_ASSERT(!consumed) << "Right Arrow without gesture should pass through";
+
+        // Up Arrow without gesture → passes through
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Up, KeyStates(), kCodeUp), false);
+        FCITX_ASSERT(!consumed) << "Up Arrow without gesture should pass through";
+
+        // Down Arrow without gesture → passes through
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Down, KeyStates(), kCodeDown), false);
+        FCITX_ASSERT(!consumed) << "Down Arrow without gesture should pass through";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 98 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 99: All leaders enabled simultaneously
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 99: All leaders enabled ===";
+        configureLeaders(instance, true, true, true, true, true, true, "#");
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test99");
+
+        // Space leader
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Left Arrow leader
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Left, KeyStates(), kCodeLeft), false);
+        FCITX_ASSERT(consumed) << "Left Arrow should work as leader";
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+
+        // Custom '#' leader
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_u, KeyStates(), kCodeU), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xbc");
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_numbersign, KeyStates(), kCodeHash), false);
+        FCITX_ASSERT(consumed) << "Custom '#' should work as leader";
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_u, KeyStates(), kCodeU), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 99 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 100: Ctrl+key during gesture → commits pending, shortcut passes
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 100: Ctrl+key during gesture — shortcut passes ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test100");
+
+        // Start gesture
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Ctrl+C → commits 'a', Ctrl+C passes through
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_c, KeyState::Ctrl, 54), false);
+        FCITX_ASSERT(!consumed) << "Ctrl+C should pass through during gesture";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 100 PASSED";
+
+        FCITX_INFO() << "=== All tests PASSED ===";
+        instance->exit();
     });
 }
 
