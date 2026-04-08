@@ -1,3 +1,25 @@
+// Test Suite for Schnelle Umlaute (100 tests)
+//
+//  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
+// 12-16   Custom leaders       Shift-invariant, case-insensitive, double-comma escaping, cycling, triple comma
+// 17-20   Arrow leaders        Left, Right, Up, Down
+// 21-23   Alt leader           Alt_L, AltGr, release consumed (timer-chained)
+// 24-29   Custom key variants  auto-repeat suppression, '#', UTF-8 '§', multi-char trim, whitespace trim
+// 30-36   Cycling              multiple outputs, wrap-around, overlapping, passthrough, ordering guard, new gesture
+// 37-44   Real-world text      German/English/French/Portuguese 1000-char, Alt/Custom leader, anbau demo, dual analysis
+// 45-53   Dual custom leaders  basic, split allowed/blocked/reverse, single key, built-in ignores, Super/Alt+Space, same-hand
+// 54-58   Edge cases           accent repeat, modifier during waiting, Alt+new key, layout classification, Alt re-press
+// 59-64   Timeout behavior     timer fires, non-mapped/mapped after timeout, uppercase delay, lowercase delay, ordering guard
+// 65-70   IC lifecycle         activate clears, deactivate commits pending/cycling, reset survives, multi-IC independence
+// 71-75   Preedit              waiting char, first variant, cycle updates, cleared after commit, uppercase
+// 76-81   Non-mapped keys      during waiting/cycling, Backspace, Enter, Tab
+// 82-84   Config reload        clears gestures, empty→defaults, custom key = mapped input
+// 85-86   Alt bypass           non-mapped key via commitString, new mapped key during gesture
+// 87-91   splitOutputs         trailing/leading comma, double-comma+separator, only-commas, double-comma in cycling
+// 92-94   sanitizeCustomKey    whitespace-only, empty string, uppercase normalized
+// 95-96   Ordering guard       consecutive commits, Shift+Space
+// 97-100  Stress/regression    double-tap, leader without gesture, all leaders enabled, Ctrl+key during gesture
+
 #include "testdir.h"
 #include "testfrontend_public.h"
 #include <fcitx-utils/event.h>
