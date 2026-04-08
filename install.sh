@@ -345,7 +345,7 @@ echo -e "${BLUE}Checking Fcitx5 hotkey configuration...${NC}"
 CONFIG_DIR="$HOME/.config/fcitx5"
 FCITX_CONFIG="$CONFIG_DIR/config"
 
-if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_CONFIG" | grep -q "Shift"; then
+if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_CONFIG" | grep -qE "^[0-9]+=.*Shift"; then
     echo -e "${YELLOW}Shift is configured as an input method trigger key.${NC}"
     echo -e "${YELLOW}This conflicts with Schnelle Umlaute, which uses Shift for uppercase${NC}"
     echo -e "${YELLOW}mappings (e.g. Shift+A → Ä). With Shift as trigger, fcitx5 will${NC}"
@@ -354,7 +354,7 @@ if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_C
     read -p "Replace trigger key with Ctrl+Space? [Y/n] " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-        sed -i '/\[Hotkey\/TriggerKeys\]/,/^\[/{s/^0=.*/0=Control+space/}' "$FCITX_CONFIG"
+        sed '/\[Hotkey\/TriggerKeys\]/,/^\[/{s/^0=.*/0=Control+space/}' "$FCITX_CONFIG" > "$FCITX_CONFIG.tmp" && mv "$FCITX_CONFIG.tmp" "$FCITX_CONFIG"
         echo -e "${GREEN}✓ Trigger key changed to Ctrl+Space${NC}"
     else
         echo -e "${YELLOW}Keeping current trigger key. Shift+key mappings may not work.${NC}"
