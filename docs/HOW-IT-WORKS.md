@@ -11,7 +11,7 @@ stateDiagram-v2
     Normal --> [*]: a
 ```
 
-**Note:** Leader key is <kbd>Space</kbd> by default. You can configure it to <kbd>←</kbd>/<kbd>→</kbd> Arrow or combinations in `fcitx5-config-qt`.
+**Note:** Leader key is <kbd>Space</kbd> by default. You can configure it to Arrow keys (<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>), <kbd>Alt</kbd>/<kbd>AltGr</kbd>, or custom keys in `fcitx5-config-qt`.
 
 ## Why Does Typing Feel Different?
 
