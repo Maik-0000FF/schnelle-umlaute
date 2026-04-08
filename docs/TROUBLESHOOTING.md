@@ -17,7 +17,7 @@
 **Solution:** Switch to a leader key that doesn't conflict with normal typing:
 
 - **Arrow keys** (<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>) — dedicated, no conflict
-- **Alt / AltGr** — works well under XIM (e.g. WezTerm)
+- **Alt / AltGr** — dedicated, no conflict
 - **Custom keys** (e.g. `f`, `j`) — tested across multiple languages with few conflicts
 - **Dual custom leaders** (hand-split) — one leader per keyboard half, near-zero conflicts
 
