@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (104 tests)
+// Test Suite for Schnelle Umlaute (113 tests)
 //
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
 // 12-16   Custom leaders       Shift-invariant, case-insensitive, double-comma escaping, cycling, triple comma
@@ -19,7 +19,9 @@
 // 92-94   sanitizeCustomKey    whitespace-only, empty string, uppercase normalized
 // 95-96   Ordering guard       consecutive commits, Shift+Space
 // 97-100  Stress/regression    double-tap, leader without gesture, all leaders enabled, Ctrl+key during gesture
-// 101-104 Delay boundaries     default 400/700ms timer fires, uppercase min 50ms, max 2000ms within window
+// 101-103 Empty outputs        single-comma skipped, double-comma literal, all-empty→defaults
+// 104-109 Advanced edge cases  reload during cycling, IC state pollution, timeout boundary (timer-chained), rapid keys, Shift+Space
+// 110-113 Delay boundaries     default 400/700ms timer fires, uppercase min 50ms, max 2000ms within window
 
 #include "testdir.h"
 #include "testfrontend_public.h"
@@ -586,10 +588,14 @@ static void scheduleTest62(Instance *instance);
 static void scheduleTest63(Instance *instance);
 static void scheduleTest64(Instance *instance);
 static void scheduleRemainingTests(Instance *instance);
+static void scheduleEmptyOutputTests(Instance *instance);
+static void scheduleAdvancedEdgeCaseTests(Instance *instance);
+static void scheduleTest106(Instance *instance);
+static void scheduleTest107(Instance *instance);
 static void scheduleDelayBoundaryTests(Instance *instance);
-static void scheduleTest102(Instance *instance);
-static void scheduleTest103(Instance *instance);
-static void scheduleTest104(Instance *instance);
+static void scheduleTest111(Instance *instance);
+static void scheduleTest112(Instance *instance);
+static void scheduleTest113(Instance *instance);
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -3802,24 +3808,364 @@ static void scheduleRemainingTests(Instance *instance) {
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 100 PASSED";
-        scheduleDelayBoundaryTests(instance);
+        scheduleEmptyOutputTests(instance);
     });
 }
 
 // =============================================================================
-// DELAY BOUNDARY TESTS (101-104) — Timer-chained: verify min/default/max delay
+// EMPTY OUTPUT TESTS (101-103) — Verify mappings with empty split outputs
+// (e.g. "a=,") are safely skipped and don't crash.
+// =============================================================================
+
+static void scheduleEmptyOutputTests(Instance *instance) {
+
+    // =========================================================================
+    // TEST 101: Single-comma output skipped — key falls through
+    // Mapping "t=," produces an empty output vector after splitOutputs.
+    // The mapping should be silently skipped; 't' falls through as normal key.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 101: Single-comma output skipped — key falls through ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {
+            {"a", "\xc3\xa4"},
+            {"t", ","},
+        });
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test101");
+
+        // 't' has empty outputs → not in umlautMap_ → falls through
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_t, KeyStates(), 28), false);
+        FCITX_ASSERT(!consumed) << "'t' with empty output should fall through";
+
+        // 'a' still works normally (valid mapping)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 101 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 102: All-comma mapping (",,") — literal comma survives
+    // ",," is a double-comma escape → single output [","]. Not empty.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 102: Double-comma mapping — literal comma output ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", ",,"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test102");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>(",");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 102 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 103: Only empty-output mappings → defaults loaded
+    // When all mappings produce empty vectors, umlautMap_ is empty and
+    // fallback to built-in defaults kicks in.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 103: All empty outputs — defaults loaded ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {
+            {"a", ","},
+            {"o", ","},
+        });
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test103");
+
+        // All custom mappings had empty outputs → defaults loaded → 'a' maps to ä
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 103 PASSED";
+        scheduleAdvancedEdgeCaseTests(instance);
+    });
+}
+
+// =============================================================================
+// ADVANCED EDGE CASE TESTS (104-109) — Timer-chained where needed.
+// Config reload during gesture, IC state pollution, timeout boundaries,
+// rapid mapped keys, Shift+Space during uppercase.
+// =============================================================================
+
+// =========================================================================
+// TEST 104: Config reload during ACTIVE cycling — clears cycling state
+// Test 82 reloads during waiting; this tests during cycling (after Space).
+// =========================================================================
+static void scheduleAdvancedEdgeCaseTests(Instance *instance) {
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 104: Config reload during active cycling ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {
+            {"a", "\xc3\xa4,\xc3\x84"},
+            {"o", "\xc3\xb6"},
+        });
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test104");
+
+        // Press 'a' → waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Space → enter cycling (preedit shows "ä")
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        std::string preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit == "\xc3\xa4") << "Preedit should show ä, got '" << preedit << "'";
+
+        // Reload mappings while cycling is active
+        setMappings(instance, {
+            {"a", "\xc3\xa4"},
+            {"o", "\xc3\xb6"},
+        });
+
+        // Preedit should be cleared by reload
+        preedit = getClientPreedit(instance);
+        FCITX_ASSERT(preedit.empty()) << "Preedit should be empty after reload, got '" << preedit << "'";
+
+        // New gesture should work normally after reload
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 104 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 105: IC state pollution — focus switch during active gesture
+    // Start gesture in IC1, switch focus to IC2 (deactivate IC1), verify
+    // IC2 has clean state and IC1's gesture was committed on deactivate.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 105: IC state pollution — focus switch during gesture ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid1 = createAndActivate(instance, tf, "test105_ic1");
+
+        // Start gesture in IC1: press 'a' → waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid1, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Create and activate IC2 — this deactivates IC1
+        auto uuid2 = createAndActivate(instance, tf, "test105_ic2");
+
+        // IC2 should have clean state — 'o' starts fresh gesture
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid2, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+        FCITX_ASSERT(consumed) << "IC2 should start fresh gesture for 'o'";
+
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid2, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid2, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid1);
+        tf->call<ITestFrontend::destroyInputContext>(uuid2);
+        FCITX_INFO() << "Test 105 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 108: Rapid successive mapped keys — each starts fresh gesture
+    // Fast typing a,o,u without completing any gesture → each aborts previous.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 108: Rapid successive mapped keys ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test108");
+
+        // Press 'a' → waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Press 'o' before Space → commits 'a', starts waiting for 'o'
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+        FCITX_ASSERT(consumed) << "'o' should start new gesture (committing 'a')";
+
+        // Press 'u' before Space → commits 'o', starts waiting for 'u'
+        tf->call<ITestFrontend::pushCommitExpectation>("o");
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_u, KeyStates(), kCodeU), false);
+        FCITX_ASSERT(consumed) << "'u' should start new gesture (committing 'o')";
+
+        // Now complete 'u' with Space → ü
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xbc");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_u, KeyStates(), kCodeU), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 108 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 109: Shift+Space during uppercase gesture
+    // Press Shift+A (waiting), then Shift+Space → should convert to Ä.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 109: Shift+Space during uppercase gesture ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test109");
+
+        // Press Shift
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+
+        // Press Shift+A → waiting with uppercase
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
+
+        // Press Shift+Space → should convert A to Ä
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\x84");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyState::Shift, kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Shift+Space should convert uppercase gesture";
+
+        // Release
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 109 PASSED";
+        scheduleTest106(instance);
+    });
+}
+
+// =============================================================================
+// TIMEOUT BOUNDARY TESTS (106-107) — Timer-chained: precise timing verification.
+// =============================================================================
+
+// =========================================================================
+// TEST 106: Timeout boundary — Space just before expiry converts
+// With 100ms delay, Space at 90ms should still convert.
+// =========================================================================
+static void scheduleTest106(Instance *instance) {
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 106: Timeout boundary — Space just before expiry ===";
+        configureWithDelay(instance, 300, 600);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test106");
+
+        // Press 'a' → waiting with 300ms delay
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Wait 200ms — well within 300ms window
+        struct TH { std::unique_ptr<EventSourceTime> t; };
+        auto h = std::make_shared<TH>();
+        h->t = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + 200'000, 0,
+            [instance, uuid, h](EventSourceTime *, uint64_t) {
+                instance->eventDispatcher().schedule([instance, uuid]() {
+                    auto *tf = instance->addonManager().addon("testfrontend");
+
+                    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+                    bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+                        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+                    FCITX_ASSERT(consumed) << "Space at 200ms should convert within 300ms window";
+
+                    tf->call<ITestFrontend::keyEvent>(
+                        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+                    tf->call<ITestFrontend::destroyInputContext>(uuid);
+                    FCITX_INFO() << "Test 106 PASSED";
+                    scheduleTest107(instance);
+                });
+                return false;
+            });
+    });
+}
+
+// =========================================================================
+// TEST 107: Timeout boundary — Space after expiry passes through
+// With 100ms delay, Space at 150ms should NOT convert.
+// =========================================================================
+static void scheduleTest107(Instance *instance) {
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 107: Timeout boundary — Space after expiry ===";
+        configureWithDelay(instance, 100, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test107");
+
+        // Press 'a' → waiting with 100ms delay
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Addon timer fires at 100ms and commits 'a'
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+
+        // Wait 200ms — well past 100ms window
+        struct TH { std::unique_ptr<EventSourceTime> t; };
+        auto h = std::make_shared<TH>();
+        h->t = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + 200'000, 0,
+            [instance, uuid, h](EventSourceTime *, uint64_t) {
+                instance->eventDispatcher().schedule([instance, uuid]() {
+                    auto *tf = instance->addonManager().addon("testfrontend");
+
+                    // Use non-printable key 'b' (unmapped) to avoid
+                    // testfrontend commit check on Space passthrough.
+                    bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+                        uuid, Key(FcitxKey_b, KeyStates(), kCodeB), false);
+                    FCITX_ASSERT(!consumed) << "Key at 200ms should pass through (100ms expired)";
+
+                    tf->call<ITestFrontend::destroyInputContext>(uuid);
+                    FCITX_INFO() << "Test 107 PASSED";
+                    scheduleDelayBoundaryTests(instance);
+                });
+                return false;
+            });
+    });
+}
+
+// =============================================================================
+// DELAY BOUNDARY TESTS (110-113) — Timer-chained: verify min/default/max delay
 // values for both lowercase and uppercase.
 // =============================================================================
 
 // =========================================================================
-// TEST 101: Default lowercase delay (400ms) — timer fires
+// TEST 110: Default lowercase delay (400ms) — timer fires
 // =========================================================================
 static void scheduleDelayBoundaryTests(Instance *instance) {
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 101: Default lowercase delay (400ms) — timer fires ===";
+        FCITX_INFO() << "=== Test 110: Default lowercase delay (400ms) — timer fires ===";
         configureWithDelay(instance, 400, 700);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test101");
+        auto uuid = createAndActivate(instance, tf, "test110");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -3833,8 +4179,8 @@ static void scheduleDelayBoundaryTests(Instance *instance) {
                 instance->eventDispatcher().schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
                     tf->call<ITestFrontend::destroyInputContext>(uuid);
-                    FCITX_INFO() << "Test 101 PASSED";
-                    scheduleTest102(instance);
+                    FCITX_INFO() << "Test 110 PASSED";
+                    scheduleTest111(instance);
                 });
                 return false;
             });
@@ -3842,14 +4188,14 @@ static void scheduleDelayBoundaryTests(Instance *instance) {
 }
 
 // =========================================================================
-// TEST 102: Default uppercase delay (700ms) — timer fires
+// TEST 111: Default uppercase delay (700ms) — timer fires
 // =========================================================================
-static void scheduleTest102(Instance *instance) {
+static void scheduleTest111(Instance *instance) {
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 102: Default uppercase delay (700ms) — timer fires ===";
+        FCITX_INFO() << "=== Test 111: Default uppercase delay (700ms) — timer fires ===";
         configureWithDelay(instance, 400, 700);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test102");
+        auto uuid = createAndActivate(instance, tf, "test111");
 
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
@@ -3865,8 +4211,8 @@ static void scheduleTest102(Instance *instance) {
                 instance->eventDispatcher().schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
                     tf->call<ITestFrontend::destroyInputContext>(uuid);
-                    FCITX_INFO() << "Test 102 PASSED";
-                    scheduleTest103(instance);
+                    FCITX_INFO() << "Test 111 PASSED";
+                    scheduleTest112(instance);
                 });
                 return false;
             });
@@ -3874,14 +4220,14 @@ static void scheduleTest102(Instance *instance) {
 }
 
 // =========================================================================
-// TEST 103: Uppercase min delay (50ms) — timer fires
+// TEST 112: Uppercase min delay (50ms) — timer fires
 // =========================================================================
-static void scheduleTest103(Instance *instance) {
+static void scheduleTest112(Instance *instance) {
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 103: Uppercase min delay (50ms) — timer fires ===";
+        FCITX_INFO() << "=== Test 112: Uppercase min delay (50ms) — timer fires ===";
         configureWithDelay(instance, 50, 50);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test103");
+        auto uuid = createAndActivate(instance, tf, "test112");
 
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
@@ -3897,8 +4243,8 @@ static void scheduleTest103(Instance *instance) {
                 instance->eventDispatcher().schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
                     tf->call<ITestFrontend::destroyInputContext>(uuid);
-                    FCITX_INFO() << "Test 103 PASSED";
-                    scheduleTest104(instance);
+                    FCITX_INFO() << "Test 112 PASSED";
+                    scheduleTest113(instance);
                 });
                 return false;
             });
@@ -3906,15 +4252,15 @@ static void scheduleTest103(Instance *instance) {
 }
 
 // =========================================================================
-// TEST 104: Max delay (2000ms) — Space within window still converts
+// TEST 113: Max delay (2000ms) — Space within window still converts
 // Verifies the maximum allowed delay value works correctly.
 // =========================================================================
-static void scheduleTest104(Instance *instance) {
+static void scheduleTest113(Instance *instance) {
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 104: Max delay (2000ms) — Space within window ===";
+        FCITX_INFO() << "=== Test 113: Max delay (2000ms) — Space within window ===";
         configureWithDelay(instance, 2000, 2000);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test104");
+        auto uuid = createAndActivate(instance, tf, "test113");
 
         // Press 'a' → waiting with 2000ms delay
         tf->call<ITestFrontend::sendKeyEvent>(
@@ -3937,7 +4283,7 @@ static void scheduleTest104(Instance *instance) {
                 tf->call<ITestFrontend::keyEvent>(
                     uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
-                FCITX_INFO() << "Test 104 PASSED";
+                FCITX_INFO() << "Test 113 PASSED";
 
                 FCITX_INFO() << "=== All tests PASSED ===";
                 instance->exit();
