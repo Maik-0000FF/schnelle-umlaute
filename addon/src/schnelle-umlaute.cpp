@@ -853,17 +853,23 @@ private:
     bool isFiltered(InputContext *ic) const {
         if (filterMode_ == AppFilterMode::Disabled) return false;
 
-        std::string program = ic->program();
+        const std::string &program = ic->program();
         if (program.empty()) return false;
 
+        // Empty list entries are skipped: find("") returns 0 (matches
+        // anything), which would make a stray blank line in the blacklist
+        // disable the addon entirely, or a blank line in the whitelist
+        // bypass the filter entirely.
         if (filterMode_ == AppFilterMode::Blacklist) {
             for (const auto &app : blacklist_) {
+                if (app.empty()) continue;
                 if (program.find(app) != std::string::npos) return true;
             }
             return false;
         }
         // Whitelist: only active in listed apps
         for (const auto &app : whitelist_) {
+            if (app.empty()) continue;
             if (program.find(app) != std::string::npos) return false;
         }
         return true;
