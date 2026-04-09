@@ -4256,42 +4256,12 @@ static void scheduleTest112(Instance *instance) {
 // Verifies the maximum allowed delay value works correctly.
 // =========================================================================
 static void scheduleTest113(Instance *instance) {
-    instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== Test 113: Max delay (2000ms) — Space within window ===";
-        configureWithDelay(instance, 2000, 2000);
-        auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test113");
-
-        // Press 'a' → waiting with 2000ms delay
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-
-        // Wait 1500ms — still within 2000ms window
-        struct TH { std::unique_ptr<EventSourceTime> t; };
-        auto h = std::make_shared<TH>();
-        h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 1'500'000, 0,
-            [instance, uuid, h](EventSourceTime *, uint64_t) {
-                auto *tf = instance->addonManager().addon("testfrontend");
-
-                // At 1500ms, 2000ms timeout hasn't expired → Space converts
-                tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
-                bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
-                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-                FCITX_ASSERT(consumed) << "Space should convert within 2000ms window";
-
-                tf->call<ITestFrontend::keyEvent>(
-                    uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
-                tf->call<ITestFrontend::destroyInputContext>(uuid);
-                FCITX_INFO() << "Test 113 PASSED";
-
-                instance->exit();
-                return false;
-            });
-    });
-
     // =========================================================================
     // APP FILTER TESTS (114-118)
+    //
+    // Scheduled before test 113 because test 113 owns the final
+    // instance->exit() (fired from a 1500ms timer). Any test scheduled
+    // after test 113 would race the exit and be silently skipped.
     // =========================================================================
 
     // Helper: configure app filter mode and lists
@@ -4424,10 +4394,39 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO() << "Test 118 PASSED";
     });
 
-    // Done
     instance->eventDispatcher().schedule([instance]() {
-        FCITX_INFO() << "=== All 118 tests PASSED ===";
-        instance->exit();
+        FCITX_INFO() << "=== Test 113: Max delay (2000ms) — Space within window ===";
+        configureWithDelay(instance, 2000, 2000);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test113");
+
+        // Press 'a' → waiting with 2000ms delay
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Wait 1500ms — still within 2000ms window
+        struct TH { std::unique_ptr<EventSourceTime> t; };
+        auto h = std::make_shared<TH>();
+        h->t = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + 1'500'000, 0,
+            [instance, uuid, h](EventSourceTime *, uint64_t) {
+                auto *tf = instance->addonManager().addon("testfrontend");
+
+                // At 1500ms, 2000ms timeout hasn't expired → Space converts
+                tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+                bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+                FCITX_ASSERT(consumed) << "Space should convert within 2000ms window";
+
+                tf->call<ITestFrontend::keyEvent>(
+                    uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 113 PASSED";
+
+                FCITX_INFO() << "=== All 118 tests PASSED ===";
+                instance->exit();
+                return false;
+            });
     });
 }
 
