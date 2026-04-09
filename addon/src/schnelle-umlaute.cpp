@@ -19,6 +19,7 @@
 #endif
 #include <fcitx-utils/fs.h>
 #include <fcitx-config/configuration.h>
+#include <fcitx-config/enum.h>
 #include <fcitx-config/iniparser.h>
 #include "mappings-io.h"
 #include <xkbcommon/xkbcommon.h>
@@ -89,13 +90,7 @@ FCITX_CONFIGURATION(
 );
 
 FCITX_CONFIGURATION(
-    LeaderConfig,
-    Option<bool> space{this, "Space", "Space", true};
-    Option<bool> left{this, "Left", "Left Arrow", false};
-    Option<bool> right{this, "Right", "Right Arrow", false};
-    Option<bool> up{this, "Up", "Up Arrow", false};
-    Option<bool> down{this, "Down", "Down Arrow", false};
-    Option<bool> alt{this, "Alt", "Alt/AltGr", false};
+    CustomLeaderConfig,
     Option<bool> customKeyEnabled{this, "CustomKeyEnabled",
         "Custom Leader 1", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey{
@@ -111,11 +106,39 @@ FCITX_CONFIGURATION(
 );
 
 FCITX_CONFIGURATION(
+    LeaderConfig,
+    Option<bool> space{this, "Space", "Space", true};
+    Option<bool> left{this, "Left", "Left Arrow", false};
+    Option<bool> right{this, "Right", "Right Arrow", false};
+    Option<bool> up{this, "Up", "Up Arrow", false};
+    Option<bool> down{this, "Down", "Down Arrow", false};
+    Option<bool> alt{this, "Alt", "Alt/AltGr", false};
+    Option<CustomLeaderConfig> custom{this, "Custom", "Custom Leader Keys"};
+);
+
+FCITX_CONFIGURATION(
+    MappingsConfig,
+    ExternalOption editor{this, "Editor", "Mapping Editor",
+        "fcitx://config/addon/schnelle-umlaute/mappings.txt"};
+);
+
+FCITX_CONFIG_ENUM(AppFilterMode, Disabled, Blacklist, Whitelist);
+
+FCITX_CONFIGURATION(
+    AppFilterConfig,
+    Option<AppFilterMode> mode{this, "Mode", "Mode", AppFilterMode::Disabled};
+    Option<std::vector<std::string>> blacklist{
+        this, "Blacklist", "Blacklist", {}};
+    Option<std::vector<std::string>> whitelist{
+        this, "Whitelist", "Whitelist", {}};
+);
+
+FCITX_CONFIGURATION(
     SchnelleUmlauteConfig,
     Option<DelayConfig> delay{this, "Delay", "Delay"};
     Option<LeaderConfig> leader{this, "Leader", "Leader Keys"};
-    ExternalOption mappingEditor{this, "MappingEditor", "Mapping Editor",
-        "fcitx://config/addon/schnelle-umlaute/mappings.txt"};
+    Option<MappingsConfig> mappings{this, "Mappings", "Mappings"};
+    Option<AppFilterConfig> appFilter{this, "AppFilter", "App Filter"};
 );
 
 // =============================================================================
@@ -249,10 +272,10 @@ public:
         // IntConstrainWithStep rejects out-of-range delay values (uses default).
         // Normalize custom leader keys to a single character before saving,
         // so the config file always reflects what is actually used.
-        config_.leader.mutableValue()->customKey.setValue(
-            sanitizeCustomKey(*config_.leader->customKey));
-        config_.leader.mutableValue()->customKey2.setValue(
-            sanitizeCustomKey(*config_.leader->customKey2));
+        config_.leader.mutableValue()->custom.mutableValue()->customKey.setValue(
+            sanitizeCustomKey(*config_.leader->custom->customKey));
+        config_.leader.mutableValue()->custom.mutableValue()->customKey2.setValue(
+            sanitizeCustomKey(*config_.leader->custom->customKey2));
         safeSaveAsIni(config_, "conf/schnelle-umlaute.conf");
         applyConfig();
     }
@@ -313,6 +336,10 @@ public:
 
     void keyEvent(const InputMethodEntry & /*entry*/, KeyEvent &keyEvent) override {
         auto *ic = keyEvent.inputContext();
+
+        // App filter: let keys pass through in blacklisted/non-whitelisted apps
+        if (isFiltered(ic)) return;
+
         auto *state = ic->propertyFor(&factory_);
 
         auto key = keyEvent.key();
@@ -769,10 +796,10 @@ private:
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
         // stores the original value so the UI round-trips correctly.
-        cachedCustomKey_ = *config_.leader->customKeyEnabled
-            ? sanitizeCustomKey(*config_.leader->customKey) : "";
-        cachedCustomKey2_ = *config_.leader->customKey2Enabled
-            ? sanitizeCustomKey(*config_.leader->customKey2) : "";
+        cachedCustomKey_ = *config_.leader->custom->customKeyEnabled
+            ? sanitizeCustomKey(*config_.leader->custom->customKey) : "";
+        cachedCustomKey2_ = *config_.leader->custom->customKey2Enabled
+            ? sanitizeCustomKey(*config_.leader->custom->customKey2) : "";
 
         // Warn if a custom leader key collides with a mapped input
         if (!cachedCustomKey_.empty() && umlautMap_.count(cachedCustomKey_)) {
@@ -811,10 +838,35 @@ private:
         if (!cachedCustomKey2_.empty()) leaders += "Custom2('" + cachedCustomKey2_ + "') ";
         if (leaders.empty()) leaders = "None ";
 
+        // App filter: cache values from config
+        filterMode_ = *config_.appFilter->mode;
+        blacklist_ = *config_.appFilter->blacklist;
+        whitelist_ = *config_.appFilter->whitelist;
+
         FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=" << *config_.delay->lowercase
                      << "ms, DelayUppercase=" << *config_.delay->uppercase
                      << "ms, Leaders=" << leaders
                      << ", Mappings=" << umlautMap_.size();
+    }
+
+    // App filter: check if processing should be skipped for this IC's app.
+    bool isFiltered(InputContext *ic) const {
+        if (filterMode_ == AppFilterMode::Disabled) return false;
+
+        std::string program = ic->program();
+        if (program.empty()) return false;
+
+        if (filterMode_ == AppFilterMode::Blacklist) {
+            for (const auto &app : blacklist_) {
+                if (program.find(app) != std::string::npos) return true;
+            }
+            return false;
+        }
+        // Whitelist: only active in listed apps
+        for (const auto &app : whitelist_) {
+            if (program.find(app) != std::string::npos) return false;
+        }
+        return true;
     }
 
     void updateClientPreedit(InputContext *ic, const std::string &text) {
@@ -1217,6 +1269,11 @@ private:
     // Reverse mapping: character → physical evdev keycode.
     // Built from the XKB keymap for layout-independent hand classification.
     std::unordered_map<std::string, int> charToKeycode_;
+    // App filter (cached from config). When set to Blacklist/Whitelist,
+    // processing is skipped for matching apps based on ic->program().
+    AppFilterMode filterMode_ = AppFilterMode::Disabled;
+    std::vector<std::string> blacklist_;
+    std::vector<std::string> whitelist_;
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {

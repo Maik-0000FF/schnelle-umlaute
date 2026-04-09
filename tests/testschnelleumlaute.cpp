@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (113 tests)
+// Test Suite for Schnelle Umlaute (118 tests)
 //
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
 // 12-16   Custom leaders       Shift-invariant, case-insensitive, double-comma escaping, cycling, triple comma
@@ -117,12 +117,12 @@ static void configureLeaders(Instance *instance,
     config.setValueByPath("Leader/Up", up ? "True" : "False");
     config.setValueByPath("Leader/Down", down ? "True" : "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
-    config.setValueByPath("Leader/CustomKeyEnabled",
+    config.setValueByPath("Leader/Custom/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
-    config.setValueByPath("Leader/CustomKey", custom);
-    config.setValueByPath("Leader/CustomKey2Enabled",
+    config.setValueByPath("Leader/Custom/CustomKey", custom);
+    config.setValueByPath("Leader/Custom/CustomKey2Enabled",
                           custom2.empty() ? "False" : "True");
-    config.setValueByPath("Leader/CustomKey2", custom2);
+    config.setValueByPath("Leader/Custom/CustomKey2", custom2);
     addon->setConfig(config);
     setMappings(instance, {
         {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"}, {"u", "\xc3\xbc"},
@@ -262,9 +262,9 @@ static void configureMultilingualCycling(Instance *instance,
     config.setValueByPath("Leader/Up", "False");
     config.setValueByPath("Leader/Down", "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
-    config.setValueByPath("Leader/CustomKeyEnabled",
+    config.setValueByPath("Leader/Custom/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
-    config.setValueByPath("Leader/CustomKey", custom);
+    config.setValueByPath("Leader/Custom/CustomKey", custom);
     addon->setConfig(config);
     setMappings(instance, {
         {"a", "\xc3\xa4,\xc3\xa0,\xc3\xa1,\xc3\xa2,\xc3\xa3"},
@@ -296,10 +296,10 @@ static void configureWithDelay(Instance *instance, int delayLower, int delayUppe
     config.setValueByPath("Leader/Up", "False");
     config.setValueByPath("Leader/Down", "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
-    config.setValueByPath("Leader/CustomKeyEnabled", "False");
-    config.setValueByPath("Leader/CustomKey", "");
-    config.setValueByPath("Leader/CustomKey2Enabled", "False");
-    config.setValueByPath("Leader/CustomKey2", "");
+    config.setValueByPath("Leader/Custom/CustomKeyEnabled", "False");
+    config.setValueByPath("Leader/Custom/CustomKey", "");
+    config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
+    config.setValueByPath("Leader/Custom/CustomKey2", "");
     addon->setConfig(config);
     setMappings(instance, {
         {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"}, {"u", "\xc3\xbc"},
@@ -3242,10 +3242,10 @@ static void scheduleRemainingTests(Instance *instance) {
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
         // Set custom leader to 'a' which is also a mapped input
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "a");
-        config.setValueByPath("Leader/CustomKey2Enabled", "False");
-        config.setValueByPath("Leader/CustomKey2", "");
+        config.setValueByPath("Leader/Custom/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/Custom/CustomKey", "a");
+        config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
+        config.setValueByPath("Leader/Custom/CustomKey2", "");
         addon->setConfig(config);
         setMappings(instance, {
             {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"},
@@ -3487,10 +3487,10 @@ static void scheduleRemainingTests(Instance *instance) {
         config.setValueByPath("Leader/Up", "False");
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "   ");
-        config.setValueByPath("Leader/CustomKey2Enabled", "False");
-        config.setValueByPath("Leader/CustomKey2", "");
+        config.setValueByPath("Leader/Custom/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/Custom/CustomKey", "   ");
+        config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
+        config.setValueByPath("Leader/Custom/CustomKey2", "");
         addon->setConfig(config);
         setMappings(instance, {{"a", "\xc3\xa4"}});
 
@@ -3527,10 +3527,10 @@ static void scheduleRemainingTests(Instance *instance) {
         config.setValueByPath("Leader/Up", "False");
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "");
-        config.setValueByPath("Leader/CustomKey2Enabled", "False");
-        config.setValueByPath("Leader/CustomKey2", "");
+        config.setValueByPath("Leader/Custom/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/Custom/CustomKey", "");
+        config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
+        config.setValueByPath("Leader/Custom/CustomKey2", "");
         addon->setConfig(config);
         setMappings(instance, {{"a", "\xc3\xa4"}});
 
@@ -3565,10 +3565,10 @@ static void scheduleRemainingTests(Instance *instance) {
         config.setValueByPath("Leader/Up", "False");
         config.setValueByPath("Leader/Down", "False");
         config.setValueByPath("Leader/Alt", "False");
-        config.setValueByPath("Leader/CustomKeyEnabled", "True");
-        config.setValueByPath("Leader/CustomKey", "F");
-        config.setValueByPath("Leader/CustomKey2Enabled", "False");
-        config.setValueByPath("Leader/CustomKey2", "");
+        config.setValueByPath("Leader/Custom/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/Custom/CustomKey", "F");
+        config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
+        config.setValueByPath("Leader/Custom/CustomKey2", "");
         addon->setConfig(config);
         setMappings(instance, {{"a", "\xc3\xa4"}, {"A", "\xc3\x84"}});
 
@@ -4285,10 +4285,149 @@ static void scheduleTest113(Instance *instance) {
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 113 PASSED";
 
-                FCITX_INFO() << "=== All tests PASSED ===";
                 instance->exit();
                 return false;
             });
+    });
+
+    // =========================================================================
+    // APP FILTER TESTS (114-118)
+    // =========================================================================
+
+    // Helper: configure app filter mode and lists
+    auto configureAppFilter =
+        [](Instance *instance, const std::string &mode,
+           const std::vector<std::string> &blacklist,
+           const std::vector<std::string> &whitelist) {
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        // Keep default leaders (Space on)
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("AppFilter/Mode", mode);
+        for (size_t i = 0; i < blacklist.size(); ++i) {
+            config.setValueByPath("AppFilter/Blacklist/" + std::to_string(i),
+                                  blacklist[i]);
+        }
+        for (size_t i = 0; i < whitelist.size(); ++i) {
+            config.setValueByPath("AppFilter/Whitelist/" + std::to_string(i),
+                                  whitelist[i]);
+        }
+        addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+    };
+
+    // =========================================================================
+    // TEST 114: App Filter Disabled — gesture works in any app
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance, configureAppFilter]() {
+        FCITX_INFO() << "=== Test 114: App Filter Disabled ===";
+        configureAppFilter(instance, "Disabled", {}, {});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "firefox");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Space should be consumed when filter disabled";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 114 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 115: Blacklist — blocked app is passthrough
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance, configureAppFilter]() {
+        FCITX_INFO() << "=== Test 115: Blacklist blocks processing ===";
+        configureAppFilter(instance, "Blacklist", {"nvim", "steam"}, {});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "nvim");
+
+        // 'a' must NOT be consumed in a blacklisted app
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(!consumed) << "Mapped key must not be consumed in blacklisted app";
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 115 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 116: Blacklist — non-blocked app still processes
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance, configureAppFilter]() {
+        FCITX_INFO() << "=== Test 116: Blacklist allows non-blocked app ===";
+        configureAppFilter(instance, "Blacklist", {"nvim", "steam"}, {});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "firefox");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Non-blacklisted app should process gestures";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 116 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 117: Whitelist — listed app is processed
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance, configureAppFilter]() {
+        FCITX_INFO() << "=== Test 117: Whitelist allows listed app ===";
+        configureAppFilter(instance, "Whitelist", {},
+                           {"libreoffice", "gedit"});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "libreoffice-writer");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Whitelisted app should process gestures";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 117 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 118: Whitelist — non-listed app is passthrough
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance, configureAppFilter]() {
+        FCITX_INFO() << "=== Test 118: Whitelist blocks non-listed app ===";
+        configureAppFilter(instance, "Whitelist", {},
+                           {"libreoffice", "gedit"});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "firefox");
+
+        // 'a' must NOT be consumed in a non-whitelisted app
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(!consumed) << "Non-whitelisted app must not consume keys";
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 118 PASSED";
+    });
+
+    // Done
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== All 118 tests PASSED ===";
+        instance->exit();
     });
 }
 

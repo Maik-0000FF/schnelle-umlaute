@@ -70,23 +70,18 @@ fi
 
 # --- Find Installed Files ---
 
-# Check all possible library paths
+# Check ALL possible library paths regardless of detected distro.
+# Searching paths that don't exist is harmless; missing paths is not.
 LIB_PATHS=(
-    /usr/lib/fcitx5
-    /usr/lib64/fcitx5
-    /usr/local/lib/fcitx5
-    /usr/local/lib64/fcitx5
+    /usr/lib/fcitx5                              # Arch, Manjaro, EndeavourOS
+    /usr/lib64/fcitx5                            # Fedora, openSUSE, RHEL
+    /usr/lib/x86_64-linux-gnu/fcitx5             # Debian, Ubuntu (multiarch x86_64)
+    /usr/lib/aarch64-linux-gnu/fcitx5            # Debian, Ubuntu (multiarch arm64)
+    /usr/local/lib/fcitx5                        # Source build
+    /usr/local/lib64/fcitx5                      # Source build (lib64)
+    /usr/local/lib/x86_64-linux-gnu/fcitx5       # Source build (multiarch x86_64)
+    /usr/local/lib/aarch64-linux-gnu/fcitx5      # Source build (multiarch arm64)
 )
-
-# Debian uses multiarch lib paths
-if [ "$DISTRO" = "debian" ] || [ "$DISTRO" = "unknown" ]; then
-    LIB_PATHS+=(
-        /usr/lib/x86_64-linux-gnu/fcitx5
-        /usr/lib/aarch64-linux-gnu/fcitx5
-        /usr/local/lib/x86_64-linux-gnu/fcitx5
-        /usr/local/lib/aarch64-linux-gnu/fcitx5
-    )
-fi
 
 FOUND_FILES=()
 
@@ -112,6 +107,23 @@ for file in "${DATA_FILES[@]}"; do
     [ -f "$file" ] && FOUND_FILES+=("$file")
 done
 
+# Fallback: catch anything we missed via wildcard search.
+# Ensures any legacy file under fcitx5 directories gets caught.
+SEARCH_ROOTS=(
+    /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64
+    /usr/share/fcitx5 /usr/local/share/fcitx5
+)
+for root in "${SEARCH_ROOTS[@]}"; do
+    [ -d "$root" ] || continue
+    while IFS= read -r found; do
+        skip=0
+        for existing in "${FOUND_FILES[@]}"; do
+            [ "$existing" = "$found" ] && skip=1 && break
+        done
+        [ $skip -eq 0 ] && FOUND_FILES+=("$found")
+    done < <(find "$root" \( -iname "*schnelle*umlaute*" -o -iname "*SchnelleUmlaute*" \) -type f 2>/dev/null)
+done
+
 if [ ${#FOUND_FILES[@]} -eq 0 ]; then
     echo -e "${YELLOW}No installation found. Nothing to uninstall.${NC}"
     exit 0
@@ -123,7 +135,7 @@ for file in "${FOUND_FILES[@]}"; do
 done
 echo
 
-read -p "Remove these files? [y/N] " -n 1 -r
+read -p "Remove these files? [y/N] " -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}Uninstallation cancelled.${NC}"
@@ -148,7 +160,7 @@ if [ -f "$USER_CONFIG" ] || [ -d "$MAPPINGS_DIR" ]; then
     echo -e "${YELLOW}User configuration found:${NC}"
     [ -f "$USER_CONFIG" ] && echo "  - $USER_CONFIG (settings)"
     [ -d "$MAPPINGS_DIR" ] && echo "  - $MAPPINGS_DIR/ (mappings)"
-    read -p "Remove user configuration? [y/N] " -n 1 -r
+    read -p "Remove user configuration? [y/N] " -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         [ -f "$USER_CONFIG" ] && rm -f "$USER_CONFIG"
@@ -165,7 +177,7 @@ fi
 ENV_FILE="$HOME/.config/environment.d/fcitx5.conf"
 if [ -f "$ENV_FILE" ]; then
     echo -e "${YELLOW}Environment configuration found: $ENV_FILE${NC}"
-    read -p "Remove environment configuration? [y/N] " -n 1 -r
+    read -p "Remove environment configuration? [y/N] " -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         rm -f "$ENV_FILE"
@@ -187,7 +199,7 @@ AUTOSTART_FILES=(
 for autostart in "${AUTOSTART_FILES[@]}"; do
     if [ -f "$autostart" ]; then
         echo -e "${YELLOW}Autostart configuration found: $autostart${NC}"
-        read -p "Remove autostart configuration? [y/N] " -n 1 -r
+        read -p "Remove autostart configuration? [y/N] " -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             rm -f "$autostart"

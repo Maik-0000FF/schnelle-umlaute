@@ -176,7 +176,7 @@ echo
 
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     echo -e "${YELLOW}Missing dependencies: ${MISSING_DEPS[*]}${NC}"
-    read -p "Install missing dependencies? [Y/n] " -n 1 -r
+    read -p "Install missing dependencies? [Y/n] " -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         echo -e "${BLUE}Installing dependencies...${NC}"
@@ -212,11 +212,17 @@ echo
 
 # --- Remove Stale Installations ---
 
+# Check ALL possible paths regardless of detected distro.
+# Searching paths that don't exist is harmless; missing paths is not.
 STALE_CANDIDATES=(
     /usr/lib/fcitx5/schnelle-umlaute.so
     /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
     /usr/lib64/fcitx5/schnelle-umlaute.so
     /usr/lib64/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
+    /usr/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so
+    /usr/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
     /usr/share/fcitx5/addon/schnelle-umlaute.conf
     /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
     /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
@@ -225,25 +231,15 @@ STALE_CANDIDATES=(
     /usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
     /usr/local/lib64/fcitx5/schnelle-umlaute.so
     /usr/local/lib64/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/local/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
+    /usr/local/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/local/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so
+    /usr/local/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
     /usr/local/share/fcitx5/addon/schnelle-umlaute.conf
     /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in
     /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
     /usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf
 )
-
-# Debian uses multiarch lib paths
-if [ "$DISTRO" = "debian" ]; then
-    STALE_CANDIDATES+=(
-        /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
-        /usr/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
-        /usr/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so
-        /usr/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
-        /usr/local/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
-        /usr/local/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
-        /usr/local/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so
-        /usr/local/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
-    )
-fi
 
 STALE_FILES=()
 for stale in "${STALE_CANDIDATES[@]}"; do
@@ -252,13 +248,30 @@ for stale in "${STALE_CANDIDATES[@]}"; do
     fi
 done
 
+# Fallback: find any file containing "schnelle-umlaute" or "SchnelleUmlaute"
+# under fcitx5 system directories. Catches any legacy files we missed.
+SEARCH_ROOTS=(
+    /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64
+    /usr/share/fcitx5 /usr/local/share/fcitx5
+)
+for root in "${SEARCH_ROOTS[@]}"; do
+    [ -d "$root" ] || continue
+    while IFS= read -r found; do
+        skip=0
+        for existing in "${STALE_FILES[@]}"; do
+            [ "$existing" = "$found" ] && skip=1 && break
+        done
+        [ $skip -eq 0 ] && STALE_FILES+=("$found")
+    done < <(find "$root" \( -iname "*schnelle*umlaute*" -o -iname "*SchnelleUmlaute*" \) -type f 2>/dev/null)
+done
+
 if [ ${#STALE_FILES[@]} -ne 0 ]; then
     echo -e "${YELLOW}Found previous installation files:${NC}"
     for file in "${STALE_FILES[@]}"; do
         echo "  - $file"
     done
     echo
-    read -p "Remove before reinstalling? [Y/n] " -n 1 -r
+    read -p "Remove before reinstalling? [Y/n] " -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         sudo rm -f "${STALE_FILES[@]}"
@@ -300,7 +313,7 @@ if [ -f "$ENV_FILE" ]; then
     echo "Contents:"
     cat "$ENV_FILE"
     echo
-    read -p "Overwrite with fcitx5 settings? [Y/n] " -n 1 -r
+    read -p "Overwrite with fcitx5 settings? [Y/n] " -r
     echo
     if [[ $REPLY =~ ^[Nn]$ ]]; then
         echo -e "${YELLOW}Skipping environment setup. Make sure GTK_IM_MODULE, QT_IM_MODULE, and XMODIFIERS are set to fcitx.${NC}"
@@ -351,7 +364,7 @@ if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_C
     echo -e "${YELLOW}mappings (e.g. Shift+A → Ä). With Shift as trigger, fcitx5 will${NC}"
     echo -e "${YELLOW}switch input methods instead.${NC}"
     echo
-    read -p "Replace trigger key with Ctrl+Space? [Y/n] " -n 1 -r
+    read -p "Replace trigger key with Ctrl+Space? [Y/n] " -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         sed '/\[Hotkey\/TriggerKeys\]/,/^\[/{s/^0=.*/0=Control+space/}' "$FCITX_CONFIG" > "$FCITX_CONFIG.tmp" && mv "$FCITX_CONFIG.tmp" "$FCITX_CONFIG"
