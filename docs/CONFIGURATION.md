@@ -223,3 +223,36 @@ Map keys to emoji for quick insertion without opening an emoji picker.
 | <kbd>c</kbd> | ✓ | Checkmark |
 
 Emoji cycling also works: set Output to `😊,😀,😁,🙂` to cycle through smileys.
+
+---
+
+## App Filter
+
+![App Filter](assets/screenshot-app-filter.png)
+
+Disable Schnelle Umlaute in specific applications. Useful for games, password managers, IP/number-only input fields, or any app whose own shortcuts collide with the gesture input.
+
+| Mode | Behavior |
+|------|----------|
+| **Disabled** (default) | Active in every app |
+| **Blacklist** | Active everywhere **except** in listed apps |
+| **Whitelist** | Active **only** in listed apps |
+
+```ini
+[AppFilter]
+Mode=Blacklist
+
+[AppFilter/Blacklist]
+0=steam
+1=keepassxc
+
+[AppFilter/Whitelist]
+```
+
+Apps are matched against fcitx5's program identifier (typically the X11 `WM_CLASS` or the Wayland app-id — e.g. `firefox`, `libreoffice`, `discord`) using a **case-sensitive substring** match. Empty list entries are ignored, so an accidental blank line won't disable the addon.
+
+> **Tip — Finding an app's identifier**
+> On X11, run `xprop WM_CLASS` and click the target window. On Wayland, the app-id is usually the lowercase binary name or a reverse-DNS package name (e.g. `firefox`, `org.mozilla.firefox`). When in doubt, try the binary name first — substring matching gives you some slack.
+
+> **Substring caveat**
+> A short pattern matches broadly: `term` will also catch `gnome-terminal`, `xterm`, `terminator`, `lxterminal`. Use a more specific pattern (e.g. `xterm` or the full app-id) if that's a problem.
