@@ -244,8 +244,6 @@ Emoji cycling also works: set Output to `😊,😀,😁,🙂` to cycle through s
 
 ## App Filter
 
-![App Filter](assets/screenshot-app-filter.png)
-
 Disable Schnelle Umlaute in specific applications. Useful for games, password managers, IP/number-only input fields, or any app whose own shortcuts collide with the gesture input.
 
 | Mode | Behavior |
