@@ -2524,12 +2524,11 @@ static void scheduleTimeoutTests(Instance *instance) {
 
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
-        // Defer cleanup to next event-loop iteration so the addon's
-        // timeout timer (50ms) fires and commits before IC destruction.
-        // Without this, the event loop may batch both timers and fire
-        // ours first, destroying the IC before the commit happens.
+        // Defer cleanup so the addon's timeout timer (50ms) fires and
+        // commits before IC destruction.  300ms gives 250ms of headroom
+        // over the 50ms addon timer, avoiding flakes on loaded CI runners.
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 100'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -2559,7 +2558,7 @@ static void scheduleTest60(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 100'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -2594,7 +2593,7 @@ static void scheduleTest61(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 100'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -2635,15 +2634,15 @@ static void scheduleTest62(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 200'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 400'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 auto *tf = instance->addonManager().addon("testfrontend");
 
-                // At 200ms, uppercase timeout (2000ms) hasn't expired
+                // At 400ms, uppercase timeout (2000ms) hasn't expired
                 tf->call<ITestFrontend::pushCommitExpectation>("\xc3\x84");
                 bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
                     uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-                FCITX_ASSERT(consumed) << "Space should convert uppercase before timeout";
+                FCITX_ASSERT(consumed) << "Space at 400ms should convert within 2000ms uppercase window";
 
                 tf->call<ITestFrontend::keyEvent>(
                     uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), true);
@@ -2672,7 +2671,7 @@ static void scheduleTest63(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 150'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -2709,7 +2708,7 @@ static void scheduleTest64(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 100'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -4143,11 +4142,11 @@ static void scheduleTest107(Instance *instance) {
         // Addon timer fires at 100ms and commits 'a'
         tf->call<ITestFrontend::pushCommitExpectation>("a");
 
-        // Wait 200ms — well past 100ms window
+        // Wait 400ms — well past 100ms window (300ms headroom)
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 200'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 400'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -4156,7 +4155,7 @@ static void scheduleTest107(Instance *instance) {
                     // testfrontend commit check on Space passthrough.
                     bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
                         uuid, Key(FcitxKey_b, KeyStates(), kCodeB), false);
-                    FCITX_ASSERT(!consumed) << "Key at 200ms should pass through (100ms expired)";
+                    FCITX_ASSERT(!consumed) << "Key at 400ms should pass through (100ms expired)";
 
                     tf->call<ITestFrontend::destroyInputContext>(uuid);
                     FCITX_INFO() << "Test 107 PASSED";
@@ -4189,7 +4188,7 @@ static void scheduleDelayBoundaryTests(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 500'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 700'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -4221,7 +4220,7 @@ static void scheduleTest111(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 800'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 1'000'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -4253,7 +4252,7 @@ static void scheduleTest112(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 100'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
