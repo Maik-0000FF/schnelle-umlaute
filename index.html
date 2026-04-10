@@ -33,9 +33,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="rating" content="general">
     <meta name="distribution" content="global">
-    <meta name="revisit-after" content="7 days">
-    <meta name="HandheldFriendly" content="True">
-    <meta name="MobileOptimized" content="320">
+
     <meta name="format-detection" content="telephone=no">
 
     <meta property="og:type" content="website">
@@ -374,25 +372,6 @@
             display: flex; flex-direction: column; gap: 14px;
         }
 
-        .hero-pill {
-            display: inline-flex; align-items: center; gap: 8px;
-            padding: 5px 14px; border-radius: 100px;
-            border: 1px solid rgba(74,222,128,0.25);
-            background: rgba(74,222,128,0.06);
-            font-size: 0.78em; font-weight: 500;
-            color: var(--green);
-            margin-bottom: 28px;
-            opacity: 0;
-            animation: fadeUp 0.6s ease 0.1s both;
-        }
-
-        .pill-dot {
-            width: 5px; height: 5px;
-            border-radius: 50%;
-            background: var(--green);
-            animation: blink 2s ease-in-out infinite;
-        }
-        @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(1.8)} }
 
         .hero-h1 {
             font-family: 'Space Grotesk', sans-serif;
@@ -513,7 +492,7 @@
             font-size: 0.82em; line-height: 1.75;
             color: #c8c8c8;
             flex: 1;
-            overflow-y: scroll;
+            overflow-y: auto;
             scrollbar-width: none;
         }
         .terminal-body::-webkit-scrollbar { display: none; }
@@ -1215,7 +1194,7 @@
 <nav id="main-nav" aria-label="Main navigation">
     <a href="#" class="nav-logo"><img src="docs/assets/apple-touch-icon.png" alt="Schnelle Umlaute logo" class="nav-icon" width="42" height="42"><span class="nl-w">Schnelle</span> <span class="nl-g">Umlaute</span></a>
     <div class="nav-right">
-        <a href="https://github.com/Maik-0000FF/schnelle-umlaute" class="nav-cta" rel="noopener">
+        <a href="https://github.com/Maik-0000FF/schnelle-umlaute" class="nav-cta" rel="noopener" target="_blank">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0">
                 <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/>
             </svg>
@@ -1249,11 +1228,11 @@
 
             <nav class="hero-btns" aria-label="Primary actions">
                 <a href="https://github.com/Maik-0000FF/schnelle-umlaute#quick-start"
-                   class="btn btn-green" rel="noopener">
+                   class="btn btn-green" rel="noopener" target="_blank">
                     Get Started
                 </a>
                 <a href="https://github.com/Maik-0000FF/schnelle-umlaute"
-                   class="btn btn-outline" rel="noopener">
+                   class="btn btn-outline" rel="noopener" target="_blank">
                     View Source
                 </a>
             </nav>
@@ -1282,7 +1261,7 @@
                             <span class="demo-sublabel" aria-hidden="true" style="visibility:hidden">+</span>
                         </div>
                         <div class="demo-col">
-                            <div class="demo-result" id="dk-out"></div>
+                            <div class="demo-result" id="dk-out"><noscript>ä</noscript></div>
                             <span class="demo-sublabel" aria-hidden="true" style="visibility:hidden">+</span>
                         </div>
                     </div>
@@ -1297,6 +1276,12 @@
                     <span class="terminal-title">bash — ~/schnelle-umlaute</span>
                 </div>
                 <div class="terminal-body" id="term-body">
+                    <noscript>
+                        <div class="tline"><span class="tps1">$ </span><span class="tcmd">git clone https://github.com/Maik-0000FF/schnelle-umlaute.git</span></div>
+                        <div class="tline"><span class="tps1">$ </span><span class="tcmd">cd schnelle-umlaute</span></div>
+                        <div class="tline"><span class="tps1">$ </span><span class="tcmd">./install.sh</span></div>
+                        <div class="tline"><span class="tout">[✓] Build complete · [✓] Addon installed</span></div>
+                    </noscript>
                     <span class="tcursor" id="term-cursor"></span>
                 </div>
             </div>
@@ -1305,7 +1290,7 @@
 </section>
 
 <!-- Features -->
-<div class="section" id="features">
+<section class="section" id="features">
     <div class="section-eyebrow reveal">Features</div>
     <h2 class="section-h2 reveal">
         Built different.<br><span class="g">Works everywhere.</span>
@@ -1404,10 +1389,10 @@
         </article>
 
     </div>
-</div>
+</section>
 
 <!-- How It Works -->
-<div class="section" style="padding-top:20px">
+<section class="section" style="padding-top:20px">
     <div class="section-eyebrow reveal">How it works</div>
     <h2 class="section-h2 reveal">Four steps.<br><span class="g">Under one second.</span></h2>
 
@@ -1445,10 +1430,10 @@
             <p>Press again: <span class="kk">á</span> → <span class="kk">à</span> → <span class="kk">â</span></p>
         </div>
     </div>
-</div>
+</section>
 
 <!-- Testimonial -->
-<div class="section" style="padding-top:20px">
+<section class="section" style="padding-top:20px">
     <div class="section-eyebrow reveal" style="justify-content:center">Users</div>
     <h2 class="section-h2 reveal" style="text-align:center"><span class="g">What people say</span></h2>
 
@@ -1459,7 +1444,7 @@
                 This is EXACTLY what I was looking for and unlike all other solutions I tried it works easy and like a charm! Thank you so much for your work!"
             </p>
             <p class="testi-author">
-                <strong><a href="https://github.com/Martin-Eckleben" rel="noopener">@Martin-Eckleben</a></strong><br><span style="padding-left:0.1em">Passionate programmer and general techie</span>
+                <strong><a href="https://github.com/Martin-Eckleben" rel="noopener" target="_blank">@Martin-Eckleben</a></strong><br><span style="padding-left:0.1em">Passionate programmer and general techie</span>
             </p>
         </div>
         <div class="testi-card reveal d1">
@@ -1468,7 +1453,7 @@
                 Your tool is getting reliable for daily use, now even with other languages than German!"
             </p>
             <p class="testi-author">
-                <strong><a href="https://github.com/ungaul" rel="noopener">@ungaul</a></strong><br><span style="padding-left:0.1em">GitHub User</span>
+                <strong><a href="https://github.com/ungaul" rel="noopener" target="_blank">@ungaul</a></strong><br><span style="padding-left:0.1em">GitHub User</span>
             </p>
         </div>
         <div class="testi-card reveal d2">
@@ -1477,14 +1462,14 @@
                 Congratulations on this excellent add-on!"
             </p>
             <p class="testi-author">
-                <strong><a href="https://github.com/RandomAndroidDev" rel="noopener">@RandomAndroidDev</a></strong><br><span style="padding-left:0.1em">GitHub User</span>
+                <strong><a href="https://github.com/RandomAndroidDev" rel="noopener" target="_blank">@RandomAndroidDev</a></strong><br><span style="padding-left:0.1em">GitHub User</span>
             </p>
         </div>
     </div>
-</div>
+</section>
 
 <!-- FAQ -->
-<div class="section" style="padding-top:20px">
+<section class="section" style="padding-top:20px">
     <div class="section-eyebrow reveal" style="justify-content:center">FAQ</div>
     <h2 class="section-h2 reveal" style="text-align:center">Frequently asked questions</h2>
 
@@ -1522,7 +1507,7 @@
             <p class="q-body">Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing.</p>
         </details>
     </div>
-</div>
+</section>
 
 <!-- Support -->
 <div class="support-outer reveal">
@@ -1550,11 +1535,11 @@
     <p class="cta-sub reveal">Free. Open source. Two minutes to install.</p>
     <div class="cta-btns reveal">
         <a href="https://github.com/Maik-0000FF/schnelle-umlaute#quick-start"
-           class="btn btn-green" style="padding:15px 36px;font-size:1em" rel="noopener">
+           class="btn btn-green" style="padding:15px 36px;font-size:1em" rel="noopener" target="_blank">
             Install Now
         </a>
         <a href="https://github.com/Maik-0000FF/schnelle-umlaute"
-           class="btn btn-outline" style="padding:15px 36px;font-size:1em" rel="noopener">
+           class="btn btn-outline" style="padding:15px 36px;font-size:1em" rel="noopener" target="_blank">
             View on GitHub
         </a>
     </div>
@@ -1564,10 +1549,10 @@
 <footer>
     <span>© 2026 Maik-0000FF</span>
     <div class="footer-links">
-        <a href="https://github.com/Maik-0000FF/schnelle-umlaute" rel="noopener">GitHub</a>
-        <a href="https://github.com/Maik-0000FF/schnelle-umlaute/issues" rel="noopener">Issues</a>
-        <a href="https://ko-fi.com/maik0000ff" rel="noopener">Support</a>
-        <a href="https://opensource.org/licenses/GPL-3.0" rel="license noopener">GPL-3.0</a>
+        <a href="https://github.com/Maik-0000FF/schnelle-umlaute" rel="noopener" target="_blank">GitHub</a>
+        <a href="https://github.com/Maik-0000FF/schnelle-umlaute/issues" rel="noopener" target="_blank">Issues</a>
+        <a href="https://ko-fi.com/maik0000ff" rel="noopener" target="_blank">Support</a>
+        <a href="https://opensource.org/licenses/GPL-3.0" rel="license noopener" target="_blank">GPL-3.0</a>
     </div>
 </footer>
 
