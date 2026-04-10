@@ -52,12 +52,16 @@ Type=Boolean
 DefaultValue=False
 Description=Alt/AltGr
 
-[Leader/CustomKeyEnabled]
+[Leader/Custom]
+Name=Custom Leader Keys
+Description=Custom Leader Keys
+
+[Leader/Custom/CustomKeyEnabled]
 Type=Boolean
 DefaultValue=False
 Description=Custom Leader 1
 
-[Leader/CustomKey]
+[Leader/Custom/CustomKey]
 Type=String
 DefaultValue=
 Description=  ↳ Key
@@ -65,15 +69,50 @@ Placeholder=e.g. ; or #
 Compact=True
 Tooltip=Single character. Must not be a mapped input key.
 
-[Leader/CustomKey2Enabled]
+[Leader/Custom/CustomKey2Enabled]
 Type=Boolean
 DefaultValue=False
 Description=Custom Leader 2 (hand-split)
 
-[Leader/CustomKey2]
+[Leader/Custom/CustomKey2]
 Type=String
 DefaultValue=
 Description=  ↳ Key
 Placeholder=e.g. j or f
 Compact=True
 Tooltip=Single character on the opposite keyboard half of Leader 1. Must not be a mapped input key.
+
+[Mappings]
+Name=Mappings
+Description=Mappings
+
+[Mappings/Editor]
+Type=External
+DefaultValue=
+Description=Mapping Editor
+External=fcitx://config/addon/schnelle-umlaute/mappings.txt
+
+[AppFilter]
+Name=App Filter
+Description=App Filter
+
+[AppFilter/Mode]
+Type=Enum
+DefaultValue=Disabled
+Description=Mode
+EnumCount=3
+Enum0=Disabled
+Enum1=Blacklist
+Enum2=Whitelist
+
+[AppFilter/Blacklist]
+Type=List
+ListType=String
+DefaultValue=
+Description=Blacklist
+
+[AppFilter/Whitelist]
+Type=List
+ListType=String
+DefaultValue=
+Description=Whitelist
