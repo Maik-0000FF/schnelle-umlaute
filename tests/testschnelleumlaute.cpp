@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (118 tests)
+// Test Suite for Schnelle Umlaute (121 tests)
 //
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
 // 12-16   Custom leaders       Shift-invariant, case-insensitive, double-comma escaping, cycling, triple comma
@@ -22,6 +22,8 @@
 // 101-103 Empty outputs        single-comma skipped, double-comma literal, all-empty→defaults
 // 104-109 Advanced edge cases  reload during cycling, IC state pollution, timeout boundary (timer-chained), rapid keys, Shift+Space
 // 110-113 Delay boundaries     default 400/700ms timer fires, uppercase min 50ms, max 2000ms within window
+// 114-118 App filter           disabled, blacklist blocks/allows, whitelist allows/blocks
+// 119-121 Error handling       mixed invalid mappings, out-of-range delay, all-invalid mappings fallback
 
 #include "testdir.h"
 #include "testfrontend_public.h"
@@ -50,8 +52,9 @@
 using namespace fcitx;
 
 // Delay (in microseconds) to wait for the deferred Alt cycling commit timer
-// (5ms) to fire before verifying the committed string.
-constexpr uint64_t kDeferredVerifyDelayUsec = 10'000;  // 10ms
+// (5ms) to fire before verifying the committed string.  25ms gives 20ms of
+// headroom over the 5ms addon timer, avoiding flakes on loaded CI runners.
+constexpr uint64_t kDeferredVerifyDelayUsec = 25'000;  // 25ms
 
 static uint64_t nowUsec() {
     timespec ts;
@@ -123,6 +126,7 @@ static void configureLeaders(Instance *instance,
     config.setValueByPath("Leader/Custom/CustomKey2Enabled",
                           custom2.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey2", custom2);
+    config.setValueByPath("AppFilter/Mode", "Disabled");
     addon->setConfig(config);
     setMappings(instance, {
         {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"}, {"u", "\xc3\xbc"},
@@ -300,6 +304,7 @@ static void configureWithDelay(Instance *instance, int delayLower, int delayUppe
     config.setValueByPath("Leader/Custom/CustomKey", "");
     config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
     config.setValueByPath("Leader/Custom/CustomKey2", "");
+    config.setValueByPath("AppFilter/Mode", "Disabled");
     addon->setConfig(config);
     setMappings(instance, {
         {"a", "\xc3\xa4"}, {"o", "\xc3\xb6"}, {"u", "\xc3\xbc"},
@@ -605,6 +610,8 @@ void scheduleTests(Instance *instance) {
         FCITX_INFO() << "=== Setup ===";
         auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
         FCITX_ASSERT(addon) << "Addon schnelle-umlaute not loaded";
+        auto *tf = instance->addonManager().addon("testfrontend");
+        FCITX_ASSERT(tf) << "Addon testfrontend not loaded";
 
         auto group = instance->inputMethodManager().currentGroup();
         group.inputMethodList().clear();
@@ -614,6 +621,9 @@ void scheduleTests(Instance *instance) {
             InputMethodGroupItem("schnelle-umlaute"));
         group.setDefaultInputMethod("");
         instance->inputMethodManager().setGroup(std::move(group));
+
+        // Establish explicit baseline config for tests 1-11
+        configureLeaders(instance, true, false, false, false, false, false);
         FCITX_INFO() << "Setup complete";
     });
 
@@ -4257,6 +4267,127 @@ static void scheduleTest112(Instance *instance) {
 // =========================================================================
 static void scheduleTest113(Instance *instance) {
     // =========================================================================
+    // ERROR HANDLING TESTS (119-121)
+    // =========================================================================
+
+    // =========================================================================
+    // TEST 119: Mixed valid/invalid mappings — only valid entries loaded
+    // Empty inputs are stop markers, empty outputs are skipped.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 119: Mixed valid/invalid mappings ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+
+        // Override with mixed entries: valid 'a' mapping, 'o' with empty output
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig mc;
+        mc.setValueByPath("0/Input", "a");
+        mc.setValueByPath("0/Output", "\xc3\xa4");
+        mc.setValueByPath("1/Input", "o");
+        mc.setValueByPath("1/Output", "");   // empty output — skipped
+        mc.setValueByPath("2/Input", "u");
+        mc.setValueByPath("2/Output", "\xc3\xbc");
+        addon->setSubConfig("mappings.txt", mc);
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test119");
+
+        // 'a' should still map (valid entry)
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // 'o' should pass through (empty output was skipped)
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+        FCITX_ASSERT(!consumed) << "'o' with empty output should not be mapped";
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+
+        // 'u' should still map (valid entry after gap)
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xbc");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_u, KeyStates(), kCodeU), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_u, KeyStates(), kCodeU), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 119 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 120: Out-of-range delay config — addon clamps to valid range
+    // IntConstrainWithStep rejects 0 and 9999, uses default (400/700).
+    // Verify gesture still works after invalid config.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 120: Out-of-range delay config ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "0");    // below min (50)
+        config.setValueByPath("Delay/Uppercase", "9999");  // above max (2000)
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("AppFilter/Mode", "Disabled");
+        addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test120");
+
+        // Gesture should still work — addon uses default delay after rejection
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Gesture should work despite out-of-range delay config";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 120 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 121: All-invalid mapping entries — defaults loaded as fallback
+    // When setSubConfig produces an empty map, loadMappingsFromFile() runs
+    // and loads the built-in German defaults.
+    // =========================================================================
+    instance->eventDispatcher().schedule([instance]() {
+        FCITX_INFO() << "=== Test 121: All-invalid mappings — defaults loaded ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+
+        // Pass entries that all get filtered: empty input stops iteration
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig mc;
+        mc.setValueByPath("0/Input", "");    // empty input — stop marker
+        mc.setValueByPath("0/Output", "\xc3\xa4");
+        addon->setSubConfig("mappings.txt", mc);
+
+        // Map should fall back to defaults (German umlauts)
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test121");
+
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Default mappings should load when all entries invalid";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 121 PASSED";
+    });
+
+    // =========================================================================
     // APP FILTER TESTS (114-118)
     //
     // Scheduled before test 113 because test 113 owns the final
@@ -4423,7 +4554,7 @@ static void scheduleTest113(Instance *instance) {
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 113 PASSED";
 
-                FCITX_INFO() << "=== All 118 tests PASSED ===";
+                FCITX_INFO() << "=== All 121 tests PASSED ===";
                 instance->exit();
                 return false;
             });

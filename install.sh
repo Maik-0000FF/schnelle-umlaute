@@ -367,8 +367,11 @@ if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_C
     read -p "Replace trigger key with Ctrl+Space? [Y/n] " -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-        sed '/\[Hotkey\/TriggerKeys\]/,/^\[/{s/^0=.*/0=Control+space/}' "$FCITX_CONFIG" > "$FCITX_CONFIG.tmp" && mv "$FCITX_CONFIG.tmp" "$FCITX_CONFIG"
-        echo -e "${GREEN}✓ Trigger key changed to Ctrl+Space${NC}"
+        if sed '/\[Hotkey\/TriggerKeys\]/,/^\[/{s/^0=.*/0=Control+space/}' "$FCITX_CONFIG" > "$FCITX_CONFIG.tmp" && mv "$FCITX_CONFIG.tmp" "$FCITX_CONFIG"; then
+            echo -e "${GREEN}✓ Trigger key changed to Ctrl+Space${NC}"
+        else
+            echo -e "${RED}✗ Could not update trigger key config${NC}"
+        fi
     else
         echo -e "${YELLOW}Keeping current trigger key. Shift+key mappings may not work.${NC}"
     fi

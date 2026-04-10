@@ -21,19 +21,19 @@ jobs:
             run_tests: true
           - distro: Ubuntu 24.04
             image: ubuntu:24.04
-            install: apt-get update && apt-get install -y build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
-            cmake_extra: ""
-            run_tests: false
+            install: apt-get update && apt-get install -y build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
+            cmake_extra: -DBUILD_TESTING=ON
+            run_tests: true
           - distro: Fedora
             image: fedora:latest
-            install: dnf install -y gcc-c++ make cmake extra-cmake-modules git gettext fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel libxkbcommon-devel
-            cmake_extra: ""
-            run_tests: false
+            install: dnf install -y gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel libxkbcommon-devel
+            cmake_extra: -DBUILD_TESTING=ON
+            run_tests: true
           - distro: openSUSE
             image: opensuse/tumbleweed
-            install: zypper --non-interactive install gcc-c++ make cmake extra-cmake-modules git gettext fcitx5-devel fcitx5-qt-devel qt6-base-devel libxkbcommon-devel
-            cmake_extra: ""
-            run_tests: false
+            install: zypper --non-interactive install gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-base-devel libxkbcommon-devel
+            cmake_extra: -DBUILD_TESTING=ON
+            run_tests: true
 
     container:
       image: ${{ matrix.image }}
