@@ -2810,12 +2810,16 @@ static void scheduleRemainingTests(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 68: reset() with key held → state preserved
-    // Chromium/WezTerm call reset() after every commit. If the input key
-    // is still pressed, state must survive.
+    // TEST 68: Ordering guard fires after Space leader commit
+    // After a+Space → ä, immediate Space must be committed via ordering
+    // guard (not passed through as raw key). In real apps like Chromium,
+    // reset() is called after every commit — recentlyCommitted_ survives
+    // that because it is NOT cleared in clearAllState(). The TestFrontend
+    // API has no reset() method, so this test verifies the ordering guard
+    // itself; reset() survival is a design invariant, not tested here.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        FCITX_INFO() << "=== Test 68: reset() with key held preserves state ===";
+        FCITX_INFO() << "=== Test 68: ordering guard after Space leader commit ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test68");
@@ -2824,19 +2828,16 @@ static void scheduleRemainingTests(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Simulate reset (Chromium-style). Use IM switch + switch back as proxy.
-        // Actually, we test this indirectly: the ordering guard survives reset()
-        // because recentlyCommitted_ is NOT cleared in clearAllState().
-        // Do a+Space → ä committed (triggers reset in real apps)
+        // a+Space → ä committed
         tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
 
-        // Ordering guard should work even after apps call reset()
+        // Immediate Space after commit → ordering guard commits " "
         tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-        FCITX_ASSERT(consumed) << "Ordering guard should survive reset()";
+        FCITX_ASSERT(consumed) << "Ordering guard should commit space after gesture";
 
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);

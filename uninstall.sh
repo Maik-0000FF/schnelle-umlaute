@@ -121,7 +121,7 @@ for root in "${SEARCH_ROOTS[@]}"; do
             [ "$existing" = "$found" ] && skip=1 && break
         done
         [ $skip -eq 0 ] && FOUND_FILES+=("$found")
-    done < <(find "$root" \( -iname "*schnelle*umlaute*" -o -iname "*SchnelleUmlaute*" \) -type f 2>/dev/null)
+    done < <(find "$root" -path "*/fcitx5/*" \( -iname "*schnelle*umlaute*" -o -iname "*SchnelleUmlaute*" \) -type f 2>/dev/null)
 done
 
 if [ ${#FOUND_FILES[@]} -eq 0 ]; then

@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -25,7 +28,7 @@ jobs:
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: Fedora
-            image: fedora:latest
+            image: fedora:42
             install: dnf install -y gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel libxkbcommon-devel
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
@@ -43,7 +46,7 @@ jobs:
         run: ${{ matrix.install }}
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Configure
         run: cmake -B build ${{ matrix.cmake_extra }}

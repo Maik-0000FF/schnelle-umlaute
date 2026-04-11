@@ -854,7 +854,8 @@ private:
         if (filterMode_ == AppFilterMode::Disabled) return false;
 
         const std::string &program = ic->program();
-        if (program.empty()) return false;
+        if (program.empty())
+            return filterMode_ == AppFilterMode::Whitelist;
 
         // Empty list entries are skipped: find("") returns 0 (matches
         // anything), which would make a stray blank line in the blacklist

@@ -262,7 +262,7 @@ for root in "${SEARCH_ROOTS[@]}"; do
             [ "$existing" = "$found" ] && skip=1 && break
         done
         [ $skip -eq 0 ] && STALE_FILES+=("$found")
-    done < <(find "$root" \( -iname "*schnelle*umlaute*" -o -iname "*SchnelleUmlaute*" \) -type f 2>/dev/null)
+    done < <(find "$root" -path "*/fcitx5/*" \( -iname "*schnelle*umlaute*" -o -iname "*SchnelleUmlaute*" \) -type f 2>/dev/null)
 done
 
 if [ ${#STALE_FILES[@]} -ne 0 ]; then
@@ -367,8 +367,10 @@ if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_C
     read -p "Replace trigger key with Ctrl+Space? [Y/n] " -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-        if sed '/\[Hotkey\/TriggerKeys\]/,/^\[/{s/^0=.*/0=Control+space/}' "$FCITX_CONFIG" > "$FCITX_CONFIG.tmp" && mv "$FCITX_CONFIG.tmp" "$FCITX_CONFIG"; then
-            echo -e "${GREEN}✓ Trigger key changed to Ctrl+Space${NC}"
+        if sed '/\[Hotkey\/TriggerKeys\]/,/^\[/{/^[0-9]\+=/d}' "$FCITX_CONFIG" > "$FCITX_CONFIG.tmp" \
+           && sed -i '/\[Hotkey\/TriggerKeys\]/a 0=Control+space' "$FCITX_CONFIG.tmp" \
+           && mv "$FCITX_CONFIG.tmp" "$FCITX_CONFIG"; then
+            echo -e "${GREEN}✓ Trigger key replaced with Ctrl+Space${NC}"
         else
             echo -e "${RED}✗ Could not update trigger key config${NC}"
         fi
