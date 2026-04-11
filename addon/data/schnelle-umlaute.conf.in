@@ -110,9 +110,11 @@ Type=List
 ListType=String
 DefaultValue=
 Description=Blacklist
+Tooltip=Case-sensitive substring match against the program identifier fcitx5 reports. Some apps report their GUI library instead of their name (e.g. Kitty → GLFW_Application).
 
 [AppFilter/Whitelist]
 Type=List
 ListType=String
 DefaultValue=
 Description=Whitelist
+Tooltip=Case-sensitive substring match against the program identifier fcitx5 reports. Some apps report their GUI library instead of their name (e.g. Kitty → GLFW_Application).
