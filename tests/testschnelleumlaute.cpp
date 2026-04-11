@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (121 tests)
+// Test Suite for Schnelle Umlaute (128 tests)
 //
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
 // 12-16   Custom leaders       Shift-invariant, case-insensitive, double-comma escaping, cycling, triple comma
@@ -24,6 +24,7 @@
 // 110-113 Delay boundaries     default 400/700ms timer fires, uppercase min 50ms, max 2000ms within window
 // 114-118 App filter           disabled, blacklist blocks/allows, whitelist allows/blocks
 // 119-121 Error handling       mixed invalid mappings, out-of-range delay, all-invalid mappings fallback
+// 122-128 Shifted input split  shifted symbols (! * @) with dual split, cycling, Shift-held leader, single key
 
 #include "testdir.h"
 #include "testfrontend_public.h"
@@ -88,6 +89,11 @@ constexpr int kCodeReturn = 36;
 constexpr int kCodeBackSpace = 22;
 constexpr int kCodeTab = 23;
 constexpr int kCodeSuperL = 133;
+constexpr int kCode1 = 10;       // physical key for 1/!
+constexpr int kCode2 = 11;       // physical key for 2/@
+constexpr int kCode8 = 17;       // physical key for 8/*
+constexpr int kCodeF = 41;       // physical key for f
+constexpr int kCodeJ = 44;       // physical key for j
 
 // Helper: load mappings via setSubConfig (the path loadMappingsFromFile reads)
 static void setMappings(Instance *instance,
@@ -4530,6 +4536,242 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO() << "Test 118 PASSED";
     });
 
+    // =========================================================================
+    // TEST 122: Dual split — shifted input '!' (left) + 'j' leader (right)
+    // '!' = Shift+1 (keycode 10, physically left hand). With dual leaders
+    // f(left)/j(right), j should trigger left-hand inputs → allowed.
+    // This was broken before the inputKeyCode fix: charToKeycode_ has no
+    // entry for '!', so isLeftHand("!") fell back to right → j was blocked.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 122: Dual split — shifted '!' + 'j' (opposite) ===";
+        configureLeaders(instance, false, false, false, false, false, false, "f", "j");
+        setMappings(instance, {{"!", "excl"}, {"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test122");
+
+        // Press Shift
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        // Hold Shift+1 → '!' enters waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_exclam, KeyState::Shift, kCode1), false);
+        // Press 'j' (right-hand leader, opposite to '!' which is physically left)
+        tf->call<ITestFrontend::pushCommitExpectation>("excl");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_j, KeyStates(), kCodeJ), false);
+        FCITX_ASSERT(consumed)
+            << "'j' (right) must trigger '!' (physically left via keycode)";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_exclam, KeyState::Shift, kCode1), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 122 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 123: Dual split — shifted input '!' (left) + 'f' leader (left)
+    // Same physical hand → blocked. 'f' falls through, commits '!' as-is.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 123: Dual split — shifted '!' + 'f' (same hand) ===";
+        configureLeaders(instance, false, false, false, false, false, false, "f", "j");
+        setMappings(instance, {{"!", "excl"}, {"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test123");
+
+        // Press Shift
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        // Hold Shift+1 → '!' enters waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_exclam, KeyState::Shift, kCode1), false);
+        // Press 'f' (left-hand leader, same physical hand as '!') → BLOCKED
+        tf->call<ITestFrontend::pushCommitExpectation>("!");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_f, KeyStates(), kCodeF), false);
+        FCITX_ASSERT(!consumed)
+            << "'f' (left) must NOT trigger '!' (also physically left)";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 123 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 124: Shifted input '!' with Shift held through leader press
+    // User holds Shift+1, then presses j (becomes J due to Shift).
+    // matchCustomKey case-insensitive match + keycode-based split → works.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 124: Shift held through leader — Shift+1 + Shift+J ===";
+        configureLeaders(instance, false, false, false, false, false, false, "f", "j");
+        setMappings(instance, {{"!", "excl"}, {"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test124");
+
+        // Press Shift
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        // Hold Shift+1 → '!'
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_exclam, KeyState::Shift, kCode1), false);
+        // Press j with Shift still held → keysym J, Shift modifier
+        tf->call<ITestFrontend::pushCommitExpectation>("excl");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_J, KeyState::Shift, kCodeJ), false);
+        FCITX_ASSERT(consumed)
+            << "Shift+J must match leader 'j' (case-insensitive) and trigger '!'";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_exclam, KeyState::Shift, kCode1), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 124 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 125: Dual split — right-hand shifted input '*' (Shift+8) + 'f' (left)
+    // '*' = Shift+8 (keycode 17, right hand). 'f' = left leader → opposite → allowed.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 125: Dual split — shifted '*' + 'f' (opposite) ===";
+        configureLeaders(instance, false, false, false, false, false, false, "f", "j");
+        setMappings(instance, {{"*", "star"}, {"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test125");
+
+        // Press Shift
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        // Hold Shift+8 → '*'
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_asterisk, KeyState::Shift, kCode8), false);
+        // Press 'f' (left leader, opposite to '*' which is right)
+        tf->call<ITestFrontend::pushCommitExpectation>("star");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_f, KeyStates(), kCodeF), false);
+        FCITX_ASSERT(consumed)
+            << "'f' (left) must trigger '*' (physically right via keycode 17)";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_asterisk, KeyState::Shift, kCode8), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 125 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 126: Dual split — right-hand shifted input '*' + 'j' (right) → blocked
+    // Same physical hand → blocked. Commits '*' as-is.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 126: Dual split — shifted '*' + 'j' (same hand) ===";
+        configureLeaders(instance, false, false, false, false, false, false, "f", "j");
+        setMappings(instance, {{"*", "star"}, {"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test126");
+
+        // Press Shift
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        // Hold Shift+8 → '*'
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_asterisk, KeyState::Shift, kCode8), false);
+        // Press 'j' (right leader, same hand as '*') → BLOCKED
+        tf->call<ITestFrontend::pushCommitExpectation>("*");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_j, KeyStates(), kCodeJ), false);
+        FCITX_ASSERT(!consumed)
+            << "'j' (right) must NOT trigger '*' (also physically right)";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 126 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 127: Shifted input cycling — '!' with multiple outputs
+    // Dual split f(left)/j(right). '!' physically left → j triggers.
+    // Multiple outputs: cycle through, commit on release.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 127: Shifted input cycling — '!' multi-output ===";
+        configureLeaders(instance, false, false, false, false, false, false, "f", "j");
+        setMappings(instance, {{"!", "one,two,three"}, {"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test127");
+
+        // Press Shift
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        // Hold Shift+1 → '!' enters waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_exclam, KeyState::Shift, kCode1), false);
+        // Press j → enters cycling, preedit shows "one"
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_j, KeyStates(), kCodeJ), false);
+        FCITX_ASSERT(consumed) << "j must start cycling for '!'";
+        // Press j again → cycle to "two"
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_j, KeyStates(), kCodeJ), false);
+        FCITX_ASSERT(consumed) << "j must cycle to next variant";
+        // Release Shift+1 → commit "two" (index 1)
+        tf->call<ITestFrontend::pushCommitExpectation>("two");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_exclam, KeyState::Shift, kCode1), true);
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 127 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 128: Single custom key — shifted input '!' works without split
+    // Only CustomKey="j" (no CustomKey2) → no split, triggers all inputs.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 128: Single custom key — shifted '!' no split ===";
+        configureLeaders(instance, false, false, false, false, false, false, "j");
+        setMappings(instance, {{"!", "excl"}, {"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test128");
+
+        // Press Shift
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        // Hold Shift+1 → '!'
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_exclam, KeyState::Shift, kCode1), false);
+        // Press j → no split, triggers all
+        tf->call<ITestFrontend::pushCommitExpectation>("excl");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_j, KeyStates(), kCodeJ), false);
+        FCITX_ASSERT(consumed)
+            << "Single custom key 'j' must trigger shifted '!' (no split)";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_exclam, KeyState::Shift, kCode1), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 128 PASSED";
+    });
+
     testDispatcher->schedule([instance]() {
         FCITX_INFO() << "=== Test 113: Max delay (2000ms) — Space within window ===";
         configureWithDelay(instance, 2000, 2000);
@@ -4559,7 +4801,7 @@ static void scheduleTest113(Instance *instance) {
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 113 PASSED";
 
-                FCITX_INFO() << "=== All 121 tests PASSED ===";
+                FCITX_INFO() << "=== All 128 tests PASSED ===";
                 instance->exit();
                 return false;
             });

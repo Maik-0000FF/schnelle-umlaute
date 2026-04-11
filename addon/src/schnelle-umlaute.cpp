@@ -559,7 +559,8 @@ public:
             else if (state->waitingKey_) activeInput = *state->waitingKey_;
 
             if (!activeInput.empty() &&
-                !isDualCustomAllowed(leaderType, activeInput)) {
+                !isDualCustomAllowed(leaderType, activeInput,
+                                     state->waitingKeyCode_)) {
                 leaderType = LeaderType::None;
             }
         }
@@ -1162,7 +1163,12 @@ private:
     // opposite hands, each only triggers inputs on the OTHER hand.
     // Single custom key or same-hand keys → no restriction.
     // Built-in leaders always unrestricted.
-    bool isDualCustomAllowed(LeaderType leader, const std::string &inputKey) const {
+    // inputKeyCode: physical keycode of the input key (from waitingKeyCode_).
+    // When available, uses the physical key position directly — this correctly
+    // classifies shifted characters (e.g. ! = Shift+1 → left hand) that
+    // charToKeycode_ cannot resolve (it only has level 0 / unshifted chars).
+    bool isDualCustomAllowed(LeaderType leader, const std::string &inputKey,
+                             int inputKeyCode = 0) const {
         if (leader == LeaderType::BuiltIn || leader == LeaderType::None)
             return true;
 
@@ -1180,7 +1186,8 @@ private:
         // Both keys on same hand → no split possible, allow all
         if (key1Left == key2Left) return true;
 
-        bool inputLeft = isLeftHand(inputKey);
+        bool inputLeft = (inputKeyCode > 0) ? isLeftHandKeycode(inputKeyCode)
+                                            : isLeftHand(inputKey);
 
         // Left-hand leader triggers RIGHT-hand inputs (and vice versa)
         if (leader == LeaderType::Custom1)
