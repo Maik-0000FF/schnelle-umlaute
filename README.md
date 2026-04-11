@@ -102,7 +102,7 @@ Found a bug or have a feature idea? Open an [issue](https://github.com/Maik-0000
 > If you find Schnelle Umlaute useful, you can support its development:
 >
 > <a href="https://github.com/sponsors/Maik-0000FF">
->   <img src="https://img.shields.io/badge/GitHub_Sponsors-Support_this_project-ea4aaa?style=for-the-badge&logo=github" alt="GitHub Sponsors">
+>   <img src="https://img.shields.io/badge/Sponsors-Support_this_project-ea4aaa?style=for-the-badge&logo=github" alt="GitHub Sponsors">
 > </a>
 > &nbsp;
 > <a href="https://ko-fi.com/maik0000ff">
