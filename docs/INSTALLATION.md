@@ -63,7 +63,7 @@ EOF
 
 ```bash
 # After logout/login, verify Fcitx5 is running:
-fcitx5 -r
+fcitx5-remote
 ```
 
 ---
@@ -128,7 +128,7 @@ cp /usr/share/applications/org.fcitx.Fcitx5.desktop ~/.config/autostart/
 
 ```bash
 # After logout/login, verify Fcitx5 is running:
-fcitx5 -r
+fcitx5-remote
 ```
 
 **GNOME Users:** If Fcitx5 doesn't work in GNOME apps, run:
@@ -241,6 +241,7 @@ If the build directory still exists, use the install manifest:
 ```bash
 cd addon/build
 sudo xargs rm -f < install_manifest.txt
+# Restart fcitx5 to unload the removed addon:
 fcitx5 -r
 ```
 
@@ -258,6 +259,10 @@ sudo rm /usr/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.s
 sudo rm /usr/lib64/fcitx5/schnelle-umlaute.so
 sudo rm /usr/lib64/fcitx5/qt6/libschnelle-umlaute-config-editor.so
 
+# Source build (cmake --install with default prefix)
+sudo rm /usr/local/lib/fcitx5/schnelle-umlaute.so
+sudo rm /usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+
 # Common data files (all distributions)
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
@@ -269,5 +274,6 @@ rm ~/.config/fcitx5/conf/schnelle-umlaute.conf
 rm -r ~/.config/fcitx5/schnelle-umlaute/
 rm ~/.config/environment.d/fcitx5.conf
 
+# Restart fcitx5 to unload the removed addon:
 fcitx5 -r
 ```
