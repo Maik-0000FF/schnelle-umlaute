@@ -175,7 +175,7 @@ void MappingEditor::loadLeaderKeys() {
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
         + "/fcitx5/conf/schnelle-umlaute.conf";
     QSettings settings(configPath, QSettings::IniFormat);
-    settings.beginGroup("Leader");
+    settings.beginGroup("Leader/Custom");
     if (settings.value("CustomKeyEnabled", false).toBool()) {
         QString key = settings.value("CustomKey").toString().trimmed();
         auto ucs4 = key.toUcs4();
