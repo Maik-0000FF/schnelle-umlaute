@@ -65,21 +65,10 @@ MappingEditor::MappingEditor(QWidget *parent)
             &MappingEditor::addMapping);
     connect(outputEdit, &QLineEdit::returnPressed, this,
             &MappingEditor::addMapping);
-    connect(inputEdit, &QLineEdit::textChanged, this, [this]() {
-        clearInputError();
-        auto text = inputEdit->text().trimmed();
-        if (!text.isEmpty()) {
-            if (!MappingModel::isValidInput(text)) {
-                showInputError(_("Input must be exactly one printable character"));
-            } else if (model_->hasInput(text)) {
-                showInputError(_("This input key is already mapped"));
-            } else if (isLeaderKeyConflict(text)) {
-                showInputWarning(
-                    _("This key is configured as a Custom Leader — "
-                      "it will not work as a mapped input"));
-            }
-        }
-    });
+    connect(inputEdit, &QLineEdit::textChanged, this,
+            &MappingEditor::revalidate);
+    connect(outputEdit, &QLineEdit::textChanged, this,
+            &MappingEditor::revalidate);
 
     loadLeaderKeys();
     load();
@@ -165,6 +154,40 @@ void MappingEditor::clearInputError() {
     inputStatus_->setVisible(false);
     inputEdit->setStyleSheet("");
     outputEdit->setStyleSheet("");
+}
+
+void MappingEditor::revalidate() {
+    clearInputError();
+    auto input = inputEdit->text().trimmed();
+    // Output is NOT trimmed — leading/trailing whitespace is intentional
+    // (matches addMapping()). Only a structural check is run here.
+    auto output = outputEdit->text();
+
+    // Input blockers take precedence (same order as addMapping).
+    if (!input.isEmpty()) {
+        if (!MappingModel::isValidInput(input)) {
+            showInputError(_("Input must be exactly one printable character"));
+            return;
+        }
+        if (model_->hasInput(input)) {
+            showInputError(_("This input key is already mapped"));
+            return;
+        }
+    }
+
+    // Output blocker: reject newlines that would corrupt the file format.
+    if (!output.isEmpty() && !MappingModel::isValidOutput(output)) {
+        showOutputError(_("Output must not contain line breaks"));
+        return;
+    }
+
+    // Non-blocking warning: leader-key conflict. Only shown when there is
+    // no higher-priority error, so the user's attention stays on blockers.
+    if (!input.isEmpty() && isLeaderKeyConflict(input)) {
+        showInputWarning(
+            _("This key is configured as a Custom Leader — "
+              "it will not work as a mapped input"));
+    }
 }
 
 void MappingEditor::deleteMapping() {

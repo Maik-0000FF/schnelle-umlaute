@@ -34,6 +34,10 @@ private:
     void showInputWarning(const QString &msg);
     void showOutputError(const QString &msg);
     void clearInputError();
+    // Live-revalidate both fields; called from inputEdit and outputEdit
+    // textChanged signals so the UI feedback stays in sync with the text.
+    // Priority mirrors addMapping(): input errors > output errors > warnings.
+    void revalidate();
     void loadLeaderKeys();
     bool isLeaderKeyConflict(const QString &input) const;
 
