@@ -168,6 +168,59 @@ void testNoTrailingNewline() {
     EXPECT(r[0].output == "eins");
 }
 
+// -- F2: overlong lines must be dropped, not split ---------------------------
+
+// The parser's internal fgets buffer is 4096 bytes. A single line longer
+// than that would otherwise be split into two fgets reads, producing a
+// truncated prefix (parsed as a bogus mapping) and a tail (misparsed as
+// a new line). All three entries below must parse in full; the overlong
+// line in the middle must be dropped.
+void testOverlongLineSkipped() {
+    std::string big(5000, 'x');
+    auto r = parseString("a=eins\no=" + big + "\nu=drei\n");
+    EXPECT(r.size() == 2);
+    EXPECT(r[0].input == "a"); EXPECT(r[0].output == "eins");
+    EXPECT(r[1].input == "u"); EXPECT(r[1].output == "drei");
+}
+
+// A line whose byte layout lands exactly on the buffer boundary (4094
+// content bytes + '\n' = 4095 bytes read) must parse normally — back
+// character is '\n', truncation check does not trigger.
+void testLineExactlyAtBufferBoundary() {
+    // "o=" + 4092 x's + "\n" = 4095 bytes → fits, back is '\n'
+    std::string big(4092, 'x');
+    auto r = parseString("a=eins\no=" + big + "\nu=drei\n");
+    EXPECT(r.size() == 3);
+    EXPECT(r[0].input == "a"); EXPECT(r[0].output == "eins");
+    EXPECT(r[1].input == "o"); EXPECT(r[1].output.size() == 4092);
+    EXPECT(r[2].input == "u"); EXPECT(r[2].output == "drei");
+}
+
+// A line of 4095 content bytes with no trailing newline, followed by EOF.
+// fgets fills the buffer (size == 4095, back != '\n'), but the next read
+// returns EOF — the line is actually complete and must be accepted.
+void testLineFillsBufferEofNoNewline() {
+    // "a=" + 4093 x's = 4095 bytes, no '\n', EOF follows
+    std::string big(4093, 'x');
+    auto r = parseString("a=" + big);
+    EXPECT(r.size() == 1);
+    EXPECT(r[0].input == "a");
+    EXPECT(r[0].output.size() == 4093);
+}
+
+// Two overlong lines back-to-back must both be skipped without corrupting
+// parser state for the trailing valid line.
+void testConsecutiveOverlongLinesSkipped() {
+    std::string big1(6000, 'x');
+    std::string big2(7000, 'y');
+    auto r = parseString(
+        "a=" + big1 + "\n"
+        "o=" + big2 + "\n"
+        "u=drei\n");
+    EXPECT(r.size() == 1);
+    EXPECT(r[0].input == "u"); EXPECT(r[0].output == "drei");
+}
+
 } // namespace
 
 int main() {
@@ -187,6 +240,11 @@ int main() {
     testEmptyOutputSkipped();
     testCrlfTrimmed();
     testNoTrailingNewline();
+
+    testOverlongLineSkipped();
+    testLineExactlyAtBufferBoundary();
+    testLineFillsBufferEofNoNewline();
+    testConsecutiveOverlongLinesSkipped();
 
     std::printf("All mappings-io parser tests passed.\n");
     return 0;

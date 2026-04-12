@@ -61,15 +61,37 @@ inline size_t utf8FirstCharBytes(const char *s, size_t len) {
 // (e.g. é, ñ on native keyboard layouts). '=' itself is a valid input
 // since the delimiter is always the '=' after the first UTF-8 character.
 // Lines starting with '#' are comments, empty lines are skipped.
+//
+// Lines longer than sizeof(buf)-1 bytes are dropped entirely: fgets would
+// otherwise split them into two chunks, causing the prefix to be parsed as
+// a truncated mapping and the tail as a garbled second line.
 inline std::vector<RawMapping> parseMappings(FILE *fp) {
     std::vector<RawMapping> entries;
     char buf[4096];
     while (fgets(buf, sizeof(buf), fp)) {
         std::string line(buf);
+        // fgets filled the whole buffer AND did not reach a newline →
+        // candidate for truncation. Still ambiguous: the line could end
+        // exactly at the buffer boundary (next char is '\n' or EOF),
+        // in which case it is actually complete.
+        bool mightBeTruncated = (line.size() == sizeof(buf) - 1) &&
+                                line.back() != '\n';
         // Trim trailing newline / carriage return
         while (!line.empty() &&
                (line.back() == '\n' || line.back() == '\r')) {
             line.pop_back();
+        }
+        if (mightBeTruncated) {
+            int c = std::fgetc(fp);
+            if (c != EOF && c != '\n') {
+                // Truly truncated — drain the rest of the physical line
+                // and drop this entry. Parsing the prefix would store a
+                // corrupt mapping and misinterpret the tail as new lines.
+                while ((c = std::fgetc(fp)) != EOF && c != '\n') {}
+                continue;
+            }
+            // c == '\n' or EOF → the line just happened to end on the
+            // buffer boundary. It is complete; proceed with normal parsing.
         }
         if (line.empty() || line[0] == '#') continue;
         size_t inputLen = utf8FirstCharBytes(line.data(), line.size());
