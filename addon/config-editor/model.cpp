@@ -71,7 +71,11 @@ bool MappingModel::setData(const QModelIndex &index, const QVariant &value,
         }
         e.input = input;
     } else {
-        e.output = value.toString();
+        QString output = value.toString();
+        if (!isValidOutput(output)) {
+            return false;
+        }
+        e.output = output;
     }
     Q_EMIT dataChanged(index, index, {role});
     setNeedSave(true);
@@ -196,17 +200,6 @@ void MappingModel::loadDefaults() {
             {QString::fromStdString(m.input),
              QString::fromStdString(m.output)});
     }
-}
-
-bool MappingModel::isValidInput(const QString &input) {
-    if (input.isEmpty()) return false;
-    // Exactly 1 Unicode codepoint
-    auto ucs4 = input.toUcs4();
-    if (ucs4.size() != 1) return false;
-    // Use UCS-4 codepoint for property checks — QChar only covers BMP,
-    // characters above U+FFFF would appear as surrogates and fail isPrint().
-    uint cp = ucs4[0];
-    return QChar::isPrint(cp) && !QChar::isSpace(cp);
 }
 
 bool MappingModel::hasInput(const QString &input, int excludeRow) const {

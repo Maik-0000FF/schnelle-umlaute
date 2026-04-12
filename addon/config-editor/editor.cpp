@@ -128,6 +128,10 @@ void MappingEditor::addMapping() {
         showInputError(_("This input key is already mapped"));
         return;
     }
+    if (!MappingModel::isValidOutput(output)) {
+        showOutputError(_("Output must not contain line breaks"));
+        return;
+    }
     clearInputError();
     auto idx = model_->addItem(input, output);
     mappingView->setCurrentIndex(idx);
@@ -150,9 +154,17 @@ void MappingEditor::showInputWarning(const QString &msg) {
     inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc8800; }");
 }
 
+void MappingEditor::showOutputError(const QString &msg) {
+    inputStatus_->setText(msg);
+    inputStatus_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
+    inputStatus_->setVisible(true);
+    outputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc0000; }");
+}
+
 void MappingEditor::clearInputError() {
     inputStatus_->setVisible(false);
     inputEdit->setStyleSheet("");
+    outputEdit->setStyleSheet("");
 }
 
 void MappingEditor::deleteMapping() {

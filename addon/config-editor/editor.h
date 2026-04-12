@@ -32,6 +32,7 @@ private Q_SLOTS:
 private:
     void showInputError(const QString &msg);
     void showInputWarning(const QString &msg);
+    void showOutputError(const QString &msg);
     void clearInputError();
     void loadLeaderKeys();
     bool isLeaderKeyConflict(const QString &input) const;
