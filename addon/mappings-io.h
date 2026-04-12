@@ -38,6 +38,23 @@ inline size_t utf8CharLen(unsigned char lead) {
     return 0;
 }
 
+// Byte length of a valid UTF-8 character at the start of [s, s+len).
+// Returns 0 if the lead byte is invalid, if the buffer is too short for
+// the indicated length, or if any continuation byte is not in 0x80-0xBF.
+// A hand-edited mappings.txt with a wrong encoding could otherwise slip
+// invalid UTF-8 through the parser, since utf8CharLen inspects only the
+// lead byte. No overlong-encoding check: realistic editors don't produce
+// them, and the cost outweighs the benefit for a user-owned config file.
+inline size_t utf8FirstCharBytes(const char *s, size_t len) {
+    if (len == 0) return 0;
+    size_t n = utf8CharLen(static_cast<unsigned char>(s[0]));
+    if (n == 0 || n > len) return 0;
+    for (size_t i = 1; i < n; ++i) {
+        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) return 0;
+    }
+    return n;
+}
+
 // Parse mappings from an open FILE*.
 // Format: one UTF-8 character + '=' + output, one mapping per line.
 // The input character may be ASCII (1 byte) or multi-byte UTF-8
@@ -55,7 +72,7 @@ inline std::vector<RawMapping> parseMappings(FILE *fp) {
             line.pop_back();
         }
         if (line.empty() || line[0] == '#') continue;
-        size_t inputLen = utf8CharLen(static_cast<unsigned char>(line[0]));
+        size_t inputLen = utf8FirstCharBytes(line.data(), line.size());
         if (inputLen == 0 || line.size() <= inputLen || line[inputLen] != '=') {
             continue;
         }

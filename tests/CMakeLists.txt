@@ -11,3 +11,9 @@ target_link_libraries(testschnelleumlaute Fcitx5::Core Fcitx5::Module::TestFront
 add_dependencies(testschnelleumlaute copy-addon-conf copy-im-conf schnelle-umlaute)
 add_test(NAME testschnelleumlaute COMMAND testschnelleumlaute)
 set_tests_properties(testschnelleumlaute PROPERTIES TIMEOUT 30)
+
+# Standalone unit test for the mappings-io parser — no fcitx5 runtime needed.
+add_executable(testmappingsio testmappingsio.cpp)
+target_include_directories(testmappingsio PRIVATE ${PROJECT_SOURCE_DIR})
+add_test(NAME testmappingsio COMMAND testmappingsio)
+set_tests_properties(testmappingsio PROPERTIES TIMEOUT 10)
