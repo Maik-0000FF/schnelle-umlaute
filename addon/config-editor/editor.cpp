@@ -32,10 +32,10 @@ MappingEditor::MappingEditor(QWidget *parent)
     mainLayout->addWidget(helpLabel, 2, 0);
 
     // Validation error label
-    inputStatus_ = new QLabel(this);
-    inputStatus_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    inputStatus_->setVisible(false);
-    mainLayout->addWidget(inputStatus_, 3, 0);
+    statusLabel_ = new QLabel(this);
+    statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
+    statusLabel_->setVisible(false);
+    mainLayout->addWidget(statusLabel_, 3, 0);
 
     connect(addButton, &QPushButton::clicked, this,
             &MappingEditor::addMapping);
@@ -130,28 +130,28 @@ void MappingEditor::addMapping() {
 }
 
 void MappingEditor::showInputError(const QString &msg) {
-    inputStatus_->setText(msg);
-    inputStatus_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    inputStatus_->setVisible(true);
+    statusLabel_->setText(msg);
+    statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
+    statusLabel_->setVisible(true);
     inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc0000; }");
 }
 
 void MappingEditor::showInputWarning(const QString &msg) {
-    inputStatus_->setText(msg);
-    inputStatus_->setStyleSheet("QLabel { color: #cc8800; font-size: 11px; }");
-    inputStatus_->setVisible(true);
+    statusLabel_->setText(msg);
+    statusLabel_->setStyleSheet("QLabel { color: #cc8800; font-size: 11px; }");
+    statusLabel_->setVisible(true);
     inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc8800; }");
 }
 
 void MappingEditor::showOutputError(const QString &msg) {
-    inputStatus_->setText(msg);
-    inputStatus_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    inputStatus_->setVisible(true);
+    statusLabel_->setText(msg);
+    statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
+    statusLabel_->setVisible(true);
     outputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc0000; }");
 }
 
 void MappingEditor::clearInputError() {
-    inputStatus_->setVisible(false);
+    statusLabel_->setVisible(false);
     inputEdit->setStyleSheet("");
     outputEdit->setStyleSheet("");
 }

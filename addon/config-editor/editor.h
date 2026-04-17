@@ -42,7 +42,7 @@ private:
     bool isLeaderKeyConflict(const QString &input) const;
 
     MappingModel *model_;
-    QLabel *inputStatus_;
+    QLabel *statusLabel_;
     QStringList leaderKeys_;
 };
 
