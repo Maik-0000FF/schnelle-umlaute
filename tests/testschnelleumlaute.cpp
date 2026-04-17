@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (128 tests)
+// Test Suite for Schnelle Umlaute (132 tests)
 //
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
 // 12-16   Custom leaders       Shift-invariant, case-insensitive, double-comma escaping, cycling, triple comma
@@ -25,6 +25,7 @@
 // 114-118 App filter           disabled, blacklist blocks/allows, whitelist allows/blocks
 // 119-121 Error handling       mixed invalid mappings, out-of-range delay, all-invalid mappings fallback
 // 122-128 Shifted input split  shifted symbols (! * @) with dual split, cycling, Shift-held leader, single key
+// 129-132 Focus-flap resilience FocusOut during preedit/cycling, rapid 50x flap, flap after commit (sim. MouseTiler 100ms)
 
 #include "testdir.h"
 #include "testfrontend_public.h"
@@ -4772,6 +4773,176 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO() << "Test 128 PASSED";
     });
 
+    // =========================================================================
+    // TEST 129: FocusOut during pending preedit commits raw char (bug #10)
+    // Simulates external focus flap (e.g. MouseTiler 100ms polling). On real
+    // FocusOut, the display server auto-commits the preedit — which contains
+    // the raw input char "a" (not the mapped "ä") because the gesture was
+    // interrupted mid-flight. This documents the bug #10 symptom: umlauts
+    // get lost when external tools steal focus during a gesture. After the
+    // flap, a fresh gesture must work normally again.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 129: FocusOut during pending preedit ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test129");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // Press 'a' → preedit "a"
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(getClientPreedit(instance) == "a")
+            << "Preedit should be 'a' before flap";
+
+        // External focus flap: FocusOut auto-commits preedit ("a") via frontend.
+        // (The addon's preedit buffer is not explicitly cleared, but the addon's
+        // internal gesture state is — which is what matters for the next gesture.)
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        ic->focusOut();
+        ic->focusIn();
+
+        // Fresh gesture on a DIFFERENT key ('o') proves the addon state was
+        // reset: otherwise the held 'a' from before the flap would interfere.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Gesture after focus flap must work";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 129 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 130: FocusOut during cycling clears cycling state
+    // Cycling at index 1 ("ae"), focus flap must clear without committing
+    // cycling value (server handles commit). Fresh gesture after flap works.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 130: FocusOut during cycling ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        setMappings(instance, {{"a", "\xc3\xa4,ae"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test130");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // a+Space → cycling index 0 (ä)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Space again → cycle to index 1 (ae)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(getClientPreedit(instance) == "ae")
+            << "Preedit should be 'ae' before flap";
+
+        // Focus flap during cycling: frontend auto-commits the cycling preedit ("ae").
+        tf->call<ITestFrontend::pushCommitExpectation>("ae");
+        ic->focusOut();
+        ic->focusIn();
+
+        // Fresh gesture after flap: index resets to 0.
+        // (Mapping only has 'a' configured, so we re-use it — the critical test
+        // is that the first Space commits index 0 "ä", not index 1 "ae".)
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 130 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 131: Rapid focus-flap loop (50x) — no crash, no state leak
+    // Stress test for MouseTiler-style polling: 50 focusOut/focusIn cycles.
+    // After the loop, IC must still be responsive and state clean.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 131: Rapid focus-flap loop (50x) ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test131");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // 50 rapid focus flaps — no gesture active
+        for (int i = 0; i < 50; ++i) {
+            ic->focusOut();
+            ic->focusIn();
+        }
+
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "Preedit must be empty after 50 flaps";
+
+        // IC must still be responsive to gestures
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Gesture must work after 50 flaps";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 131 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 132: Focus-flap directly after commit resets recentlyCommitted_
+    // After a+Space→ä, recentlyCommitted_ is true. A focus flap goes through
+    // deactivate()→clearAllState() which explicitly clears recentlyCommitted_.
+    // The next Space in a fresh gesture must therefore route as an ordinary
+    // leader (not through the ordering guard).
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 132: Focus-flap after commit ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test132");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // a+Space → ä committed, recentlyCommitted_=true
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Focus flap → clearAllState() + recentlyCommitted_=false
+        ic->focusOut();
+        ic->focusIn();
+
+        // New gesture: o+Space → ö. This must commit ö exactly once.
+        // If recentlyCommitted_ leaked through the flap, the ordering guard
+        // could route this Space through commitString(" ") and yield wrong output.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Fresh gesture after flap must convert";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 132 PASSED";
+    });
+
     testDispatcher->schedule([instance]() {
         FCITX_INFO() << "=== Test 113: Max delay (2000ms) — Space within window ===";
         configureWithDelay(instance, 2000, 2000);
@@ -4801,7 +4972,7 @@ static void scheduleTest113(Instance *instance) {
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 113 PASSED";
 
-                FCITX_INFO() << "=== All 128 tests PASSED ===";
+                FCITX_INFO() << "=== All 132 tests PASSED ===";
                 instance->exit();
                 return false;
             });
