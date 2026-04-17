@@ -30,6 +30,7 @@ set(SCHNELLE_UMLAUTE_SOURCES
     src/schnelle-umlaute.cpp
     src/hand_classifier.cpp
     src/app_filter.cpp
+    src/mappings_loader.cpp
 )
 
 # Shared headers (mappings-io.h) available to both addon and config editor

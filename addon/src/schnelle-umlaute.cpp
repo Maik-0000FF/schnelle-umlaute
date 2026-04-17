@@ -9,20 +9,11 @@
 #include <fcitx-utils/utf8.h>
 #include <fcitx-utils/event.h>
 #include <fcitx-utils/log.h>
-#if __has_include(<fcitx-utils/standardpaths.h>)
-#include <fcitx-utils/standardpaths.h>
-#define SU_HAS_NEW_STDPATHS 1
-#else
-#include <fcitx-utils/standardpath.h>
-#include <fcntl.h>
-#define SU_HAS_NEW_STDPATHS 0
-#endif
-#include <fcitx-utils/fs.h>
 #include <fcitx-config/iniparser.h>
 #include "app_filter.h"
 #include "config.h"
 #include "hand_classifier.h"
-#include "mappings-io.h"
+#include "mappings_loader.h"
 #include "state.h"
 #include <xkbcommon/xkbcommon.h>
 #include <string>
@@ -111,7 +102,7 @@ public:
                     std::to_string(i) + "/Output");
                 if (!input || input->empty()) break;
                 if (output && !output->empty()) {
-                    auto outputs = splitOutputs(*output);
+                    auto outputs = schnelle_umlaute::splitOutputs(*output);
                     if (outputs.empty()) {
                         FCITX_WARN() << "Schnelle: Mapping '"
                                      << *input << "' has no valid outputs"
@@ -122,7 +113,7 @@ public:
                 }
             }
             if (umlautMap_.empty()) {
-                loadMappingsFromFile();
+                umlautMap_ = schnelle_umlaute::loadMappingsFromFile();
             }
             // Cancel active gestures on all ICs so no cycling state
             // references stale mappings (e.g. a removed or shortened entry).
@@ -605,7 +596,7 @@ private:
     // Apply in-memory config: rebuild mappings, sanitize custom key, log.
     // Shared by setConfig (values already loaded) and reloadConfig (read from disk).
     void applyConfig() {
-        loadMappingsFromFile();
+        umlautMap_ = schnelle_umlaute::loadMappingsFromFile();
 
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
@@ -737,70 +728,6 @@ private:
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs
     // are valid (e.g. mapping a key to " " so terminal commands skip history).
-    // Comma is the separator between cycling variants: "a,b" → ["a", "b"].
-    // Double comma escapes a literal comma: "a,,b" → ["a,b"].
-    // Empty segments are skipped: "a,,,b" → ["a,", "b"] (greedy from left).
-    std::vector<std::string> splitOutputs(const std::string &output) {
-        std::vector<std::string> outputs;
-        if (output.empty()) return outputs;
-
-        std::string current;
-        for (size_t i = 0; i < output.length(); ++i) {
-            if (output[i] == ',') {
-                if (i + 1 < output.length() && output[i + 1] == ',') {
-                    current += ',';
-                    ++i;
-                } else {
-                    if (!current.empty()) {
-                        outputs.push_back(std::move(current));
-                        current.clear();
-                    }
-                }
-            } else {
-                current += output[i];
-            }
-        }
-        // Trailing comma produces an empty segment which is intentionally
-        // skipped — an empty cycling variant would be useless.
-        if (!current.empty()) {
-            outputs.push_back(std::move(current));
-        }
-        return outputs;
-    }
-
-    void loadMappingsFromFile() {
-        umlautMap_.clear();
-#if SU_HAS_NEW_STDPATHS
-        auto file = StandardPaths::global().open(
-            StandardPathsType::PkgConfig, "schnelle-umlaute/mappings.txt");
-        if (file.isValid()) {
-            auto fp = fs::openFD(file, "r");
-#else
-        auto file = StandardPath::global().open(
-            StandardPath::Type::PkgConfig, "schnelle-umlaute/mappings.txt", O_RDONLY);
-        if (file.fd() >= 0) {
-            auto fp = fs::openFD(file, "r");
-#endif
-            if (fp) {
-                for (const auto &m : schnelle_umlaute::parseMappings(fp.get())) {
-                    auto outputs = splitOutputs(m.output);
-                    if (outputs.empty()) {
-                        FCITX_WARN() << "Schnelle: Mapping '"
-                                     << m.input << "' has no valid outputs"
-                                     << " — skipped";
-                        continue;
-                    }
-                    umlautMap_[m.input] = std::move(outputs);
-                }
-            }
-        }
-        if (umlautMap_.empty()) {
-            for (const auto &m : schnelle_umlaute::defaultMappings()) {
-                umlautMap_[m.input] = splitOutputs(m.output);
-            }
-        }
-    }
-
     // Check for Ctrl/Alt/Super in key state. Shift is intentionally
     // excluded — it is needed for uppercase accent mappings (Shift+A → Ä).
     static bool hasModifiers(const Key &key) {
