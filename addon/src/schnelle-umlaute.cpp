@@ -21,6 +21,7 @@
 #include <fcitx-config/iniparser.h>
 #include "config.h"
 #include "mappings-io.h"
+#include "state.h"
 #include <xkbcommon/xkbcommon.h>
 #include <string>
 #include <unordered_map>
@@ -32,91 +33,6 @@
 namespace fcitx {
 
 constexpr uint32_t kMaxUnicodeCodepoint = 0x10FFFF;
-constexpr uint64_t kMicrosecondsPerSecond = 1'000'000;
-constexpr uint64_t kNanosecondsPerMicrosecond = 1'000;
-constexpr uint64_t kMicrosecondsPerMillisecond = 1'000;
-
-// =============================================================================
-// Per-IC State: Each InputContext (application window) gets its own state.
-// This prevents focus switches from corrupting gesture state across windows.
-// =============================================================================
-
-class SchnelleUmlauteState : public InputContextProperty {
-public:
-    // Waiting state (before first Space)
-    std::optional<std::string> waitingKey_;
-    uint64_t startTimeUsec_ = 0;
-    std::unique_ptr<EventSourceTime> timeoutEvent_;
-
-    // Track if input key is physically pressed
-    bool inputKeyPressed_ = false;
-    int waitingKeyCode_ = 0;
-
-    // Set after commit to route next Space through commitString (ordering guard).
-    // Intentionally NOT cleared in clearAllState() — apps like WezTerm and
-    // Chromium call reset() after every commit, which would destroy the
-    // ordering guard before Space arrives.
-    bool recentlyCommitted_ = false;
-
-    // Cycling state (after first Space, while input key held)
-    std::optional<std::string> cyclingInput_;
-    size_t cyclingIndex_ = 0;
-
-    // Track physically held keys to distinguish fresh presses from repeats
-    std::unordered_set<int> heldRawCodes_;
-
-    // Suppress auto-repeat after single-output commit until key is released.
-    // Without this, held accent keys generate repeat events that start new
-    // unwanted gestures after the conversion is already committed (e.g. "üu").
-    int committedKeyCode_ = 0;
-
-    // Track consumed Alt/AltGr leader press to also consume the release.
-    // Prevents compositor state confusion from an orphan modifier release
-    // and TUI side effects from stray Alt release events.
-    int consumedAltCode_ = 0;
-
-    // Active Alt-led cycling session. Set when Alt starts cycling,
-    // cleared only by deferred commit timer or clearAllState().
-    // Survives auto-repeat release-press gaps on KWin Wayland where
-    // cycling is temporarily reset between pairs.
-    bool altGestureSession_ = false;
-
-    void clearAllState() {
-        waitingKey_.reset();
-        inputKeyPressed_ = false;
-        waitingKeyCode_ = 0;
-        // Note: recentlyCommitted_ is intentionally NOT cleared here.
-        cancelTimeout();
-        resetCycling();
-        heldRawCodes_.clear();
-        committedKeyCode_ = 0;
-        consumedAltCode_ = 0;
-        altGestureSession_ = false;
-    }
-
-    void resetCycling() {
-        cyclingInput_.reset();
-        cyclingIndex_ = 0;
-    }
-
-    void cancelTimeout() {
-        timeoutEvent_.reset();
-    }
-
-    bool isTimeoutExpired(int effectiveDelay) const {
-        if (!waitingKey_) return false;
-        uint64_t now_usec = nowUsec();
-        uint64_t elapsed_ms = (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
-        return elapsed_ms > static_cast<uint64_t>(effectiveDelay);
-    }
-
-    static uint64_t nowUsec() {
-        timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
-             + ts.tv_nsec / kNanosecondsPerMicrosecond;
-    }
-};
 
 // =============================================================================
 // VelocityAccents-Style Implementation
