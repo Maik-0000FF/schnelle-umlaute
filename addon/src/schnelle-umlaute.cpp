@@ -19,6 +19,7 @@
 #endif
 #include <fcitx-utils/fs.h>
 #include <fcitx-config/iniparser.h>
+#include "app_filter.h"
 #include "config.h"
 #include "hand_classifier.h"
 #include "mappings-io.h"
@@ -150,7 +151,7 @@ public:
         auto *ic = keyEvent.inputContext();
 
         // App filter: let keys pass through in blacklisted/non-whitelisted apps
-        if (isFiltered(ic)) return;
+        if (appFilter_.isFiltered(ic)) return;
 
         auto *state = ic->propertyFor(&factory_);
 
@@ -651,42 +652,15 @@ private:
         if (!cachedCustomKey2_.empty()) leaders += "Custom2('" + cachedCustomKey2_ + "') ";
         if (leaders.empty()) leaders = "None ";
 
-        // App filter: cache values from config
-        filterMode_ = *config_.appFilter->mode;
-        blacklist_ = *config_.appFilter->blacklist;
-        whitelist_ = *config_.appFilter->whitelist;
+        // App filter: push config values into the filter
+        appFilter_.configure(*config_.appFilter->mode,
+                             *config_.appFilter->blacklist,
+                             *config_.appFilter->whitelist);
 
         FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=" << *config_.delay->lowercase
                      << "ms, DelayUppercase=" << *config_.delay->uppercase
                      << "ms, Leaders=" << leaders
                      << ", Mappings=" << umlautMap_.size();
-    }
-
-    // App filter: check if processing should be skipped for this IC's app.
-    bool isFiltered(InputContext *ic) const {
-        if (filterMode_ == AppFilterMode::Disabled) return false;
-
-        const std::string &program = ic->program();
-        if (program.empty())
-            return filterMode_ == AppFilterMode::Whitelist;
-
-        // Empty list entries are skipped: find("") returns 0 (matches
-        // anything), which would make a stray blank line in the blacklist
-        // disable the addon entirely, or a blank line in the whitelist
-        // bypass the filter entirely.
-        if (filterMode_ == AppFilterMode::Blacklist) {
-            for (const auto &app : blacklist_) {
-                if (app.empty()) continue;
-                if (program.find(app) != std::string::npos) return true;
-            }
-            return false;
-        }
-        // Whitelist: only active in listed apps
-        for (const auto &app : whitelist_) {
-            if (app.empty()) continue;
-            if (program.find(app) != std::string::npos) return false;
-        }
-        return true;
     }
 
     void updateClientPreedit(InputContext *ic, const std::string &text) {
@@ -1045,9 +1019,7 @@ private:
     HandClassifier handClassifier_;
     // App filter (cached from config). When set to Blacklist/Whitelist,
     // processing is skipped for matching apps based on ic->program().
-    AppFilterMode filterMode_ = AppFilterMode::Disabled;
-    std::vector<std::string> blacklist_;
-    std::vector<std::string> whitelist_;
+    AppFilter appFilter_;
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {
