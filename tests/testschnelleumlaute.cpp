@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (132 tests)
+// Test Suite for Schnelle Umlaute (135 tests)
 //
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
 // 12-16   Custom leaders       Shift-invariant, case-insensitive, double-comma escaping, cycling, triple comma
@@ -26,6 +26,7 @@
 // 119-121 Error handling       mixed invalid mappings, out-of-range delay, all-invalid mappings fallback
 // 122-128 Shifted input split  shifted symbols (! * @) with dual split, cycling, Shift-held leader, single key
 // 129-132 Focus-flap resilience FocusOut during preedit/cycling, rapid 50x flap, flap after commit (sim. MouseTiler 100ms)
+// 133-135 State invariants    recentlyCommitted_ lifecycle, getBaseChar edge keycodes, AppFilter Whitelist empty program
 
 #include "testdir.h"
 #include "testfrontend_public.h"
@@ -4943,6 +4944,133 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO() << "Test 132 PASSED";
     });
 
+    // =========================================================================
+    // TEST 133: recentlyCommitted_ explicit cleanup paths
+    // After commit, recentlyCommitted_=true (Test 68 verifies the guard).
+    // Two code paths explicitly reset the flag via `recentlyCommitted_=false`
+    // after clearAllState(): setSubConfig for mappings reload
+    // (schnelle-umlaute.cpp:123) and deactivate for IM switch/focus
+    // (schnelle-umlaute.cpp:581). This test guards against silent removal
+    // of those explicit resets, which would leave the ordering guard armed
+    // across config reloads and IM switches.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 133: recentlyCommitted_ explicit cleanup paths ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test133");
+
+        // --- Path A: setSubConfig(mappings.txt) clears recentlyCommitted_ ---
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Mappings reload resets recentlyCommitted_ explicitly.
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+
+        bool consumedA = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(!consumedA)
+            << "setSubConfig(mappings.txt) must clear recentlyCommitted_";
+
+        // --- Path B: deactivate (IM switch) clears recentlyCommitted_ ---
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // IM switch + back: both deactivate() and activate() clear the flag.
+        tf->call<ITestFrontend::keyEvent>(uuid, Key("Control+space"), false);
+        tf->call<ITestFrontend::keyEvent>(uuid, Key("Control+space"), false);
+
+        bool consumedB = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(!consumedB)
+            << "deactivate()/activate() must clear recentlyCommitted_";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 133 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 134: getBaseChar() with out-of-range keycodes — no crash
+    // Alt+key with an extreme raw keycode triggers the Alt-bypass path
+    // (schnelle-umlaute.cpp:332) which calls getBaseChar(rawCode). The XKB
+    // API should gracefully return 0 keysyms for unknown codes. This is a
+    // smoke test ensuring no UB / crash on hardware with unusual keymaps
+    // or synthetic input with high keycodes.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 134: getBaseChar() extreme keycodes ===";
+        configureLeaders(instance, false, false, false, false, false, true);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test134");
+
+        // Press Alt first, then a mapped key with a wildly out-of-range
+        // keycode (XKB max is typically 255). Addon resolves base via XKB,
+        // which returns nothing → no Alt-bypass, key path falls through.
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyState::Alt, 9999), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyState::Alt, 9999), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+
+        // Keycode 0 (edge of valid range).
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyState::Alt, 0), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyState::Alt, 0), true);
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 134 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 135: AppFilter Whitelist with empty program → blocked
+    // Per app_filter.cpp:22-23: empty program in Whitelist mode returns true
+    // (filtered). Ensures an IC without a program name (e.g. some Wayland
+    // compositors or unusual frontends) is safely excluded in whitelist
+    // mode rather than accidentally allowed through.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        FCITX_INFO() << "=== Test 135: AppFilter Whitelist + empty program ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Leader/Space", "True");
+        config.setValueByPath("AppFilter/Mode", "Whitelist");
+        config.setValueByPath("AppFilter/Whitelist/0", "libreoffice");
+        addon->setConfig(config);
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        // Empty IC name → empty program() → whitelist mode filters it out.
+        auto uuid = createAndActivate(instance, tf, "");
+
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(!consumed)
+            << "Whitelist with empty program must block (not on list)";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 135 PASSED";
+    });
+
     testDispatcher->schedule([instance]() {
         FCITX_INFO() << "=== Test 113: Max delay (2000ms) — Space within window ===";
         configureWithDelay(instance, 2000, 2000);
@@ -4972,7 +5100,7 @@ static void scheduleTest113(Instance *instance) {
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 113 PASSED";
 
-                FCITX_INFO() << "=== All 132 tests PASSED ===";
+                FCITX_INFO() << "=== All 135 tests PASSED ===";
                 instance->exit();
                 return false;
             });
