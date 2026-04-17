@@ -28,6 +28,7 @@ include(GNUInstallDirs)
 # Sources
 set(SCHNELLE_UMLAUTE_SOURCES
     src/schnelle-umlaute.cpp
+    src/hand_classifier.cpp
 )
 
 # Shared headers (mappings-io.h) available to both addon and config editor

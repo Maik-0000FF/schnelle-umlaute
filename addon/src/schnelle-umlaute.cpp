@@ -20,6 +20,7 @@
 #include <fcitx-utils/fs.h>
 #include <fcitx-config/iniparser.h>
 #include "config.h"
+#include "hand_classifier.h"
 #include "mappings-io.h"
 #include "state.h"
 #include <xkbcommon/xkbcommon.h>
@@ -67,7 +68,7 @@ public:
             FCITX_WARN() << "Schnelle: XKB context creation failed"
                          << " — custom leader resolution disabled";
         }
-        buildCharToKeycode();
+        handClassifier_.build(xkbKeymap_);
 
         reloadConfig();
     }
@@ -630,8 +631,8 @@ private:
             if (cachedCustomKey_ == cachedCustomKey2_) {
                 FCITX_WARN() << "Schnelle: CustomKey and CustomKey2 are identical"
                              << " — dual split disabled, both trigger all mappings";
-            } else if (isLeftHand(cachedCustomKey_) ==
-                       isLeftHand(cachedCustomKey2_)) {
+            } else if (handClassifier_.isLeftHand(cachedCustomKey_) ==
+                       handClassifier_.isLeftHand(cachedCustomKey2_)) {
                 FCITX_WARN() << "Schnelle: CustomKey '" << cachedCustomKey_
                              << "' and CustomKey2 '" << cachedCustomKey2_
                              << "' are on the same keyboard half"
@@ -917,59 +918,6 @@ private:
         return LeaderType::None;
     }
 
-    // Physical keycode-based left-hand classification — layout-independent.
-    // Uses standard PC keyboard evdev codes: the physical key position
-    // determines the hand, not the character printed on the keycap.
-    // Works correctly for QWERTY, QWERTZ, AZERTY, Dvorak, Colemak, etc.
-    static bool isLeftHandKeycode(int keycode) {
-        return (keycode >= 24 && keycode <= 28) ||  // Q W E R T row
-               (keycode >= 38 && keycode <= 42) ||  // A S D F G row
-               (keycode >= 52 && keycode <= 56) ||  // Z X C V B row
-               keycode == 49 ||                      // ` ~
-               (keycode >= 10 && keycode <= 14);     // 1 2 3 4 5
-    }
-
-    // Check if a character is on the left hand of the keyboard.
-    // Uses reverse XKB keymap lookup (char → keycode → physical position).
-    // Falls back to right hand (false) for unknown chars or missing keymap,
-    // which disables dual split (both leaders seen as same hand).
-    bool isLeftHand(const std::string &key) const {
-        std::string lookup = key;
-        if (lookup.size() == 1 && lookup[0] >= 'A' && lookup[0] <= 'Z')
-            lookup[0] = lookup[0] - 'A' + 'a';
-        auto it = charToKeycode_.find(lookup);
-        if (it == charToKeycode_.end()) return false;
-        return isLeftHandKeycode(it->second);
-    }
-
-    // Build reverse mapping (character → physical keycode) from the XKB
-    // keymap.  Intentionally level 0 (unshifted) only — shifted symbols
-    // like @ (Shift+2) or ? (Shift+/) are not mapped.  Unknown chars
-    // fall back to right hand in isLeftHand(), which means two shifted-
-    // symbol leaders disable the split rather than enforce a wrong one.
-    // This is the safer default: custom keyboards may place higher-level
-    // characters on arbitrary physical positions (e.g. thumb clusters),
-    // so assuming the base key's position would be incorrect.
-    void buildCharToKeycode() {
-        charToKeycode_.clear();
-        if (!xkbKeymap_) return;
-        xkb_keycode_t min = xkb_keymap_min_keycode(xkbKeymap_);
-        xkb_keycode_t max = xkb_keymap_max_keycode(xkbKeymap_);
-        for (xkb_keycode_t code = min; code <= max; ++code) {
-            const xkb_keysym_t *syms;
-            int n = xkb_keymap_key_get_syms_by_level(
-                xkbKeymap_, code, 0, 0, &syms);
-            if (n > 0) {
-                uint32_t uc = xkb_keysym_to_utf32(syms[0]);
-                if (uc > 0 && uc <= kMaxUnicodeCodepoint) {
-                    std::string ch = utf8::UCS4ToUTF8(uc);
-                    charToKeycode_.emplace(std::move(ch),
-                                           static_cast<int>(code));
-                }
-            }
-        }
-    }
-
     // Dual custom leader split: when BOTH custom keys are set and on
     // opposite hands, each only triggers inputs on the OTHER hand.
     // Single custom key or same-hand keys → no restriction.
@@ -991,14 +939,14 @@ private:
         if (cachedCustomKey_ == cachedCustomKey2_)
             return true;
 
-        bool key1Left = isLeftHand(cachedCustomKey_);
-        bool key2Left = isLeftHand(cachedCustomKey2_);
+        bool key1Left = handClassifier_.isLeftHand(cachedCustomKey_);
+        bool key2Left = handClassifier_.isLeftHand(cachedCustomKey2_);
 
         // Both keys on same hand → no split possible, allow all
         if (key1Left == key2Left) return true;
 
-        bool inputLeft = (inputKeyCode > 0) ? isLeftHandKeycode(inputKeyCode)
-                                            : isLeftHand(inputKey);
+        bool inputLeft = (inputKeyCode > 0) ? HandClassifier::isLeftHandKeycode(inputKeyCode)
+                                            : handClassifier_.isLeftHand(inputKey);
 
         // Left-hand leader triggers RIGHT-hand inputs (and vice versa)
         if (leader == LeaderType::Custom1)
@@ -1091,9 +1039,10 @@ private:
     // resolved back to '/' so the leader still matches).
     struct xkb_context *xkbCtx_ = nullptr;
     struct xkb_keymap *xkbKeymap_ = nullptr;
-    // Reverse mapping: character → physical evdev keycode.
-    // Built from the XKB keymap for layout-independent hand classification.
-    std::unordered_map<std::string, int> charToKeycode_;
+    // Layout-independent hand classifier. Built from xkbKeymap_ after the
+    // keymap is ready; used by isDualCustomAllowed() for the dual
+    // custom-leader split feature.
+    HandClassifier handClassifier_;
     // App filter (cached from config). When set to Blacklist/Whitelist,
     // processing is skipped for matching apps based on ic->program().
     AppFilterMode filterMode_ = AppFilterMode::Disabled;
