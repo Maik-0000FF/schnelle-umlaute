@@ -1,5 +1,21 @@
 # How It Works
 
+## How does this compare to other accent input methods?
+
+Typing accented characters on Linux has long been possible — but every existing method breaks the touch-typing flow somewhere. This addon was built to fill that gap.
+
+| Method | Rhythm break? | Mode switch? | Layout switch? | Learning curve |
+|---|---|---|---|---|
+| Compose key | Yes (syntax `" a`) | Yes | No | Medium |
+| Dead keys | Yes (dedicated key) | Yes | No | Small |
+| AltGr layouts (Neo, US-Intl) | No | No | **Yes** (entire layout) | High |
+| Mobile long-press (Android/iOS) | Yes (popup wait) | Yes | — | Small |
+| **Schnelle Umlaute** | **No** | **No** | **No** | Small |
+
+**Not a mobile long-press on the desktop.** On a phone you press a key and *wait* 200–500 ms for a popup to appear, then tap or swipe to pick a variant. This addon has **no wait**: you press the mapped key and the leader key in the natural rhythm of touch typing — both keypresses can overlap, exactly as they already do while typing any two adjacent letters quickly.
+
+**Why this matters for touch typists.** The *hold-letter-then-press-leader* pattern is not a new motor skill. A touch typist already produces small timing overlaps between neighbouring finger movements all day long. The addon gives that existing overlap a meaning; it does not ask the typist to slow down, switch modes, or relearn a keyboard layout.
+
 ## Gesture Flow
 
 ```mermaid
