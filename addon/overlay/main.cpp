@@ -137,7 +137,12 @@ private:
 } // namespace
 
 int main(int argc, char *argv[]) {
+    // Qt 6.5+ detects the layer-shell role automatically, and the explicit
+    // call is deprecated since LayerShellQt 6.6. Only call it on older Qt
+    // (Ubuntu 24.04 still ships Qt 6.4) so newer systems see no warning.
+#if QT_VERSION < QT_VERSION_CHECK(6, 5, 0)
     LayerShellQt::Shell::useLayerShell();
+#endif
 
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("schnelle-umlaute-overlay"));
