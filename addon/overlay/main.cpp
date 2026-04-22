@@ -4,6 +4,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
+#include <QScreen>
 #include <QWindow>
 #include <memory>
 
@@ -102,13 +103,17 @@ private:
         // wl_output has no primary concept and Qt returns whichever output
         // the compositor bound first, which on KDE Plasma does not track
         // the user's configured primary (QTBUG-90716).
-#ifdef SCHNELLE_LAYERSHELLQT_HAS_ACTIVE_SCREEN
+#if defined(SCHNELLE_LAYERSHELLQT_HAS_ACTIVE_SCREEN)
         ls->setWantsToBeOnActiveScreen(true);
-#else
-        // LayerShellQt < 6.6 (Ubuntu 24.04 ships 6.3). ScreenFromCompositor
-        // produces the same protocol-level output=NULL, with a deprecation
-        // warning on 6.6+ but we guard that above.
+#elif defined(SCHNELLE_LAYERSHELLQT_HAS_SCREEN_CONFIG)
+        // 6.0-6.5 path. Deprecated since 6.6 but same protocol-level NULL.
         ls->setScreenConfiguration(LSWindow::ScreenFromCompositor);
+#else
+        // LayerShellQt < 6.0 (Ubuntu 24.04 ships 5.27.11) has neither API.
+        // Best we can do is ask Qt for "primary" and pin the window there
+        // via QWindow::setScreen — this is the buggy-on-multi-monitor path
+        // but keeps the overlay functional on older distros.
+        if (auto *scr = QGuiApplication::primaryScreen()) qwin->setScreen(scr);
 #endif
         const auto a = anchorsFor(ctrl_->position());
         ls->setAnchors(a.anchors);

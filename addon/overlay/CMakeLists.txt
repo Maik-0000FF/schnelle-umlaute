@@ -47,13 +47,18 @@ target_link_libraries(schnelle-umlaute-overlay PRIVATE
 
 target_compile_options(schnelle-umlaute-overlay PRIVATE -Wall -Wextra -Wpedantic)
 
-# setWantsToBeOnActiveScreen is LayerShellQt 6.6+. Older distros (Ubuntu
-# 24.04 ships 6.3) get the deprecated ScreenConfiguration path, which maps
-# to the same protocol-level output=NULL — both tell the compositor to
-# place the surface on the focused output.
+# Screen-selection API differs across LayerShellQt versions:
+#   6.6+  → setWantsToBeOnActiveScreen (preferred)
+#   6.0-6.5 → setScreenConfiguration(ScreenFromCompositor) (deprecated 6.6)
+#   < 6.0 → neither API exists (Ubuntu 24.04 ships 5.27.11); main.cpp falls
+#           back to QWindow::setScreen(primaryScreen()) — same-monitor pin.
 if(LayerShellQt_VERSION VERSION_GREATER_EQUAL 6.6)
     target_compile_definitions(schnelle-umlaute-overlay
         PRIVATE SCHNELLE_LAYERSHELLQT_HAS_ACTIVE_SCREEN)
+endif()
+if(LayerShellQt_VERSION VERSION_GREATER_EQUAL 6.0)
+    target_compile_definitions(schnelle-umlaute-overlay
+        PRIVATE SCHNELLE_LAYERSHELLQT_HAS_SCREEN_CONFIG)
 endif()
 
 install(TARGETS schnelle-umlaute-overlay
