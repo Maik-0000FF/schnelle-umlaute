@@ -1,11 +1,9 @@
-#include <QCursor>
 #include <QDBusConnection>
 #include <QGuiApplication>
 #include <QMargins>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
-#include <QScreen>
 #include <QWindow>
 #include <memory>
 
@@ -55,17 +53,6 @@ Anchored anchorsFor(const QString &position) {
     return {{}, {}};
 }
 
-QScreen *pickScreen(int cursorX, int cursorY) {
-    // If the addon provided a real caret position (global coords), use it.
-    // Otherwise default to the primary screen so the overlay lands in a
-    // predictable place — the mouse cursor is a poor proxy for "where the
-    // user is typing" because it can be left anywhere.
-    if (cursorX >= 0) {
-        if (auto *s = QGuiApplication::screenAt({cursorX, cursorY})) return s;
-    }
-    return QGuiApplication::primaryScreen();
-}
-
 // Creates a fresh QML window every time. Wayland layer-shell doesn't let us
 // change anchors, margins or the output after the first commit, so the only
 // reliable way to move the overlay between positions or monitors is to
@@ -108,13 +95,21 @@ private:
         ls->setLayer(LSWindow::LayerOverlay);
         ls->setKeyboardInteractivity(LSWindow::KeyboardInteractivityNone);
         ls->setScope(QStringLiteral("schnelle-umlaute-overlay"));
-        if (auto *scr = pickScreen(ctrl_->cursorX(), ctrl_->cursorY())) {
-            // QWindow::setScreen works on all LayerShellQt versions; Qt's
-            // Wayland integration forwards the output hint to the layer
-            // surface. LSWindow::setScreen only exists from 6.5+ and isn't
-            // needed here — we set it before the first commit.
-            qwin->setScreen(scr);
-        }
+        // Tell the compositor to pick the output itself (output=NULL on the
+        // wire). KWin's wlr-layer-shell implementation places that on the
+        // monitor containing the focused surface — i.e. where the user is
+        // typing. QGuiApplication::primaryScreen() is unusable on Wayland:
+        // wl_output has no primary concept and Qt returns whichever output
+        // the compositor bound first, which on KDE Plasma does not track
+        // the user's configured primary (QTBUG-90716).
+#ifdef SCHNELLE_LAYERSHELLQT_HAS_ACTIVE_SCREEN
+        ls->setWantsToBeOnActiveScreen(true);
+#else
+        // LayerShellQt < 6.6 (Ubuntu 24.04 ships 6.3). ScreenFromCompositor
+        // produces the same protocol-level output=NULL, with a deprecation
+        // warning on 6.6+ but we guard that above.
+        ls->setScreenConfiguration(LSWindow::ScreenFromCompositor);
+#endif
         const auto a = anchorsFor(ctrl_->position());
         ls->setAnchors(a.anchors);
         ls->setMargins(a.margins);
