@@ -20,7 +20,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(XKBCommon REQUIRED IMPORTED_TARGET xkbcommon)
 
 set(QT_MAJOR_VERSION 6)
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Qml Quick QuickControls2)
 find_package(Fcitx5Qt${QT_MAJOR_VERSION}WidgetsAddons REQUIRED)
 
 include(GNUInstallDirs)
@@ -67,8 +67,11 @@ install(FILES data/schnelle-umlaute-inputmethod.conf
         DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod"
         RENAME schnelle-umlaute.conf)
 
-# Config editor Qt plugin
+# Config editor Qt plugin (fcitx5-configtool integration)
 add_subdirectory(config-editor)
+
+# Standalone QML editor
+add_subdirectory(editor)
 
 # Tests (off by default — install scripts and end users don't need them)
 option(BUILD_TESTING "Build tests" OFF)
