@@ -101,6 +101,21 @@ DATA_FILES=(
     /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in
     /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
     /usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf
+    # Standalone editor + overlay daemon
+    /usr/bin/schnelle-umlaute-editor
+    /usr/local/bin/schnelle-umlaute-editor
+    /usr/bin/schnelle-umlaute-overlay
+    /usr/local/bin/schnelle-umlaute-overlay
+    /usr/share/applications/schnelle-umlaute-editor.desktop
+    /usr/local/share/applications/schnelle-umlaute-editor.desktop
+    /usr/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
+    /usr/local/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
+    # Autostart + DBus activation for the overlay daemon
+    /etc/xdg/autostart/schnelle-umlaute-overlay.desktop
+    /usr/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
+    # Legacy paths from an earlier build that wrote under CMAKE_INSTALL_PREFIX
+    /usr/local/etc/xdg/autostart/schnelle-umlaute-overlay.desktop
+    /usr/local/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
 )
 
 for file in "${DATA_FILES[@]}"; do
@@ -144,6 +159,14 @@ fi
 
 # --- Remove Files ---
 
+# Kill the overlay daemon before deleting its binary so the old process
+# doesn't keep running with a stale file descriptor.
+if pgrep -x schnelle-umlaute-overlay >/dev/null; then
+    echo -e "${BLUE}Stopping overlay daemon...${NC}"
+    killall schnelle-umlaute-overlay 2>/dev/null || true
+    sleep 1
+fi
+
 echo -e "${BLUE}Removing files (requires sudo)...${NC}"
 sudo rm -f "${FOUND_FILES[@]}"
 for file in "${FOUND_FILES[@]}"; do
@@ -155,16 +178,19 @@ echo
 
 USER_CONFIG="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
 MAPPINGS_DIR="$HOME/.config/fcitx5/schnelle-umlaute"
+USER_AUTOSTART="$HOME/.config/autostart/schnelle-umlaute-overlay.desktop"
 
-if [ -f "$USER_CONFIG" ] || [ -d "$MAPPINGS_DIR" ]; then
+if [ -f "$USER_CONFIG" ] || [ -d "$MAPPINGS_DIR" ] || [ -f "$USER_AUTOSTART" ]; then
     echo -e "${YELLOW}User configuration found:${NC}"
     [ -f "$USER_CONFIG" ] && echo "  - $USER_CONFIG (settings)"
     [ -d "$MAPPINGS_DIR" ] && echo "  - $MAPPINGS_DIR/ (mappings)"
+    [ -f "$USER_AUTOSTART" ] && echo "  - $USER_AUTOSTART (overlay autostart override)"
     read -p "Remove user configuration? [y/N] " -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         [ -f "$USER_CONFIG" ] && rm -f "$USER_CONFIG"
         [ -d "$MAPPINGS_DIR" ] && rm -rf "$MAPPINGS_DIR"
+        [ -f "$USER_AUTOSTART" ] && rm -f "$USER_AUTOSTART"
         echo -e "${GREEN}✓ User configuration removed${NC}"
     else
         echo -e "${YELLOW}Keeping user configuration${NC}"

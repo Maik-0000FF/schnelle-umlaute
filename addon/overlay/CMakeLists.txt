@@ -1,5 +1,17 @@
 find_package(Qt6 REQUIRED COMPONENTS Core DBus Gui Qml Quick)
-find_package(LayerShellQt REQUIRED)
+
+# LayerShellQt is Wayland-only and not packaged on every distro. Skip the
+# overlay daemon cleanly if the dev package is missing — the addon and the
+# editor don't depend on it, so CI and builds on bare systems still succeed.
+find_package(LayerShellQt QUIET)
+if(NOT LayerShellQt_FOUND)
+    message(STATUS
+        "LayerShellQt not found — skipping schnelle-umlaute-overlay. "
+        "Install layer-shell-qt (Arch), liblayershellqtinterface-dev "
+        "(Debian/Ubuntu) or layer-shell-qt-devel (Fedora/openSUSE) to "
+        "enable the cycle overlay.")
+    return()
+endif()
 
 qt_policy(SET QTP0001 NEW)
 qt_policy(SET QTP0004 NEW)

@@ -142,22 +142,26 @@ install_deps() {
 
 case "$DISTRO" in
     arch)
-        DEPS=(fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc)
+        DEPS=(fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc
+              qt6-declarative qt6-quickcontrols2 layer-shell-qt)
         ;;
     debian)
         DEPS=(fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4
               fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev qt6-base-dev
-              libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext)
+              libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext
+              qt6-declarative-dev qt6-quickcontrols2 liblayershellqtinterface-dev)
         ;;
     fedora)
         DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
               fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel
-              cmake extra-cmake-modules gcc-c++ gettext)
+              cmake extra-cmake-modules gcc-c++ gettext
+              qt6-qtdeclarative-devel qt6-qtquickcontrols2-devel layer-shell-qt-devel)
         ;;
     suse)
         DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
               fcitx5-devel fcitx5-qt-devel qt6-base-devel
-              cmake extra-cmake-modules gcc-c++ gettext)
+              cmake extra-cmake-modules gcc-c++ gettext
+              qt6-declarative-devel qt6-quickcontrols2-devel layer-shell-qt-devel)
         ;;
 esac
 
@@ -239,6 +243,26 @@ STALE_CANDIDATES=(
     /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in
     /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
     /usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf
+    # Standalone editor + overlay daemon (installed from addon/editor and
+    # addon/overlay). Both binaries land under the CMake prefix.
+    /usr/bin/schnelle-umlaute-editor
+    /usr/local/bin/schnelle-umlaute-editor
+    /usr/bin/schnelle-umlaute-overlay
+    /usr/local/bin/schnelle-umlaute-overlay
+    /usr/share/applications/schnelle-umlaute-editor.desktop
+    /usr/local/share/applications/schnelle-umlaute-editor.desktop
+    /usr/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
+    /usr/local/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
+    # Autostart + DBus activation for the overlay daemon. These live at
+    # absolute paths (not CMAKE_INSTALL_SYSCONFDIR) because XDG and DBus
+    # only scan /etc/xdg and /usr/share/dbus-1 by default.
+    /etc/xdg/autostart/schnelle-umlaute-overlay.desktop
+    /usr/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
+    # Legacy paths from a bug in an earlier build that honored
+    # CMAKE_INSTALL_PREFIX for the XDG/DBus drops — clean these up too so
+    # the old files don't shadow the new ones.
+    /usr/local/etc/xdg/autostart/schnelle-umlaute-overlay.desktop
+    /usr/local/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
 )
 
 STALE_FILES=()
@@ -285,6 +309,9 @@ fi
 # --- Install ---
 
 echo -e "${BLUE}Installing addon...${NC}"
+# Kill a running overlay daemon so the new binary replaces cleanly — the
+# DBus service name is single-owner.
+killall schnelle-umlaute-overlay 2>/dev/null || true
 sudo cmake --install .
 echo -e "${GREEN}✓ Addon installed${NC}"
 echo
@@ -446,6 +473,24 @@ else
 fi
 echo
 
+# --- Start Overlay Daemon ---
+
+# Start the overlay daemon now so the user doesn't have to log out for the
+# cycle overlay to become available. Autostart (/etc/xdg/autostart) will
+# handle it for future sessions.
+if command -v schnelle-umlaute-overlay >/dev/null 2>&1; then
+    echo -e "${BLUE}Starting overlay daemon...${NC}"
+    setsid schnelle-umlaute-overlay >/dev/null 2>&1 < /dev/null &
+    disown 2>/dev/null || true
+    sleep 1
+    if pgrep -x schnelle-umlaute-overlay >/dev/null; then
+        echo -e "${GREEN}✓ Overlay daemon running${NC}"
+    else
+        echo -e "${YELLOW}Overlay daemon didn't start — it will launch on next login${NC}"
+    fi
+    echo
+fi
+
 # --- Final Instructions ---
 
 echo -e "${GREEN}========================================${NC}"
@@ -472,6 +517,16 @@ echo "   - Hold 'a' and press Space → ä"
 echo "   - Hold 'o' and press Space → ö"
 echo "   - Hold 'u' and press Space → ü"
 echo "   - Hold 's' and press Space → ß"
+echo
+echo -e "${BLUE}Standalone editor:${NC}"
+echo -e "   ${BLUE}schnelle-umlaute-editor${NC}"
+echo "   Edit mappings + settings (delay, leader keys, app filter, overlay)"
+echo "   Changes sync live to fcitx5, no restart needed"
+echo
+echo -e "${BLUE}Cycle overlay:${NC}"
+echo "   Shows the current variant at the configured screen corner while"
+echo "   you hold the input key. Enable in: schnelle-umlaute-editor →"
+echo "   Settings → Overlay. Autostarts on future logins."
 echo
 echo -e "${YELLOW}Troubleshooting:${NC}"
 echo "  - Run 'fcitx5-diagnose' to check setup"

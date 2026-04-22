@@ -19,22 +19,22 @@ jobs:
         include:
           - distro: Arch Linux
             image: archlinux:base-devel
-            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext
+            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext qt6-declarative qt6-quickcontrols2 layer-shell-qt
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: Ubuntu 24.04
             image: ubuntu:24.04
-            install: apt-get update && apt-get install -y build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
+            install: apt-get update && apt-get install -y build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev qt6-declarative-dev libxkbcommon-dev liblayershellqtinterface-dev
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: Fedora
             image: fedora:42
-            install: dnf install -y gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel libxkbcommon-devel
+            install: dnf install -y gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtquickcontrols2-devel libxkbcommon-devel layer-shell-qt-devel
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: openSUSE
             image: opensuse/tumbleweed
-            install: zypper --non-interactive install gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-base-devel libxkbcommon-devel
+            install: zypper --non-interactive install gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-base-devel qt6-declarative-devel qt6-quickcontrols2-devel libxkbcommon-devel layer-shell-qt-devel
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
 
@@ -54,6 +54,25 @@ jobs:
 
       - name: Build
         run: cmake --build build -j$(nproc)
+        working-directory: addon
+
+      - name: Verify artifacts
+        # Fail the job if any of the three shipped binaries is missing. The
+        # overlay daemon in particular can silently skip when LayerShellQt
+        # isn't packaged — make that loud rather than a green-but-broken CI.
+        run: |
+          missing=0
+          for f in build/schnelle-umlaute.so \
+                   build/editor/schnelle-umlaute-editor \
+                   build/overlay/schnelle-umlaute-overlay; do
+            if [ -f "$f" ]; then
+              echo "ok: $f"
+            else
+              echo "missing: $f"
+              missing=1
+            fi
+          done
+          exit $missing
         working-directory: addon
 
       - name: Test
