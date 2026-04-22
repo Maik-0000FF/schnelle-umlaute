@@ -111,6 +111,22 @@ Item {
                 }
 
                 SettingsCard {
+                    titleText: qsTr("Overlay")
+
+                    LabeledSwitch {
+                        labelText: qsTr("Show overlay while cycling")
+                        checked: root.settingsModel ? root.settingsModel.overlayEnabled : false
+                        onToggled: (v) => root.settingsModel.overlayEnabled = v
+                    }
+
+                    PositionPicker {
+                        visible: root.settingsModel && root.settingsModel.overlayEnabled
+                        value: root.settingsModel ? root.settingsModel.overlayPosition : "TopCenter"
+                        onEdited: (v) => root.settingsModel.overlayPosition = v
+                    }
+                }
+
+                SettingsCard {
                     titleText: qsTr("App Filter")
 
                     RowLayout {

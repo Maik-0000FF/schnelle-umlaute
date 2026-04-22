@@ -117,12 +117,24 @@ FCITX_CONFIGURATION(
         this, "Whitelist", "Whitelist", {}};
 );
 
+FCITX_CONFIG_ENUM(OverlayPosition, TopLeft, TopCenter, TopRight,
+                  CenterLeft, Center, CenterRight,
+                  BottomLeft, BottomCenter, BottomRight);
+
+FCITX_CONFIGURATION(
+    OverlayConfig,
+    Option<bool> enabled{this, "Enabled", "Enabled", false};
+    Option<OverlayPosition> position{this, "Position", "Position",
+                                     OverlayPosition::TopCenter};
+);
+
 FCITX_CONFIGURATION(
     SchnelleUmlauteConfig,
     Option<DelayConfig> delay{this, "Delay", "Delay"};
     Option<LeaderConfig> leader{this, "Leader", "Leader Keys"};
     Option<MappingsConfig> mappings{this, "Mappings", "Mappings"};
     Option<AppFilterConfig> appFilter{this, "AppFilter", "App Filter"};
+    Option<OverlayConfig> overlay{this, "Overlay", "Overlay"};
 );
 
 } // namespace fcitx

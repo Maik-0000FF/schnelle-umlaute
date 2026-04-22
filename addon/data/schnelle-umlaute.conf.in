@@ -118,3 +118,27 @@ ListType=String
 DefaultValue=
 Description=Whitelist
 Tooltip=Case-sensitive substring match against the program identifier fcitx5 reports. Some apps report their GUI library instead of their name (e.g. Kitty → GLFW_Application).
+
+[Overlay]
+Name=Overlay
+Description=Cycle overlay
+
+[Overlay/Enabled]
+Type=Boolean
+DefaultValue=False
+Description=Show overlay while cycling
+
+[Overlay/Position]
+Type=Enum
+DefaultValue=TopCenter
+Description=Position on screen
+EnumCount=9
+Enum0=TopLeft
+Enum1=TopCenter
+Enum2=TopRight
+Enum3=CenterLeft
+Enum4=Center
+Enum5=CenterRight
+Enum6=BottomLeft
+Enum7=BottomCenter
+Enum8=BottomRight

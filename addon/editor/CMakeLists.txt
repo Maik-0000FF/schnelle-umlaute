@@ -38,6 +38,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/CustomLeaderRow.qml
         components/AppListEditor.qml
         components/ConfirmDialog.qml
+        components/PositionPicker.qml
     RESOURCES
         assets/schnelle-umlaute-icon.svg
 )

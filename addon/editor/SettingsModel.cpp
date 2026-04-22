@@ -101,6 +101,18 @@ void SettingsModel::setAppFilterMode(const QString &v) {
     Q_EMIT appFilterModeChanged();
     save();
 }
+void SettingsModel::setOverlayEnabled(bool v) {
+    if (overlayEnabled_ == v) return;
+    overlayEnabled_ = v;
+    Q_EMIT overlayEnabledChanged();
+    save();
+}
+void SettingsModel::setOverlayPosition(const QString &v) {
+    if (overlayPosition_ == v) return;
+    overlayPosition_ = v;
+    Q_EMIT overlayPositionChanged();
+    save();
+}
 
 void SettingsModel::addBlacklistEntry(const QString &entry) {
     auto trimmed = entry.trimmed();
@@ -192,6 +204,9 @@ void SettingsModel::load() {
                 while (whitelist.size() <= idx) whitelist << QString();
                 whitelist[idx] = val;
             }
+        } else if (section == QLatin1String("Overlay")) {
+            if (key == "Enabled") overlayEnabled_ = fromBool(val);
+            else if (key == "Position") overlayPosition_ = val;
         }
     }
     blacklist_ = blacklist;
@@ -212,6 +227,8 @@ void SettingsModel::load() {
     Q_EMIT appFilterModeChanged();
     Q_EMIT blacklistChanged();
     Q_EMIT whitelistChanged();
+    Q_EMIT overlayEnabledChanged();
+    Q_EMIT overlayPositionChanged();
 }
 
 void SettingsModel::save() {
@@ -270,6 +287,11 @@ void SettingsModel::save() {
             out << i << "=" << whitelist_[i] << "\n";
         }
     }
+    out << "\n[Overlay]\n";
+    out << "# Show overlay while cycling\n"
+        << "Enabled=" << toBool(overlayEnabled_) << "\n";
+    out << "# Position on screen\n"
+        << "Position=" << overlayPosition_ << "\n";
     out.flush();
     f.commit();
     reloadFcitx();

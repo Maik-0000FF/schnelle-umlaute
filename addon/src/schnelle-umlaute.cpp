@@ -14,6 +14,7 @@
 #include "config.h"
 #include "hand_classifier.h"
 #include "mappings_loader.h"
+#include "overlay_client.h"
 #include "state.h"
 #include <xkbcommon/xkbcommon.h>
 #include <string>
@@ -255,7 +256,7 @@ public:
                 }
 
                 state->inputKeyPressed_ = false;
-                state->resetCycling();
+                state->resetCycling(); overlayHide();
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -380,7 +381,7 @@ public:
                     // Wayland auto-repeat gap (release-press pair). The
                     // deferred commit timer handles the real release.
                     if (!(isAlt && state->altGestureSession_)) {
-                        state->resetCycling();
+                        state->resetCycling(); overlayHide();
                         return;  // Let leader through
                     }
                 }
@@ -391,6 +392,7 @@ public:
                         // Cycle to next variant
                         state->cyclingIndex_ = (state->cyclingIndex_ + 1) % it->second.size();
                         updateClientPreedit(ic, it->second[state->cyclingIndex_]);
+                        overlayShow(ic, it->second, state->cyclingIndex_);
                     } else if (state->altGestureSession_ &&
                                !(isAlt && rawCode == state->consumedAltCode_)) {
                         // Single-output Alt cycling: a different leader (not
@@ -402,7 +404,7 @@ public:
                         ic->updatePreedit();
                         state->recentlyCommitted_ = true;
                         state->inputKeyPressed_ = false;
-                        state->resetCycling();
+                        state->resetCycling(); overlayHide();
                         state->altGestureSession_ = false;
                         state->consumedAltCode_ = 0;
                         // Emit the leader's character if printable so it
@@ -442,6 +444,7 @@ public:
 
                         // Update preedit with first variant
                         updateClientPreedit(ic, it->second[0]);
+                        overlayShow(ic, it->second, 0);
                     } else {
                         // Single output with non-Alt leader - commit directly
                         ic->inputPanel().reset();
@@ -690,7 +693,7 @@ private:
                         ctx->updatePreedit();
                         state->recentlyCommitted_ = true;
                     }
-                    state->resetCycling();
+                    state->resetCycling(); overlayHide();
                     state->waitingKeyCode_ = 0;
                 }
                 state->altGestureSession_ = false;
@@ -724,6 +727,7 @@ private:
         }
         state->inputKeyPressed_ = false;
         state->resetCycling();
+        overlayHide();
     }
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs
@@ -947,6 +951,23 @@ private:
     // App filter (cached from config). When set to Blacklist/Whitelist,
     // processing is skipped for matching apps based on ic->program().
     AppFilter appFilter_;
+    // DBus client for the standalone overlay daemon.
+    OverlayClient overlayClient_;
+
+    void overlayShow(InputContext *ic,
+                     const std::vector<std::string> &variants, int index) {
+        if (!*config_.overlay->enabled) return;
+        (void)ic;
+        // cursorRect() is app-local on Wayland, not a global screen point,
+        // so we send -1 and let the daemon fall back to the primary screen.
+        overlayClient_.show(variants, index,
+                            OverlayPositionToString(*config_.overlay->position),
+                            -1, -1);
+    }
+    void overlayHide() {
+        if (!*config_.overlay->enabled) return;
+        overlayClient_.hide();
+    }
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {

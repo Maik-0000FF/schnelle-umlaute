@@ -31,6 +31,7 @@ set(SCHNELLE_UMLAUTE_SOURCES
     src/hand_classifier.cpp
     src/app_filter.cpp
     src/mappings_loader.cpp
+    src/overlay_client.cpp
 )
 
 # Shared headers (mappings-io.h) available to both addon and config editor
@@ -72,6 +73,9 @@ add_subdirectory(config-editor)
 
 # Standalone QML editor
 add_subdirectory(editor)
+
+# Standalone QML overlay daemon
+add_subdirectory(overlay)
 
 # Tests (off by default — install scripts and end users don't need them)
 option(BUILD_TESTING "Build tests" OFF)

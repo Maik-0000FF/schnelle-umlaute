@@ -42,6 +42,11 @@ class SettingsModel : public QObject {
     Q_PROPERTY(QStringList blacklist READ blacklist NOTIFY blacklistChanged)
     Q_PROPERTY(QStringList whitelist READ whitelist NOTIFY whitelistChanged)
 
+    Q_PROPERTY(bool overlayEnabled READ overlayEnabled WRITE setOverlayEnabled
+                   NOTIFY overlayEnabledChanged)
+    Q_PROPERTY(QString overlayPosition READ overlayPosition
+                   WRITE setOverlayPosition NOTIFY overlayPositionChanged)
+
 public:
     explicit SettingsModel(QObject *parent = nullptr);
 
@@ -60,6 +65,8 @@ public:
     QString appFilterMode() const { return appFilterMode_; }
     QStringList blacklist() const { return blacklist_; }
     QStringList whitelist() const { return whitelist_; }
+    bool overlayEnabled() const { return overlayEnabled_; }
+    QString overlayPosition() const { return overlayPosition_; }
 
     void setDelayLowercase(int v);
     void setDelayUppercase(int v);
@@ -74,6 +81,8 @@ public:
     void setCustomKey2Enabled(bool v);
     void setCustomKey2(const QString &v);
     void setAppFilterMode(const QString &v);
+    void setOverlayEnabled(bool v);
+    void setOverlayPosition(const QString &v);
 
     Q_INVOKABLE void addBlacklistEntry(const QString &entry);
     Q_INVOKABLE void removeBlacklistEntry(int index);
@@ -100,6 +109,8 @@ Q_SIGNALS:
     void appFilterModeChanged();
     void blacklistChanged();
     void whitelistChanged();
+    void overlayEnabledChanged();
+    void overlayPositionChanged();
 
 private:
     void load();
@@ -121,6 +132,8 @@ private:
     QString appFilterMode_ = "Disabled";
     QStringList blacklist_;
     QStringList whitelist_;
+    bool overlayEnabled_ = false;
+    QString overlayPosition_ = "TopCenter";
 };
 
 #endif
