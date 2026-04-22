@@ -88,7 +88,12 @@ private:
 
         engine_ = std::make_unique<QQmlApplicationEngine>();
         engine_->rootContext()->setContextProperty("OverlayController", ctrl_);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
         engine_->loadFromModule("SchnelleUmlauteOverlay", "Overlay");
+#else
+        engine_->load(QUrl(QStringLiteral(
+            "qrc:/SchnelleUmlauteOverlay/Overlay.qml")));
+#endif
         if (engine_->rootObjects().isEmpty()) {
             engine_.reset();
             return;
@@ -104,7 +109,11 @@ private:
         ls->setKeyboardInteractivity(LSWindow::KeyboardInteractivityNone);
         ls->setScope(QStringLiteral("schnelle-umlaute-overlay"));
         if (auto *scr = pickScreen(ctrl_->cursorX(), ctrl_->cursorY())) {
-            ls->setScreen(scr);
+            // QWindow::setScreen works on all LayerShellQt versions; Qt's
+            // Wayland integration forwards the output hint to the layer
+            // surface. LSWindow::setScreen only exists from 6.5+ and isn't
+            // needed here — we set it before the first commit.
+            qwin->setScreen(scr);
         }
         const auto a = anchorsFor(ctrl_->position());
         ls->setAnchors(a.anchors);

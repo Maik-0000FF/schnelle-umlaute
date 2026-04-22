@@ -161,7 +161,7 @@ fi
 
 # Kill the overlay daemon before deleting its binary so the old process
 # doesn't keep running with a stale file descriptor.
-if pgrep -x schnelle-umlaute-overlay >/dev/null; then
+if pgrep -f "schnelle-umlaute-overlay" >/dev/null; then
     echo -e "${BLUE}Stopping overlay daemon...${NC}"
     killall schnelle-umlaute-overlay 2>/dev/null || true
     sleep 1

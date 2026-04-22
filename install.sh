@@ -483,7 +483,10 @@ if command -v schnelle-umlaute-overlay >/dev/null 2>&1; then
     setsid schnelle-umlaute-overlay >/dev/null 2>&1 < /dev/null &
     disown 2>/dev/null || true
     sleep 1
-    if pgrep -x schnelle-umlaute-overlay >/dev/null; then
+    # pgrep -x only matches names up to 15 chars (Linux comm limit) and
+    # "schnelle-umlaute-overlay" is 24, so use -f to match the full
+    # command line instead — otherwise this always reports "not started".
+    if pgrep -f "schnelle-umlaute-overlay" >/dev/null; then
         echo -e "${GREEN}✓ Overlay daemon running${NC}"
     else
         echo -e "${YELLOW}Overlay daemon didn't start — it will launch on next login${NC}"
