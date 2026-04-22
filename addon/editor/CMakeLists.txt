@@ -1,7 +1,12 @@
 find_package(Qt6 REQUIRED COMPONENTS Core DBus Gui Qml Quick QuickControls2)
 
-qt_policy(SET QTP0001 NEW)
-qt_policy(SET QTP0004 NEW)
+# qt_policy was introduced in Qt 6.5. Skip cleanly on older Qt (e.g. Qt
+# 6.4 on Ubuntu 24.04) so the build still works; the default resource
+# prefix there is good enough.
+if(COMMAND qt_policy)
+    qt_policy(SET QTP0001 NEW)
+    qt_policy(SET QTP0004 NEW)
+endif()
 
 set(EDITOR_SRCS
     main.cpp

@@ -19,7 +19,7 @@ jobs:
         include:
           - distro: Arch Linux
             image: archlinux:base-devel
-            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext qt6-declarative qt6-quickcontrols2 layer-shell-qt
+            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext qt6-declarative layer-shell-qt
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: Ubuntu 24.04
@@ -34,7 +34,7 @@ jobs:
             run_tests: true
           - distro: openSUSE
             image: opensuse/tumbleweed
-            install: zypper --non-interactive install gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-base-devel qt6-declarative-devel qt6-quickcontrols2-devel libxkbcommon-devel layer-shell-qt-devel
+            install: zypper --non-interactive install gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-base-devel qt6-declarative-devel qt6-quickcontrols2-devel libxkbcommon-devel layer-shell-qt6-devel
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
 

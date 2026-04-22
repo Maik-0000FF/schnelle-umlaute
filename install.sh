@@ -143,7 +143,7 @@ install_deps() {
 case "$DISTRO" in
     arch)
         DEPS=(fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc
-              qt6-declarative qt6-quickcontrols2 layer-shell-qt)
+              qt6-declarative layer-shell-qt)
         ;;
     debian)
         DEPS=(fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4
@@ -161,7 +161,7 @@ case "$DISTRO" in
         DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
               fcitx5-devel fcitx5-qt-devel qt6-base-devel
               cmake extra-cmake-modules gcc-c++ gettext
-              qt6-declarative-devel qt6-quickcontrols2-devel layer-shell-qt-devel)
+              qt6-declarative-devel qt6-quickcontrols2-devel layer-shell-qt6-devel)
         ;;
 esac
 

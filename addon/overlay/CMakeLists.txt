@@ -13,8 +13,10 @@ if(NOT LayerShellQt_FOUND)
     return()
 endif()
 
-qt_policy(SET QTP0001 NEW)
-qt_policy(SET QTP0004 NEW)
+if(COMMAND qt_policy)
+    qt_policy(SET QTP0001 NEW)
+    qt_policy(SET QTP0004 NEW)
+endif()
 
 set(OVERLAY_SRCS
     main.cpp
