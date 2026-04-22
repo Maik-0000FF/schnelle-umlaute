@@ -75,7 +75,70 @@ jobs:
           exit $missing
         working-directory: addon
 
+      - name: Verify shared-library resolution
+        # Catches binaries that build but wouldn't start on the user's
+        # system because a runtime dep is unresolved. "not found" in ldd
+        # output is the signal for a missing .so.
+        run: |
+          for f in build/editor/schnelle-umlaute-editor \
+                   build/overlay/schnelle-umlaute-overlay; do
+            echo "=== ldd $f ==="
+            ldd "$f"
+            if ldd "$f" | grep -q "not found"; then
+              echo "unresolved libraries in $f"
+              exit 1
+            fi
+          done
+        working-directory: addon
+
+      - name: Smoke test editor (headless)
+        # QT_QPA_PLATFORM=offscreen lets Qt create the window without an
+        # X/Wayland display. The editor starts, parses all QML, then we
+        # kill it after a moment. Any segfault or QML parse error fails
+        # the job. The overlay daemon can't run this way — it requires a
+        # real Wayland compositor for layer-shell — so we rely on ldd for
+        # it above and catch QML errors via the editor run.
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_LOGGING_RULES: "*.debug=false;qt.qpa.*=false"
+        run: |
+          set +e
+          # Redirect stderr to a log; ignore exit code from timeout.
+          timeout --preserve-status --signal=TERM 3 \
+            build/editor/schnelle-umlaute-editor > /tmp/editor.log 2>&1
+          ec=$?
+          echo "editor exit code: $ec"
+          cat /tmp/editor.log
+          # 124 = timeout killed it (expected, it runs until we stop it).
+          # 143 = SIGTERM from --preserve-status. 0 is also fine if it
+          # exits cleanly. SIGSEGV=139 / SIGABRT=134 are always bad.
+          case $ec in
+            0|124|143) ;;
+            *) echo "editor crashed (exit $ec)"; exit 1 ;;
+          esac
+          if grep -qiE "segmentation fault|sanitizer|assertion failed|qml.*error.*file:" \
+             /tmp/editor.log; then
+            echo "editor produced errors"; exit 1
+          fi
+          echo "smoke test passed"
+        working-directory: addon
+
       - name: Test
         if: matrix.run_tests
         run: ctest --test-dir build --output-on-failure
         working-directory: addon
+
+  scripts:
+    runs-on: ubuntu-24.04
+    name: Lint install/uninstall scripts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: shellcheck
+        # Warnings don't fail the job, errors do. SC2086 (word splitting)
+        # is common enough to disable unless we hit a real bug.
+        run: shellcheck --severity=error install.sh uninstall.sh
