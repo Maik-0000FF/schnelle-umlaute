@@ -24,7 +24,7 @@ jobs:
             run_tests: true
           - distro: Ubuntu 24.04
             image: ubuntu:24.04
-            install: apt-get update && apt-get install -y build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev qt6-declarative-dev libxkbcommon-dev liblayershellqtinterface-dev qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates
+            install: apt-get update && apt-get install -y build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev qt6-declarative-dev libxkbcommon-dev liblayershellqtinterface-dev qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: Fedora
