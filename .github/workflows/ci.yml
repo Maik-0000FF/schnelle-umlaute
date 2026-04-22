@@ -136,9 +136,17 @@ jobs:
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Install shellcheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+        # Download the static binary from upstream releases instead of
+        # apt — apt on the ubuntu-24.04 runner occasionally hangs for
+        # minutes on a slow mirror, which this job doesn't need.
+        run: |
+          curl -fsSL \
+            "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz" \
+            | tar -xJ -C /tmp
+          sudo mv /tmp/shellcheck-v0.10.0/shellcheck /usr/local/bin/
+          shellcheck --version
 
       - name: shellcheck
-        # Warnings don't fail the job, errors do. SC2086 (word splitting)
-        # is common enough to disable unless we hit a real bug.
+        # Only errors fail the job — warnings (like SC2086 word splitting)
+        # would flag too much style.
         run: shellcheck --severity=error install.sh uninstall.sh
