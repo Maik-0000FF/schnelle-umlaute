@@ -24,13 +24,11 @@ void testShowPopulatesStateAndEmits() {
     OverlayController ctrl;
     QSignalSpy spy(&ctrl, &OverlayController::stateChanged);
 
-    ctrl.show({"ä", "Ä"}, 1, QStringLiteral("BottomRight"), 100, 200);
+    ctrl.show({"ä", "Ä"}, 1, QStringLiteral("BottomRight"));
 
     EXPECT(ctrl.visible());
     EXPECT(ctrl.currentIndex() == 1);
     EXPECT(ctrl.position() == QStringLiteral("BottomRight"));
-    EXPECT(ctrl.cursorX() == 100);
-    EXPECT(ctrl.cursorY() == 200);
     EXPECT(ctrl.variants().size() == 2);
     EXPECT(ctrl.variants().at(0) == QStringLiteral("ä"));
     EXPECT(spy.count() == 1);
@@ -41,10 +39,10 @@ void testShowPopulatesStateAndEmits() {
 // QML engine teardown relies on visible() being false for that case.
 void testShowEmptyVariantsHides() {
     OverlayController ctrl;
-    ctrl.show({"x"}, 0, QStringLiteral("TopCenter"), 0, 0);
+    ctrl.show({"x"}, 0, QStringLiteral("TopCenter"));
     EXPECT(ctrl.visible());
 
-    ctrl.show({}, 0, QStringLiteral("TopCenter"), 0, 0);
+    ctrl.show({}, 0, QStringLiteral("TopCenter"));
     EXPECT(!ctrl.visible());
     EXPECT(ctrl.variants().isEmpty());
 }
@@ -53,7 +51,7 @@ void testShowEmptyVariantsHides() {
 // renderer doesn't snap back to the default anchor between cycles.
 void testHideClearsVisibleKeepsPosition() {
     OverlayController ctrl;
-    ctrl.show({"ö", "Ö"}, 0, QStringLiteral("TopLeft"), 50, 60);
+    ctrl.show({"ö", "Ö"}, 0, QStringLiteral("TopLeft"));
     EXPECT(ctrl.visible());
     QSignalSpy spy(&ctrl, &OverlayController::stateChanged);
 
@@ -69,10 +67,10 @@ void testHideClearsVisibleKeepsPosition() {
 // "" when OverlayConfig is mid-reload.
 void testShowWithEmptyPositionPreservesPrevious() {
     OverlayController ctrl;
-    ctrl.show({"ü"}, 0, QStringLiteral("Center"), 0, 0);
+    ctrl.show({"ü"}, 0, QStringLiteral("Center"));
     EXPECT(ctrl.position() == QStringLiteral("Center"));
 
-    ctrl.show({"ü"}, 0, QString(), 0, 0);
+    ctrl.show({"ü"}, 0, QString());
     EXPECT(ctrl.position() == QStringLiteral("Center"));
 }
 

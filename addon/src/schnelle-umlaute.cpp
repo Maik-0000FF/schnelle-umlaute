@@ -962,11 +962,8 @@ private:
                      const std::vector<std::string> &variants, int index) {
         if (!*config_.overlay->enabled) return;
         (void)ic;
-        // cursorRect() is app-local on Wayland, not a global screen point,
-        // so we send -1 and let the daemon fall back to the primary screen.
         overlayClient_.show(variants, index,
-                            OverlayPositionToString(*config_.overlay->position),
-                            -1, -1);
+                            OverlayPositionToString(*config_.overlay->position));
     }
     void overlayHide() {
         if (!*config_.overlay->enabled) return;

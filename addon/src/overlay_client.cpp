@@ -21,12 +21,10 @@ OverlayClient::OverlayClient() {
 OverlayClient::~OverlayClient() = default;
 
 void OverlayClient::show(const std::vector<std::string> &variants,
-                         int currentIndex, const std::string &position,
-                         int cursorX, int cursorY) {
+                         int currentIndex, const std::string &position) {
     if (!bus_ || !bus_->isOpen() || variants.empty()) return;
     auto msg = bus_->createMethodCall(kService, kPath, kInterface, "Show");
-    msg << variants << int32_t(currentIndex) << position
-        << int32_t(cursorX) << int32_t(cursorY);
+    msg << variants << int32_t(currentIndex) << position;
     // Fire-and-forget. flush() is needed because the bus isn't attached to
     // fcitx5's event loop — without it messages pile up in the send buffer
     // and the daemon never sees them.

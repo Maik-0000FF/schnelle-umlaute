@@ -23,12 +23,9 @@ public:
 
     // Called via DBus adapter
     void show(const QStringList &variants, int currentIndex,
-              const QString &position, int cursorX, int cursorY);
+              const QString &position);
     void hide();
     void quit();
-
-    int cursorX() const { return cursorX_; }
-    int cursorY() const { return cursorY_; }
 
 Q_SIGNALS:
     void stateChanged();
@@ -38,8 +35,6 @@ private:
     int currentIndex_ = 0;
     QString position_ = QStringLiteral("TopCenter");
     bool visible_ = false;
-    int cursorX_ = -1;
-    int cursorY_ = -1;
 };
 
 // org.freedesktop.DBus adapter matching de.schnelle_umlaute.Overlay1.
@@ -52,7 +47,7 @@ public:
 
 public Q_SLOTS:
     void Show(const QStringList &variants, int currentIndex,
-              const QString &position, int cursorX, int cursorY);
+              const QString &position);
     void Hide();
     void Quit();
 

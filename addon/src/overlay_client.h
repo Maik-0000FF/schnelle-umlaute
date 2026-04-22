@@ -21,7 +21,7 @@ public:
     ~OverlayClient();
 
     void show(const std::vector<std::string> &variants, int currentIndex,
-              const std::string &position, int cursorX, int cursorY);
+              const std::string &position);
     void hide();
 
     // Pokes the DBus service so a disabled-but-not-yet-running daemon is
