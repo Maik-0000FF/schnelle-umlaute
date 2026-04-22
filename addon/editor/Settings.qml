@@ -89,20 +89,22 @@ Item {
 
                     CustomLeaderRow {
                         labelText: qsTr("Custom Leader 1")
-                        placeholderHint: qsTr("e.g. ; or #")
+                        placeholderHint: ""
                         enabledValue: root.settingsModel ? root.settingsModel.customKey1Enabled : false
                         keyValue: root.settingsModel ? root.settingsModel.customKey1 : ""
                         mappingsModel: root.mappingsModel
+                        settingsModel: root.settingsModel
                         onEnabledEdited: (v) => root.settingsModel.customKey1Enabled = v
                         onKeyEdited: (v) => root.settingsModel.customKey1 = v
                     }
 
                     CustomLeaderRow {
                         labelText: qsTr("Custom Leader 2 (hand-split)")
-                        placeholderHint: qsTr("e.g. j or f")
+                        placeholderHint: ""
                         enabledValue: root.settingsModel ? root.settingsModel.customKey2Enabled : false
                         keyValue: root.settingsModel ? root.settingsModel.customKey2 : ""
                         mappingsModel: root.mappingsModel
+                        settingsModel: root.settingsModel
                         onEnabledEdited: (v) => root.settingsModel.customKey2Enabled = v
                         onKeyEdited: (v) => root.settingsModel.customKey2 = v
                     }

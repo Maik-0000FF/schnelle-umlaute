@@ -13,18 +13,51 @@ ColumnLayout {
     property bool enabledValue: false
     property string keyValue: ""
     property var mappingsModel: null
+    property var settingsModel: null
     signal enabledEdited(bool v)
     signal keyEdited(string v)
 
+    property bool pendingChange: false
+
+    readonly property bool invalidChar:
+        keyValue.length > 0 && !isValidSingleChar(keyValue)
     readonly property bool conflictsWithMapping:
         keyValue.length > 0 && mappingsModel &&
-        !mappingsModel.validateInput(keyValue, -1) &&
+        isValidSingleChar(keyValue) &&
         mappingsModel.inputErrorFor(keyValue, -1).indexOf("already") >= 0
+
+    function isValidSingleChar(s) {
+        if (!s || s.length === 0) return false;
+        // Array.from iterates by codepoint — correctly handles surrogate pairs
+        // (emoji = 1 codepoint, length 2 in UTF-16 units).
+        return Array.from(s).length === 1 && !/\s/.test(s);
+    }
+
+    Timer {
+        id: savedTimer
+        interval: 1200
+        property bool pulse: false
+        onTriggered: pulse = false
+    }
+
+    Connections {
+        target: root.settingsModel
+        function onSaveFinished() {
+            if (root.pendingChange) {
+                root.pendingChange = false;
+                savedTimer.pulse = true;
+                savedTimer.restart();
+            }
+        }
+    }
 
     LabeledSwitch {
         labelText: root.labelText
         checked: root.enabledValue
-        onToggled: (v) => root.enabledEdited(v)
+        onToggled: (v) => {
+            root.pendingChange = true;
+            root.enabledEdited(v);
+        }
     }
 
     RowLayout {
@@ -41,32 +74,67 @@ ColumnLayout {
             Layout.preferredWidth: 40
         }
 
-        TextField {
-            id: keyField
+        Item {
             Layout.preferredWidth: 80
-            text: root.keyValue
-            placeholderText: root.placeholderHint
-            maximumLength: 4
-            font.family: Theme.fontFamilyMono
-            font.pixelSize: 14
-            horizontalAlignment: TextInput.AlignHCenter
-            color: Theme.text
-            placeholderTextColor: Theme.textMuted
-            selectByMouse: true
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: Theme.background
-                border.color: root.conflictsWithMapping
-                    ? Theme.warning
-                    : (keyField.activeFocus ? Theme.accent : Theme.border)
-                border.width: 1
-                Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
+            implicitHeight: keyField.implicitHeight
+
+            TextField {
+                id: keyField
+                anchors.fill: parent
+                text: root.keyValue
+                placeholderText: root.placeholderHint
+                maximumLength: 4
+                font.family: Theme.fontFamilyMono
+                font.pixelSize: 14
+                horizontalAlignment: TextInput.AlignHCenter
+                color: Theme.text
+                placeholderTextColor: Theme.textMuted
+                selectByMouse: true
+                rightPadding: 24
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: Theme.background
+                    border.color: root.invalidChar
+                        ? Theme.error
+                        : (root.conflictsWithMapping
+                            ? Theme.warning
+                            : (keyField.activeFocus ? Theme.accent : Theme.border))
+                    border.width: 1
+                    Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
+                }
+                onTextChanged: {
+                    if (text !== root.keyValue) {
+                        root.pendingChange = true;
+                        root.keyEdited(text);
+                    }
+                }
             }
-            onEditingFinished: root.keyEdited(text)
+
+            Text {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.rightMargin: 6
+                text: "✓"
+                color: Theme.success
+                font.pixelSize: 13
+                font.weight: Font.Bold
+                opacity: savedTimer.pulse ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 200 } }
+            }
         }
 
         Text {
-            visible: root.conflictsWithMapping
+            visible: root.invalidChar
+            Layout.fillWidth: true
+            text: qsTr("Must be a single non-whitespace character")
+            color: Theme.error
+            font.family: Theme.fontFamily
+            font.pixelSize: 11
+            wrapMode: Text.WordWrap
+        }
+
+        Text {
+            visible: root.conflictsWithMapping && !root.invalidChar
             Layout.fillWidth: true
             text: qsTr("Warning: this key is already a mapping input")
             color: Theme.warning

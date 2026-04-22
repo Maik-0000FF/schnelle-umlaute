@@ -12,17 +12,22 @@ Rectangle {
     implicitHeight: layout.implicitHeight + Theme.spacingLg * 2
 
     property var modelRef: null
+    property var settingsModel: null
     signal mappingAdded(string input, string output)
 
     function focusInput() { inputField.forceActiveFocus(); }
 
     readonly property string inputError:
         modelRef ? modelRef.inputErrorFor(inputField.text) : ""
+    readonly property bool leaderConflict:
+        inputField.text.length > 0 && settingsModel &&
+        settingsModel.isActiveLeaderKey(inputField.text)
     readonly property bool outputValid:
         modelRef && outputField.text.length > 0 &&
         modelRef.validateOutput(outputField.text)
     readonly property bool canAdd:
-        inputField.text.length > 0 && inputError === "" && outputValid
+        inputField.text.length > 0 && inputError === "" &&
+        !leaderConflict && outputValid
 
     ColumnLayout {
         id: layout
@@ -57,9 +62,11 @@ Rectangle {
                 background: Rectangle {
                     radius: Theme.radiusSm
                     color: Theme.background
-                    border.color: inputField.activeFocus
-                        ? (root.inputError !== "" ? Theme.error : Theme.accent)
-                        : (root.inputError !== "" ? Theme.error : Theme.border)
+                    border.color: root.inputError !== ""
+                        ? Theme.error
+                        : (root.leaderConflict
+                            ? Theme.warning
+                            : (inputField.activeFocus ? Theme.accent : Theme.border))
                     border.width: 1
                     Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
                 }
@@ -118,22 +125,18 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            visible: root.inputError !== "" && inputField.text.length > 0
-            text: root.inputError
-            color: Theme.error
+            text: (root.inputError !== "" && inputField.text.length > 0)
+                ? root.inputError
+                : (root.leaderConflict
+                    ? qsTr("This key is configured as a Leader — mapping will not work")
+                    : qsTr("Key: a single character. Output: text or comma-separated variants for cycling."))
+            color: (root.inputError !== "" && inputField.text.length > 0)
+                ? Theme.error
+                : (root.leaderConflict ? Theme.warning : Theme.textMuted)
             font.family: Theme.fontFamily
             font.pixelSize: 11
             wrapMode: Text.WordWrap
-        }
-
-        Text {
-            Layout.fillWidth: true
-            visible: inputField.text.length === 0 && outputField.text.length === 0
-            text: qsTr("Key: a single character. Output: text or comma-separated variants for cycling.")
-            color: Theme.textMuted
-            font.family: Theme.fontFamily
-            font.pixelSize: 11
-            wrapMode: Text.WordWrap
+            Behavior on color { ColorAnimation { duration: Theme.animShort } }
         }
     }
 

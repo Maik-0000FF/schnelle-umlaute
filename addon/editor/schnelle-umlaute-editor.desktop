@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Schnelle Umlaute — Mapping-Editor
-Comment=Mappings für schnelle Umlaute bearbeiten
+Name=Schnelle Umlaute
+Comment=Configure schnelle-umlaute mappings, delays, and leader keys
 Exec=schnelle-umlaute-editor
 Icon=schnelle-umlaute-editor
 Terminal=false

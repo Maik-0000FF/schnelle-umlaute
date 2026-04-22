@@ -1,9 +1,9 @@
 #include "SettingsModel.h"
+#include "FcitxReload.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QProcess>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QTextStream>
@@ -81,7 +81,7 @@ void SettingsModel::setCustomKey1(const QString &v) {
     if (customKey1_ == v) return;
     customKey1_ = v;
     Q_EMIT customKey1Changed();
-    save();
+    if (isValidLeaderKey(v)) save();
 }
 void SettingsModel::setCustomKey2Enabled(bool v) {
     if (customKey2Enabled_ == v) return;
@@ -93,7 +93,7 @@ void SettingsModel::setCustomKey2(const QString &v) {
     if (customKey2_ == v) return;
     customKey2_ = v;
     Q_EMIT customKey2Changed();
-    save();
+    if (isValidLeaderKey(v)) save();
 }
 void SettingsModel::setAppFilterMode(const QString &v) {
     if (appFilterMode_ == v) return;
@@ -127,6 +127,20 @@ void SettingsModel::removeWhitelistEntry(int index) {
     whitelist_.removeAt(index);
     Q_EMIT whitelistChanged();
     save();
+}
+
+bool SettingsModel::isActiveLeaderKey(const QString &key) const {
+    if (key.isEmpty()) return false;
+    if (customKey1Enabled_ && customKey1_ == key) return true;
+    if (customKey2Enabled_ && customKey2_ == key) return true;
+    return false;
+}
+
+bool SettingsModel::isValidLeaderKey(const QString &s) {
+    if (s.isEmpty()) return true; // empty means "not set yet" — not an error
+    auto ucs4 = s.toUcs4();
+    if (ucs4.size() != 1) return false;
+    return !QChar::isSpace(ucs4[0]);
 }
 
 void SettingsModel::load() {
@@ -259,9 +273,7 @@ void SettingsModel::save() {
     out.flush();
     f.commit();
     reloadFcitx();
+    Q_EMIT saveFinished();
 }
 
-void SettingsModel::reloadFcitx() {
-    QProcess::startDetached(QStringLiteral("fcitx5-remote"),
-                            {QStringLiteral("-r")});
-}
+void SettingsModel::reloadFcitx() { reloadSchnelleUmlauteAddon(); }

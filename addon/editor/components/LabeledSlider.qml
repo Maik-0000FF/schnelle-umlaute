@@ -60,7 +60,9 @@ RowLayout {
             border.width: 2
         }
 
-        onMoved: root.valueEdited(value)
+        onValueChanged: {
+            if (value !== root.value) root.valueEdited(value);
+        }
     }
 
     Text {

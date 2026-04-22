@@ -111,7 +111,12 @@ ColumnLayout {
                             color: parent.hovered ? Theme.surface : "transparent"
                             radius: Theme.radiusSm
                         }
-                        onClicked: root.removeRequested(index)
+                        onClicked: {
+                            confirmDialog.messageText = qsTr(
+                                "Remove “%1” from the list?").arg(modelData);
+                            confirmDialog.onConfirmed = () => root.removeRequested(index);
+                            confirmDialog.open();
+                        }
                     }
                 }
             }
@@ -125,6 +130,12 @@ ColumnLayout {
         font.family: Theme.fontFamily
         font.pixelSize: 11
         font.italic: true
+    }
+
+    ConfirmDialog {
+        id: confirmDialog
+        titleText: qsTr("Remove entry")
+        confirmText: qsTr("Remove")
     }
 
     function commit() {

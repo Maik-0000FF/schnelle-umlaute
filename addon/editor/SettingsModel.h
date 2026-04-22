@@ -79,8 +79,12 @@ public:
     Q_INVOKABLE void removeBlacklistEntry(int index);
     Q_INVOKABLE void addWhitelistEntry(const QString &entry);
     Q_INVOKABLE void removeWhitelistEntry(int index);
+    Q_INVOKABLE bool isActiveLeaderKey(const QString &key) const;
+
+    static bool isValidLeaderKey(const QString &s);
 
 Q_SIGNALS:
+    void saveFinished();
     void delayLowercaseChanged();
     void delayUppercaseChanged();
     void leaderSpaceChanged();

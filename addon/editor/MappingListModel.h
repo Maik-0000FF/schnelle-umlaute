@@ -31,6 +31,7 @@ public:
     Q_INVOKABLE void removeMapping(int row);
     Q_INVOKABLE bool updateMapping(int row, const QString &input,
                                    const QString &output);
+    Q_INVOKABLE void moveMapping(int from, int to);
     Q_INVOKABLE bool validateInput(const QString &input,
                                    int excludeRow = -1) const;
     Q_INVOKABLE bool validateOutput(const QString &output) const;

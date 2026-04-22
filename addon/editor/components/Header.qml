@@ -17,26 +17,32 @@ Rectangle {
         anchors.rightMargin: Theme.spacingMd
         spacing: Theme.spacingMd
 
-        Rectangle {
-            width: 28
-            height: 28
-            radius: 8
-            color: Theme.brandSoft
-            Text {
-                anchors.centerIn: parent
-                text: "◆"
-                color: Theme.brand
-                font.pixelSize: 16
-            }
+        Image {
+            source: "qrc:/qt/qml/SchnelleUmlaute/assets/schnelle-umlaute-icon.svg"
+            sourceSize.width: 32
+            sourceSize.height: 32
+            width: 32
+            height: 32
+            fillMode: Image.PreserveAspectFit
+            smooth: true
         }
 
-        Text {
-            textFormat: Text.StyledText
-            text: '<span style="color:' + Theme.text + '">Schnelle</span> ' +
-                  '<span style="color:' + Theme.brand + '">Umlaute</span>'
-            font.family: Theme.fontFamily
-            font.pixelSize: 15
-            font.weight: Font.Medium
+        RowLayout {
+            spacing: 6
+            Text {
+                text: "Schnelle"
+                color: Theme.text
+                font.family: Theme.fontFamily
+                font.pixelSize: 16
+                font.weight: Font.Medium
+            }
+            Text {
+                text: "Umlaute"
+                color: Theme.brand
+                font.family: Theme.fontFamily
+                font.pixelSize: 16
+                font.weight: Font.Medium
+            }
         }
 
         Rectangle {

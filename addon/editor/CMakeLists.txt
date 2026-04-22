@@ -1,4 +1,4 @@
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+find_package(Qt6 REQUIRED COMPONENTS Core DBus Gui Qml Quick QuickControls2)
 
 qt_policy(SET QTP0001 NEW)
 qt_policy(SET QTP0004 NEW)
@@ -37,10 +37,14 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/LabeledSwitch.qml
         components/CustomLeaderRow.qml
         components/AppListEditor.qml
+        components/ConfirmDialog.qml
+    RESOURCES
+        assets/schnelle-umlaute-icon.svg
 )
 
 target_link_libraries(schnelle-umlaute-editor PRIVATE
     Qt6::Core
+    Qt6::DBus
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick

@@ -1,9 +1,9 @@
 #include "MappingListModel.h"
+#include "FcitxReload.h"
 #include "mappings-io.h"
 
 #include <QDir>
 #include <QFile>
-#include <QProcess>
 #include <QSaveFile>
 #include <QStandardPaths>
 
@@ -134,6 +134,22 @@ bool MappingListModel::updateMapping(int row, const QString &input,
     return true;
 }
 
+void MappingListModel::moveMapping(int from, int to) {
+    int n = static_cast<int>(entries_.size());
+    if (from < 0 || from >= n || to < 0 || to >= n || from == to) return;
+    // Qt wants the insertion position in the *original* index space, so an
+    // in-place move down needs +1.
+    int destRow = (to > from) ? to + 1 : to;
+    if (!beginMoveRows(QModelIndex(), from, from, QModelIndex(), destRow)) {
+        return;
+    }
+    auto entry = std::move(entries_[from]);
+    entries_.erase(entries_.begin() + from);
+    entries_.insert(entries_.begin() + to, std::move(entry));
+    endMoveRows();
+    save();
+}
+
 void MappingListModel::reload() {
     beginResetModel();
     load();
@@ -182,8 +198,7 @@ bool MappingListModel::save() {
         return false;
     }
     setSaveStatus(tr("Saved"));
-    QProcess::startDetached(QStringLiteral("fcitx5-remote"),
-                            {QStringLiteral("-r")});
+    reloadSchnelleUmlauteAddon();
     return true;
 }
 

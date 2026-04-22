@@ -11,7 +11,7 @@ ApplicationWindow {
     height: 640
     minimumWidth: 520
     minimumHeight: 440
-    title: qsTr("Schnelle Umlaute — Mapping Editor")
+    title: qsTr("Schnelle Umlaute")
     color: Theme.background
 
     MappingListModel {
@@ -31,88 +31,93 @@ ApplicationWindow {
             onReloadRequested: { mappings.reload(); }
         }
 
-        Rectangle {
+        Item {
             Layout.fillWidth: true
-            height: 1
-            color: Theme.border
-        }
+            implicitHeight: 42
+            z: 1
 
-        TabBar {
-            id: tabBar
-            Layout.fillWidth: true
-            background: Rectangle { color: Theme.background }
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 1
+                color: Theme.border
+                z: 0
+            }
 
-            TabButton {
-                text: qsTr("Mappings")
-                contentItem: Text {
-                    text: parent.text
-                    color: tabBar.currentIndex === 0 ? Theme.brand : Theme.textMuted
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    font.weight: Font.Medium
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    Behavior on color { ColorAnimation { duration: Theme.animShort } }
-                }
-                background: Rectangle {
-                    color: "transparent"
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        height: 2
-                        color: tabBar.currentIndex === 0 ? Theme.brand : "transparent"
+            RowLayout {
+                id: tabRow
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingLg
+                spacing: Theme.spacingXs
+                z: 1
+
+                property int currentIndex: 0
+
+                Repeater {
+                    model: [qsTr("Settings"), qsTr("Mappings")]
+                    delegate: Rectangle {
+                        required property int index
+                        required property string modelData
+                        Layout.preferredWidth: tabLabel.implicitWidth + Theme.spacingLg * 2
+                        Layout.preferredHeight: 36
+                        radius: Theme.radiusMd
+                        readonly property bool active: tabRow.currentIndex === index
+                        color: active ? Theme.surface : Theme.surfaceHover
+                        border.color: active ? Theme.border : "transparent"
+                        border.width: 1
+
+                        Rectangle {
+                            visible: parent.active
+                            anchors.bottom: parent.bottom
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            height: 2
+                            color: Theme.surface
+                            y: parent.height - 1
+                        }
+
                         Behavior on color { ColorAnimation { duration: Theme.animShort } }
+
+                        Text {
+                            id: tabLabel
+                            anchors.centerIn: parent
+                            text: modelData
+                            color: parent.active ? Theme.brand : Theme.textMuted
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 13
+                            font.weight: Font.Medium
+                            Behavior on color { ColorAnimation { duration: Theme.animShort } }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: tabRow.currentIndex = index
+                        }
                     }
                 }
             }
-            TabButton {
-                text: qsTr("Settings")
-                contentItem: Text {
-                    text: parent.text
-                    color: tabBar.currentIndex === 1 ? Theme.brand : Theme.textMuted
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    font.weight: Font.Medium
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    Behavior on color { ColorAnimation { duration: Theme.animShort } }
-                }
-                background: Rectangle {
-                    color: "transparent"
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        height: 2
-                        color: tabBar.currentIndex === 1 ? Theme.brand : "transparent"
-                        Behavior on color { ColorAnimation { duration: Theme.animShort } }
-                    }
-                }
-            }
-        }
-
-        Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: Theme.border
         }
 
         StackLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: tabBar.currentIndex
-
-            Mappings {
-                id: mappingsPanel
-                mappingsModel: mappings
-                onRequestSnackbar: (msg, c) => snackbar.show(msg, c)
-                onRequestUndoSnackbar: (msg, cb) => snackbar.showUndo(msg, cb)
-            }
+            currentIndex: tabRow.currentIndex
 
             Settings {
                 settingsModel: settings
                 mappingsModel: mappings
+            }
+
+            Mappings {
+                id: mappingsPanel
+                mappingsModel: mappings
+                settingsModel: settings
+                onRequestSnackbar: (msg, c) => snackbar.show(msg, c)
+                onRequestUndoSnackbar: (msg, cb) => snackbar.showUndo(msg, cb)
             }
         }
 
@@ -209,17 +214,17 @@ ApplicationWindow {
     Shortcut {
         sequence: "Ctrl+N"
         onActivated: {
-            tabBar.currentIndex = 0;
+            tabRow.currentIndex = 1;
             mappingsPanel.focusAdd();
         }
     }
     Shortcut {
         sequence: "Ctrl+1"
-        onActivated: tabBar.currentIndex = 0
+        onActivated: tabRow.currentIndex = 0
     }
     Shortcut {
         sequence: "Ctrl+2"
-        onActivated: tabBar.currentIndex = 1
+        onActivated: tabRow.currentIndex = 1
     }
     Shortcut {
         sequence: "F5"
