@@ -50,13 +50,12 @@ target_compile_options(schnelle-umlaute-overlay PRIVATE -Wall -Wextra -Wpedantic
 install(TARGETS schnelle-umlaute-overlay
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
-# XDG autostart needs the absolute /etc path regardless of CMAKE_INSTALL_PREFIX
-# — the freedesktop spec only scans $XDG_CONFIG_DIRS (usually /etc/xdg).
-install(FILES schnelle-umlaute-overlay.desktop
-        DESTINATION /etc/xdg/autostart)
-
-# Same for DBus session services: dbus only scans /usr/share/dbus-1/services
-# by default, not /usr/local/share/… Use a hardcoded path so on-demand
+# DBus session services: dbus only scans /usr/share/dbus-1/services by
+# default, not /usr/local/share/… Use a hardcoded path so on-demand
 # activation works whether the user installs under /usr or /usr/local.
+# The daemon is started lazily the first time the addon calls Show() (or
+# when the user enables the overlay in the editor); we no longer install
+# an XDG autostart entry because that ran before Plasma had configured
+# the primary output, pinning the daemon to the login-screen monitor.
 install(FILES de.schnelle_umlaute.Overlay.service
         DESTINATION /usr/share/dbus-1/services)

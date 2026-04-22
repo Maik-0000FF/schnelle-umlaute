@@ -110,12 +110,14 @@ DATA_FILES=(
     /usr/local/share/applications/schnelle-umlaute-editor.desktop
     /usr/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
     /usr/local/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
-    # Autostart + DBus activation for the overlay daemon
-    /etc/xdg/autostart/schnelle-umlaute-overlay.desktop
+    # DBus activation (current) — daemon starts on demand when enabled.
     /usr/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
-    # Legacy paths from an earlier build that wrote under CMAKE_INSTALL_PREFIX
-    /usr/local/etc/xdg/autostart/schnelle-umlaute-overlay.desktop
     /usr/local/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
+    # XDG autostart files from older installs. We no longer ship these
+    # (daemon lifecycle follows the enabled flag now) but keep them in the
+    # cleanup list so upgrades remove the stale entries.
+    /etc/xdg/autostart/schnelle-umlaute-overlay.desktop
+    /usr/local/etc/xdg/autostart/schnelle-umlaute-overlay.desktop
 )
 
 for file in "${DATA_FILES[@]}"; do
@@ -160,10 +162,12 @@ fi
 # --- Remove Files ---
 
 # Kill the overlay daemon before deleting its binary so the old process
-# doesn't keep running with a stale file descriptor.
+# doesn't keep running with a stale file descriptor. pkill -f matches the
+# full command line — killall/pkill without -f truncate to 15 chars
+# (TASK_COMM_LEN) and miss our 24-char name.
 if pgrep -f "schnelle-umlaute-overlay" >/dev/null; then
     echo -e "${BLUE}Stopping overlay daemon...${NC}"
-    killall schnelle-umlaute-overlay 2>/dev/null || true
+    pkill -f "schnelle-umlaute-overlay" 2>/dev/null || true
     sleep 1
 fi
 

@@ -473,24 +473,22 @@ else
 fi
 echo
 
-# --- Start Overlay Daemon ---
+# --- Overlay Daemon ---
 
-# Start the overlay daemon now so the user doesn't have to log out for the
-# cycle overlay to become available. Autostart (/etc/xdg/autostart) will
-# handle it for future sessions.
+# No explicit start here. The overlay daemon's lifecycle is driven by the
+# addon: enabling the overlay in the editor starts it via DBus activation,
+# disabling it sends a Quit. Starting it here unconditionally would leave
+# an idle process behind for users who have the overlay disabled (the
+# default).
 if command -v schnelle-umlaute-overlay >/dev/null 2>&1; then
-    echo -e "${BLUE}Starting overlay daemon...${NC}"
-    setsid schnelle-umlaute-overlay >/dev/null 2>&1 < /dev/null &
-    disown 2>/dev/null || true
-    sleep 1
-    # pgrep -x only matches names up to 15 chars (Linux comm limit) and
-    # "schnelle-umlaute-overlay" is 24, so use -f to match the full
-    # command line instead — otherwise this always reports "not started".
-    if pgrep -f "schnelle-umlaute-overlay" >/dev/null; then
-        echo -e "${GREEN}✓ Overlay daemon running${NC}"
-    else
-        echo -e "${YELLOW}Overlay daemon didn't start — it will launch on next login${NC}"
+    # Make sure any daemon left running from a previous install exits so
+    # the new binary takes over on next activation.
+    if pgrep -f "schnelle-umlaute-overlay" >/dev/null 2>&1; then
+        echo -e "${BLUE}Stopping previous overlay daemon instance...${NC}"
+        pkill -f "schnelle-umlaute-overlay" 2>/dev/null || true
+        sleep 0.5
     fi
+    echo -e "${BLUE}Overlay daemon: starts on demand when enabled in the editor${NC}"
     echo
 fi
 
@@ -529,7 +527,8 @@ echo
 echo -e "${BLUE}Cycle overlay:${NC}"
 echo "   Shows the current variant at the configured screen corner while"
 echo "   you hold the input key. Enable in: schnelle-umlaute-editor →"
-echo "   Settings → Overlay. Autostarts on future logins."
+echo "   Settings → Overlay. The daemon starts on demand when enabled"
+echo "   and stops automatically when disabled."
 echo
 echo -e "${YELLOW}Troubleshooting:${NC}"
 echo "  - Run 'fcitx5-diagnose' to check setup"

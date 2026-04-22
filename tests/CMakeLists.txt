@@ -1,5 +1,9 @@
 find_package(Fcitx5Module REQUIRED COMPONENTS TestFrontend TestIM)
 
+# Extra Qt components only tests need (DBus adaptor headers in
+# OverlayController.h, QSignalSpy for verifying signal emission).
+find_package(Qt${QT_MAJOR_VERSION} REQUIRED COMPONENTS DBus Test)
+
 configure_file(testdir.h.in ${CMAKE_CURRENT_BINARY_DIR}/testdir.h @ONLY)
 
 add_subdirectory(addon)
@@ -45,3 +49,26 @@ target_link_libraries(testmappingmodelio
     Fcitx5::Utils)
 add_test(NAME testmappingmodelio COMMAND testmappingmodelio)
 set_tests_properties(testmappingmodelio PROPERTIES TIMEOUT 10)
+
+# Unit test for decideOverlayLifecycleAction(). Pure header-only logic —
+# no DBus, no Qt, no fcitx5 runtime needed. Guards the rule table that
+# drives the daemon start/stop on enable-flag transitions.
+add_executable(testoverlaylifecycle testoverlaylifecycle.cpp)
+target_include_directories(testoverlaylifecycle PRIVATE ${PROJECT_SOURCE_DIR})
+add_test(NAME testoverlaylifecycle COMMAND testoverlaylifecycle)
+set_tests_properties(testoverlaylifecycle PROPERTIES TIMEOUT 10)
+
+# Unit test for OverlayController state machine. Compiles OverlayController.cpp
+# directly (no LayerShellQt, no QML). Uses QSignalSpy to verify stateChanged
+# emissions and a short exec() loop to confirm quit() reaches QCoreApplication.
+add_executable(testoverlaycontroller
+    testoverlaycontroller.cpp
+    ${PROJECT_SOURCE_DIR}/overlay/OverlayController.cpp)
+set_target_properties(testoverlaycontroller PROPERTIES AUTOMOC ON)
+target_include_directories(testoverlaycontroller PRIVATE ${PROJECT_SOURCE_DIR})
+target_link_libraries(testoverlaycontroller
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Test)
+add_test(NAME testoverlaycontroller COMMAND testoverlaycontroller)
+set_tests_properties(testoverlaycontroller PROPERTIES TIMEOUT 10)

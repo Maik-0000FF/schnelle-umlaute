@@ -3,7 +3,6 @@
 
 #include <QDBusAbstractAdaptor>
 #include <QObject>
-#include <QQmlEngine>
 #include <QStringList>
 
 class OverlayController : public QObject {
@@ -26,6 +25,7 @@ public:
     void show(const QStringList &variants, int currentIndex,
               const QString &position, int cursorX, int cursorY);
     void hide();
+    void quit();
 
     int cursorX() const { return cursorX_; }
     int cursorY() const { return cursorY_; }
@@ -54,6 +54,7 @@ public Q_SLOTS:
     void Show(const QStringList &variants, int currentIndex,
               const QString &position, int cursorX, int cursorY);
     void Hide();
+    void Quit();
 
 private:
     OverlayController *ctrl_;

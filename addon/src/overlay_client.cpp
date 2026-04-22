@@ -41,4 +41,30 @@ void OverlayClient::hide() {
     bus_->flush();
 }
 
+void OverlayClient::start() {
+    // Sends a no-op Hide to the service name. DBus sees the call and, if
+    // the daemon isn't already running, activates it via the .service file.
+    // If the daemon is already running, Hide is idempotent.
+    if (!bus_ || !bus_->isOpen()) return;
+    auto msg = bus_->createMethodCall(kService, kPath, kInterface, "Hide");
+    msg.send();
+    bus_->flush();
+}
+
+void OverlayClient::quit() {
+    if (!bus_ || !bus_->isOpen()) return;
+    auto msg = bus_->createMethodCall(kService, kPath, kInterface, "Quit");
+    msg.send();
+    bus_->flush();
+}
+
+void OverlayClient::applyEnabledTransition(bool enabled) {
+    switch (decideOverlayLifecycleAction(lastEnabled_, enabled)) {
+    case OverlayLifecycleAction::Start: start(); break;
+    case OverlayLifecycleAction::Quit:  quit();  break;
+    case OverlayLifecycleAction::None:  break;
+    }
+    lastEnabled_ = enabled;
+}
+
 } // namespace fcitx

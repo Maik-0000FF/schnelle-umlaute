@@ -655,6 +655,8 @@ private:
                      << "ms, DelayUppercase=" << *config_.delay->uppercase
                      << "ms, Leaders=" << leaders
                      << ", Mappings=" << umlautMap_.size();
+
+        overlayClient_.applyEnabledTransition(*config_.overlay->enabled);
     }
 
     void updateClientPreedit(InputContext *ic, const std::string &text) {
@@ -951,7 +953,9 @@ private:
     // App filter (cached from config). When set to Blacklist/Whitelist,
     // processing is skipped for matching apps based on ic->program().
     AppFilter appFilter_;
-    // DBus client for the standalone overlay daemon.
+    // DBus client for the standalone overlay daemon. Tracks its own
+    // lifecycle — calling applyEnabledTransition() on every config reload
+    // starts or stops the daemon in response to the Enabled flag.
     OverlayClient overlayClient_;
 
     void overlayShow(InputContext *ic,
