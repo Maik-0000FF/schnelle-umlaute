@@ -138,14 +138,6 @@ public:
         }
     }
 
-    std::vector<InputMethodEntry> listInputMethods() override {
-        std::vector<InputMethodEntry> methods;
-        InputMethodEntry entry("schnelle-umlaute", "Schnelle Umlaute", "de", "schnelle-umlaute");
-        entry.setIcon("input-keyboard").setLabel("ä").setConfigurable(false);
-        methods.push_back(std::move(entry));
-        return methods;
-    }
-
     void keyEvent(const InputMethodEntry & /*entry*/, KeyEvent &keyEvent) override {
         auto *ic = keyEvent.inputContext();
 
