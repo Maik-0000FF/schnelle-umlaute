@@ -33,7 +33,6 @@ ApplicationWindow {
         Header {
             Layout.fillWidth: true
             mappingCount: mappings.count
-            onReloadRequested: { mappings.reload(); }
         }
 
         Item {
@@ -230,10 +229,6 @@ ApplicationWindow {
     Shortcut {
         sequence: "Ctrl+2"
         onActivated: tabRow.currentIndex = 1
-    }
-    Shortcut {
-        sequence: "F5"
-        onActivated: mappings.reload()
     }
     Shortcut {
         sequence: "Esc"

@@ -40,7 +40,7 @@ RowLayout {
                 width: 18
                 height: 18
                 radius: 9
-                color: Theme.text
+                color: Theme.switchThumb
                 Behavior on x { NumberAnimation { duration: Theme.animShort } }
             }
         }

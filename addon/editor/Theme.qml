@@ -24,6 +24,7 @@ QtObject {
             warning:      "#fbbf24",
             error:        "#f87171",
             onAccent:     "#ffffff",
+            switchThumb:  "#f0fdf4",
             scrim:        "#99000000"
         },
         "dark": {
@@ -43,6 +44,7 @@ QtObject {
             warning:      "#fbbf24",
             error:        "#f87171",
             onAccent:     "#ffffff",
+            switchThumb:  "#e5e7eb",
             scrim:        "#99000000"
         },
         "light": {
@@ -62,6 +64,7 @@ QtObject {
             warning:      "#d97706",
             error:        "#dc2626",
             onAccent:     "#ffffff",
+            switchThumb:  "#ffffff",
             scrim:        "#66000000"
         },
         "contrast": {
@@ -81,6 +84,7 @@ QtObject {
             warning:      "#ffd60a",
             error:        "#ffd60a",
             onAccent:     "#000000",
+            switchThumb:  "#000000",
             scrim:        "#cc000000"
         }
     })
@@ -103,6 +107,7 @@ QtObject {
     readonly property color warning:      p.warning
     readonly property color error:        p.error
     readonly property color onAccent:     p.onAccent
+    readonly property color switchThumb:  p.switchThumb
     readonly property color scrim:        p.scrim
 
     readonly property string fontFamily:     "Inter"

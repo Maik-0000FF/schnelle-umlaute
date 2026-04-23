@@ -9,7 +9,6 @@ Rectangle {
     implicitHeight: 56
 
     property int mappingCount: 0
-    signal reloadRequested()
 
     RowLayout {
         anchors.fill: parent
@@ -65,25 +64,5 @@ Rectangle {
         }
 
         Item { Layout.fillWidth: true }
-
-        ToolButton {
-            text: "↻"
-            ToolTip.visible: hovered
-            ToolTip.text: qsTr("Reload (F5)")
-            font.pixelSize: 16
-            contentItem: Text {
-                text: parent.text
-                color: parent.hovered ? Theme.accent : Theme.textMuted
-                font.pixelSize: parent.font.pixelSize
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.animShort } }
-            }
-            background: Rectangle {
-                color: parent.hovered ? Theme.surfaceHover : "transparent"
-                radius: Theme.radiusSm
-            }
-            onClicked: root.reloadRequested()
-        }
     }
 }

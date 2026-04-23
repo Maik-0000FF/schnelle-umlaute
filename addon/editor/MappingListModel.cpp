@@ -150,13 +150,6 @@ void MappingListModel::moveMapping(int from, int to) {
     save();
 }
 
-void MappingListModel::reload() {
-    beginResetModel();
-    load();
-    endResetModel();
-    Q_EMIT countChanged();
-}
-
 void MappingListModel::load() {
     entries_.clear();
     QString path = mappingsFilePath();

@@ -69,7 +69,7 @@ ColumnLayout {
                             anchors.centerIn: parent
                             visible: parent.parent.active
                             text: "✓"
-                            color: Theme.onAccent
+                            color: Theme.switchThumb
                             font.pixelSize: 14
                             font.weight: Font.Bold
                         }

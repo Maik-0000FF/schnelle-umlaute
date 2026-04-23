@@ -36,87 +36,54 @@ Item {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.spacingSm
+                        spacing: Theme.spacingMd
 
-                        Repeater {
+                        Text {
+                            text: qsTr("Theme")
+                            color: Theme.text
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 13
+                            Layout.preferredWidth: 120
+                        }
+
+                        ComboBox {
+                            id: themeBox
+                            Layout.fillWidth: true
+                            textRole: "label"
+                            valueRole: "key"
                             model: [
                                 { key: "schnelle-umlaute", label: qsTr("Schnelle Umlaute") },
                                 { key: "dark",             label: qsTr("Dark") },
                                 { key: "light",            label: qsTr("Light") },
                                 { key: "contrast",         label: qsTr("Contrast") }
                             ]
-                            delegate: Rectangle {
-                                required property int index
-                                required property var modelData
-                                readonly property var pal: Theme.palettes[modelData.key]
-                                readonly property bool active:
-                                    root.settingsModel
-                                    && root.settingsModel.theme === modelData.key
-
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 64
-                                radius: Theme.radiusMd
-                                color: active ? Theme.accentSoft
-                                              : (mouse.containsMouse ? Theme.surfaceHover
-                                                                     : Theme.surface)
-                                border.color: active ? Theme.accent : Theme.border
-                                border.width: active ? 2 : 1
-
-                                Behavior on color {
-                                    ColorAnimation { duration: Theme.animShort }
+                            currentIndex: {
+                                if (!root.settingsModel) return 0;
+                                for (var i = 0; i < model.length; ++i) {
+                                    if (model[i].key === root.settingsModel.theme) return i;
                                 }
-                                Behavior on border.color {
-                                    ColorAnimation { duration: Theme.animShort }
+                                return 0;
+                            }
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 13
+                            onActivated: {
+                                if (root.settingsModel) {
+                                    root.settingsModel.theme = model[currentIndex].key;
                                 }
-
-                                ColumnLayout {
-                                    anchors.centerIn: parent
-                                    spacing: Theme.spacingXs
-
-                                    RowLayout {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        spacing: 3
-                                        Rectangle {
-                                            width: 14; height: 14; radius: 3
-                                            color: pal ? pal.background : "transparent"
-                                            border.color: Theme.border
-                                            border.width: 1
-                                        }
-                                        Rectangle {
-                                            width: 14; height: 14; radius: 3
-                                            color: pal ? pal.surface : "transparent"
-                                            border.color: Theme.border
-                                            border.width: 1
-                                        }
-                                        Rectangle {
-                                            width: 14; height: 14; radius: 3
-                                            color: pal ? pal.accent : "transparent"
-                                            border.color: Theme.border
-                                            border.width: 1
-                                        }
-                                    }
-
-                                    Text {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        text: modelData.label
-                                        color: active ? Theme.accent : Theme.text
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: 11
-                                        font.weight: active ? Font.Medium : Font.Normal
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: mouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (root.settingsModel) {
-                                            root.settingsModel.theme = modelData.key;
-                                        }
-                                    }
-                                }
+                            }
+                            contentItem: Text {
+                                text: themeBox.displayText
+                                color: Theme.text
+                                font: themeBox.font
+                                leftPadding: Theme.spacingMd
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                radius: Theme.radiusSm
+                                color: Theme.background
+                                border.color: Theme.border
+                                border.width: 1
+                                implicitHeight: 34
                             }
                         }
                     }
