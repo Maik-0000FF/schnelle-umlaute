@@ -21,6 +21,22 @@ QString configFilePath() {
 QString toBool(bool v) { return v ? QStringLiteral("True") : QStringLiteral("False"); }
 bool fromBool(const QString &s) { return s.compare("True", Qt::CaseInsensitive) == 0; }
 
+// Pre-1.2 used a 3×3 grid; 1.2 moved to 7×3. Map the old names onto the
+// equivalent column so existing configs survive an upgrade without
+// resetting the user's chosen position.
+QString migrateLegacyPosition(const QString &v) {
+    if (v == QLatin1String("TopLeft"))      return QStringLiteral("TopCol1");
+    if (v == QLatin1String("TopCenter"))    return QStringLiteral("TopCol4");
+    if (v == QLatin1String("TopRight"))     return QStringLiteral("TopCol7");
+    if (v == QLatin1String("CenterLeft"))   return QStringLiteral("CenterCol1");
+    if (v == QLatin1String("Center"))       return QStringLiteral("CenterCol4");
+    if (v == QLatin1String("CenterRight"))  return QStringLiteral("CenterCol7");
+    if (v == QLatin1String("BottomLeft"))   return QStringLiteral("BottomCol1");
+    if (v == QLatin1String("BottomCenter")) return QStringLiteral("BottomCol4");
+    if (v == QLatin1String("BottomRight"))  return QStringLiteral("BottomCol7");
+    return v;
+}
+
 } // namespace
 
 SettingsModel::SettingsModel(QObject *parent) : QObject(parent) {
@@ -186,6 +202,11 @@ void SettingsModel::load() {
     QTextStream in(&f);
     QString section;
     QStringList blacklist, whitelist;
+    // Row/Column accumulate across the Overlay section and are joined at
+    // the end. Starting empty lets us detect "file doesn't have them yet"
+    // (legacy Position= keeps overlayPosition_ authoritative) vs "at least
+    // one of the new keys was present" (then Row+Column win).
+    QString loadedOverlayRow, loadedOverlayCol;
     while (!in.atEnd()) {
         QString line = in.readLine().trimmed();
         if (line.isEmpty() || line.startsWith('#')) continue;
@@ -231,13 +252,28 @@ void SettingsModel::load() {
             }
         } else if (section == QLatin1String("Overlay")) {
             if (key == "Enabled") overlayEnabled_ = fromBool(val);
-            else if (key == "Position") overlayPosition_ = val;
+            // Pre-1.2 wrote a combined "Position=TopCenter" key. 1.2 splits
+            // it into Row + Column because FCITX_CONFIG_ENUM caps at 12
+            // values and we need 21 cells. Accept both formats on read so
+            // an upgrade doesn't reset the user's choice.
+            else if (key == "Position") overlayPosition_ = migrateLegacyPosition(val);
+            else if (key == "Row") loadedOverlayRow = val;
+            else if (key == "Column") loadedOverlayCol = val;
         } else if (section == QLatin1String("Theme")) {
             if (key == "Theme" && isValidTheme(val)) theme_ = val;
         }
     }
     blacklist_ = blacklist;
     whitelist_ = whitelist;
+    // Row+Column win over legacy Position= when either is present — the
+    // new keys are what the fcitx5 addon will honor going forward.
+    if (!loadedOverlayRow.isEmpty() || !loadedOverlayCol.isEmpty()) {
+        const QString row = loadedOverlayRow.isEmpty()
+            ? QStringLiteral("Top") : loadedOverlayRow;
+        const QString col = loadedOverlayCol.isEmpty()
+            ? QStringLiteral("Col4") : loadedOverlayCol;
+        overlayPosition_ = row + col;
+    }
 
     Q_EMIT delayLowercaseChanged();
     Q_EMIT delayUppercaseChanged();
@@ -318,8 +354,15 @@ void SettingsModel::save() {
     out << "\n[Overlay]\n";
     out << "# Show overlay while cycling\n"
         << "Enabled=" << toBool(overlayEnabled_) << "\n";
-    out << "# Position on screen\n"
-        << "Position=" << overlayPosition_ << "\n";
+    // Split "TopCol4" into Row=Top + Column=Col4 for the fcitx5 config
+    // schema, which represents each as a small enum (capped at 12 values).
+    const int splitAt = overlayPosition_.indexOf(QLatin1String("Col"));
+    const QString row = splitAt > 0
+        ? overlayPosition_.left(splitAt) : QStringLiteral("Top");
+    const QString col = splitAt > 0
+        ? overlayPosition_.mid(splitAt) : QStringLiteral("Col4");
+    out << "# Vertical position\n" << "Row=" << row << "\n";
+    out << "# Horizontal position\n" << "Column=" << col << "\n";
     out << "\n[Theme]\n";
     out << "# UI theme (schnelle-umlaute|dark|light|contrast)\n"
         << "Theme=" << theme_ << "\n";

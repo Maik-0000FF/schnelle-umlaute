@@ -128,17 +128,24 @@ Type=Boolean
 DefaultValue=False
 Description=Show overlay while cycling
 
-[Overlay/Position]
+[Overlay/Row]
 Type=Enum
-DefaultValue=TopCenter
-Description=Position on screen
-EnumCount=9
-Enum0=TopLeft
-Enum1=TopCenter
-Enum2=TopRight
-Enum3=CenterLeft
-Enum4=Center
-Enum5=CenterRight
-Enum6=BottomLeft
-Enum7=BottomCenter
-Enum8=BottomRight
+DefaultValue=Top
+Description=Vertical position
+EnumCount=3
+Enum0=Top
+Enum1=Center
+Enum2=Bottom
+
+[Overlay/Column]
+Type=Enum
+DefaultValue=Col4
+Description=Horizontal position (Col1=far left, Col4=center, Col7=far right)
+EnumCount=7
+Enum0=Col1
+Enum1=Col2
+Enum2=Col3
+Enum3=Col4
+Enum4=Col5
+Enum5=Col6
+Enum6=Col7

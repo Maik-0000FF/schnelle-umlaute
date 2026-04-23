@@ -8,19 +8,21 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: Theme.spacingSm
 
-    property string value: "TopCenter"
+    property string value: "TopCol4"
     signal edited(string newValue)
 
-    readonly property var positions: [
-        ["TopLeft",    "TopCenter",    "TopRight"],
-        ["CenterLeft", "Center",       "CenterRight"],
-        ["BottomLeft", "BottomCenter", "BottomRight"]
-    ]
+    readonly property int cols: 7
+    readonly property int rows: 3
+    readonly property var rowPrefixes: ["Top", "Center", "Bottom"]
+
+    function positionFor(r, c) {
+        return root.rowPrefixes[r] + "Col" + (c + 1)
+    }
 
     Rectangle {
         Layout.alignment: Qt.AlignHCenter
-        width: 280
-        height: 170
+        width: 420
+        height: 180
         radius: Theme.radiusMd
         color: Theme.background
         border.color: Theme.border
@@ -29,40 +31,31 @@ ColumnLayout {
         GridLayout {
             anchors.fill: parent
             anchors.margins: Theme.spacingMd
-            columns: 3
-            rows: 3
+            columns: root.cols
+            rows: root.rows
             columnSpacing: 0
             rowSpacing: 0
 
             Repeater {
-                model: 9
+                model: root.cols * root.rows
                 delegate: Item {
                     required property int index
-                    readonly property int r: Math.floor(index / 3)
-                    readonly property int c: index % 3
-                    readonly property string pos: root.positions[r][c]
+                    readonly property int r: Math.floor(index / root.cols)
+                    readonly property int c: index % root.cols
+                    readonly property string pos: root.positionFor(r, c)
                     readonly property bool active: root.value === pos
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    // Every cell centers its square — this produces even
+                    // gaps across the 7×3 grid. Earlier versions docked
+                    // the outer cells to the frame edge, which worked at
+                    // 3×3 but made 7-column gaps visibly uneven.
                     Rectangle {
                         width: 34
                         height: 34
                         radius: Theme.radiusSm
-                        anchors.horizontalCenter: {
-                            if (parent.c === 0) return undefined
-                            if (parent.c === 2) return undefined
-                            return parent.horizontalCenter
-                        }
-                        anchors.verticalCenter: {
-                            if (parent.r === 0) return undefined
-                            if (parent.r === 2) return undefined
-                            return parent.verticalCenter
-                        }
-                        anchors.left: parent.c === 0 ? parent.left : undefined
-                        anchors.right: parent.c === 2 ? parent.right : undefined
-                        anchors.top: parent.r === 0 ? parent.top : undefined
-                        anchors.bottom: parent.r === 2 ? parent.bottom : undefined
+                        anchors.centerIn: parent
 
                         color: parent.active
                             ? Theme.accent

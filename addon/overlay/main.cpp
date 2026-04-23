@@ -9,6 +9,7 @@
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QWindow>
+#include <algorithm>
 #include <memory>
 
 #include <LayerShellQt/Shell>
@@ -54,34 +55,69 @@ struct Anchored {
     QMargins margins;
 };
 
-Anchored anchorsFor(const QString &position) {
-    if (position == QLatin1String("TopLeft"))
-        return {LSWindow::Anchors(LSWindow::AnchorTop) | LSWindow::AnchorLeft,
-                {kEdgeMargin, kEdgeMargin, 0, 0}};
-    if (position == QLatin1String("TopCenter"))
-        return {LSWindow::Anchors(LSWindow::AnchorTop),
-                {0, kEdgeMargin, 0, 0}};
-    if (position == QLatin1String("TopRight"))
-        return {LSWindow::Anchors(LSWindow::AnchorTop) | LSWindow::AnchorRight,
-                {0, kEdgeMargin, kEdgeMargin, 0}};
-    if (position == QLatin1String("CenterLeft"))
-        return {LSWindow::Anchors(LSWindow::AnchorLeft),
-                {kEdgeMargin, 0, 0, 0}};
-    if (position == QLatin1String("Center"))
+// Pre-1.2 used a 3×3 grid; 1.2 moved to 7×3. Map the old names onto
+// the equivalent column so legacy DBus callers and older configs keep
+// working.
+QString canonicalizePosition(const QString &v) {
+    if (v == QLatin1String("TopLeft"))      return QStringLiteral("TopCol1");
+    if (v == QLatin1String("TopCenter"))    return QStringLiteral("TopCol4");
+    if (v == QLatin1String("TopRight"))     return QStringLiteral("TopCol7");
+    if (v == QLatin1String("CenterLeft"))   return QStringLiteral("CenterCol1");
+    if (v == QLatin1String("Center"))       return QStringLiteral("CenterCol4");
+    if (v == QLatin1String("CenterRight"))  return QStringLiteral("CenterCol7");
+    if (v == QLatin1String("BottomLeft"))   return QStringLiteral("BottomCol1");
+    if (v == QLatin1String("BottomCenter")) return QStringLiteral("BottomCol4");
+    if (v == QLatin1String("BottomRight"))  return QStringLiteral("BottomCol7");
+    return v;
+}
+
+bool parsePosition(const QString &pos, int &row, int &col) {
+    int prefixLen = 0;
+    if (pos.startsWith(QLatin1String("TopCol")))         { row = 0; prefixLen = 6; }
+    else if (pos.startsWith(QLatin1String("CenterCol"))) { row = 1; prefixLen = 9; }
+    else if (pos.startsWith(QLatin1String("BottomCol"))) { row = 2; prefixLen = 9; }
+    else return false;
+
+    bool ok = false;
+    const int n = pos.mid(prefixLen).toInt(&ok);
+    if (!ok || n < 1 || n > 7) return false;
+    col = n - 1;
+    return true;
+}
+
+// 7-column × 3-row grid on the active output. Col 1/7 hug the edges
+// (screen-agnostic, same as the old TopLeft/TopRight). Col 4 stays
+// compositor-centered (no horizontal anchor). Col 2/3/5/6 are placed
+// proportionally: column c (0-indexed) is centered at ((2c+1)/14) of
+// the screen width, which gives three evenly-spaced stops per half on
+// a split 4K screen without shifting the fullscreen center.
+Anchored anchorsFor(const QString &position, int screenWidth,
+                    int overlayWidth) {
+    int row = 0, col = 0;
+    if (!parsePosition(canonicalizePosition(position), row, col)) {
         return {{}, {}};
-    if (position == QLatin1String("CenterRight"))
-        return {LSWindow::Anchors(LSWindow::AnchorRight),
-                {0, 0, kEdgeMargin, 0}};
-    if (position == QLatin1String("BottomLeft"))
-        return {LSWindow::Anchors(LSWindow::AnchorBottom) | LSWindow::AnchorLeft,
-                {kEdgeMargin, 0, 0, kEdgeMargin}};
-    if (position == QLatin1String("BottomCenter"))
-        return {LSWindow::Anchors(LSWindow::AnchorBottom),
-                {0, 0, 0, kEdgeMargin}};
-    if (position == QLatin1String("BottomRight"))
-        return {LSWindow::Anchors(LSWindow::AnchorBottom) | LSWindow::AnchorRight,
-                {0, 0, kEdgeMargin, kEdgeMargin}};
-    return {{}, {}};
+    }
+
+    LSWindow::Anchors a;
+    int top = 0, bottom = 0, left = 0, right = 0;
+
+    if (row == 0)      { a |= LSWindow::AnchorTop;    top = kEdgeMargin; }
+    else if (row == 2) { a |= LSWindow::AnchorBottom; bottom = kEdgeMargin; }
+
+    if (col == 0)      { a |= LSWindow::AnchorLeft;  left = kEdgeMargin; }
+    else if (col == 6) { a |= LSWindow::AnchorRight; right = kEdgeMargin; }
+    else if (col == 3) { /* no horizontal anchor → screen-centered */ }
+    else if (col < 3) {
+        const int center = screenWidth * (2 * col + 1) / 14;
+        a |= LSWindow::AnchorLeft;
+        left = std::max(kEdgeMargin, center - overlayWidth / 2);
+    } else {
+        const int centerFromRight = screenWidth * (13 - 2 * col) / 14;
+        a |= LSWindow::AnchorRight;
+        right = std::max(kEdgeMargin, centerFromRight - overlayWidth / 2);
+    }
+
+    return {a, QMargins(left, top, right, bottom)};
 }
 
 // Rebuilds the QML window only when the overlay position changes. Wayland
@@ -153,7 +189,18 @@ private:
         // but keeps the overlay functional on older distros.
         if (auto *scr = QGuiApplication::primaryScreen()) qwin->setScreen(scr);
 #endif
-        const auto a = anchorsFor(ctrl_->position());
+        // Col 2/3/5/6 need the screen width (to place the overlay at a
+        // fraction of it) and the overlay's own width (to subtract half
+        // so the anchored margin lands the *center* of the overlay on
+        // the target fraction, not its leading edge). Col 1/4/7 don't
+        // use these values, so inaccurate fallbacks are harmless.
+        QScreen *targetScreen = qwin->screen();
+        if (!targetScreen) targetScreen = QGuiApplication::primaryScreen();
+        const int screenWidth =
+            targetScreen ? targetScreen->geometry().width() : 1920;
+        const int overlayWidth = qwin->width() > 0 ? qwin->width() : 200;
+        const auto a =
+            anchorsFor(ctrl_->position(), screenWidth, overlayWidth);
         ls->setAnchors(a.anchors);
         ls->setMargins(a.margins);
         // Layer-shell props must be set before the first commit. Now that

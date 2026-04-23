@@ -962,8 +962,11 @@ private:
                      const std::vector<std::string> &variants, int index) {
         if (!*config_.overlay->enabled) return;
         (void)ic;
-        overlayClient_.show(variants, index,
-                            OverlayPositionToString(*config_.overlay->position));
+        // Combine the two enum halves into the single "<Row><Col>" string
+        // the overlay daemon expects (e.g. "TopCol4", "CenterCol7").
+        std::string position = OverlayRowToString(*config_.overlay->row);
+        position += OverlayColumnToString(*config_.overlay->column);
+        overlayClient_.show(variants, index, position);
     }
     void overlayHide() {
         if (!*config_.overlay->enabled) return;

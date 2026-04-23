@@ -152,7 +152,7 @@ private:
     QStringList blacklist_;
     QStringList whitelist_;
     bool overlayEnabled_ = false;
-    QString overlayPosition_ = "TopCenter";
+    QString overlayPosition_ = "TopCol4";
     QString theme_ = "schnelle-umlaute";
     bool layerShellAvailable_ = false;
     QString layerShellSession_;

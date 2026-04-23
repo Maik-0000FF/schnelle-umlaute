@@ -117,15 +117,23 @@ FCITX_CONFIGURATION(
         this, "Whitelist", "Whitelist", {}};
 );
 
-FCITX_CONFIG_ENUM(OverlayPosition, TopLeft, TopCenter, TopRight,
-                  CenterLeft, Center, CenterRight,
-                  BottomLeft, BottomCenter, BottomRight);
+// 7-column × 3-row grid. 7 columns (odd count) keeps a true center
+// column for fullscreen use while giving three stops per half on a 4K
+// split-screen. Col1 = far left (screen-edge anchor), Col4 = center,
+// Col7 = far right. Col2/3/5/6 are placed proportionally by the overlay
+// daemon using the active screen width. Split into two enums because
+// FCITX_CONFIG_ENUM caps at 12 values (FCITX_FOR_EACH limit).
+FCITX_CONFIG_ENUM(OverlayRow, Top, Center, Bottom);
+FCITX_CONFIG_ENUM(OverlayColumn,
+                  Col1, Col2, Col3, Col4, Col5, Col6, Col7);
 
 FCITX_CONFIGURATION(
     OverlayConfig,
     Option<bool> enabled{this, "Enabled", "Enabled", false};
-    Option<OverlayPosition> position{this, "Position", "Position",
-                                     OverlayPosition::TopCenter};
+    Option<OverlayRow> row{this, "Row", "Vertical position",
+                           OverlayRow::Top};
+    Option<OverlayColumn> column{this, "Column", "Horizontal position",
+                                 OverlayColumn::Col4};
 );
 
 FCITX_CONFIGURATION(
