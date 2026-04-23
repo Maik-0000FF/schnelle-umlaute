@@ -149,13 +149,13 @@ case "$DISTRO" in
         DEPS=(fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4
               fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev qt6-base-dev
               libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext
-              qt6-declarative-dev qt6-quickcontrols2 liblayershellqtinterface-dev)
+              qt6-declarative-dev qml6-module-qtquick-controls liblayershellqtinterface-dev)
         ;;
     fedora)
         DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
               fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel
               cmake extra-cmake-modules gcc-c++ gettext
-              qt6-qtdeclarative-devel qt6-qtquickcontrols2-devel layer-shell-qt-devel)
+              qt6-qtdeclarative-devel layer-shell-qt-devel)
         ;;
     suse)
         DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
