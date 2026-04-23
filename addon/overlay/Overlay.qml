@@ -15,6 +15,33 @@ Window {
     // show() once the surface role is fully set up.
     visible: false
 
+    // Count Unicode codepoints, not UTF-16 code units. Without this,
+    // surrogate-pair emojis (😊 et al.) report length 2 and fall into
+    // the multi-char size bucket even though they render as one glyph.
+    // Array.from + .length is not reliable in QML's V4 JS engine — it
+    // counts code units for astral characters, so we skip low
+    // surrogates explicitly.
+    function codepointCount(s) {
+        if (!s) return 0
+        let n = 0
+        for (let i = 0; i < s.length; i++) {
+            const c = s.charCodeAt(i)
+            if (c >= 0xDC00 && c <= 0xDFFF) continue
+            n++
+        }
+        return n
+    }
+
+    // Emoji-range check on the first codepoint. Color-emoji fonts
+    // occupy a smaller fraction of the em-box than JetBrains Mono at
+    // the same pixelSize, so we bump pixelSize for emoji variants to
+    // keep them visually on par with single-letter variants.
+    function isEmoji(s) {
+        if (!s) return false
+        const cp = s.codePointAt(0)
+        return cp >= 0x1F000
+    }
+
     Rectangle {
         id: frame
         anchors.fill: parent
@@ -50,7 +77,10 @@ Window {
                         text: modelData
                         color: active ? "#08060f" : "#f0fdf4"
                         font.family: "JetBrains Mono"
-                        font.pixelSize: modelData.length > 1 ? 16 : 20
+                        font.pixelSize: {
+                            if (win.codepointCount(modelData) > 1) return 16
+                            return win.isEmoji(modelData) ? 24 : 20
+                        }
                         font.weight: Font.Medium
                     }
                 }
