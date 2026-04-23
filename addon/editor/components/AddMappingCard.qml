@@ -17,11 +17,21 @@ Rectangle {
 
     function focusInput() { inputField.forceActiveFocus(); }
 
+    // isActiveLeaderKey is a method call — bump a tick when leaders change
+    // and reference it in the binding to force re-evaluation.
+    property int leadersTick: 0
+    Connections {
+        target: root.settingsModel
+        function onLeadersChanged() { root.leadersTick++; }
+    }
+
     readonly property string inputError:
         modelRef ? modelRef.inputErrorFor(inputField.text) : ""
-    readonly property bool leaderConflict:
-        inputField.text.length > 0 && settingsModel &&
-        settingsModel.isActiveLeaderKey(inputField.text)
+    readonly property bool leaderConflict: {
+        leadersTick; // establish dependency
+        return inputField.text.length > 0 && settingsModel &&
+            settingsModel.isActiveLeaderKey(inputField.text);
+    }
     readonly property bool outputValid:
         modelRef && outputField.text.length > 0 &&
         modelRef.validateOutput(outputField.text)

@@ -33,13 +33,24 @@ Rectangle {
         }
     }
 
+    // isActiveLeaderKey / inputErrorFor are method calls — QML can't track the
+    // state behind them, so bump a tick when leaders change and reference it
+    // in the conflict binding to force re-evaluation.
+    property int leadersTick: 0
+    Connections {
+        target: root.settingsModel
+        function onLeadersChanged() { root.leadersTick++; }
+    }
+
     readonly property string editInputError:
         modelRef && editing
             ? modelRef.inputErrorFor(inputEdit.text, rowIndex)
             : ""
-    readonly property bool editLeaderConflict:
-        editing && inputEdit.text.length > 0 && settingsModel &&
-        settingsModel.isActiveLeaderKey(inputEdit.text)
+    readonly property bool editLeaderConflict: {
+        leadersTick; // establish dependency
+        return editing && inputEdit.text.length > 0 && settingsModel &&
+            settingsModel.isActiveLeaderKey(inputEdit.text);
+    }
     readonly property bool editOutputInvalid:
         editing && (outputEdit.text.length === 0 ||
                     !modelRef.validateOutput(outputEdit.text))

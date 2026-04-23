@@ -18,10 +18,25 @@ ColumnLayout {
 
     readonly property bool invalidChar:
         keyValue.length > 0 && !isValidSingleChar(keyValue)
-    readonly property bool conflictsWithMapping:
-        keyValue.length > 0 && mappingsModel &&
-        isValidSingleChar(keyValue) &&
-        mappingsModel.inputErrorFor(keyValue, -1).indexOf("already") >= 0
+
+    // inputErrorFor reads model state that QML can't track through a method
+    // call, so bump this tick whenever the mapping model changes and reference
+    // it in conflictsWithMapping to force re-evaluation.
+    property int mappingTick: 0
+    Connections {
+        target: root.mappingsModel
+        function onRowsInserted() { root.mappingTick++; }
+        function onRowsRemoved() { root.mappingTick++; }
+        function onDataChanged() { root.mappingTick++; }
+        function onModelReset() { root.mappingTick++; }
+    }
+
+    readonly property bool conflictsWithMapping: {
+        mappingTick; // establish dependency
+        return keyValue.length > 0 && mappingsModel &&
+            isValidSingleChar(keyValue) &&
+            mappingsModel.inputErrorFor(keyValue, -1).indexOf("already") >= 0;
+    }
 
     function isValidSingleChar(s) {
         if (!s || s.length === 0) return false;

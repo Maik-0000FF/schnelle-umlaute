@@ -44,6 +44,30 @@ SettingsModel::SettingsModel(QObject *parent) : QObject(parent) {
     layerShellAvailable_ = cap.supported;
     layerShellSession_ = QString::fromStdString(cap.session);
     layerShellReason_ = QString::fromStdString(cap.reason);
+
+    // Forward all leader-related changes to a single umbrella signal so QML
+    // can refresh isActiveLeaderKey-based bindings with one Connections hook.
+    connect(this, &SettingsModel::leaderSpaceChanged,
+            this, &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderLeftChanged,
+            this, &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderRightChanged,
+            this, &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderUpChanged,
+            this, &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderDownChanged,
+            this, &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderAltChanged,
+            this, &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::customKey1EnabledChanged,
+            this, &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::customKey1Changed,
+            this, &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::customKey2EnabledChanged,
+            this, &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::customKey2Changed,
+            this, &SettingsModel::leadersChanged);
+
     load();
 }
 

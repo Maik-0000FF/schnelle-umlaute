@@ -123,6 +123,7 @@ Q_SIGNALS:
     void customKey1Changed();
     void customKey2EnabledChanged();
     void customKey2Changed();
+    void leadersChanged();
     void appFilterModeChanged();
     void blacklistChanged();
     void whitelistChanged();
