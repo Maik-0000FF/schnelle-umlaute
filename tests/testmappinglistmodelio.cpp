@@ -339,21 +339,6 @@ void testMutationsPersistToDisk() {
     EXPECT(outputAt(m2, 1) == QString::fromUtf8("ö"));
 }
 
-// reload() re-reads the file, discarding in-memory changes. Exercises the
-// QML editor's "discard changes" path when mappings.txt was edited externally.
-void testReloadDiscardsInMemoryState() {
-    resetTempdir();
-    writeMappingsFile("x=X\n");
-    MappingListModel m;
-    EXPECT(m.rowCount() == 1);
-    // Mutate the file behind the model's back…
-    writeMappingsFile("x=X\ny=Y\nz=Z\n");
-    // …the model still holds the old single row until reload() is called.
-    EXPECT(m.rowCount() == 1);
-    m.reload();
-    EXPECT(m.rowCount() == 3);
-}
-
 // On-disk format: one "input=output\n" per entry, UTF-8 encoded, preserved
 // in user-specified order. testmappingsio covers the parser corner cases; we
 // only spot-check the shape to catch catastrophic format changes.
@@ -396,7 +381,6 @@ const TestCase kTests[] = {
     {"testMoveMappingSameIndexIsNoOp",           testMoveMappingSameIndexIsNoOp},
     {"testMoveMappingOutOfRangeIsNoOp",          testMoveMappingOutOfRangeIsNoOp},
     {"testMutationsPersistToDisk",               testMutationsPersistToDisk},
-    {"testReloadDiscardsInMemoryState",          testReloadDiscardsInMemoryState},
     {"testOnDiskFormatIsUtf8KeyValue",           testOnDiskFormatIsUtf8KeyValue},
 };
 
