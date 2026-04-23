@@ -121,6 +121,23 @@ void SettingsModel::setOverlayPosition(const QString &v) {
     Q_EMIT overlayPositionChanged();
     save();
 }
+void SettingsModel::setTheme(const QString &v) {
+    if (!isValidTheme(v) || theme_ == v) return;
+    theme_ = v;
+    Q_EMIT themeChanged();
+    save();
+    // Push to the overlay daemon so it switches palette immediately. The
+    // client skips the call if the daemon isn't running — we don't want a
+    // theme change to spawn it for users who never enabled the overlay.
+    overlayClient_.sendTheme(theme_);
+}
+
+bool SettingsModel::isValidTheme(const QString &name) {
+    return name == QLatin1String("schnelle-umlaute")
+        || name == QLatin1String("dark")
+        || name == QLatin1String("light")
+        || name == QLatin1String("contrast");
+}
 
 void SettingsModel::addBlacklistEntry(const QString &entry) {
     auto trimmed = entry.trimmed();
@@ -215,6 +232,8 @@ void SettingsModel::load() {
         } else if (section == QLatin1String("Overlay")) {
             if (key == "Enabled") overlayEnabled_ = fromBool(val);
             else if (key == "Position") overlayPosition_ = val;
+        } else if (section == QLatin1String("Theme")) {
+            if (key == "Theme" && isValidTheme(val)) theme_ = val;
         }
     }
     blacklist_ = blacklist;
@@ -237,6 +256,7 @@ void SettingsModel::load() {
     Q_EMIT whitelistChanged();
     Q_EMIT overlayEnabledChanged();
     Q_EMIT overlayPositionChanged();
+    Q_EMIT themeChanged();
 }
 
 void SettingsModel::save() {
@@ -300,6 +320,9 @@ void SettingsModel::save() {
         << "Enabled=" << toBool(overlayEnabled_) << "\n";
     out << "# Position on screen\n"
         << "Position=" << overlayPosition_ << "\n";
+    out << "\n[Theme]\n";
+    out << "# UI theme (schnelle-umlaute|dark|light|contrast)\n"
+        << "Theme=" << theme_ << "\n";
     out.flush();
     f.commit();
     reloadFcitx();

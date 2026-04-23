@@ -80,3 +80,17 @@ target_link_libraries(testoverlaycontroller
     Qt${QT_MAJOR_VERSION}::Test)
 add_test(NAME testoverlaycontroller COMMAND testoverlaycontroller)
 set_tests_properties(testoverlaycontroller PROPERTIES TIMEOUT 10)
+
+# Unit test for OverlayController theme state. Verifies the validator and
+# the themeChanged signal the overlay QML bindings depend on.
+add_executable(testoverlaytheme
+    testoverlaytheme.cpp
+    ${PROJECT_SOURCE_DIR}/overlay/OverlayController.cpp)
+set_target_properties(testoverlaytheme PROPERTIES AUTOMOC ON)
+target_include_directories(testoverlaytheme PRIVATE ${PROJECT_SOURCE_DIR})
+target_link_libraries(testoverlaytheme
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Test)
+add_test(NAME testoverlaytheme COMMAND testoverlaytheme)
+set_tests_properties(testoverlaytheme PROPERTIES TIMEOUT 10)

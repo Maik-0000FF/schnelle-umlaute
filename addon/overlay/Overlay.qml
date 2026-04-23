@@ -15,6 +15,38 @@ Window {
     // show() once the surface role is fully set up.
     visible: false
 
+    // Palettes mirror addon/editor/Theme.qml. Inlined because the overlay
+    // lives in its own QML module and process — sharing a singleton would
+    // cost more build plumbing than the 4 small dicts are worth.
+    readonly property var palettes: ({
+        "schnelle-umlaute": {
+            frame: "#ee12101d", border: "#2a2640",
+            cellInactive: "#1a1728", cellInactiveBorder: "#2a2640",
+            cellActive: "#4ade80", cellActiveBorder: "#4ade80",
+            textInactive: "#f0fdf4", textActive: "#08060f"
+        },
+        "dark": {
+            frame: "#ee181b22", border: "#2a2f3a",
+            cellInactive: "#232832", cellInactiveBorder: "#2a2f3a",
+            cellActive: "#60a5fa", cellActiveBorder: "#60a5fa",
+            textInactive: "#e5e7eb", textActive: "#0f1115"
+        },
+        "light": {
+            frame: "#f2ffffff", border: "#d4d4d8",
+            cellInactive: "#f4f4f5", cellInactiveBorder: "#d4d4d8",
+            cellActive: "#7c3aed", cellActiveBorder: "#7c3aed",
+            textInactive: "#0f172a", textActive: "#ffffff"
+        },
+        "contrast": {
+            frame: "#f0000000", border: "#ffffff",
+            cellInactive: "#0a0a0a", cellInactiveBorder: "#ffffff",
+            cellActive: "#ffd60a", cellActiveBorder: "#ffd60a",
+            textInactive: "#ffffff", textActive: "#000000"
+        }
+    })
+    readonly property var p: palettes[OverlayController.theme]
+                             || palettes["schnelle-umlaute"]
+
     // Count Unicode codepoints, not UTF-16 code units. Without this,
     // surrogate-pair emojis (😊 et al.) report length 2 and fall into
     // the multi-char size bucket even though they render as one glyph.
@@ -45,12 +77,15 @@ Window {
     Rectangle {
         id: frame
         anchors.fill: parent
-        color: "#ee12101d"
+        color: win.p.frame
         radius: 16
-        border.color: "#2a2640"
+        border.color: win.p.border
         border.width: 1
         implicitWidth: row.implicitWidth + 32
         implicitHeight: 64
+
+        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on border.color { ColorAnimation { duration: 120 } }
 
         RowLayout {
             id: row
@@ -66,22 +101,25 @@ Window {
                     width: 44
                     height: 44
                     radius: 10
-                    color: active ? "#4ade80" : "#1a1728"
-                    border.color: active ? "#4ade80" : "#2a2640"
+                    color: active ? win.p.cellActive : win.p.cellInactive
+                    border.color: active ? win.p.cellActiveBorder : win.p.cellInactiveBorder
                     border.width: 1
 
                     Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on border.color { ColorAnimation { duration: 120 } }
 
                     Text {
                         anchors.centerIn: parent
                         text: modelData
-                        color: active ? "#08060f" : "#f0fdf4"
+                        color: active ? win.p.textActive : win.p.textInactive
                         font.family: "JetBrains Mono"
                         font.pixelSize: {
                             if (win.codepointCount(modelData) > 1) return 16
                             return win.isEmoji(modelData) ? 24 : 20
                         }
                         font.weight: Font.Medium
+
+                        Behavior on color { ColorAnimation { duration: 120 } }
                     }
                 }
             }

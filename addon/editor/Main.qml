@@ -19,7 +19,12 @@ ApplicationWindow {
         onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
     }
 
-    SettingsModel { id: settings }
+    SettingsModel {
+        id: settings
+        onThemeChanged: Theme.setCurrent(theme)
+    }
+
+    Component.onCompleted: Theme.setCurrent(settings.theme)
 
     ColumnLayout {
         anchors.fill: parent

@@ -25,7 +25,7 @@ Popup {
     }
 
     Overlay.modal: Rectangle {
-        color: "#99000000"
+        color: Theme.scrim
     }
 
     contentItem: ColumnLayout {
@@ -90,7 +90,7 @@ Popup {
                 implicitHeight: 34
                 contentItem: Text {
                     text: confirmBtn.text
-                    color: "#ffffff"
+                    color: Theme.onAccent
                     font.family: Theme.fontFamily
                     font.pixelSize: 13
                     font.weight: Font.Medium

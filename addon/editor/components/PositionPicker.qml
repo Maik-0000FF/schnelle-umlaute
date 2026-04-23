@@ -76,7 +76,7 @@ ColumnLayout {
                             anchors.centerIn: parent
                             visible: parent.parent.active
                             text: "✓"
-                            color: "#ffffff"
+                            color: Theme.onAccent
                             font.pixelSize: 14
                             font.weight: Font.Bold
                         }

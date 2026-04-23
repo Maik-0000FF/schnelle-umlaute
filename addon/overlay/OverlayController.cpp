@@ -2,6 +2,8 @@
 
 #include <QCoreApplication>
 
+#include <cstdio>
+
 OverlayController::OverlayController(QObject *parent) : QObject(parent) {}
 
 void OverlayController::show(const QStringList &variants, int currentIndex,
@@ -26,6 +28,25 @@ void OverlayController::quit() {
                               Qt::QueuedConnection);
 }
 
+void OverlayController::setTheme(const QString &theme) {
+    if (!isValidTheme(theme)) {
+        std::fprintf(stderr,
+                     "schnelle-umlaute-overlay: ignoring invalid theme '%s'\n",
+                     theme.toUtf8().constData());
+        return;
+    }
+    if (theme_ == theme) return;
+    theme_ = theme;
+    Q_EMIT themeChanged();
+}
+
+bool OverlayController::isValidTheme(const QString &name) {
+    return name == QLatin1String("schnelle-umlaute")
+        || name == QLatin1String("dark")
+        || name == QLatin1String("light")
+        || name == QLatin1String("contrast");
+}
+
 OverlayDBusAdaptor::OverlayDBusAdaptor(OverlayController *ctrl)
     : QDBusAbstractAdaptor(ctrl), ctrl_(ctrl) {}
 
@@ -37,3 +58,7 @@ void OverlayDBusAdaptor::Show(const QStringList &variants, int currentIndex,
 void OverlayDBusAdaptor::Hide() { ctrl_->hide(); }
 
 void OverlayDBusAdaptor::Quit() { ctrl_->quit(); }
+
+void OverlayDBusAdaptor::SetTheme(const QString &theme) {
+    ctrl_->setTheme(theme);
+}

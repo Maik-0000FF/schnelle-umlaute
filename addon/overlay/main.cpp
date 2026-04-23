@@ -1,10 +1,13 @@
 #include <QDBusConnection>
+#include <QFile>
 #include <QGuiApplication>
 #include <QMargins>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QScreen>
+#include <QStandardPaths>
+#include <QTextStream>
 #include <QWindow>
 #include <memory>
 
@@ -18,6 +21,33 @@ namespace {
 using LSWindow = LayerShellQt::Window;
 
 constexpr int kEdgeMargin = 24;
+
+// Reads the Theme= key from the editor's config file so the overlay
+// starts with the user's chosen palette instead of flashing the default
+// one for the first cycle. Absent/malformed file → default theme.
+QString loadInitialTheme() {
+    const QString base =
+        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    QFile f(base + QStringLiteral("/fcitx5/conf/schnelle-umlaute.conf"));
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return {};
+    QTextStream in(&f);
+    QString section;
+    while (!in.atEnd()) {
+        const QString line = in.readLine().trimmed();
+        if (line.isEmpty() || line.startsWith('#')) continue;
+        if (line.startsWith('[') && line.endsWith(']')) {
+            section = line.mid(1, line.size() - 2);
+            continue;
+        }
+        if (section != QLatin1String("Theme")) continue;
+        const int eq = line.indexOf('=');
+        if (eq < 0) continue;
+        if (line.left(eq) == QLatin1String("Theme")) {
+            return line.mid(eq + 1).trimmed();
+        }
+    }
+    return {};
+}
 
 struct Anchored {
     LSWindow::Anchors anchors;
@@ -161,6 +191,8 @@ int main(int argc, char *argv[]) {
     QGuiApplication::setQuitOnLastWindowClosed(false);
 
     auto *ctrl = new OverlayController(&app);
+    const QString initialTheme = loadInitialTheme();
+    if (!initialTheme.isEmpty()) ctrl->setTheme(initialTheme);
     new OverlayDBusAdaptor(ctrl);
     new OverlayRenderer(ctrl);
 

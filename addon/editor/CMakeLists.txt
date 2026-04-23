@@ -11,6 +11,7 @@ endif()
 set(EDITOR_SRCS
     main.cpp
     MappingListModel.cpp
+    OverlayDBusClient.cpp
     SettingsModel.cpp
 )
 

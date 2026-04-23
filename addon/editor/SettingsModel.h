@@ -6,6 +6,8 @@
 #include <QString>
 #include <QStringList>
 
+#include "OverlayDBusClient.h"
+
 class SettingsModel : public QObject {
     Q_OBJECT
     QML_ELEMENT
@@ -47,6 +49,8 @@ class SettingsModel : public QObject {
     Q_PROPERTY(QString overlayPosition READ overlayPosition
                    WRITE setOverlayPosition NOTIFY overlayPositionChanged)
 
+    Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
+
     // Compositor capability for wlr-layer-shell. Sampled once at
     // construction from XDG_SESSION_TYPE / XDG_CURRENT_DESKTOP. Drives
     // whether the overlay toggle is shown as enabled in the UI.
@@ -74,6 +78,7 @@ public:
     QStringList whitelist() const { return whitelist_; }
     bool overlayEnabled() const { return overlayEnabled_; }
     QString overlayPosition() const { return overlayPosition_; }
+    QString theme() const { return theme_; }
     bool layerShellAvailable() const { return layerShellAvailable_; }
     QString layerShellSession() const { return layerShellSession_; }
     QString layerShellReason() const { return layerShellReason_; }
@@ -93,6 +98,9 @@ public:
     void setAppFilterMode(const QString &v);
     void setOverlayEnabled(bool v);
     void setOverlayPosition(const QString &v);
+    void setTheme(const QString &v);
+
+    static bool isValidTheme(const QString &name);
 
     Q_INVOKABLE void addBlacklistEntry(const QString &entry);
     Q_INVOKABLE void removeBlacklistEntry(int index);
@@ -121,6 +129,7 @@ Q_SIGNALS:
     void whitelistChanged();
     void overlayEnabledChanged();
     void overlayPositionChanged();
+    void themeChanged();
 
 private:
     void load();
@@ -144,9 +153,11 @@ private:
     QStringList whitelist_;
     bool overlayEnabled_ = false;
     QString overlayPosition_ = "TopCenter";
+    QString theme_ = "schnelle-umlaute";
     bool layerShellAvailable_ = false;
     QString layerShellSession_;
     QString layerShellReason_;
+    OverlayDBusClient overlayClient_;
 };
 
 #endif
