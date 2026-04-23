@@ -95,7 +95,10 @@ ColumnLayout {
     }
 
     Text {
-        Layout.alignment: Qt.AlignHCenter
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
         text: qsTr("Click on the monitor to choose overlay position")
         color: Theme.textMuted
         font.family: Theme.fontFamily

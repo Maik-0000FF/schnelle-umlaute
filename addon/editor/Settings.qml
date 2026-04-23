@@ -10,12 +10,17 @@ Item {
     property var mappingsModel: null
 
     ScrollView {
+        id: scroll
         anchors.fill: parent
         clip: true
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
+        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
+
+        readonly property int minContentWidth: 484
+        contentWidth: Math.max(root.width, scroll.minContentWidth)
 
         ColumnLayout {
-            width: root.width
+            width: scroll.contentWidth
             spacing: Theme.spacingMd
 
             Item { implicitHeight: Theme.spacingLg }
