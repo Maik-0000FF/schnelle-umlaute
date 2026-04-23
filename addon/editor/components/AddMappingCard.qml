@@ -36,8 +36,7 @@ Rectangle {
         modelRef && outputField.text.length > 0 &&
         modelRef.validateOutput(outputField.text)
     readonly property bool canAdd:
-        inputField.text.length > 0 && inputError === "" &&
-        !leaderConflict && outputValid
+        inputField.text.length > 0 && inputError === "" && outputValid
 
     ColumnLayout {
         id: layout

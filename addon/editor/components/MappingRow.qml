@@ -6,12 +6,17 @@ import SchnelleUmlaute
 Rectangle {
     id: root
     radius: Theme.radiusMd
-    color: mouseArea.containsMouse ? Theme.surfaceHover : "transparent"
+    color: hoverHandler.hovered ? Theme.surfaceHover : "transparent"
     border.color: editing ? Theme.borderFocus : "transparent"
     border.width: 1
     height: col.implicitHeight + 8
 
-    Behavior on color { ColorAnimation { duration: Theme.animShort } }
+    // HoverHandler is a passive grabber: unlike a MouseArea with hoverEnabled,
+    // it stays "hovered" while the cursor is over child pointer handlers
+    // (drag handle, buttons) — which otherwise stole hover and made the row
+    // background flicker.
+    HoverHandler { id: hoverHandler }
+
     Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
     property int rowIndex: -1
@@ -56,13 +61,14 @@ Rectangle {
                     !modelRef.validateOutput(outputEdit.text))
     readonly property bool editValid:
         editing && inputEdit.text.length > 0 && editInputError === "" &&
-        !editLeaderConflict && !editOutputInvalid
+        !editOutputInvalid
 
-    MouseArea {
-        id: mouseArea
-        anchors.fill: parent
-        hoverEnabled: true
-        acceptedButtons: Qt.NoButton
+    // Read-only view uses inputText directly so the row still flags dead
+    // mappings when it isn't being edited.
+    readonly property bool staticLeaderConflict: {
+        leadersTick; // establish dependency
+        return !editing && inputText.length > 0 && settingsModel &&
+            settingsModel.isActiveLeaderKey(inputText);
     }
 
     ColumnLayout {
@@ -134,9 +140,10 @@ Rectangle {
             height: 32
             radius: Theme.radiusSm
             color: Theme.background
-            border.color: Theme.border
+            border.color: root.staticLeaderConflict ? Theme.warning : Theme.border
             border.width: 1
             visible: !root.editing
+            Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
             Text {
                 anchors.centerIn: parent
@@ -220,11 +227,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
-            background: Rectangle {
-                color: applyBtn.hovered && applyBtn.enabled
-                    ? Theme.surface : "transparent"
-                radius: Theme.radiusSm
-            }
+            background: Rectangle { color: "transparent" }
             onClicked: {
                 if (root.editing) confirmEdit();
                 else startEdit();
@@ -242,10 +245,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
-            background: Rectangle {
-                color: parent.hovered ? Theme.surface : "transparent"
-                radius: Theme.radiusSm
-            }
+            background: Rectangle { color: "transparent" }
             onClicked: {
                 if (root.editing) cancelEdit();
                 else root.removeRequested();
@@ -268,8 +268,9 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.leftMargin: 44 + Theme.spacingMd
-            visible: root.editing && root.editLeaderConflict &&
-                     root.editInputError === ""
+            visible: root.staticLeaderConflict ||
+                     (root.editing && root.editLeaderConflict &&
+                      root.editInputError === "")
             text: qsTr("This key is configured as a Leader — mapping will not work")
             color: Theme.warning
             font.family: Theme.fontFamily

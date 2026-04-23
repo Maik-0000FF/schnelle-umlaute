@@ -48,9 +48,9 @@ QtObject {
             scrim:        "#99000000"
         },
         "light": {
-            background:   "#fafafa",
+            background:   "#ececef",
             surface:      "#ffffff",
-            surfaceHover: "#f4f4f5",
+            surfaceHover: "#dfdfe3",
             border:       "#d4d4d8",
             borderFocus:  "#a1a1aa",
             accent:       "#2563eb",
