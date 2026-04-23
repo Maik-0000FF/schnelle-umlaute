@@ -54,10 +54,12 @@ Anchored anchorsFor(const QString &position) {
     return {{}, {}};
 }
 
-// Creates a fresh QML window every time. Wayland layer-shell doesn't let us
-// change anchors, margins or the output after the first commit, so the only
-// reliable way to move the overlay between positions or monitors is to
-// destroy the current window and commit a new surface from scratch.
+// Rebuilds the QML window only when the overlay position changes. Wayland
+// layer-shell forbids changing anchors/margins/output after the first
+// commit, so moving between positions or monitors needs a fresh surface.
+// Plain variants/currentIndex updates (i.e. cycling) ride the existing
+// Q_PROPERTY bindings — rebuilding on every keystroke caused visible
+// flicker because each rebuild commits a new layer-shell surface.
 class OverlayRenderer : public QObject {
 public:
     explicit OverlayRenderer(OverlayController *ctrl)
@@ -70,6 +72,12 @@ private:
     void syncToController() {
         if (!ctrl_->visible() || ctrl_->variants().isEmpty()) {
             teardown();
+            return;
+        }
+        const QString pos = ctrl_->position();
+        if (engine_ && pos == lastPosition_) {
+            // Same position, surface already committed — QML bindings on
+            // OverlayController.variants/currentIndex update the content.
             return;
         }
         teardown();
@@ -121,6 +129,7 @@ private:
         // Layer-shell props must be set before the first commit. Now that
         // everything is configured, reveal the window.
         qwin->setVisible(true);
+        lastPosition_ = pos;
     }
 
     void teardown() {
@@ -128,10 +137,12 @@ private:
             engine_->clearComponentCache();
             engine_.reset();
         }
+        lastPosition_.clear();
     }
 
     OverlayController *ctrl_;
     std::unique_ptr<QQmlApplicationEngine> engine_;
+    QString lastPosition_;
 };
 
 } // namespace
