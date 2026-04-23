@@ -13,6 +13,8 @@
 
 #include "MappingListModel.h"
 #include "mappings-io.h"
+#include "test_expect.h"
+#include "test_tempdir.h"
 
 #include <QCoreApplication>
 #include <QModelIndex>
@@ -23,27 +25,27 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
-#define EXPECT(cond) do {                                                    \
-    if (!(cond)) {                                                           \
-        std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-        std::abort();                                                        \
-    }                                                                        \
-} while (0)
+using schnelle_umlaute_tests::TempXdgConfigHome;
 
 namespace {
 
-std::string g_tempdir;
+// Holder for the scratch XDG_CONFIG_HOME. main() owns it and the per-test
+// helpers below read its path; putting it here (rather than plumbing it
+// through every helper signature) keeps the test bodies focused on
+// behavior rather than wiring.
+TempXdgConfigHome *g_tempdir = nullptr;
 
 std::string mappingsPath() {
-    return g_tempdir + "/fcitx5/schnelle-umlaute/mappings.txt";
+    return g_tempdir->path() + "/fcitx5/schnelle-umlaute/mappings.txt";
 }
 
 void ensureDirs() {
     std::filesystem::create_directories(
-        g_tempdir + "/fcitx5/schnelle-umlaute");
+        g_tempdir->path() + "/fcitx5/schnelle-umlaute");
 }
 
 void seedEmptyMappings() {
@@ -85,21 +87,10 @@ std::string readMappingsFile() {
     return out;
 }
 
-// Fresh tempdir per test — isolates files on disk between test cases.
-void resetTempdir() {
-    if (!g_tempdir.empty()) {
-        std::error_code ec;
-        std::filesystem::remove_all(g_tempdir, ec);
-    }
-    char tmpl[] = "/tmp/testmappinglistmodelio.XXXXXX";
-    char *dir = mkdtemp(tmpl);
-    if (!dir) {
-        std::fprintf(stderr, "mkdtemp failed\n");
-        std::abort();
-    }
-    g_tempdir = dir;
-    setenv("XDG_CONFIG_HOME", dir, 1);
-}
+// Per-test isolation — wipe the tempdir contents but keep the path intact
+// so Qt's QStandardPaths cache (sampled once at startup) still resolves
+// GenericConfigLocation correctly for the next model's load/save cycle.
+void resetTempdir() { g_tempdir->reset(); }
 
 QString inputAt(const MappingListModel &m, int row) {
     return m.data(m.index(row, 0), MappingListModel::InputRole).toString();
@@ -411,13 +402,11 @@ const TestCase kTests[] = {
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    TempXdgConfigHome tempdir("testmappinglistmodelio");
+    g_tempdir = &tempdir;
     for (const auto &tc : kTests) {
         tc.fn();
         std::fprintf(stderr, "ok %s\n", tc.name);
-    }
-    if (!g_tempdir.empty()) {
-        std::error_code ec;
-        std::filesystem::remove_all(g_tempdir, ec);
     }
     return 0;
 }

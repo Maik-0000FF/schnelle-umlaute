@@ -8,6 +8,8 @@
 // test hermetic on CI.
 
 #include "SettingsModel.h"
+#include "test_expect.h"
+#include "test_tempdir.h"
 
 #include <QCoreApplication>
 #include <QString>
@@ -18,23 +20,18 @@
 #include <filesystem>
 #include <string>
 
-#define EXPECT(cond) do {                                                    \
-    if (!(cond)) {                                                           \
-        std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-        std::abort();                                                        \
-    }                                                                        \
-} while (0)
+using schnelle_umlaute_tests::TempXdgConfigHome;
 
 namespace {
 
-std::string g_tempdir;
+TempXdgConfigHome *g_tempdir = nullptr;
 
 std::string configPath() {
-    return g_tempdir + "/fcitx5/conf/schnelle-umlaute.conf";
+    return g_tempdir->path() + "/fcitx5/conf/schnelle-umlaute.conf";
 }
 
 void ensureConfDir() {
-    std::filesystem::create_directories(g_tempdir + "/fcitx5/conf");
+    std::filesystem::create_directories(g_tempdir->path() + "/fcitx5/conf");
 }
 
 void writeConfig(const std::string &body) {
@@ -58,17 +55,7 @@ std::string readConfig() {
     return out;
 }
 
-void resetTempdir() {
-    if (!g_tempdir.empty()) {
-        std::error_code ec;
-        std::filesystem::remove_all(g_tempdir, ec);
-    }
-    char tmpl[] = "/tmp/testsettingsmodel.XXXXXX";
-    char *dir = mkdtemp(tmpl);
-    if (!dir) { std::fprintf(stderr, "mkdtemp failed\n"); std::abort(); }
-    g_tempdir = dir;
-    setenv("XDG_CONFIG_HOME", dir, 1);
-}
+void resetTempdir() { g_tempdir->reset(); }
 
 } // namespace
 
@@ -359,13 +346,11 @@ const TestCase kTests[] = {
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    TempXdgConfigHome tempdir("testsettingsmodel");
+    g_tempdir = &tempdir;
     for (const auto &tc : kTests) {
         tc.fn();
         std::fprintf(stderr, "ok %s\n", tc.name);
-    }
-    if (!g_tempdir.empty()) {
-        std::error_code ec;
-        std::filesystem::remove_all(g_tempdir, ec);
     }
     return 0;
 }

@@ -12,6 +12,8 @@
 // mappings.txt itself stays covered by testmappingsio.
 
 #include "MappingListModel.h"
+#include "test_expect.h"
+#include "test_tempdir.h"
 
 #include <QCoreApplication>
 #include <QString>
@@ -21,34 +23,9 @@
 #include <filesystem>
 #include <string>
 
-#define EXPECT(cond) do {                                                   \
-    if (!(cond)) {                                                          \
-        std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);\
-        std::abort();                                                       \
-    }                                                                       \
-} while (0)
+using schnelle_umlaute_tests::TempXdgConfigHome;
 
 namespace {
-
-std::string g_tempdir;
-
-void setupTempdir() {
-    char tmpl[] = "/tmp/testmappinglistmodel.XXXXXX";
-    char *dir = mkdtemp(tmpl);
-    if (!dir) {
-        std::fprintf(stderr, "mkdtemp failed\n");
-        std::abort();
-    }
-    g_tempdir = dir;
-    setenv("XDG_CONFIG_HOME", dir, 1);
-}
-
-void cleanupTempdir() {
-    if (!g_tempdir.empty()) {
-        std::error_code ec;
-        std::filesystem::remove_all(g_tempdir, ec);
-    }
-}
 
 // The constructor's load() falls back to schnelle_umlaute::defaultMappings()
 // when mappings.txt is missing or empty. That shape is intentional for the
@@ -238,18 +215,16 @@ const TestCase kTests[] = {
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
-    setupTempdir();
+    TempXdgConfigHome tempdir("testmappinglistmodel");
 
     for (const auto &tc : kTests) {
         // Fresh state per test so duplicate-detection tests don't bleed into
         // each other through the shared mappings.txt that save() writes.
-        std::filesystem::remove_all(g_tempdir + "/fcitx5");
+        tempdir.reset();
         MappingListModel model;
         clearModel(model);
         tc.fn(model);
         std::fprintf(stderr, "ok %s\n", tc.name);
     }
-
-    cleanupTempdir();
     return 0;
 }
