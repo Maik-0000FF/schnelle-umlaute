@@ -85,12 +85,12 @@ bool parsePosition(const QString &pos, int &row, int &col) {
     return true;
 }
 
-// 7-column × 3-row grid on the active output. Col 1/7 hug the edges
-// (screen-agnostic, same as the old TopLeft/TopRight). Col 4 stays
-// compositor-centered (no horizontal anchor). Col 2/3/5/6 are placed
-// proportionally: column c (0-indexed) is centered at ((2c+1)/14) of
-// the screen width, which gives three evenly-spaced stops per half on
-// a split 4K screen without shifting the fullscreen center.
+// 7-column × 3-row grid on the active output, uniformly spaced at 12.5%
+// of screen width: columns land at 12.5/25/37.5/50/62.5/75/87.5 %.
+// Col 2 and Col 6 hit the centers of a 50/50 splitscreen (25 % and
+// 75 %); Col 4 stays compositor-centered (no horizontal anchor). Col 1
+// and Col 7 no longer hug the screen edge — they sit one step inward
+// so the spacing around each anchor is uniform.
 Anchored anchorsFor(const QString &position, int screenWidth,
                     int overlayWidth) {
     int row = 0, col = 0;
@@ -104,15 +104,14 @@ Anchored anchorsFor(const QString &position, int screenWidth,
     if (row == 0)      { a |= LSWindow::AnchorTop;    top = kEdgeMargin; }
     else if (row == 2) { a |= LSWindow::AnchorBottom; bottom = kEdgeMargin; }
 
-    if (col == 0)      { a |= LSWindow::AnchorLeft;  left = kEdgeMargin; }
-    else if (col == 6) { a |= LSWindow::AnchorRight; right = kEdgeMargin; }
-    else if (col == 3) { /* no horizontal anchor → screen-centered */ }
-    else if (col < 3) {
-        const int center = screenWidth * (2 * col + 1) / 14;
+    if (col == 3) {
+        // no horizontal anchor → screen-centered
+    } else if (col < 3) {
+        const int center = screenWidth * (col + 1) / 8;
         a |= LSWindow::AnchorLeft;
         left = std::max(kEdgeMargin, center - overlayWidth / 2);
     } else {
-        const int centerFromRight = screenWidth * (13 - 2 * col) / 14;
+        const int centerFromRight = screenWidth * (7 - col) / 8;
         a |= LSWindow::AnchorRight;
         right = std::max(kEdgeMargin, centerFromRight - overlayWidth / 2);
     }
