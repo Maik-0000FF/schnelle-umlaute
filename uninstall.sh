@@ -88,6 +88,8 @@ FOUND_FILES=()
 for lib_path in "${LIB_PATHS[@]}"; do
     [ -f "$lib_path/schnelle-umlaute.so" ] && \
         FOUND_FILES+=("$lib_path/schnelle-umlaute.so")
+    # Legacy fcitx5-configtool Qt plugin (removed in v1.2.0). Kept so
+    # uninstall still cleans up stale .so files from older installs.
     [ -f "$lib_path/qt6/libschnelle-umlaute-config-editor.so" ] && \
         FOUND_FILES+=("$lib_path/qt6/libschnelle-umlaute-config-editor.so")
 done

@@ -22,34 +22,6 @@ target_include_directories(testmappingsio PRIVATE ${PROJECT_SOURCE_DIR})
 add_test(NAME testmappingsio COMMAND testmappingsio)
 set_tests_properties(testmappingsio PROPERTIES TIMEOUT 10)
 
-# Unit test for MappingModel::isValid{Input,Output}. The validation methods
-# are inline in model.h and only depend on QString/QChar, so this test links
-# Qt6::Core alone — no Fcitx5 runtime, no MOC, no model.cpp compilation.
-add_executable(testmappingmodel testmappingmodel.cpp)
-target_include_directories(testmappingmodel PRIVATE
-    ${PROJECT_SOURCE_DIR}/config-editor)
-target_link_libraries(testmappingmodel Qt${QT_MAJOR_VERSION}::Core)
-add_test(NAME testmappingmodel COMMAND testmappingmodel)
-set_tests_properties(testmappingmodel PROPERTIES TIMEOUT 10)
-
-# Integration test for MappingModel state + persistence: save/load round-trip,
-# load-fallback semantics, and the stateful editor ops (addItem, deleteItem,
-# moveUp, moveDown, hasInput, needSave). Links model.cpp → needs AUTOMOC for
-# the Q_OBJECT signal and Fcitx5::Utils for StandardPaths/fs/i18n. The test
-# redirects XDG_CONFIG_HOME to a tempdir so it never touches ~/.config.
-add_executable(testmappingmodelio
-    testmappingmodelio.cpp
-    ${PROJECT_SOURCE_DIR}/config-editor/model.cpp)
-set_target_properties(testmappingmodelio PROPERTIES AUTOMOC ON)
-target_include_directories(testmappingmodelio PRIVATE
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/config-editor)
-target_link_libraries(testmappingmodelio
-    Qt${QT_MAJOR_VERSION}::Core
-    Fcitx5::Utils)
-add_test(NAME testmappingmodelio COMMAND testmappingmodelio)
-set_tests_properties(testmappingmodelio PROPERTIES TIMEOUT 10)
-
 # Unit test for decideOverlayLifecycleAction(). Pure header-only logic —
 # no DBus, no Qt, no fcitx5 runtime needed. Guards the rule table that
 # drives the daemon start/stop on enable-flag transitions.
@@ -94,3 +66,59 @@ target_link_libraries(testoverlaytheme
     Qt${QT_MAJOR_VERSION}::Test)
 add_test(NAME testoverlaytheme COMMAND testoverlaytheme)
 set_tests_properties(testoverlaytheme PROPERTIES TIMEOUT 10)
+
+# Standalone editor — validation layer of MappingListModel. Links
+# MappingListModel.cpp so every test case runs against the same code the
+# QML editor uses; AUTOMOC handles the Q_OBJECT signals. Redirects
+# XDG_CONFIG_HOME at runtime so the constructor's implicit load() never
+# touches ~/.config.
+add_executable(testmappinglistmodel
+    testmappinglistmodel.cpp
+    ${PROJECT_SOURCE_DIR}/editor/MappingListModel.cpp)
+set_target_properties(testmappinglistmodel PROPERTIES AUTOMOC ON)
+target_include_directories(testmappinglistmodel PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/editor)
+target_link_libraries(testmappinglistmodel
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Qml)
+add_test(NAME testmappinglistmodel COMMAND testmappinglistmodel)
+set_tests_properties(testmappinglistmodel PROPERTIES TIMEOUT 10)
+
+# Standalone editor — state + persistence for MappingListModel. Covers
+# add/remove/update/move, the defaults-on-empty-file fallback, reload(),
+# and the mappings.txt on-disk format.
+add_executable(testmappinglistmodelio
+    testmappinglistmodelio.cpp
+    ${PROJECT_SOURCE_DIR}/editor/MappingListModel.cpp)
+set_target_properties(testmappinglistmodelio PROPERTIES AUTOMOC ON)
+target_include_directories(testmappinglistmodelio PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/editor)
+target_link_libraries(testmappinglistmodelio
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Qml)
+add_test(NAME testmappinglistmodelio COMMAND testmappinglistmodelio)
+set_tests_properties(testmappinglistmodelio PROPERTIES TIMEOUT 10)
+
+# Standalone editor — SettingsModel validators, legacy position migration,
+# app-filter list dedup, and the save/load round-trip against
+# schnelle-umlaute.conf. SettingsModel depends on OverlayDBusClient for
+# sendTheme, so it has to be linked too; the actual DBus call is a no-op
+# without a session bus, which keeps the test hermetic.
+add_executable(testsettingsmodel
+    testsettingsmodel.cpp
+    ${PROJECT_SOURCE_DIR}/editor/SettingsModel.cpp
+    ${PROJECT_SOURCE_DIR}/editor/OverlayDBusClient.cpp)
+set_target_properties(testsettingsmodel PROPERTIES AUTOMOC ON)
+target_include_directories(testsettingsmodel PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/editor)
+target_link_libraries(testsettingsmodel
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Qml)
+add_test(NAME testsettingsmodel COMMAND testsettingsmodel)
+set_tests_properties(testsettingsmodel PROPERTIES TIMEOUT 10)

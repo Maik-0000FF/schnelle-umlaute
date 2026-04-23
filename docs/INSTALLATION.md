@@ -249,19 +249,23 @@ Otherwise, remove files manually. The addon library path depends on your distrib
 ```bash
 # Arch Linux
 sudo rm /usr/lib/fcitx5/schnelle-umlaute.so
-sudo rm /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
 
 # Ubuntu/Debian (x86_64)
 sudo rm /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
-sudo rm /usr/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
 
 # Fedora / openSUSE (x86_64)
 sudo rm /usr/lib64/fcitx5/schnelle-umlaute.so
-sudo rm /usr/lib64/fcitx5/qt6/libschnelle-umlaute-config-editor.so
 
 # Source build (cmake --install with default prefix)
 sudo rm /usr/local/lib/fcitx5/schnelle-umlaute.so
-sudo rm /usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+
+# Standalone editor + overlay binaries (any distribution)
+sudo rm /usr/bin/schnelle-umlaute-editor
+sudo rm /usr/bin/schnelle-umlaute-overlay
+
+# Legacy fcitx5-configtool Qt plugin (only present on installs from
+# versions before 1.2.0 — ignore "No such file or directory" otherwise):
+sudo rm /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so 2>/dev/null
 
 # Common data files (all distributions)
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf

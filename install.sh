@@ -218,6 +218,10 @@ echo
 
 # Check ALL possible paths regardless of detected distro.
 # Searching paths that don't exist is harmless; missing paths is not.
+# libschnelle-umlaute-config-editor.so is the legacy fcitx5-configtool
+# Qt plugin (removed in v1.2.0 — the gear icon now launches
+# schnelle-umlaute-editor directly). Kept in this list so upgraders get
+# the stale .so removed on next install.
 STALE_CANDIDATES=(
     /usr/lib/fcitx5/schnelle-umlaute.so
     /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
