@@ -47,6 +47,13 @@ class SettingsModel : public QObject {
     Q_PROPERTY(QString overlayPosition READ overlayPosition
                    WRITE setOverlayPosition NOTIFY overlayPositionChanged)
 
+    // Compositor capability for wlr-layer-shell. Sampled once at
+    // construction from XDG_SESSION_TYPE / XDG_CURRENT_DESKTOP. Drives
+    // whether the overlay toggle is shown as enabled in the UI.
+    Q_PROPERTY(bool layerShellAvailable READ layerShellAvailable CONSTANT)
+    Q_PROPERTY(QString layerShellSession READ layerShellSession CONSTANT)
+    Q_PROPERTY(QString layerShellReason READ layerShellReason CONSTANT)
+
 public:
     explicit SettingsModel(QObject *parent = nullptr);
 
@@ -67,6 +74,9 @@ public:
     QStringList whitelist() const { return whitelist_; }
     bool overlayEnabled() const { return overlayEnabled_; }
     QString overlayPosition() const { return overlayPosition_; }
+    bool layerShellAvailable() const { return layerShellAvailable_; }
+    QString layerShellSession() const { return layerShellSession_; }
+    QString layerShellReason() const { return layerShellReason_; }
 
     void setDelayLowercase(int v);
     void setDelayUppercase(int v);
@@ -134,6 +144,9 @@ private:
     QStringList whitelist_;
     bool overlayEnabled_ = false;
     QString overlayPosition_ = "TopCenter";
+    bool layerShellAvailable_ = false;
+    QString layerShellSession_;
+    QString layerShellReason_;
 };
 
 #endif

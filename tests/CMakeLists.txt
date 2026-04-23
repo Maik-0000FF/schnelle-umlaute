@@ -58,6 +58,14 @@ target_include_directories(testoverlaylifecycle PRIVATE ${PROJECT_SOURCE_DIR})
 add_test(NAME testoverlaylifecycle COMMAND testoverlaylifecycle)
 set_tests_properties(testoverlaylifecycle PROPERTIES TIMEOUT 10)
 
+# Unit test for checkLayerShellCapability(). Pure header-only logic — guards
+# the session detection that decides whether the overlay can run on the
+# user's compositor (GNOME/X11 → no, KDE/sway/Hyprland → yes).
+add_executable(testlayershellcapability testlayershellcapability.cpp)
+target_include_directories(testlayershellcapability PRIVATE ${PROJECT_SOURCE_DIR})
+add_test(NAME testlayershellcapability COMMAND testlayershellcapability)
+set_tests_properties(testlayershellcapability PROPERTIES TIMEOUT 10)
+
 # Unit test for OverlayController state machine. Compiles OverlayController.cpp
 # directly (no LayerShellQt, no QML). Uses QSignalSpy to verify stateChanged
 # emissions and a short exec() loop to confirm quit() reaches QCoreApplication.

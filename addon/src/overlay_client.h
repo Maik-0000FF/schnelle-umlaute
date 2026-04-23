@@ -1,6 +1,7 @@
 #ifndef SCHNELLE_UMLAUTE_OVERLAY_CLIENT_H
 #define SCHNELLE_UMLAUTE_OVERLAY_CLIENT_H
 
+#include "layer_shell_capability.h"
 #include "overlay_lifecycle.h"
 
 #include <fcitx-utils/dbus/bus.h>
@@ -42,6 +43,10 @@ public:
 private:
     std::unique_ptr<dbus::Bus> bus_;
     std::optional<bool> lastEnabled_;
+    // Compositor check sampled once at construction. On sessions without
+    // wlr-layer-shell support (GNOME, X11) the overlay daemon would spawn
+    // but fail to cycle, so we short-circuit show()/start() here.
+    LayerShellCapability capability_;
 };
 
 } // namespace fcitx

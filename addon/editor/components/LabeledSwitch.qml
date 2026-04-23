@@ -12,6 +12,9 @@ RowLayout {
     property bool checked: false
     signal toggled(bool v)
 
+    opacity: root.enabled ? 1.0 : 0.4
+    Behavior on opacity { NumberAnimation { duration: Theme.animShort } }
+
     Text {
         text: root.labelText
         color: Theme.text

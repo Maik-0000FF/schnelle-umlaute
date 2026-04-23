@@ -146,7 +146,7 @@ n=ñ
 
 > **Note:** Only the first `=` is used as separator — Output values can contain `=` characters.
 
-**Quick examples:** French accents (é, è, ê), Spanish (ñ, á), Math symbols (π, ∂), Braille characters (⠁⠃⠉). See sections below for Accent Cycling, Snippets, and Emoji mappings.
+**Quick examples:** Any Unicode character works as Output — French accents (é, è, ê), Spanish (ñ, á), Greek letters (π, Ω, Δ), emojis (❤️, 👍, 😊), Braille (⠁⠃⠉), math symbols (±, ≠, ∞). See [Accent Cycling](#accent-cycling) for multi-variant mappings and [Snippets](#snippets-text-expansion) for text expansion.
 
 ---
 
@@ -178,12 +178,16 @@ c=ç,ć,č
 
 **Example cycling mappings:**
 
+Cycling works with any Unicode characters — accents, emojis, symbols, Greek letters.
+
 | Input | Output | Cycling sequence |
 |-------|--------|------------------|
 | <kbd>e</kbd> | é,è,ê,ë | é → è → ê → ë → é → ... |
 | <kbd>a</kbd> | á,à,â,ã,å | á → à → â → ã → å → á → ... |
 | <kbd>n</kbd> | ñ,ń,ň | ñ → ń → ň → ñ → ... |
 | <kbd>o</kbd> | ó,ò,ô,õ,ø | ó → ò → ô → õ → ø → ó → ... |
+| <kbd>s</kbd> | 😊,😀,😁,🙂 | 😊 → 😀 → 😁 → 🙂 → 😊 → ... |
+| <kbd>p</kbd> | π,Σ,Ω,Δ,μ | π → Σ → Ω → Δ → μ → π → ... |
 
 ---
 
@@ -225,20 +229,26 @@ l=a,, b,, c
 
 ---
 
-## Emoji Mappings
+## Cycle Overlay
 
-Map keys to emoji for quick insertion without opening an emoji picker.
+An optional on-screen indicator can show the current variant while cycling. Enable it in the standalone editor:
 
-**Examples:**
+```bash
+schnelle-umlaute-editor
+```
 
-| Input | Output | Description |
-|-------|--------|-------------|
-| <kbd>h</kbd> | ❤️ | Heart |
-| <kbd>t</kbd> | 👍 | Thumbs up |
-| <kbd>s</kbd> | 😊 | Smile |
-| <kbd>c</kbd> | ✓ | Checkmark |
+Go to **Settings → Overlay**, toggle *Show overlay while cycling*, and pick a screen corner.
 
-Emoji cycling also works: set Output to `😊,😀,😁,🙂` to cycle through smileys.
+The overlay relies on the **wlr-layer-shell** Wayland protocol. The editor detects your session at launch and disables the toggle on compositors that can't host layer-shell surfaces.
+
+| Session | Overlay |
+|---|---|
+| KDE Plasma (Wayland) | ✅ supported |
+| sway, Hyprland, river, wayfire, niri, LabWC | ✅ supported |
+| **GNOME (Wayland)** | ❌ Mutter does not implement wlr-layer-shell |
+| **X11 sessions** (any DE) | ❌ layer-shell is Wayland-only |
+
+Cycling itself works on every session — only the visual indicator is gated on compositor support. On unsupported sessions the toggle is greyed out with a one-line explanation, and the addon skips the overlay's DBus activation even if `Enabled=True` is set manually in the config file.
 
 ---
 

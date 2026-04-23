@@ -79,6 +79,8 @@ All mappings are fully customizable — add French, Spanish, Emoji, Braille, or 
 
 > **Tip:** When typing fast, Space as leader key can cause accidental accents at word boundaries — e.g. "Der Bus kommt" becomes "Der Buß kommt". Switch to an arrow key, Alt, or a custom leader (e.g. `f`, `j`) to keep Space free for normal typing. See [Configuration → Leader Key](docs/CONFIGURATION.md#leader-key) and [Troubleshooting](docs/TROUBLESHOOTING.md#accidental-accents-when-typing-fast).
 
+> **Optional:** An on-screen cycling indicator is available on Wayland compositors with wlr-layer-shell support (KDE Plasma, sway, Hyprland, …). See [Configuration → Cycle Overlay](docs/CONFIGURATION.md#cycle-overlay).
+
 ## Requirements
 
 - **Linux** with Fcitx5 (Arch, Ubuntu/Debian, Fedora, openSUSE)

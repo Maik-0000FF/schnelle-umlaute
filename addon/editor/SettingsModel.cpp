@@ -1,11 +1,13 @@
 #include "SettingsModel.h"
 #include "FcitxReload.h"
+#include "../src/layer_shell_capability.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QString>
 #include <QTextStream>
 
 namespace {
@@ -21,7 +23,13 @@ bool fromBool(const QString &s) { return s.compare("True", Qt::CaseInsensitive) 
 
 } // namespace
 
-SettingsModel::SettingsModel(QObject *parent) : QObject(parent) { load(); }
+SettingsModel::SettingsModel(QObject *parent) : QObject(parent) {
+    const auto cap = fcitx::detectLayerShellCapability();
+    layerShellAvailable_ = cap.supported;
+    layerShellSession_ = QString::fromStdString(cap.session);
+    layerShellReason_ = QString::fromStdString(cap.reason);
+    load();
+}
 
 void SettingsModel::setDelayLowercase(int v) {
     if (delayLowercase_ == v) return;

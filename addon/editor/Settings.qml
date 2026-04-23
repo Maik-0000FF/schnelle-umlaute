@@ -115,12 +115,29 @@ Item {
 
                     LabeledSwitch {
                         labelText: qsTr("Show overlay while cycling")
+                        enabled: root.settingsModel && root.settingsModel.layerShellAvailable
                         checked: root.settingsModel ? root.settingsModel.overlayEnabled : false
                         onToggled: (v) => root.settingsModel.overlayEnabled = v
                     }
 
+                    Text {
+                        visible: root.settingsModel && !root.settingsModel.layerShellAvailable
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        text: root.settingsModel
+                            ? qsTr("Unavailable on %1. %2\nSupported: KDE Plasma Wayland, sway, Hyprland, river, wayfire.")
+                                .arg(root.settingsModel.layerShellSession)
+                                .arg(root.settingsModel.layerShellReason)
+                            : ""
+                    }
+
                     PositionPicker {
-                        visible: root.settingsModel && root.settingsModel.overlayEnabled
+                        visible: root.settingsModel
+                            && root.settingsModel.layerShellAvailable
+                            && root.settingsModel.overlayEnabled
                         value: root.settingsModel ? root.settingsModel.overlayPosition : "TopCenter"
                         onEdited: (v) => root.settingsModel.overlayPosition = v
                     }
