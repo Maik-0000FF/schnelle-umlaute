@@ -64,6 +64,29 @@ Window {
         return n
     }
 
+    // Trim long variants so they stay inside the 44×44 cell. Three
+    // codepoints fit in JetBrains Mono at pixelSize 16 (≈9.6 px each);
+    // anything longer becomes "xy…" — two leading codepoints plus U+2026
+    // HORIZONTAL ELLIPSIS. The ellipsis is a single narrow glyph, so
+    // "xy…" still fits the same budget as "xyz". Surrogate-pair aware so
+    // a two-codepoint prefix ending on an emoji copies both halves.
+    function truncateDisplay(s) {
+        if (!s || codepointCount(s) <= 3) return s
+        let out = ""
+        let taken = 0
+        for (let i = 0; i < s.length && taken < 2; i++) {
+            const c = s.charCodeAt(i)
+            out += s.charAt(i)
+            if (c >= 0xD800 && c <= 0xDBFF && i + 1 < s.length) {
+                // high surrogate — pull its low surrogate in too, still
+                // counts as one codepoint.
+                out += s.charAt(++i)
+            }
+            taken++
+        }
+        return out + "…"
+    }
+
     // Emoji-range check on the first codepoint. Color-emoji fonts
     // occupy a smaller fraction of the em-box than JetBrains Mono at
     // the same pixelSize, so we bump pixelSize for emoji variants to
@@ -110,7 +133,7 @@ Window {
 
                     Text {
                         anchors.centerIn: parent
-                        text: modelData
+                        text: win.truncateDisplay(modelData)
                         color: active ? win.p.textActive : win.p.textInactive
                         font.family: "JetBrains Mono"
                         font.pixelSize: {
