@@ -145,6 +145,23 @@ FCITX_CONFIGURATION(
     Option<OverlayConfig> overlay{this, "Overlay", "Overlay"};
 );
 
+// What fcitx5-config-qt and the KDE KCM render when the user clicks the
+// gear icon next to "Schnelle Umlaute". Exposing exactly one ExternalOption
+// (and no other keys) triggers the configtool's single-external fast path
+// in ConfigWidget::extractOnlyExternalCommand — the dialog is skipped and
+// schnelle-umlaute-editor is launched directly.
+//
+// All real settings (delays, leader keys, app filter, overlay position,
+// mappings) live in SchnelleUmlauteConfig above and are still read/written
+// through ~/.config/fcitx5/conf/schnelle-umlaute.conf. The editor writes
+// that file and triggers a DBus ReloadAddonConfig, which re-enters our
+// reloadConfig() to repopulate config_.
+FCITX_CONFIGURATION(
+    ExternalEditorConfig,
+    ExternalOption editor{this, "Editor", "Open Editor",
+                          "schnelle-umlaute-editor"};
+);
+
 } // namespace fcitx
 
 #endif

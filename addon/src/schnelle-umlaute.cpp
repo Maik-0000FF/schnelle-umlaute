@@ -71,22 +71,29 @@ public:
         if (xkbCtx_) xkb_context_unref(xkbCtx_);
     }
 
-    const Configuration *getConfig() const override { return &config_; }
+    // Returns a single-ExternalOption config so fcitx5-config-qt / KDE KCM
+    // hit the "only external" fast path and launch schnelle-umlaute-editor
+    // directly. The real settings still live in config_ and are loaded
+    // from disk by reloadConfig() or from a caller-supplied RawConfig by
+    // setConfig() — see below.
+    const Configuration *getConfig() const override {
+        return &externalConfig_;
+    }
+    // Called by programmatic writers (fcitx5-remote, the testfrontend, or
+    // a future tool using SetConfig on DBus). The gear-icon path never
+    // arrives here any more, because configtool fast-paths on the
+    // single-ExternalOption shape exposed by getConfig(). Keep the full
+    // load/sanitize/save pipeline so RawConfig-based callers still work.
     void setConfig(const RawConfig &config) override {
         config_.load(config);
-        // IntConstrainWithStep rejects out-of-range delay values (uses default).
-        // Normalize custom leader keys to a single character before saving,
-        // so the config file always reflects what is actually used.
-        config_.leader.mutableValue()->custom.mutableValue()->customKey.setValue(
-            sanitizeCustomKey(*config_.leader->custom->customKey));
-        config_.leader.mutableValue()->custom.mutableValue()->customKey2.setValue(
-            sanitizeCustomKey(*config_.leader->custom->customKey2));
+        normalizeCustomLeaders();
         safeSaveAsIni(config_, "conf/schnelle-umlaute.conf");
         applyConfig();
     }
 
     void reloadConfig() override {
         readAsIni(config_, "conf/schnelle-umlaute.conf");
+        normalizeCustomLeaders();
         applyConfig();
     }
 
@@ -915,6 +922,17 @@ private:
         );
     }
 
+    // Shared by setConfig (values already loaded) and reloadConfig (read
+    // from disk). Writes the normalized values back into config_ so that
+    // the next safeSaveAsIni emits clean entries and applyConfig finds
+    // consistent cached values.
+    void normalizeCustomLeaders() {
+        config_.leader.mutableValue()->custom.mutableValue()->customKey.setValue(
+            sanitizeCustomKey(*config_.leader->custom->customKey));
+        config_.leader.mutableValue()->custom.mutableValue()->customKey2.setValue(
+            sanitizeCustomKey(*config_.leader->custom->customKey2));
+    }
+
     // Sanitize custom leader key: trim whitespace, keep only first UTF-8
     // character, lowercase ASCII letters.  Only a single key is valid —
     // spaces would silently shadow the Space toggle, and multi-char strings
@@ -934,6 +952,11 @@ private:
 
     Instance *instance_;
     SchnelleUmlauteConfig config_;
+    // What getConfig() returns to fcitx5-config-qt / KDE KCM. Holds a
+    // single ExternalOption so the configtool fast-paths past the dialog
+    // and launches schnelle-umlaute-editor. The real settings live in
+    // config_ and are written by the editor directly.
+    ExternalEditorConfig externalConfig_;
     FactoryFor<SchnelleUmlauteState> factory_;
 
     // Mappings (shared across all InputContexts, read-only after config load)
