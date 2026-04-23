@@ -34,7 +34,7 @@ Window {
         "light": {
             frame: "#f2ffffff", border: "#d4d4d8",
             cellInactive: "#f4f4f5", cellInactiveBorder: "#d4d4d8",
-            cellActive: "#7c3aed", cellActiveBorder: "#7c3aed",
+            cellActive: "#2563eb", cellActiveBorder: "#2563eb",
             textInactive: "#0f172a", textActive: "#ffffff"
         },
         "contrast": {
