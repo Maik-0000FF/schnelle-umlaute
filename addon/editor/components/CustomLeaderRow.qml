@@ -13,11 +13,8 @@ ColumnLayout {
     property bool enabledValue: false
     property string keyValue: ""
     property var mappingsModel: null
-    property var settingsModel: null
     signal enabledEdited(bool v)
     signal keyEdited(string v)
-
-    property bool pendingChange: false
 
     readonly property bool invalidChar:
         keyValue.length > 0 && !isValidSingleChar(keyValue)
@@ -33,31 +30,10 @@ ColumnLayout {
         return Array.from(s).length === 1 && !/\s/.test(s);
     }
 
-    Timer {
-        id: savedTimer
-        interval: 1200
-        property bool pulse: false
-        onTriggered: pulse = false
-    }
-
-    Connections {
-        target: root.settingsModel
-        function onSaveFinished() {
-            if (root.pendingChange) {
-                root.pendingChange = false;
-                savedTimer.pulse = true;
-                savedTimer.restart();
-            }
-        }
-    }
-
     LabeledSwitch {
         labelText: root.labelText
         checked: root.enabledValue
-        onToggled: (v) => {
-            root.pendingChange = true;
-            root.enabledEdited(v);
-        }
+        onToggled: (v) => root.enabledEdited(v)
     }
 
     RowLayout {
@@ -74,52 +50,33 @@ ColumnLayout {
             Layout.preferredWidth: 40
         }
 
-        Item {
+        TextField {
+            id: keyField
             Layout.preferredWidth: 80
-            implicitHeight: keyField.implicitHeight
-
-            TextField {
-                id: keyField
-                anchors.fill: parent
-                text: root.keyValue
-                placeholderText: root.placeholderHint
-                maximumLength: 4
-                font.family: Theme.fontFamilyMono
-                font.pixelSize: 14
-                horizontalAlignment: TextInput.AlignHCenter
-                color: Theme.text
-                placeholderTextColor: Theme.textMuted
-                selectByMouse: true
-                rightPadding: 24
-                background: Rectangle {
-                    radius: Theme.radiusSm
-                    color: Theme.background
-                    border.color: root.invalidChar
-                        ? Theme.error
-                        : (root.conflictsWithMapping
-                            ? Theme.warning
-                            : (keyField.activeFocus ? Theme.accent : Theme.border))
-                    border.width: 1
-                    Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
-                }
-                onTextChanged: {
-                    if (text !== root.keyValue) {
-                        root.pendingChange = true;
-                        root.keyEdited(text);
-                    }
-                }
+            text: root.keyValue
+            placeholderText: root.placeholderHint
+            maximumLength: 4
+            font.family: Theme.fontFamilyMono
+            font.pixelSize: 14
+            horizontalAlignment: TextInput.AlignHCenter
+            color: Theme.text
+            placeholderTextColor: Theme.textMuted
+            selectByMouse: true
+            background: Rectangle {
+                radius: Theme.radiusSm
+                color: Theme.background
+                border.color: root.invalidChar
+                    ? Theme.error
+                    : (root.conflictsWithMapping
+                        ? Theme.warning
+                        : (keyField.activeFocus ? Theme.accent : Theme.border))
+                border.width: 1
+                Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
             }
-
-            Text {
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.rightMargin: 6
-                text: "✓"
-                color: Theme.success
-                font.pixelSize: 13
-                font.weight: Font.Bold
-                opacity: savedTimer.pulse ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 200 } }
+            onTextChanged: {
+                if (text !== root.keyValue) {
+                    root.keyEdited(text);
+                }
             }
         }
 

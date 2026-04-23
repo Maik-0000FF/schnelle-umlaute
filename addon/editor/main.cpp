@@ -3,7 +3,9 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QQuickWindow>
 
+#include "ClickOutsideDefocus.h"
 #include "MappingListModel.h"
 
 int main(int argc, char *argv[]) {
@@ -26,6 +28,10 @@ int main(int argc, char *argv[]) {
 #endif
     if (engine.rootObjects().isEmpty()) {
         return -1;
+    }
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    if (window) {
+        window->installEventFilter(new ClickOutsideDefocus(window));
     }
     return app.exec();
 }

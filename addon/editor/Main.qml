@@ -27,6 +27,7 @@ ApplicationWindow {
     Component.onCompleted: Theme.setCurrent(settings.theme)
 
     ColumnLayout {
+        id: rootLayout
         anchors.fill: parent
         spacing: 0
 

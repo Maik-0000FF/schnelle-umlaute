@@ -166,7 +166,6 @@ Item {
                         enabledValue: root.settingsModel ? root.settingsModel.customKey1Enabled : false
                         keyValue: root.settingsModel ? root.settingsModel.customKey1 : ""
                         mappingsModel: root.mappingsModel
-                        settingsModel: root.settingsModel
                         onEnabledEdited: (v) => root.settingsModel.customKey1Enabled = v
                         onKeyEdited: (v) => root.settingsModel.customKey1 = v
                     }
@@ -177,7 +176,6 @@ Item {
                         enabledValue: root.settingsModel ? root.settingsModel.customKey2Enabled : false
                         keyValue: root.settingsModel ? root.settingsModel.customKey2 : ""
                         mappingsModel: root.mappingsModel
-                        settingsModel: root.settingsModel
                         onEnabledEdited: (v) => root.settingsModel.customKey2Enabled = v
                         onKeyEdited: (v) => root.settingsModel.customKey2 = v
                     }

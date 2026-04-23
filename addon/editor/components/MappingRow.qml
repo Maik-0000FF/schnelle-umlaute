@@ -44,8 +44,8 @@ Rectangle {
         editing && (outputEdit.text.length === 0 ||
                     !modelRef.validateOutput(outputEdit.text))
     readonly property bool editValid:
-        editing && editInputError === "" && !editLeaderConflict &&
-        !editOutputInvalid
+        editing && inputEdit.text.length > 0 && editInputError === "" &&
+        !editLeaderConflict && !editOutputInvalid
 
     MouseArea {
         id: mouseArea

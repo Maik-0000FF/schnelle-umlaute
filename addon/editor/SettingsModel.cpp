@@ -369,7 +369,6 @@ void SettingsModel::save() {
     out.flush();
     f.commit();
     reloadFcitx();
-    Q_EMIT saveFinished();
 }
 
 void SettingsModel::reloadFcitx() { reloadSchnelleUmlauteAddon(); }

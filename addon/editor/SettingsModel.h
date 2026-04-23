@@ -111,7 +111,6 @@ public:
     static bool isValidLeaderKey(const QString &s);
 
 Q_SIGNALS:
-    void saveFinished();
     void delayLowercaseChanged();
     void delayUppercaseChanged();
     void leaderSpaceChanged();
