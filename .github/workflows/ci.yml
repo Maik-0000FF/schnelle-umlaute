@@ -52,11 +52,13 @@ jobs:
         # v1.0.0 ships two shared libraries — the fcitx5 addon itself and
         # the Qt widget plugin that fcitx5-configtool loads for the
         # mapping editor. If either is missing the install appears green
-        # but the addon is unconfigurable.
+        # but the addon is unconfigurable. The addon .so has PREFIX ""
+        # (no "lib"), the config-editor plugin keeps CMake's default
+        # "lib" prefix — reflected in the STALE_CANDIDATES in install.sh.
         run: |
           missing=0
           for f in build/schnelle-umlaute.so \
-                   build/config-editor/schnelle-umlaute-config-editor.so; do
+                   build/config-editor/libschnelle-umlaute-config-editor.so; do
             if [ -f "$f" ]; then
               echo "ok: $f"
             else
@@ -73,7 +75,7 @@ jobs:
         # user's machine — no error, just missing functionality.
         run: |
           for f in build/schnelle-umlaute.so \
-                   build/config-editor/schnelle-umlaute-config-editor.so; do
+                   build/config-editor/libschnelle-umlaute-config-editor.so; do
             echo "=== ldd $f ==="
             ldd "$f"
             if ldd "$f" | grep -q "not found"; then
@@ -130,7 +132,9 @@ jobs:
         # `yes` answers every "Y/n" prompt with y: install deps, remove
         # stale files, overwrite environment.d. tester's $HOME is
         # ephemeral so overwriting ~/.config/environment.d is harmless.
-        run: su tester -c "cd '$GITHUB_WORKSPACE' && yes | ./install.sh"
+        # sudo -u (not su) because the Fedora minimal image doesn't ship
+        # /bin/su — sudo is already installed by the bootstrap step.
+        run: sudo -u tester bash -c "cd '$GITHUB_WORKSPACE' && yes | ./install.sh"
 
       - name: Verify installed files
         # Install-paths differ per distro (/usr/lib vs /usr/lib64 vs
