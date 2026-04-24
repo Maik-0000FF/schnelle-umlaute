@@ -60,3 +60,146 @@ jobs:
         if: matrix.run_tests
         run: ctest --test-dir build --output-on-failure
         working-directory: addon
+
+  install-uninstall:
+    # Runs install.sh and uninstall.sh back-to-back inside each distro
+    # container, exactly as a real user would. Both scripts refuse to
+    # run as root (EUID check), so we create a non-root tester with
+    # passwordless sudo and invoke them as that user.
+    runs-on: ubuntu-24.04
+    name: install + uninstall (${{ matrix.distro }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Arch Linux
+            image: archlinux:base-devel
+            bootstrap: pacman -Syu --noconfirm sudo
+          - distro: Ubuntu 24.04
+            image: ubuntu:24.04
+            bootstrap: apt-get update && apt-get install -y sudo
+          - distro: Fedora
+            image: fedora:42
+            bootstrap: dnf install -y sudo
+          - distro: openSUSE
+            image: opensuse/tumbleweed
+            bootstrap: zypper --non-interactive install sudo
+
+    container:
+      image: ${{ matrix.image }}
+      options: --user root
+
+    steps:
+      - name: Bootstrap sudo
+        run: ${{ matrix.bootstrap }}
+
+      - name: Create tester user with passwordless sudo
+        # env_keep += DEBIAN_FRONTEND so the noninteractive flag reaches
+        # the `sudo apt install` calls inside install.sh — otherwise
+        # tzdata's postinst prompts for a timezone and `yes | ...` loops
+        # forever feeding "y" to a question that expects a number.
+        #
+        # root ALL=... is needed for openSUSE Tumbleweed: its default
+        # /etc/sudoers ships without root's privilege spec, so the outer
+        # `sudo -u tester ...` fails with "root is not in the sudoers
+        # file" even though we are already running as root.
+        run: |
+          useradd -m -s /bin/bash tester
+          echo "root   ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+          echo "tester ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+          echo 'Defaults env_keep += "DEBIAN_FRONTEND"' >> /etc/sudoers
+
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Hand checkout to tester
+        run: chown -R tester:tester "$GITHUB_WORKSPACE"
+
+      - name: Run install.sh
+        # `yes` answers every "Y/n" prompt with y: install deps, remove
+        # stale files, overwrite environment.d. tester's $HOME is
+        # ephemeral so overwriting ~/.config/environment.d is harmless.
+        # sudo -u (not su) because the Fedora minimal image doesn't ship
+        # /bin/su — sudo is already installed by the bootstrap step.
+        # DEBIAN_FRONTEND=noninteractive silences Ubuntu's tzdata prompt
+        # (harmless no-op on Arch/Fedora/openSUSE where apt is unused).
+        run: sudo -u tester bash -c "export DEBIAN_FRONTEND=noninteractive && cd '$GITHUB_WORKSPACE' && yes | ./install.sh"
+
+      - name: Verify installed files
+        # Install-paths differ per distro (/usr/lib vs /usr/lib64 vs
+        # /usr/lib/x86_64-linux-gnu), so search rather than hard-code.
+        # The addon .so is the required artifact — if it's not there,
+        # fcitx5 can't load the addon at all.
+        run: |
+          echo "=== addon .so ==="
+          find /usr /usr/local -name 'schnelle-umlaute.so' 2>/dev/null
+          echo "=== config-editor plugin ==="
+          find /usr /usr/local -name 'libschnelle-umlaute-config-editor.so' 2>/dev/null
+          echo "=== addon metadata ==="
+          find /usr /usr/local -name 'schnelle-umlaute.conf*' 2>/dev/null
+
+          if ! find /usr /usr/local -name 'schnelle-umlaute.so' 2>/dev/null | grep -q .; then
+            echo "FAIL: addon .so was not installed"
+            exit 1
+          fi
+          if ! find /usr /usr/local -name 'libschnelle-umlaute-config-editor.so' 2>/dev/null | grep -q .; then
+            echo "FAIL: config-editor plugin was not installed"
+            exit 1
+          fi
+
+      - name: Run uninstall.sh
+        # uninstall.sh uses [y/N] prompts (default N), so `yes` feeds "y"
+        # to remove everything: system .so files, user config, mappings
+        # dir, environment.d, autostart. The script's last step tries to
+        # restart fcitx5 — harmless no-op in a container without a
+        # display server. Any fcitx5 -d background attempt is swallowed
+        # by 2>/dev/null and the script continues.
+        run: sudo -u tester bash -c "cd '$GITHUB_WORKSPACE' && yes | ./uninstall.sh"
+
+      - name: Verify files removed
+        # Inverse of the install verification. A hit here means
+        # uninstall.sh missed a path — the STALE_CANDIDATES list in
+        # install.sh and the LIB_PATHS list in uninstall.sh have to
+        # stay in sync, this check enforces that.
+        run: |
+          remaining=0
+          for pattern in 'schnelle-umlaute.so' \
+                         'libschnelle-umlaute-config-editor.so' \
+                         'schnelle-umlaute.conf' \
+                         'schnelle-umlaute.conf.in' \
+                         'org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml'; do
+            hits=$(find /usr /usr/local -name "$pattern" 2>/dev/null || true)
+            if [ -n "$hits" ]; then
+              echo "FAIL: $pattern still present after uninstall:"
+              echo "$hits"
+              remaining=1
+            fi
+          done
+          if [ $remaining -eq 0 ]; then
+            echo "ok: all artifacts removed"
+          fi
+          exit $remaining
+
+  lint:
+    runs-on: ubuntu-24.04
+    name: shellcheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Syntax check
+        run: |
+          bash -n install.sh
+          bash -n uninstall.sh
+          bash -n addon/build.sh
+
+      - name: Shellcheck (warnings and above)
+        # -S warning filters out info/style notes so only real issues fail
+        # the job. Tighten to 'info' later if the scripts are clean.
+        run: |
+          shellcheck -S warning install.sh
+          shellcheck -S warning uninstall.sh
+          shellcheck -S warning addon/build.sh
