@@ -142,7 +142,7 @@ install_deps() {
 
 case "$DISTRO" in
     arch)
-        DEPS=(fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc)
+        DEPS=(fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc pkgconf)
         ;;
     debian)
         DEPS=(fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4
