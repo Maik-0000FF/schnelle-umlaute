@@ -18,17 +18,17 @@ using fcitx::OverlayLifecycleAction;
     }                                                                       \
 } while (0)
 
-// First call after fcitx5 startup: we don't know the previous state, so
-// we never emit start/quit. The daemon remains lazy (DBus activation on
-// the first Show()) if enabled, and stays absent if disabled.
+// First call after fcitx5 startup: eager-start when enabled so the
+// daemon is ready for the first cycling event. When disabled there's
+// nothing to do.
 void testFirstCallIsNoOpWhenDisabled() {
     auto action = decideOverlayLifecycleAction(std::nullopt, false);
     EXPECT(action == OverlayLifecycleAction::None);
 }
 
-void testFirstCallIsNoOpWhenEnabled() {
+void testFirstCallStartsWhenEnabled() {
     auto action = decideOverlayLifecycleAction(std::nullopt, true);
-    EXPECT(action == OverlayLifecycleAction::None);
+    EXPECT(action == OverlayLifecycleAction::Start);
 }
 
 // User toggles the overlay on in the editor: previous=false, current=true.
@@ -57,7 +57,7 @@ void testDisabledStaysDisabledNoOp() {
 
 int main() {
     testFirstCallIsNoOpWhenDisabled();
-    testFirstCallIsNoOpWhenEnabled();
+    testFirstCallStartsWhenEnabled();
     testDisabledToEnabledStarts();
     testEnabledToDisabledQuits();
     testEnabledStaysEnabledNoOp();
