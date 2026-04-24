@@ -25,7 +25,7 @@ The installer automatically detects your distribution (Arch, Debian, Ubuntu, Fed
 **1. Install Dependencies**
 
 ```bash
-sudo pacman -S fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc
+sudo pacman -S fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc pkgconf
 ```
 
 **2. Build the Addon**
@@ -77,7 +77,8 @@ fcitx5 -r
 sudo apt update
 sudo apt install fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 \
     fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev qt6-base-dev \
-    libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext
+    libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext pkg-config \
+    libxkbcommon-dev
 ```
 
 **2. Build the Addon**
@@ -186,8 +187,8 @@ EOF
 **1. Install Dependencies**
 
 ```bash
-sudo zypper install fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6 \
-    fcitx5-devel fcitx5-qt-devel qt6-base-devel \
+sudo zypper install fcitx5 fcitx5-configtool fcitx5-gtk3 fcitx5-gtk4 fcitx5-qt6 \
+    fcitx5-devel fcitx5-qt-devel qt6-base-devel libxkbcommon-devel \
     cmake extra-cmake-modules gcc-c++ gettext
 ```
 
