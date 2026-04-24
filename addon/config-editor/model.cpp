@@ -2,7 +2,13 @@
 #include "mappings-io.h"
 #include <QTextStream>
 #include <fcitx-utils/i18n.h>
+#if __has_include(<fcitx-utils/standardpaths.h>)
 #include <fcitx-utils/standardpaths.h>
+#define SU_HAS_NEW_STDPATHS 1
+#else
+#include <fcitx-utils/standardpath.h>
+#define SU_HAS_NEW_STDPATHS 0
+#endif
 #include <fcitx-utils/unixfd.h>
 #include <fcitx-utils/fs.h>
 #include <fcntl.h>
@@ -115,10 +121,17 @@ void MappingModel::moveDown(int row) {
 void MappingModel::load() {
     beginResetModel();
     entries_.clear();
+#if SU_HAS_NEW_STDPATHS
     auto file = StandardPaths::global().open(StandardPathsType::PkgConfig,
                                              "schnelle-umlaute/mappings.txt");
     if (file.isValid()) {
         auto fp = fs::openFD(file, "r");
+#else
+    auto file = StandardPath::global().open(
+        StandardPath::Type::PkgConfig, "schnelle-umlaute/mappings.txt", O_RDONLY);
+    if (file.fd() >= 0) {
+        auto fp = fs::openFD(file, "r");
+#endif
         if (fp) {
             for (const auto &m : schnelle_umlaute::parseMappings(fp.get())) {
                 entries_.push_back(
@@ -135,8 +148,13 @@ void MappingModel::load() {
 }
 
 void MappingModel::save() {
+#if SU_HAS_NEW_STDPATHS
     StandardPaths::global().safeSave(
         StandardPathsType::PkgConfig, "schnelle-umlaute/mappings.txt",
+#else
+    StandardPath::global().safeSave(
+        StandardPath::Type::PkgConfig, "schnelle-umlaute/mappings.txt",
+#endif
         [this](int fd) {
             UnixFD ufd(fd);
             auto fp = fs::openFD(ufd, "wb");
