@@ -283,4 +283,4 @@ jobs:
       - name: shellcheck
         # Only errors fail the job — warnings (like SC2086 word splitting)
         # would flag too much style.
-        run: shellcheck --severity=error install.sh uninstall.sh
+        run: shellcheck --severity=error install.sh uninstall.sh addon/build.sh
