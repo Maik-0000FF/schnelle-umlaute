@@ -217,6 +217,7 @@ jobs:
       - name: Syntax check
         run: |
           bash -n install.sh
+          bash -n uninstall.sh
           bash -n addon/build.sh
 
       - name: Shellcheck (warnings and above)
@@ -224,4 +225,5 @@ jobs:
         # the job. Tighten to 'info' later if the scripts are clean.
         run: |
           shellcheck -S warning install.sh
+          shellcheck -S warning uninstall.sh
           shellcheck -S warning addon/build.sh
