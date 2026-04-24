@@ -85,13 +85,13 @@ jobs:
           done
         working-directory: addon
 
-  install-script:
-    # Runs the real install.sh end-to-end inside each distro container,
-    # exactly as a user on that distro would. install.sh refuses to run
-    # as root (EUID check), so we create a non-root tester with
-    # passwordless sudo and invoke the script as them.
+  install-uninstall:
+    # Runs install.sh and uninstall.sh back-to-back inside each distro
+    # container, exactly as a real user would. Both scripts refuse to
+    # run as root (EUID check), so we create a non-root tester with
+    # passwordless sudo and invoke them as that user.
     runs-on: ubuntu-24.04
-    name: install.sh (${{ matrix.distro }})
+    name: install + uninstall (${{ matrix.distro }})
     strategy:
       fail-fast: false
       matrix:
@@ -164,6 +164,39 @@ jobs:
             echo "FAIL: config-editor plugin was not installed"
             exit 1
           fi
+
+      - name: Run uninstall.sh
+        # uninstall.sh uses [y/N] prompts (default N), so `yes` feeds "y"
+        # to remove everything: system .so files, user config, mappings
+        # dir, environment.d, autostart. The script's last step tries to
+        # restart fcitx5 — harmless no-op in a container without a
+        # display server. Any fcitx5 -d background attempt is swallowed
+        # by 2>/dev/null and the script continues.
+        run: sudo -u tester bash -c "cd '$GITHUB_WORKSPACE' && yes | ./uninstall.sh"
+
+      - name: Verify files removed
+        # Inverse of the install verification. A hit here means
+        # uninstall.sh missed a path — the STALE_CANDIDATES list in
+        # install.sh and the LIB_PATHS list in uninstall.sh have to
+        # stay in sync, this check enforces that.
+        run: |
+          remaining=0
+          for pattern in 'schnelle-umlaute.so' \
+                         'libschnelle-umlaute-config-editor.so' \
+                         'schnelle-umlaute.conf' \
+                         'schnelle-umlaute.conf.in' \
+                         'org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml'; do
+            hits=$(find /usr /usr/local -name "$pattern" 2>/dev/null || true)
+            if [ -n "$hits" ]; then
+              echo "FAIL: $pattern still present after uninstall:"
+              echo "$hits"
+              remaining=1
+            fi
+          done
+          if [ $remaining -eq 0 ]; then
+            echo "ok: all artifacts removed"
+          fi
+          exit $remaining
 
   lint:
     runs-on: ubuntu-24.04
