@@ -24,7 +24,8 @@ The installer automatically detects your distribution (Arch, Debian, Ubuntu, Fed
 **1. Install Dependencies**
 
 ```bash
-sudo pacman -S fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc
+sudo pacman -S fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc pkgconf \
+    qt6-declarative layer-shell-qt
 ```
 
 **2. Build the Addon**
@@ -76,7 +77,9 @@ fcitx5-remote
 sudo apt update
 sudo apt install fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 \
     fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev qt6-base-dev \
-    libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext
+    libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext pkg-config \
+    libxkbcommon-dev qt6-declarative-dev qml6-module-qtquick-controls \
+    liblayershellqtinterface-dev
 ```
 
 **2. Build the Addon**
@@ -145,7 +148,8 @@ gsettings set org.gnome.settings-daemon.plugins.xsettings overrides "{'Gtk/IMMod
 ```bash
 sudo dnf install fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6 \
     fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel \
-    cmake extra-cmake-modules gcc-c++ gettext
+    cmake extra-cmake-modules gcc-c++ gettext \
+    qt6-qtdeclarative-devel layer-shell-qt-devel
 ```
 
 **2. Build the Addon**
@@ -185,9 +189,10 @@ EOF
 **1. Install Dependencies**
 
 ```bash
-sudo zypper install fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6 \
-    fcitx5-devel fcitx5-qt-devel qt6-base-devel \
-    cmake extra-cmake-modules gcc-c++ gettext
+sudo zypper install fcitx5 fcitx5-configtool fcitx5-gtk3 fcitx5-gtk4 fcitx5-qt6 \
+    fcitx5-devel fcitx5-qt-devel qt6-base-devel libxkbcommon-devel \
+    cmake extra-cmake-modules gcc-c++ gettext \
+    qt6-declarative-devel qt6-quickcontrols2-devel layer-shell-qt6-devel
 ```
 
 **2. Build the Addon**
