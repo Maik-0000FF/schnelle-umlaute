@@ -158,8 +158,8 @@ case "$DISTRO" in
               qt6-qtdeclarative-devel layer-shell-qt-devel)
         ;;
     suse)
-        DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
-              fcitx5-devel fcitx5-qt-devel qt6-base-devel
+        DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk3 fcitx5-gtk4 fcitx5-qt6
+              fcitx5-devel fcitx5-qt-devel qt6-base-devel libxkbcommon-devel
               cmake extra-cmake-modules gcc-c++ gettext
               qt6-declarative-devel qt6-quickcontrols2-devel layer-shell-qt6-devel)
         ;;
