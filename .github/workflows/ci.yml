@@ -122,8 +122,14 @@ jobs:
         # the `sudo apt install` calls inside install.sh — otherwise
         # tzdata's postinst prompts for a timezone and `yes | ...` loops
         # forever feeding "y" to a question that expects a number.
+        #
+        # root ALL=... is needed for openSUSE Tumbleweed: its default
+        # /etc/sudoers ships without root's privilege spec, so the outer
+        # `sudo -u tester ...` fails with "root is not in the sudoers
+        # file" even though we are already running as root.
         run: |
           useradd -m -s /bin/bash tester
+          echo "root   ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
           echo "tester ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
           echo 'Defaults env_keep += "DEBIAN_FRONTEND"' >> /etc/sudoers
 
