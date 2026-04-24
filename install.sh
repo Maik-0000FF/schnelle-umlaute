@@ -147,7 +147,7 @@ case "$DISTRO" in
     debian)
         DEPS=(fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4
               fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev qt6-base-dev
-              libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext)
+              libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext pkg-config)
         ;;
     fedora)
         DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
