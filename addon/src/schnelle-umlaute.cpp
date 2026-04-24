@@ -9,7 +9,14 @@
 #include <fcitx-utils/utf8.h>
 #include <fcitx-utils/event.h>
 #include <fcitx-utils/log.h>
+#if __has_include(<fcitx-utils/standardpaths.h>)
 #include <fcitx-utils/standardpaths.h>
+#define SU_HAS_NEW_STDPATHS 1
+#else
+#include <fcitx-utils/standardpath.h>
+#include <fcntl.h>
+#define SU_HAS_NEW_STDPATHS 0
+#endif
 #include <fcitx-utils/fs.h>
 #include <fcitx-config/configuration.h>
 #include <fcitx-config/iniparser.h>
@@ -847,10 +854,17 @@ private:
 
     void loadMappingsFromFile() {
         umlautMap_.clear();
+#if SU_HAS_NEW_STDPATHS
         auto file = StandardPaths::global().open(
             StandardPathsType::PkgConfig, "schnelle-umlaute/mappings.txt");
         if (file.isValid()) {
             auto fp = fs::openFD(file, "r");
+#else
+        auto file = StandardPath::global().open(
+            StandardPath::Type::PkgConfig, "schnelle-umlaute/mappings.txt", O_RDONLY);
+        if (file.fd() >= 0) {
+            auto fp = fs::openFD(file, "r");
+#endif
             if (fp) {
                 for (const auto &m : schnelle_umlaute::parseMappings(fp.get())) {
                     umlautMap_[m.input] = splitOutputs(m.output);
