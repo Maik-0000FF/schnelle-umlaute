@@ -1,0 +1,177 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    name: build (${{ matrix.distro }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Arch Linux
+            image: archlinux:base-devel
+            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext
+          - distro: Ubuntu 24.04
+            image: ubuntu:24.04
+            install: apt-get update && apt-get install -y build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
+          - distro: Fedora
+            image: fedora:42
+            install: dnf install -y gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel libxkbcommon-devel
+          - distro: openSUSE
+            image: opensuse/tumbleweed
+            install: zypper --non-interactive install gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-base-devel libxkbcommon-devel
+
+    container:
+      image: ${{ matrix.image }}
+
+    steps:
+      - name: Install dependencies
+        run: ${{ matrix.install }}
+
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Configure
+        run: cmake -B build
+        working-directory: addon
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+        working-directory: addon
+
+      - name: Verify artifacts
+        # v1.0.0 ships two shared libraries — the fcitx5 addon itself and
+        # the Qt widget plugin that fcitx5-configtool loads for the
+        # mapping editor. If either is missing the install appears green
+        # but the addon is unconfigurable.
+        run: |
+          missing=0
+          for f in build/schnelle-umlaute.so \
+                   build/config-editor/schnelle-umlaute-config-editor.so; do
+            if [ -f "$f" ]; then
+              echo "ok: $f"
+            else
+              echo "missing: $f"
+              missing=1
+            fi
+          done
+          exit $missing
+        working-directory: addon
+
+      - name: Verify shared-library resolution
+        # Both .so files are dlopen()ed by fcitx5 at runtime. An unresolved
+        # dependency here means fcitx5 will silently skip the addon on the
+        # user's machine — no error, just missing functionality.
+        run: |
+          for f in build/schnelle-umlaute.so \
+                   build/config-editor/schnelle-umlaute-config-editor.so; do
+            echo "=== ldd $f ==="
+            ldd "$f"
+            if ldd "$f" | grep -q "not found"; then
+              echo "unresolved libraries in $f"
+              exit 1
+            fi
+          done
+        working-directory: addon
+
+  install-script:
+    # Runs the real install.sh end-to-end inside each distro container,
+    # exactly as a user on that distro would. install.sh refuses to run
+    # as root (EUID check), so we create a non-root tester with
+    # passwordless sudo and invoke the script as them.
+    runs-on: ubuntu-24.04
+    name: install.sh (${{ matrix.distro }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Arch Linux
+            image: archlinux:base-devel
+            bootstrap: pacman -Syu --noconfirm sudo
+          - distro: Ubuntu 24.04
+            image: ubuntu:24.04
+            bootstrap: apt-get update && apt-get install -y sudo
+          - distro: Fedora
+            image: fedora:42
+            bootstrap: dnf install -y sudo
+          - distro: openSUSE
+            image: opensuse/tumbleweed
+            bootstrap: zypper --non-interactive install sudo
+
+    container:
+      image: ${{ matrix.image }}
+      options: --user root
+
+    steps:
+      - name: Bootstrap sudo
+        run: ${{ matrix.bootstrap }}
+
+      - name: Create tester user with passwordless sudo
+        run: |
+          useradd -m -s /bin/bash tester
+          echo "tester ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Hand checkout to tester
+        run: chown -R tester:tester "$GITHUB_WORKSPACE"
+
+      - name: Run install.sh
+        # `yes` answers every "Y/n" prompt with y: install deps, remove
+        # stale files, overwrite environment.d. tester's $HOME is
+        # ephemeral so overwriting ~/.config/environment.d is harmless.
+        run: su tester -c "cd '$GITHUB_WORKSPACE' && yes | ./install.sh"
+
+      - name: Verify installed files
+        # Install-paths differ per distro (/usr/lib vs /usr/lib64 vs
+        # /usr/lib/x86_64-linux-gnu), so search rather than hard-code.
+        # The addon .so is the required artifact — if it's not there,
+        # fcitx5 can't load the addon at all.
+        run: |
+          echo "=== addon .so ==="
+          find /usr /usr/local -name 'schnelle-umlaute.so' 2>/dev/null
+          echo "=== config-editor plugin ==="
+          find /usr /usr/local -name 'libschnelle-umlaute-config-editor.so' 2>/dev/null
+          echo "=== addon metadata ==="
+          find /usr /usr/local -name 'schnelle-umlaute.conf*' 2>/dev/null
+
+          if ! find /usr /usr/local -name 'schnelle-umlaute.so' 2>/dev/null | grep -q .; then
+            echo "FAIL: addon .so was not installed"
+            exit 1
+          fi
+          if ! find /usr /usr/local -name 'libschnelle-umlaute-config-editor.so' 2>/dev/null | grep -q .; then
+            echo "FAIL: config-editor plugin was not installed"
+            exit 1
+          fi
+
+  lint:
+    runs-on: ubuntu-24.04
+    name: shellcheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Syntax check
+        run: |
+          bash -n install.sh
+          bash -n addon/build.sh
+
+      - name: Shellcheck (warnings and above)
+        # -S warning filters out info/style notes so only real issues fail
+        # the job. Tighten to 'info' later if the scripts are clean.
+        run: |
+          shellcheck -S warning install.sh
+          shellcheck -S warning addon/build.sh
