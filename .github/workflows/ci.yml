@@ -118,9 +118,14 @@ jobs:
         run: ${{ matrix.bootstrap }}
 
       - name: Create tester user with passwordless sudo
+        # env_keep += DEBIAN_FRONTEND so the noninteractive flag reaches
+        # the `sudo apt install` calls inside install.sh — otherwise
+        # tzdata's postinst prompts for a timezone and `yes | ...` loops
+        # forever feeding "y" to a question that expects a number.
         run: |
           useradd -m -s /bin/bash tester
           echo "tester ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+          echo 'Defaults env_keep += "DEBIAN_FRONTEND"' >> /etc/sudoers
 
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -134,7 +139,9 @@ jobs:
         # ephemeral so overwriting ~/.config/environment.d is harmless.
         # sudo -u (not su) because the Fedora minimal image doesn't ship
         # /bin/su — sudo is already installed by the bootstrap step.
-        run: sudo -u tester bash -c "cd '$GITHUB_WORKSPACE' && yes | ./install.sh"
+        # DEBIAN_FRONTEND=noninteractive silences Ubuntu's tzdata prompt
+        # (harmless no-op on Arch/Fedora/openSUSE where apt is unused).
+        run: sudo -u tester bash -c "export DEBIAN_FRONTEND=noninteractive && cd '$GITHUB_WORKSPACE' && yes | ./install.sh"
 
       - name: Verify installed files
         # Install-paths differ per distro (/usr/lib vs /usr/lib64 vs
