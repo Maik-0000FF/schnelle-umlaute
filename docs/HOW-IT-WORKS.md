@@ -29,6 +29,8 @@ stateDiagram-v2
 
 **Note:** Leader key is <kbd>Space</kbd> by default. You can configure it to Arrow keys (<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>), <kbd>Alt</kbd>/<kbd>AltGr</kbd>, or custom keys in `fcitx5-config-qt`.
 
+**App Filter:** The gestures described below only fire in apps that are not excluded by the App Filter. By default the addon is active everywhere; you can blacklist specific apps (or whitelist only selected apps) — see [Configuration → App Filter](CONFIGURATION.md#app-filter).
+
 ## Why Does Typing Feel Different?
 
 This addon works differently than normal typing. Understanding this helps you adapt faster.
