@@ -77,6 +77,9 @@
         "applicationSubCategory": "Input Method",
         "operatingSystem": "Linux",
         "softwareRequirements": "Fcitx5",
+        "softwareVersion": "1.1.0",
+        "datePublished": "2025-10-25",
+        "dateModified": "2026-05-02",
         "programmingLanguage": "C++20",
         "license": "https://opensource.org/licenses/GPL-3.0",
         "isAccessibleForFree": true,
@@ -165,7 +168,8 @@
             { "@type": "Question", "name": "Which distros are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Supported on Arch Linux, Ubuntu/Debian, Fedora, and openSUSE. Works on any distro with Fcitx5." } },
             { "@type": "Question", "name": "Can I adjust the timing?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, via fcitx5-config-qt. Default: 400ms lowercase, 700ms uppercase. Adjustable from 50ms to 2000ms to match your typing speed." } },
             { "@type": "Question", "name": "Can I use it for text snippets?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Map any key to a full phrase — e.g. hold m + Space to insert your email address, g for a Vim command like ggVGy (select all + yank), or u for sudo apt update. Works with any length of text." } },
-            { "@type": "Question", "name": "What leader keys are available?", "acceptedAnswer": { "@type": "Answer", "text": "Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing." } }
+            { "@type": "Question", "name": "What leader keys are available?", "acceptedAnswer": { "@type": "Answer", "text": "Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing." } },
+            { "@type": "Question", "name": "Can I disable it in specific apps?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The App Filter lets you set a blacklist (disable in listed apps) or a whitelist (enable only in listed apps). Useful for games, password managers, IP/number-only fields, or apps with conflicting shortcuts." } }
         ]
     }
     </script>
@@ -1520,6 +1524,10 @@
         <details class="q">
             <summary>What leader keys are available?</summary>
             <p class="q-body">Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing.</p>
+        </details>
+        <details class="q">
+            <summary>Can I disable it in specific apps?</summary>
+            <p class="q-body">Yes. The App Filter lets you set a blacklist (disable in listed apps) or a whitelist (enable only in listed apps). Useful for games, password managers, IP/number-only fields, or apps with conflicting shortcuts.</p>
         </details>
     </div>
 </section>
