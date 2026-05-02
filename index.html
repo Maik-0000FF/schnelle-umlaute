@@ -1088,6 +1088,20 @@
         }
         .btn-outline:hover { border-color: rgba(255,255,255,0.28); transform: translateY(-2px); }
 
+        /* Anti-wobble: a 2px hit-area below the button catches the cursor at the
+           original edge; on hover the button translates up and the pseudo grows
+           to 4px so the cursor's original Y stays inside the (transformed) area. */
+        .nav-cta, .kofi-btn, .btn-green, .btn-outline { position: relative; }
+        .nav-cta::after, .kofi-btn::after, .btn-green::after, .btn-outline::after {
+            content: '';
+            position: absolute;
+            left: 0; right: 0; bottom: -2px; height: 2px;
+        }
+        .nav-cta:hover::after, .kofi-btn:hover::after,
+        .btn-green:hover::after, .btn-outline:hover::after {
+            bottom: -4px; height: 4px;
+        }
+
         /* ─── FOOTER ─── */
         footer {
             border-top: 1px solid var(--border);
