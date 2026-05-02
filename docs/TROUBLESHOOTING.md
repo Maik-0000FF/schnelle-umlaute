@@ -53,21 +53,18 @@ If missing, reinstall:
 ```bash
 cd addon/build
 sudo cmake --install .
-fcitx5 -r
+fcitx5-remote -r
 ```
 
-## Configuration options not visible in GUI
+## Configuration options not visible
 
-If the addon appears but you can't see DelayLowercase/DelayUppercase settings:
+If the addon appears in fcitx5-config-qt but the gear button doesn't open the editor, or the editor opens but lacks tabs:
 
-1. Check if the config descriptor is installed:
+1. Verify the editor binary is installed: `which schnelle-umlaute-editor`
+2. Verify the addon's `[Editor] External=` entry: `grep -A1 '\[Editor\]' /usr/share/fcitx5/addon/schnelle-umlaute.conf.in`
+3. If missing, reinstall the addon:
    ```bash
-   ls /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
-   ```
-
-2. If missing, reinstall the addon:
-   ```bash
-   cd addon && ./build.sh && cd build && sudo cmake --install . && fcitx5 -r
+   cd addon && ./build.sh && cd build && sudo cmake --install . && fcitx5-remote -r
    ```
 
 ## Works in terminal but not in other apps (Firefox, Kate, etc.)
@@ -81,7 +78,53 @@ Then **logout and login again** for changes to take effect.
 1. Make sure you're switched to "Schnelle Umlaute" input method (<kbd>Ctrl</kbd> + <kbd>Space</kbd>)
 2. Check Fcitx5 is running: `ps aux | grep fcitx5`
 3. Try holding the key longer before pressing Space
-4. Verify environment variables are set: `echo $GTK_IM_MODULE` (should output "fcitx")
+4. Verify environment variables are set: `echo $GTK_IM_MODULE` (should output "fcitx") — if not, run `schnelle-umlaute-setup` and logout/login
+5. Check the **App Filter** isn't blocking the current app — see next section
+
+## Addon doesn't work in a specific app (works elsewhere)
+
+Check the App Filter: open the editor (`schnelle-umlaute-editor`) and look at the **App Filter** mode and list. If the mode is **Blacklist** and the app is listed, the addon is intentionally disabled there. If the mode is **Whitelist**, the addon only fires in apps explicitly listed.
+
+Setting the mode back to **Disabled** turns the filter off entirely. See [Configuration → App Filter](CONFIGURATION.md#app-filter) for details on identifying program names.
+
+## Editor doesn't launch (`schnelle-umlaute-editor`)
+
+**Symptom:** Clicking the gear button in fcitx5-configtool does nothing, or running `schnelle-umlaute-editor` from a terminal exits immediately or errors.
+
+**Common causes:**
+
+1. **Missing QML controls module.** The editor needs Qt 6 Quick Controls. On Debian/Ubuntu/Kali, that's `qml6-module-qtquick-controls`; on Arch it's part of `qt6-declarative` (already a dependency). On Fedora/openSUSE, it's part of `qt6-qtdeclarative-devel` / `qt6-quickcontrols2-devel`. Re-run the install dependency line for your distro from [INSTALLATION.md](INSTALLATION.md).
+2. **Binary missing or in wrong location.** Verify with `which schnelle-umlaute-editor` (expect `/usr/bin/...` or `/usr/local/bin/...`). If absent, reinstall.
+3. **Run from a TTY without a Wayland/X session.** The editor needs a graphical session to draw — login to your usual session first.
+
+## Editor changes don't take effect
+
+**Symptom:** You change settings or mappings in the editor, save, but the addon still uses the old values.
+
+**Cause:** The editor calls fcitx5's DBus method `Controller1.ReloadAddonConfig` to live-reload the addon. If that fails (DBus restricted, fcitx5 not running, addon not loaded), saved files exist but the running addon doesn't see them.
+
+**Fix:**
+1. Verify fcitx5 is running: `fcitx5-remote` (should print `1` or `2`)
+2. Manually reload: `fcitx5-remote -r`
+3. If still stale, fully restart fcitx5: `fcitx5-remote -e && fcitx5 -d`
+
+## Cycle overlay does not appear
+
+The overlay is **Wayland-only**, requires `wlr-layer-shell` (KDE Plasma, sway, Hyprland), and is **disabled by default**.
+
+1. **Check session.** Run `echo $XDG_SESSION_TYPE` — must be `wayland`. The overlay does nothing on X11 / XWayland.
+2. **Check compositor.** GNOME/Mutter does not support `wlr-layer-shell`. The editor greys out the Overlay toggle on unsupported compositors; if you manually edited `Enabled=True` in `~/.config/fcitx5/conf/schnelle-umlaute.conf` on such a system, the addon will simply not call the daemon.
+3. **Check enabled state.** Open `schnelle-umlaute-editor` → Settings → Overlay must be On.
+4. **Check that the daemon can launch.** Run `/usr/bin/schnelle-umlaute-overlay --help 2>&1 | head -3` (the binary should at least start without missing-library errors). DBus auto-activation logs go to `journalctl --user`.
+5. **Stale daemon process.** If a previous daemon is stuck, kill it: `pkill schnelle-umlaute-overlay`. The addon will start a fresh one on the next gesture.
+
+## `schnelle-umlaute-setup` errors out
+
+**Symptom:** The setup helper exits with an error when you run it.
+
+- *"Error: do not run as root"* — the helper writes to your `$HOME` on purpose. Run it without `sudo`.
+- *Existing config at `~/.config/environment.d/fcitx5.conf`* — the helper detects an unrelated config and asks before overwriting. Answer `N` to keep yours, then ensure `GTK_IM_MODULE`, `QT_IM_MODULE`, and `XMODIFIERS=@im=fcitx` are present in some startup file.
+- *Autostart copy fails* — only matters off KDE Wayland. Install the fcitx5 package so `/usr/share/applications/org.fcitx.Fcitx5.desktop` exists.
 
 ## Addon is visible but not activatable / Fcitx5 not responding
 
@@ -96,7 +139,7 @@ If you can see "Schnelle Umlaute" in fcitx5-config-qt but cannot activate it, or
 
 2. **Restart Fcitx5:**
    ```bash
-   fcitx5 -r
+   fcitx5-remote -r
    ```
 
 3. **Activate addon:**
@@ -132,7 +175,7 @@ To share the input method state globally:
 1. Open Fcitx5 configuration: `fcitx5-config-qt`
 2. Go to **Global Options**
 3. Set **Share Input State** to **All**
-4. Restart Fcitx5: `fcitx5 -r`
+4. Restart Fcitx5: `fcitx5-remote -r`
 
 ## WezTerm known issues
 
