@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# schnelle-umlaute-setup — One-time per-user setup for fcitx5 environment
+# variables and autostart. Safe to re-run; preserves existing config when
+# already correct, prompts before overwriting unrelated config.
+#
+# This script intentionally does NOT touch system files — it only writes
+# to $HOME. Run as your normal user (not root, not sudo).
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+if [ "$EUID" -eq 0 ]; then
+    echo -e "${RED}Error: do not run as root.${NC} Run as your normal user." >&2
+    echo "  schnelle-umlaute-setup" >&2
+    exit 1
+fi
+
+echo -e "${BLUE}=== Schnelle Umlaute — User Setup ===${NC}"
+echo
+
+# --- 1. Environment variables ---------------------------------------------
+ENV_FILE="$HOME/.config/environment.d/fcitx5.conf"
+mkdir -p "$(dirname "$ENV_FILE")"
+
+write_env_file() {
+    cat > "$ENV_FILE" <<'EOF'
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+GLFW_IM_MODULE=ibus
+EOF
+}
+
+echo -e "${BLUE}[1/2] Environment variables${NC}"
+if [ -f "$ENV_FILE" ] \
+        && grep -q "^GTK_IM_MODULE=fcitx$" "$ENV_FILE" \
+        && grep -q "^QT_IM_MODULE=fcitx$" "$ENV_FILE" \
+        && grep -q "^XMODIFIERS=@im=fcitx$" "$ENV_FILE"; then
+    echo -e "  ${GREEN}✓ Already configured: $ENV_FILE${NC}"
+elif [ -f "$ENV_FILE" ]; then
+    echo -e "  ${YELLOW}Existing file: $ENV_FILE${NC}"
+    echo "  Contents:"
+    sed 's/^/    /' "$ENV_FILE"
+    read -p "  Overwrite with fcitx5 settings? [Y/n] " -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        write_env_file
+        echo -e "  ${GREEN}✓ Updated: $ENV_FILE${NC}"
+    else
+        echo -e "  ${YELLOW}Skipped — make sure GTK/QT_IM_MODULE=fcitx and XMODIFIERS=@im=fcitx are set elsewhere.${NC}"
+    fi
+else
+    write_env_file
+    echo -e "  ${GREEN}✓ Created: $ENV_FILE${NC}"
+fi
+echo
+
+# --- 2. Autostart (session-aware) -----------------------------------------
+SESSION="${XDG_SESSION_TYPE:-unknown}"
+DESKTOP="${XDG_CURRENT_DESKTOP:-unknown}"
+AUTOSTART_FILE="$HOME/.config/autostart/org.fcitx.Fcitx5.desktop"
+mkdir -p "$(dirname "$AUTOSTART_FILE")"
+
+echo -e "${BLUE}[2/2] Autostart (session: $SESSION, desktop: $DESKTOP)${NC}"
+
+if [ "$SESSION" = "wayland" ] && [ "$DESKTOP" = "KDE" ]; then
+    # KDE Wayland: KWin auto-starts fcitx5 if Virtual Keyboard is set to
+    # "Fcitx 5". An XDG autostart entry would launch a SECOND instance and
+    # cause duplicate-IM conflicts.
+    if [ -f "$AUTOSTART_FILE" ] && grep -q "^Hidden=true$" "$AUTOSTART_FILE"; then
+        echo -e "  ${GREEN}✓ XDG autostart already disabled (KWin handles fcitx5 startup)${NC}"
+    else
+        cat > "$AUTOSTART_FILE" <<'EOF'
+[Desktop Entry]
+Hidden=true
+EOF
+        echo -e "  ${GREEN}✓ Disabled XDG autostart for KDE Wayland${NC}"
+    fi
+    echo -e "  ${YELLOW}Note: Make sure System Settings → Virtual Keyboard is set to 'Fcitx 5'.${NC}"
+else
+    SOURCE_DESKTOP=/usr/share/applications/org.fcitx.Fcitx5.desktop
+    if [ ! -f "$SOURCE_DESKTOP" ]; then
+        echo -e "  ${YELLOW}!  $SOURCE_DESKTOP not found — install fcitx5 first.${NC}"
+    elif [ -f "$AUTOSTART_FILE" ] && cmp -s "$SOURCE_DESKTOP" "$AUTOSTART_FILE"; then
+        echo -e "  ${GREEN}✓ Already configured: $AUTOSTART_FILE${NC}"
+    else
+        cp "$SOURCE_DESKTOP" "$AUTOSTART_FILE"
+        echo -e "  ${GREEN}✓ Enabled XDG autostart: $AUTOSTART_FILE${NC}"
+    fi
+fi
+echo
+
+echo -e "${GREEN}Setup complete.${NC}"
+echo -e "${YELLOW}Logout and login for environment variables to take effect.${NC}"
+echo
+echo "Next steps:"
+echo "  1. Logout and login"
+echo "  2. Run 'fcitx5-config-qt' (or open System Settings → Input Method)"
+echo "  3. Add 'Schnelle Umlaute' to your input methods"
+echo "  4. Toggle with Ctrl+Space and start typing"

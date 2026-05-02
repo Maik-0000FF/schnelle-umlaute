@@ -74,6 +74,11 @@ add_subdirectory(editor)
 # Standalone QML overlay daemon
 add_subdirectory(overlay)
 
+# Per-user setup helper (env-vars + autostart). Run once after install
+# from a normal terminal as the regular user — never as root.
+install(PROGRAMS scripts/schnelle-umlaute-setup
+        DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
 # Tests (off by default — install scripts and end users don't need them)
 option(BUILD_TESTING "Build tests" OFF)
 if(BUILD_TESTING)
