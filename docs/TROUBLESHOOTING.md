@@ -16,15 +16,28 @@
 
 **Solution:** Switch to a leader key that doesn't conflict with normal typing:
 
-- **Arrow keys** (<kbd>←</kbd> / <kbd>→</kbd>) — dedicated, no conflict
-- **Alt / AltGr** — works well under XIM (e.g. WezTerm)
+- **Arrow keys** (<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>) — dedicated, no conflict
+- **Alt / AltGr** — dedicated, no conflict
 - **Custom keys** (e.g. `f`, `j`) — tested across multiple languages with few conflicts
+- **Dual custom leaders** (hand-split) — one leader per keyboard half, near-zero conflicts
 
 See [Configuration → Leader Key](CONFIGURATION.md#leader-key) for setup instructions.
 
 ## Addon stops working after moving/switching windows (fcitx5 5.1.18+)
 
 KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) can interfere with the addon — mapped keys stop producing output. Disable the tiling script to fix this.
+
+## Uppercase mappings not working (Shift trigger conflict)
+
+**Symptom:** Lowercase mappings (a → ä) work, but uppercase mappings (Shift+A → Ä) switch the input method instead.
+
+**Cause:** Fcitx5 uses Shift as input method trigger key. When you press Shift+A, fcitx5 intercepts the Shift press to switch input methods before the addon can process it.
+
+**Fix:** Change the trigger key in Fcitx5 settings:
+1. Open `fcitx5-config-qt` → **Global Options** → **Trigger Input Method**
+2. Remove any Shift-based triggers and use **Ctrl+Space** instead
+
+> **Note:** The install script detects this conflict and offers to fix it automatically.
 
 ## Addon not showing in fcitx5-config-qt
 

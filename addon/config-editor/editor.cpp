@@ -32,10 +32,10 @@ MappingEditor::MappingEditor(QWidget *parent)
     mainLayout->addWidget(helpLabel, 2, 0);
 
     // Validation error label
-    inputStatus_ = new QLabel(this);
-    inputStatus_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    inputStatus_->setVisible(false);
-    mainLayout->addWidget(inputStatus_, 3, 0);
+    statusLabel_ = new QLabel(this);
+    statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
+    statusLabel_->setVisible(false);
+    mainLayout->addWidget(statusLabel_, 3, 0);
 
     connect(addButton, &QPushButton::clicked, this,
             &MappingEditor::addMapping);
@@ -65,21 +65,10 @@ MappingEditor::MappingEditor(QWidget *parent)
             &MappingEditor::addMapping);
     connect(outputEdit, &QLineEdit::returnPressed, this,
             &MappingEditor::addMapping);
-    connect(inputEdit, &QLineEdit::textChanged, this, [this]() {
-        clearInputError();
-        auto text = inputEdit->text().trimmed();
-        if (!text.isEmpty()) {
-            if (!MappingModel::isValidInput(text)) {
-                showInputError(_("Input must be exactly one printable character"));
-            } else if (model_->hasInput(text)) {
-                showInputError(_("This input key is already mapped"));
-            } else if (isLeaderKeyConflict(text)) {
-                showInputWarning(
-                    _("This key is configured as a Custom Leader — "
-                      "it will not work as a mapped input"));
-            }
-        }
-    });
+    connect(inputEdit, &QLineEdit::textChanged, this,
+            &MappingEditor::revalidate);
+    connect(outputEdit, &QLineEdit::textChanged, this,
+            &MappingEditor::revalidate);
 
     loadLeaderKeys();
     load();
@@ -128,6 +117,10 @@ void MappingEditor::addMapping() {
         showInputError(_("This input key is already mapped"));
         return;
     }
+    if (!MappingModel::isValidOutput(output)) {
+        showOutputError(_("Output must not contain line breaks"));
+        return;
+    }
     clearInputError();
     auto idx = model_->addItem(input, output);
     mappingView->setCurrentIndex(idx);
@@ -137,22 +130,64 @@ void MappingEditor::addMapping() {
 }
 
 void MappingEditor::showInputError(const QString &msg) {
-    inputStatus_->setText(msg);
-    inputStatus_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    inputStatus_->setVisible(true);
+    statusLabel_->setText(msg);
+    statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
+    statusLabel_->setVisible(true);
     inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc0000; }");
 }
 
 void MappingEditor::showInputWarning(const QString &msg) {
-    inputStatus_->setText(msg);
-    inputStatus_->setStyleSheet("QLabel { color: #cc8800; font-size: 11px; }");
-    inputStatus_->setVisible(true);
+    statusLabel_->setText(msg);
+    statusLabel_->setStyleSheet("QLabel { color: #cc8800; font-size: 11px; }");
+    statusLabel_->setVisible(true);
     inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc8800; }");
 }
 
+void MappingEditor::showOutputError(const QString &msg) {
+    statusLabel_->setText(msg);
+    statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
+    statusLabel_->setVisible(true);
+    outputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc0000; }");
+}
+
 void MappingEditor::clearInputError() {
-    inputStatus_->setVisible(false);
+    statusLabel_->setVisible(false);
     inputEdit->setStyleSheet("");
+    outputEdit->setStyleSheet("");
+}
+
+void MappingEditor::revalidate() {
+    clearInputError();
+    auto input = inputEdit->text().trimmed();
+    // Output is NOT trimmed — leading/trailing whitespace is intentional
+    // (matches addMapping()). Only a structural check is run here.
+    auto output = outputEdit->text();
+
+    // Input blockers take precedence (same order as addMapping).
+    if (!input.isEmpty()) {
+        if (!MappingModel::isValidInput(input)) {
+            showInputError(_("Input must be exactly one printable character"));
+            return;
+        }
+        if (model_->hasInput(input)) {
+            showInputError(_("This input key is already mapped"));
+            return;
+        }
+    }
+
+    // Output blocker: reject newlines that would corrupt the file format.
+    if (!output.isEmpty() && !MappingModel::isValidOutput(output)) {
+        showOutputError(_("Output must not contain line breaks"));
+        return;
+    }
+
+    // Non-blocking warning: leader-key conflict. Only shown when there is
+    // no higher-priority error, so the user's attention stays on blockers.
+    if (!input.isEmpty() && isLeaderKeyConflict(input)) {
+        showInputWarning(
+            _("This key is configured as a Custom Leader — "
+              "it will not work as a mapped input"));
+    }
 }
 
 void MappingEditor::deleteMapping() {
@@ -175,16 +210,23 @@ void MappingEditor::loadLeaderKeys() {
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
         + "/fcitx5/conf/schnelle-umlaute.conf";
     QSettings settings(configPath, QSettings::IniFormat);
-    settings.beginGroup("Leader");
+    settings.beginGroup("Leader/Custom");
     if (settings.value("CustomKeyEnabled", false).toBool()) {
         QString key = settings.value("CustomKey").toString().trimmed();
         auto ucs4 = key.toUcs4();
-        if (!ucs4.isEmpty()) leaderKeys_ << QString::fromUcs4(reinterpret_cast<const char32_t *>(&ucs4[0]), 1);
+        if (!ucs4.isEmpty()) {
+            // Copy to char32_t to avoid reinterpret_cast from uint.
+            char32_t cp = static_cast<char32_t>(ucs4[0]);
+            leaderKeys_ << QString::fromUcs4(&cp, 1);
+        }
     }
     if (settings.value("CustomKey2Enabled", false).toBool()) {
         QString key = settings.value("CustomKey2").toString().trimmed();
         auto ucs4 = key.toUcs4();
-        if (!ucs4.isEmpty()) leaderKeys_ << QString::fromUcs4(reinterpret_cast<const char32_t *>(&ucs4[0]), 1);
+        if (!ucs4.isEmpty()) {
+            char32_t cp = static_cast<char32_t>(ucs4[0]);
+            leaderKeys_ << QString::fromUcs4(&cp, 1);
+        }
     }
     settings.endGroup();
 }

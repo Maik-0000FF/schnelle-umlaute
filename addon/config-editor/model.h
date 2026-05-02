@@ -2,6 +2,7 @@
 #define SCHNELLE_UMLAUTE_CONFIG_EDITOR_MODEL_H
 
 #include <QAbstractTableModel>
+#include <QChar>
 #include <QString>
 #include <vector>
 
@@ -30,7 +31,29 @@ public:
     void moveDown(int row);
     bool needSave() const;
     bool hasInput(const QString &input, int excludeRow = -1) const;
-    static bool isValidInput(const QString &input);
+
+    // Accept exactly one printable, non-whitespace Unicode codepoint.
+    // Kept inline so standalone unit tests can call it without linking
+    // against model.cpp (which depends on fcitx-utils for load/save).
+    static bool isValidInput(const QString &input) {
+        if (input.isEmpty()) return false;
+        auto ucs4 = input.toUcs4();
+        if (ucs4.size() != 1) return false;
+        // Use UCS-4 codepoint for property checks — QChar only covers BMP,
+        // characters above U+FFFF would appear as surrogates and fail isPrint().
+        uint cp = ucs4[0];
+        return QChar::isPrint(cp) && !QChar::isSpace(cp);
+    }
+
+    // Reject embedded line breaks: '\n' is the mappings.txt entry separator
+    // (fgets splits on it), so an embedded newline would break one mapping
+    // across two parsed lines on reload and silently drop the tail. '\r'
+    // would be trimmed at end-of-line and pass through in the middle, also
+    // producing confusing results. Tabs, spaces (including leading/trailing),
+    // commas and any other printable character remain allowed.
+    static bool isValidOutput(const QString &output) {
+        return !output.contains(QChar('\n')) && !output.contains(QChar('\r'));
+    }
 
 Q_SIGNALS:
     void needSaveChanged(bool);

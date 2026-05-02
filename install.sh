@@ -91,7 +91,7 @@ case "$DISTRO" in
         echo "Manual build:"
         echo "  1. Install: fcitx5, fcitx5 dev libraries, cmake, extra-cmake-modules, g++"
         echo "  2. cd addon && mkdir build && cd build && cmake .. && make -j\$(nproc)"
-        echo "  3. sudo make install"
+        echo "  3. sudo cmake --install ."
         exit 1
         ;;
 esac
@@ -177,7 +177,7 @@ echo
 
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     echo -e "${YELLOW}Missing dependencies: ${MISSING_DEPS[*]}${NC}"
-    read -p "Install missing dependencies? [Y/n] " -n 1 -r
+    read -p "Install missing dependencies? [Y/n] " -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         echo -e "${BLUE}Installing dependencies...${NC}"
@@ -213,11 +213,17 @@ echo
 
 # --- Remove Stale Installations ---
 
+# Check ALL possible paths regardless of detected distro.
+# Searching paths that don't exist is harmless; missing paths is not.
 STALE_CANDIDATES=(
     /usr/lib/fcitx5/schnelle-umlaute.so
     /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
     /usr/lib64/fcitx5/schnelle-umlaute.so
     /usr/lib64/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
+    /usr/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so
+    /usr/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
     /usr/share/fcitx5/addon/schnelle-umlaute.conf
     /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
     /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
@@ -226,25 +232,15 @@ STALE_CANDIDATES=(
     /usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
     /usr/local/lib64/fcitx5/schnelle-umlaute.so
     /usr/local/lib64/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/local/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
+    /usr/local/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
+    /usr/local/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so
+    /usr/local/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
     /usr/local/share/fcitx5/addon/schnelle-umlaute.conf
     /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in
     /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
     /usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf
 )
-
-# Debian uses multiarch lib paths
-if [ "$DISTRO" = "debian" ]; then
-    STALE_CANDIDATES+=(
-        /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
-        /usr/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
-        /usr/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so
-        /usr/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
-        /usr/local/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
-        /usr/local/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
-        /usr/local/lib/aarch64-linux-gnu/fcitx5/schnelle-umlaute.so
-        /usr/local/lib/aarch64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
-    )
-fi
 
 STALE_FILES=()
 for stale in "${STALE_CANDIDATES[@]}"; do
@@ -253,13 +249,30 @@ for stale in "${STALE_CANDIDATES[@]}"; do
     fi
 done
 
+# Fallback: find any file containing "schnelle-umlaute" or "SchnelleUmlaute"
+# under fcitx5 system directories. Catches any legacy files we missed.
+SEARCH_ROOTS=(
+    /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64
+    /usr/share/fcitx5 /usr/local/share/fcitx5
+)
+for root in "${SEARCH_ROOTS[@]}"; do
+    [ -d "$root" ] || continue
+    while IFS= read -r found; do
+        skip=0
+        for existing in "${STALE_FILES[@]}"; do
+            [ "$existing" = "$found" ] && skip=1 && break
+        done
+        [ $skip -eq 0 ] && STALE_FILES+=("$found")
+    done < <(find "$root" -path "*/fcitx5/*" \( -iname "*schnelle*umlaute*" -o -iname "*SchnelleUmlaute*" \) -type f 2>/dev/null)
+done
+
 if [ ${#STALE_FILES[@]} -ne 0 ]; then
     echo -e "${YELLOW}Found previous installation files:${NC}"
     for file in "${STALE_FILES[@]}"; do
         echo "  - $file"
     done
     echo
-    read -p "Remove before reinstalling? [Y/n] " -n 1 -r
+    read -p "Remove before reinstalling? [Y/n] " -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         sudo rm -f "${STALE_FILES[@]}"
@@ -273,10 +286,7 @@ fi
 # --- Install ---
 
 echo -e "${BLUE}Installing addon...${NC}"
-case "$DISTRO" in
-    debian) sudo make install ;;
-    *)      sudo cmake --install . ;;
-esac
+sudo cmake --install .
 echo -e "${GREEN}✓ Addon installed${NC}"
 echo
 
@@ -304,7 +314,7 @@ if [ -f "$ENV_FILE" ]; then
     echo "Contents:"
     cat "$ENV_FILE"
     echo
-    read -p "Overwrite with fcitx5 settings? [Y/n] " -n 1 -r
+    read -p "Overwrite with fcitx5 settings? [Y/n] " -r
     echo
     if [[ $REPLY =~ ^[Nn]$ ]]; then
         echo -e "${YELLOW}Skipping environment setup. Make sure GTK_IM_MODULE, QT_IM_MODULE, and XMODIFIERS are set to fcitx.${NC}"
@@ -329,102 +339,47 @@ if [ "$DISTRO" = "debian" ]; then
     echo
 fi
 
-# --- Config Migration ---
-
-CONFIG_FILE="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
+# --- Config Status ---
 
 echo -e "${BLUE}Checking configuration...${NC}"
-
-# Migrate old flat config format to new sectioned format.
-# Old format had top-level keys like DelayLowercase=, LeaderSpace=, Mapping1Input=.
-# New format uses sections: [Delay] Lowercase=, [Leader] Space=, [Mappings] Input1=.
-migrate_flat_config() {
-    local cfg="$1"
-    local tmp="${cfg}.migrating"
-
-    echo "[Delay]" > "$tmp"
-    grep -oP '^DelayLowercase=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Lowercase=$v"; done >> "$tmp"
-    grep -oP '^DelayUppercase=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Uppercase=$v"; done >> "$tmp"
-    echo "" >> "$tmp"
-
-    echo "[Leader]" >> "$tmp"
-    grep -oP '^LeaderSpace=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Space=$v"; done >> "$tmp"
-    grep -oP '^LeaderLeft=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Left=$v"; done >> "$tmp"
-    grep -oP '^LeaderRight=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Right=$v"; done >> "$tmp"
-    grep -oP '^LeaderUp=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Up=$v"; done >> "$tmp"
-    grep -oP '^LeaderDown=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Down=$v"; done >> "$tmp"
-    grep -oP '^LeaderAlt=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "Alt=$v"; done >> "$tmp"
-    grep -oP '^CustomLeaderKey=\K.*' "$cfg" 2>/dev/null | while read -r v; do echo "CustomKey=$v"; done >> "$tmp"
-    echo "" >> "$tmp"
-
-    echo "[Mappings]" >> "$tmp"
-    for i in $(seq 1 30); do
-        grep -oP "^Mapping${i}Input=\\K.*" "$cfg" 2>/dev/null | while read -r v; do echo "Input${i}=$v"; done >> "$tmp"
-        grep -oP "^Mapping${i}Output=\\K.*" "$cfg" 2>/dev/null | while read -r v; do echo "Output${i}=$v"; done >> "$tmp"
-    done
-    echo "" >> "$tmp"
-
-    mv "$tmp" "$cfg"
-}
-
-if [ -f "$CONFIG_FILE" ]; then
-    if grep -q "^\[Mapping1\]" "$CONFIG_FILE"; then
-        # Very old SubConfiguration format
-        echo -e "${YELLOW}Detected very old configuration format (SubConfiguration structure)${NC}"
-        read -p "Remove old config and regenerate defaults? [Y/n] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            mv "$CONFIG_FILE" "$CONFIG_FILE.backup"
-            echo -e "${GREEN}✓ Old config backed up to: $CONFIG_FILE.backup${NC}"
-            echo -e "${GREEN}✓ Defaults will be regenerated on next start${NC}"
-        else
-            echo -e "${RED}Warning: Old config format may not work correctly!${NC}"
-        fi
-    elif grep -q "^DelayLowercase=" "$CONFIG_FILE" || grep -q "^LeaderSpace=" "$CONFIG_FILE" || grep -q "^Mapping1Input=" "$CONFIG_FILE"; then
-        # Flat config format (pre-grouping) - can be auto-migrated
-        echo -e "${YELLOW}Detected old flat configuration format${NC}"
-        echo -e "${YELLOW}The new version uses grouped sections ([Delay], [Leader], [Mappings])${NC}"
-        read -p "Auto-migrate configuration? [Y/n] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            cp "$CONFIG_FILE" "$CONFIG_FILE.backup"
-            migrate_flat_config "$CONFIG_FILE"
-            echo -e "${GREEN}✓ Config migrated (backup: $CONFIG_FILE.backup)${NC}"
-        else
-            echo -e "${RED}Warning: Old config format may not work correctly!${NC}"
-        fi
-    else
-        echo -e "${GREEN}✓ Configuration looks good${NC}"
-    fi
+CONFIG_FILE="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
+if [ -f "$CONFIG_FILE" ] && grep -q -E "^\[Mapping1\]|^DelayLowercase=|^LeaderSpace=|^Mapping1Input=" "$CONFIG_FILE"; then
+    echo -e "${YELLOW}Old v0.x config found: $CONFIG_FILE${NC}"
+    echo -e "${YELLOW}This config is not used by v1.0+ and can be safely deleted.${NC}"
+elif [ -f "$CONFIG_FILE" ]; then
+    echo -e "${GREEN}✓ Configuration found${NC}"
 else
-    echo -e "${GREEN}✓ No existing config (defaults will be used)${NC}"
+    echo -e "${GREEN}✓ No existing config (defaults will be used on first start)${NC}"
 fi
 echo
 
 # --- Fix Shift+L Conflict ---
 
-echo -e "${BLUE}Configuring Fcitx5 to avoid Shift conflicts...${NC}"
+echo -e "${BLUE}Checking Fcitx5 hotkey configuration...${NC}"
 CONFIG_DIR="$HOME/.config/fcitx5"
 FCITX_CONFIG="$CONFIG_DIR/config"
 
-mkdir -p "$CONFIG_DIR"
-
-if [ ! -f "$FCITX_CONFIG" ]; then
-    cat > "$FCITX_CONFIG" << 'EOF'
-[Hotkey]
-TriggerKeys=Control+space
-
-[Behavior]
-ShareInputState=No
-EOF
-    echo -e "${GREEN}✓ Fcitx5 configured (Shift_L disabled)${NC}"
-else
-    if grep -q "TriggerKeys.*Shift" "$FCITX_CONFIG"; then
-        sed -i 's/^TriggerKeys=.*/TriggerKeys=Control+space/' "$FCITX_CONFIG"
-        echo -e "${GREEN}✓ Shift conflict resolved (switched to Ctrl+Space only)${NC}"
+if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_CONFIG" | grep -qE "^[0-9]+=.*Shift"; then
+    echo -e "${YELLOW}Shift is configured as an input method trigger key.${NC}"
+    echo -e "${YELLOW}This conflicts with Schnelle Umlaute, which uses Shift for uppercase${NC}"
+    echo -e "${YELLOW}mappings (e.g. Shift+A → Ä). With Shift as trigger, fcitx5 will${NC}"
+    echo -e "${YELLOW}switch input methods instead.${NC}"
+    echo
+    read -p "Replace trigger key with Ctrl+Space? [Y/n] " -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        if sed '/\[Hotkey\/TriggerKeys\]/,/^\[/{/^[0-9]\+=/d}' "$FCITX_CONFIG" > "$FCITX_CONFIG.tmp" \
+           && sed -i '/\[Hotkey\/TriggerKeys\]/a 0=Control+space' "$FCITX_CONFIG.tmp" \
+           && mv "$FCITX_CONFIG.tmp" "$FCITX_CONFIG"; then
+            echo -e "${GREEN}✓ Trigger key replaced with Ctrl+Space${NC}"
+        else
+            echo -e "${RED}✗ Could not update trigger key config${NC}"
+        fi
     else
-        echo -e "${GREEN}✓ No Shift conflict detected${NC}"
+        echo -e "${YELLOW}Keeping current trigger key. Shift+key mappings may not work.${NC}"
     fi
+else
+    echo -e "${GREEN}✓ No Shift conflict detected${NC}"
 fi
 echo
 
@@ -508,13 +463,10 @@ echo
 echo "3. In the configuration window:"
 echo "   - Go to 'Input Method' tab"
 echo "   - Click '+' to add"
-if [ "$DISTRO" != "arch" ]; then
-    echo "   - Uncheck 'Only Show Current Language'"
-fi
 echo "   - Search for 'Schnelle Umlaute'"
 echo "   - Add it to your input methods"
 echo
-echo -e "4. Switch to 'Schnelle Umlaute' using ${BLUE}Ctrl+Space${NC}"
+echo "4. Switch to 'Schnelle Umlaute' using your configured trigger key (default: Ctrl+Space)"
 echo
 echo "5. Test it:"
 echo "   - Hold 'a' and press Space → ä"

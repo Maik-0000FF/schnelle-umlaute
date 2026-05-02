@@ -24,6 +24,22 @@ All addon settings can be changed in two ways:
 
 ---
 
+## Fcitx5 Global Settings
+
+These settings are not part of the addon itself, but they affect how it works. Open `fcitx5-config-qt` → **"Global Options"** tab (or KDE System Settings → Input Method → Global Options).
+
+| KDE System Settings | fcitx5-config-qt |
+|:-:|:-:|
+| ![KDE](assets/screenshot-global-options-kde.png) | ![Qt](assets/screenshot-global-options-qt.png) |
+
+| Setting | Recommended | Why |
+|---------|-------------|-----|
+| **Trigger Key** | <kbd>Ctrl</kbd>+<kbd>Space</kbd> | Switches between your base layout and Schnelle Umlaute. You can change it to any key combination. |
+| **Share Input State** | All | Keeps Schnelle Umlaute active across all windows. Without this, you may need to toggle the addon in each window separately. |
+| **Preedit** | enabled (default) | Shows a live preview of the current character before it's committed. Disabling it removes the visual feedback during gestures. |
+
+---
+
 ## Keyboard Layout Requirement
 
 This addon is **not a standalone keyboard layout** - it works **alongside** your existing keyboard layout.
@@ -228,8 +244,6 @@ Emoji cycling also works: set Output to `😊,😀,😁,🙂` to cycle through s
 
 ## App Filter
 
-![App Filter](assets/screenshot-app-filter.png)
-
 Disable Schnelle Umlaute in specific applications. Useful for games, password managers, IP/number-only input fields, or any app whose own shortcuts collide with the gesture input.
 
 | Mode | Behavior |
@@ -252,7 +266,9 @@ Mode=Blacklist
 Apps are matched against fcitx5's program identifier (typically the X11 `WM_CLASS` or the Wayland app-id — e.g. `firefox`, `libreoffice`, `discord`) using a **case-sensitive substring** match. Empty list entries are ignored, so an accidental blank line won't disable the addon.
 
 > **Tip — Finding an app's identifier**
-> On X11, run `xprop WM_CLASS` and click the target window. On Wayland, the app-id is usually the lowercase binary name or a reverse-DNS package name (e.g. `firefox`, `org.mozilla.firefox`). When in doubt, try the binary name first — substring matching gives you some slack.
+> Run `dbus-send --session --dest=org.fcitx.Fcitx5 --print-reply /controller org.fcitx.Fcitx.Controller1.DebugInfo 2>/dev/null | grep "program:"` to list all identifiers that fcitx5 actually sees.
+> On X11, the identifier is typically the `WM_CLASS`. On Wayland, it is usually the app-id (e.g. `firefox`, `org.mozilla.firefox`).
+> **Note:** Some apps report the name of their GUI library instead of their own name. For example, Kitty uses GLFW and appears as `GLFW_Application`, not `kitty`. Always verify with the command above.
 
 > **Substring caveat**
 > A short pattern matches broadly: `term` will also catch `gnome-terminal`, `xterm`, `terminator`, `lxterminal`. Use a more specific pattern (e.g. `xterm` or the full app-id) if that's a problem.

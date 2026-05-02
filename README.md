@@ -2,6 +2,7 @@
 
 <p align="center"><img height="128" src="docs/assets/favicon-1024.png" alt="Schnelle Umlaute Icon"></p>
 
+[![Website](https://img.shields.io/badge/Website-Landing%20Page-4ade80)](https://maik-0000ff.github.io/schnelle-umlaute/)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://www.linux.org/)
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
@@ -17,7 +18,7 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã)
 - Snippets: Map single keys to entire text phrases
 - Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
-- Configurable leader keys (Space, Arrow, Alt, or any custom key) — keep Space free for normal typing
+- Configurable leader keys (Space, Arrow ←→↑↓, Alt/AltGr, or custom keys with hand-split) — keep Space free for normal typing
 - Unlimited mapping slots
 - App blacklist/whitelist — disable in games, password managers, or apps with conflicting shortcuts
 - No clipboard interference, no root permissions
@@ -142,4 +143,4 @@ Thanks to [wengxt](https://github.com/wengxt) for creating Fcitx5 and for the gu
 
 ---
 
-**Version:** 1.0.0
+**Version:** 1.1.0

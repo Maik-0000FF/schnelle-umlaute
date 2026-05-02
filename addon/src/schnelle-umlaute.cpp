@@ -19,6 +19,7 @@
 #endif
 #include <fcitx-utils/fs.h>
 #include <fcitx-config/configuration.h>
+#include <fcitx-config/enum.h>
 #include <fcitx-config/iniparser.h>
 #include "mappings-io.h"
 #include <xkbcommon/xkbcommon.h>
@@ -89,13 +90,7 @@ FCITX_CONFIGURATION(
 );
 
 FCITX_CONFIGURATION(
-    LeaderConfig,
-    Option<bool> space{this, "Space", "Space", true};
-    Option<bool> left{this, "Left", "Left Arrow", false};
-    Option<bool> right{this, "Right", "Right Arrow", false};
-    Option<bool> up{this, "Up", "Up Arrow", false};
-    Option<bool> down{this, "Down", "Down Arrow", false};
-    Option<bool> alt{this, "Alt", "Alt/AltGr", false};
+    CustomLeaderConfig,
     Option<bool> customKeyEnabled{this, "CustomKeyEnabled",
         "Custom Leader 1", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey{
@@ -111,11 +106,39 @@ FCITX_CONFIGURATION(
 );
 
 FCITX_CONFIGURATION(
+    LeaderConfig,
+    Option<bool> space{this, "Space", "Space", true};
+    Option<bool> left{this, "Left", "Left Arrow", false};
+    Option<bool> right{this, "Right", "Right Arrow", false};
+    Option<bool> up{this, "Up", "Up Arrow", false};
+    Option<bool> down{this, "Down", "Down Arrow", false};
+    Option<bool> alt{this, "Alt", "Alt/AltGr", false};
+    Option<CustomLeaderConfig> custom{this, "Custom", "Custom Leader Keys"};
+);
+
+FCITX_CONFIGURATION(
+    MappingsConfig,
+    ExternalOption editor{this, "Editor", "Mapping Editor",
+        "fcitx://config/addon/schnelle-umlaute/mappings.txt"};
+);
+
+FCITX_CONFIG_ENUM(AppFilterMode, Disabled, Blacklist, Whitelist);
+
+FCITX_CONFIGURATION(
+    AppFilterConfig,
+    Option<AppFilterMode> mode{this, "Mode", "Mode", AppFilterMode::Disabled};
+    Option<std::vector<std::string>> blacklist{
+        this, "Blacklist", "Blacklist", {}};
+    Option<std::vector<std::string>> whitelist{
+        this, "Whitelist", "Whitelist", {}};
+);
+
+FCITX_CONFIGURATION(
     SchnelleUmlauteConfig,
     Option<DelayConfig> delay{this, "Delay", "Delay"};
     Option<LeaderConfig> leader{this, "Leader", "Leader Keys"};
-    ExternalOption mappingEditor{this, "MappingEditor", "Mapping Editor",
-        "fcitx://config/addon/schnelle-umlaute/mappings.txt"};
+    Option<MappingsConfig> mappings{this, "Mappings", "Mappings"};
+    Option<AppFilterConfig> appFilter{this, "AppFilter", "App Filter"};
 );
 
 // =============================================================================
@@ -225,7 +248,15 @@ public:
         if (xkbCtx_) {
             xkbKeymap_ = xkb_keymap_new_from_names(
                 xkbCtx_, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
+            if (!xkbKeymap_) {
+                FCITX_WARN() << "Schnelle: XKB keymap creation failed"
+                             << " — custom leader resolution disabled";
+            }
+        } else {
+            FCITX_WARN() << "Schnelle: XKB context creation failed"
+                         << " — custom leader resolution disabled";
         }
+        buildCharToKeycode();
 
         reloadConfig();
     }
@@ -241,10 +272,10 @@ public:
         // IntConstrainWithStep rejects out-of-range delay values (uses default).
         // Normalize custom leader keys to a single character before saving,
         // so the config file always reflects what is actually used.
-        config_.leader.mutableValue()->customKey.setValue(
-            sanitizeCustomKey(*config_.leader->customKey));
-        config_.leader.mutableValue()->customKey2.setValue(
-            sanitizeCustomKey(*config_.leader->customKey2));
+        config_.leader.mutableValue()->custom.mutableValue()->customKey.setValue(
+            sanitizeCustomKey(*config_.leader->custom->customKey));
+        config_.leader.mutableValue()->custom.mutableValue()->customKey2.setValue(
+            sanitizeCustomKey(*config_.leader->custom->customKey2));
         safeSaveAsIni(config_, "conf/schnelle-umlaute.conf");
         applyConfig();
     }
@@ -267,12 +298,29 @@ public:
                     std::to_string(i) + "/Output");
                 if (!input || input->empty()) break;
                 if (output && !output->empty()) {
-                    umlautMap_[*input] = splitOutputs(*output);
+                    auto outputs = splitOutputs(*output);
+                    if (outputs.empty()) {
+                        FCITX_WARN() << "Schnelle: Mapping '"
+                                     << *input << "' has no valid outputs"
+                                     << " — skipped";
+                        continue;
+                    }
+                    umlautMap_[*input] = std::move(outputs);
                 }
             }
             if (umlautMap_.empty()) {
                 loadMappingsFromFile();
             }
+            // Cancel active gestures on all ICs so no cycling state
+            // references stale mappings (e.g. a removed or shortened entry).
+            instance_->inputContextManager().foreach([this](InputContext *ic) {
+                auto *s = ic->propertyFor(&factory_);
+                s->clearAllState();
+                s->recentlyCommitted_ = false;
+                ic->inputPanel().reset();
+                ic->updatePreedit();
+                return true;
+            });
             FCITX_INFO() << "Schnelle: Mappings reloaded, count="
                          << umlautMap_.size();
         }
@@ -280,6 +328,10 @@ public:
 
     void keyEvent(const InputMethodEntry & /*entry*/, KeyEvent &keyEvent) override {
         auto *ic = keyEvent.inputContext();
+
+        // App filter: let keys pass through in blacklisted/non-whitelisted apps
+        if (isFiltered(ic)) return;
+
         auto *state = ic->propertyFor(&factory_);
 
         auto key = keyEvent.key();
@@ -439,6 +491,7 @@ public:
         // Unlike the pure modifier early-return above (Shift/Ctrl alone),
         // this handles a modifier HELD + another key pressed.
         // =========================================
+        bool didAltBypass = false;
         if (hasModifiers(key)) {
             // When Alt is the leader key and a gesture is active, ignore
             // Alt-only modifier state — input key repeats with Alt held
@@ -459,7 +512,16 @@ public:
                 state->inputKeyPressed_ = false;
                 return;  // Let the shortcut through
             }
-            // Alt-only during gesture: fall through to normal key handling
+            // Alt-only during gesture: resolve the physical key's base
+            // character.  Some backends change the keysym when Alt is held
+            // (e.g. number keys → symbols), which would prevent the accent
+            // key handler from finding the mapping.  Using the Level 0
+            // character from the XKB keymap ensures correct recognition.
+            std::string baseChar = getBaseChar(rawCode);
+            if (!baseChar.empty()) {
+                keyChar = baseChar;
+            }
+            didAltBypass = true;
         }
 
         // Re-press of gesture key during deferred Alt cycling commit.
@@ -489,7 +551,8 @@ public:
             else if (state->waitingKey_) activeInput = *state->waitingKey_;
 
             if (!activeInput.empty() &&
-                !isDualCustomAllowed(leaderType, activeInput)) {
+                !isDualCustomAllowed(leaderType, activeInput,
+                                     state->waitingKeyCode_)) {
                 leaderType = LeaderType::None;
             }
         }
@@ -511,13 +574,36 @@ public:
                 }
 
                 auto it = umlautMap_.find(*state->cyclingInput_);
-                if (it != umlautMap_.end()) {
+                if (it != umlautMap_.end() && !it->second.empty()) {
                     if (it->second.size() > 1) {
                         // Cycle to next variant
                         state->cyclingIndex_ = (state->cyclingIndex_ + 1) % it->second.size();
                         updateClientPreedit(ic, it->second[state->cyclingIndex_]);
+                    } else if (state->altGestureSession_ &&
+                               !(isAlt && rawCode == state->consumedAltCode_)) {
+                        // Single-output Alt cycling: a different leader (not
+                        // the same Alt auto-repeat) signals the user wants to
+                        // commit and continue typing.  Matches the immediate-
+                        // commit behavior of non-Alt leaders with single output.
+                        ic->inputPanel().reset();
+                        ic->commitString(it->second[0]);
+                        ic->updatePreedit();
+                        state->recentlyCommitted_ = true;
+                        state->inputKeyPressed_ = false;
+                        state->resetCycling();
+                        state->altGestureSession_ = false;
+                        state->consumedAltCode_ = 0;
+                        // Emit the leader's character if printable so it
+                        // appears as typed text instead of an Alt shortcut.
+                        if (!keyChar.empty() &&
+                            (keyChar.size() > 1 ||
+                             static_cast<unsigned char>(keyChar[0]) >= ' ')) {
+                            ic->commitString(keyChar);
+                        }
+                        keyEvent.filterAndAccept();
+                        return;
                     }
-                    // Single-output: preedit unchanged, just consume the leader.
+                    // Single-output same-Alt repeat: preedit unchanged, consume.
 
                     if (isAlt) state->consumedAltCode_ = rawCode;
                     keyEvent.filterAndAccept();
@@ -643,6 +729,18 @@ public:
         // Clean up stale Alt gesture state
         state->altGestureSession_ = false;
         state->consumedAltCode_ = 0;
+        // When Alt leader bypass was active, the key carries an Alt modifier
+        // that would trigger application shortcuts (Alt+v → menu etc.).
+        // Emit printable characters through commitString and consume the
+        // event so the Alt modifier doesn't leak to the application.
+        if (didAltBypass && !keyChar.empty() &&
+            (keyChar.size() > 1 ||
+             static_cast<unsigned char>(keyChar[0]) >= ' ')) {
+            ic->commitString(keyChar);
+            state->recentlyCommitted_ = true;
+            keyEvent.filterAndAccept();
+            return;
+        }
         // Let key through
     }
 
@@ -691,10 +789,10 @@ private:
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
         // stores the original value so the UI round-trips correctly.
-        cachedCustomKey_ = *config_.leader->customKeyEnabled
-            ? sanitizeCustomKey(*config_.leader->customKey) : "";
-        cachedCustomKey2_ = *config_.leader->customKey2Enabled
-            ? sanitizeCustomKey(*config_.leader->customKey2) : "";
+        cachedCustomKey_ = *config_.leader->custom->customKeyEnabled
+            ? sanitizeCustomKey(*config_.leader->custom->customKey) : "";
+        cachedCustomKey2_ = *config_.leader->custom->customKey2Enabled
+            ? sanitizeCustomKey(*config_.leader->custom->customKey2) : "";
 
         // Warn if a custom leader key collides with a mapped input
         if (!cachedCustomKey_.empty() && umlautMap_.count(cachedCustomKey_)) {
@@ -713,8 +811,8 @@ private:
             if (cachedCustomKey_ == cachedCustomKey2_) {
                 FCITX_WARN() << "Schnelle: CustomKey and CustomKey2 are identical"
                              << " — dual split disabled, both trigger all mappings";
-            } else if (isLeftHandUSQwerty(cachedCustomKey_) ==
-                       isLeftHandUSQwerty(cachedCustomKey2_)) {
+            } else if (isLeftHand(cachedCustomKey_) ==
+                       isLeftHand(cachedCustomKey2_)) {
                 FCITX_WARN() << "Schnelle: CustomKey '" << cachedCustomKey_
                              << "' and CustomKey2 '" << cachedCustomKey2_
                              << "' are on the same keyboard half"
@@ -733,10 +831,42 @@ private:
         if (!cachedCustomKey2_.empty()) leaders += "Custom2('" + cachedCustomKey2_ + "') ";
         if (leaders.empty()) leaders = "None ";
 
+        // App filter: cache values from config
+        filterMode_ = *config_.appFilter->mode;
+        blacklist_ = *config_.appFilter->blacklist;
+        whitelist_ = *config_.appFilter->whitelist;
+
         FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=" << *config_.delay->lowercase
                      << "ms, DelayUppercase=" << *config_.delay->uppercase
                      << "ms, Leaders=" << leaders
                      << ", Mappings=" << umlautMap_.size();
+    }
+
+    // App filter: check if processing should be skipped for this IC's app.
+    bool isFiltered(InputContext *ic) const {
+        if (filterMode_ == AppFilterMode::Disabled) return false;
+
+        const std::string &program = ic->program();
+        if (program.empty())
+            return filterMode_ == AppFilterMode::Whitelist;
+
+        // Empty list entries are skipped: find("") returns 0 (matches
+        // anything), which would make a stray blank line in the blacklist
+        // disable the addon entirely, or a blank line in the whitelist
+        // bypass the filter entirely.
+        if (filterMode_ == AppFilterMode::Blacklist) {
+            for (const auto &app : blacklist_) {
+                if (app.empty()) continue;
+                if (program.find(app) != std::string::npos) return true;
+            }
+            return false;
+        }
+        // Whitelist: only active in listed apps
+        for (const auto &app : whitelist_) {
+            if (app.empty()) continue;
+            if (program.find(app) != std::string::npos) return false;
+        }
+        return true;
     }
 
     void updateClientPreedit(InputContext *ic, const std::string &text) {
@@ -859,7 +989,14 @@ private:
 #endif
             if (fp) {
                 for (const auto &m : schnelle_umlaute::parseMappings(fp.get())) {
-                    umlautMap_[m.input] = splitOutputs(m.output);
+                    auto outputs = splitOutputs(m.output);
+                    if (outputs.empty()) {
+                        FCITX_WARN() << "Schnelle: Mapping '"
+                                     << m.input << "' has no valid outputs"
+                                     << " — skipped";
+                        continue;
+                    }
+                    umlautMap_[m.input] = std::move(outputs);
                 }
             }
         }
@@ -961,26 +1098,69 @@ private:
         return LeaderType::None;
     }
 
-    // US QWERTY hand classification for dual custom leader split.
-    // Left hand: qwertasdfgzxcvb + digits 1-5 + symbols `~!@#$%
-    // Everything else (including non-ASCII) defaults to right hand.
-    static bool isLeftHandUSQwerty(const std::string &key) {
-        if (key.size() != 1) return false;
-        char c = key[0];
-        if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
-        return c == 'q' || c == 'w' || c == 'e' || c == 'r' || c == 't' ||
-               c == 'a' || c == 's' || c == 'd' || c == 'f' || c == 'g' ||
-               c == 'z' || c == 'x' || c == 'c' || c == 'v' || c == 'b' ||
-               c == '`' || c == '1' || c == '2' || c == '3' || c == '4' ||
-               c == '5' || c == '~' || c == '!' || c == '@' || c == '#' ||
-               c == '$' || c == '%';
+    // Physical keycode-based left-hand classification — layout-independent.
+    // Uses standard PC keyboard evdev codes: the physical key position
+    // determines the hand, not the character printed on the keycap.
+    // Works correctly for QWERTY, QWERTZ, AZERTY, Dvorak, Colemak, etc.
+    static bool isLeftHandKeycode(int keycode) {
+        return (keycode >= 24 && keycode <= 28) ||  // Q W E R T row
+               (keycode >= 38 && keycode <= 42) ||  // A S D F G row
+               (keycode >= 52 && keycode <= 56) ||  // Z X C V B row
+               keycode == 49 ||                      // ` ~
+               (keycode >= 10 && keycode <= 14);     // 1 2 3 4 5
+    }
+
+    // Check if a character is on the left hand of the keyboard.
+    // Uses reverse XKB keymap lookup (char → keycode → physical position).
+    // Falls back to right hand (false) for unknown chars or missing keymap,
+    // which disables dual split (both leaders seen as same hand).
+    bool isLeftHand(const std::string &key) const {
+        std::string lookup = key;
+        if (lookup.size() == 1 && lookup[0] >= 'A' && lookup[0] <= 'Z')
+            lookup[0] = lookup[0] - 'A' + 'a';
+        auto it = charToKeycode_.find(lookup);
+        if (it == charToKeycode_.end()) return false;
+        return isLeftHandKeycode(it->second);
+    }
+
+    // Build reverse mapping (character → physical keycode) from the XKB
+    // keymap.  Intentionally level 0 (unshifted) only — shifted symbols
+    // like @ (Shift+2) or ? (Shift+/) are not mapped.  Unknown chars
+    // fall back to right hand in isLeftHand(), which means two shifted-
+    // symbol leaders disable the split rather than enforce a wrong one.
+    // This is the safer default: custom keyboards may place higher-level
+    // characters on arbitrary physical positions (e.g. thumb clusters),
+    // so assuming the base key's position would be incorrect.
+    void buildCharToKeycode() {
+        charToKeycode_.clear();
+        if (!xkbKeymap_) return;
+        xkb_keycode_t min = xkb_keymap_min_keycode(xkbKeymap_);
+        xkb_keycode_t max = xkb_keymap_max_keycode(xkbKeymap_);
+        for (xkb_keycode_t code = min; code <= max; ++code) {
+            const xkb_keysym_t *syms;
+            int n = xkb_keymap_key_get_syms_by_level(
+                xkbKeymap_, code, 0, 0, &syms);
+            if (n > 0) {
+                uint32_t uc = xkb_keysym_to_utf32(syms[0]);
+                if (uc > 0 && uc <= kMaxUnicodeCodepoint) {
+                    std::string ch = utf8::UCS4ToUTF8(uc);
+                    charToKeycode_.emplace(std::move(ch),
+                                           static_cast<int>(code));
+                }
+            }
+        }
     }
 
     // Dual custom leader split: when BOTH custom keys are set and on
     // opposite hands, each only triggers inputs on the OTHER hand.
     // Single custom key or same-hand keys → no restriction.
     // Built-in leaders always unrestricted.
-    bool isDualCustomAllowed(LeaderType leader, const std::string &inputKey) const {
+    // inputKeyCode: physical keycode of the input key (from waitingKeyCode_).
+    // When available, uses the physical key position directly — this correctly
+    // classifies shifted characters (e.g. ! = Shift+1 → left hand) that
+    // charToKeycode_ cannot resolve (it only has level 0 / unshifted chars).
+    bool isDualCustomAllowed(LeaderType leader, const std::string &inputKey,
+                             int inputKeyCode = 0) const {
         if (leader == LeaderType::BuiltIn || leader == LeaderType::None)
             return true;
 
@@ -992,13 +1172,14 @@ private:
         if (cachedCustomKey_ == cachedCustomKey2_)
             return true;
 
-        bool key1Left = isLeftHandUSQwerty(cachedCustomKey_);
-        bool key2Left = isLeftHandUSQwerty(cachedCustomKey2_);
+        bool key1Left = isLeftHand(cachedCustomKey_);
+        bool key2Left = isLeftHand(cachedCustomKey2_);
 
         // Both keys on same hand → no split possible, allow all
         if (key1Left == key2Left) return true;
 
-        bool inputLeft = isLeftHandUSQwerty(inputKey);
+        bool inputLeft = (inputKeyCode > 0) ? isLeftHandKeycode(inputKeyCode)
+                                            : isLeftHand(inputKey);
 
         // Left-hand leader triggers RIGHT-hand inputs (and vice versa)
         if (leader == LeaderType::Custom1)
@@ -1091,6 +1272,14 @@ private:
     // resolved back to '/' so the leader still matches).
     struct xkb_context *xkbCtx_ = nullptr;
     struct xkb_keymap *xkbKeymap_ = nullptr;
+    // Reverse mapping: character → physical evdev keycode.
+    // Built from the XKB keymap for layout-independent hand classification.
+    std::unordered_map<std::string, int> charToKeycode_;
+    // App filter (cached from config). When set to Blacklist/Whitelist,
+    // processing is skipped for matching apps based on ic->program().
+    AppFilterMode filterMode_ = AppFilterMode::Disabled;
+    std::vector<std::string> blacklist_;
+    std::vector<std::string> whitelist_;
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {
