@@ -57,6 +57,10 @@ Available on the [AUR](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaut
 yay -S fcitx5-schnelle-umlaute-git
 ```
 
+> **About `-git`:** This package builds from the `dev` branch and includes features ahead of the current stable v1.1.0 — a standalone QML editor (`schnelle-umlaute-editor`), a cycle overlay daemon for Wayland, and a per-user setup script (`schnelle-umlaute-setup`). For users who prefer the latest tagged release without dev-only changes, use the manual install below.
+>
+> A stable AUR package (`fcitx5-schnelle-umlaute`) tracking tagged releases will be added in a future update.
+
 ### Other distributions (manual install)
 
 ```bash
