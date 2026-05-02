@@ -2,12 +2,12 @@
 
 All addon settings can be changed in two ways:
 
-- **Via GUI** (recommended): `fcitx5-config-qt` → select "Schnelle Umlaute" → click **Configure** (wrench icon)
-- **Via config files**: Settings and mappings are stored in two separate locations:
-  - `~/.config/fcitx5/conf/schnelle-umlaute.conf` — Delays and Leader Keys (INI format)
-  - `~/.config/fcitx5/schnelle-umlaute/mappings.txt` — Character Mappings (`Input=Output`, one per line)
+- **Standalone editor** (recommended): launch `schnelle-umlaute-editor` from a terminal, an application launcher, or by clicking the gear/Configure button next to the addon in `fcitx5-config-qt`. All paths open the same Qt-based editor.
+- **Config files**: settings and mappings are stored in two separate locations:
+  - `~/.config/fcitx5/conf/schnelle-umlaute.conf` — delays, leader keys, app filter, overlay, theme (INI format)
+  - `~/.config/fcitx5/schnelle-umlaute/mappings.txt` — character mappings (`Input=Output`, one per line)
 
-**After config file changes**, restart Fcitx5 with `fcitx5 -r`. GUI changes apply immediately after clicking Apply.
+Saves through the editor are **applied live** via fcitx5's `Controller1.ReloadAddonConfig` DBus call — no restart needed. After a manual edit of the config files, reload with `fcitx5-remote -r`.
 
 ---
 
@@ -21,6 +21,8 @@ All addon settings can be changed in two ways:
 | KDE System Settings | fcitx5-config-qt |
 |:-:|:-:|
 | ![KDE](assets/screenshot-input-method-kde.png) | ![Qt](assets/screenshot-input-method-qt.png) |
+
+The gear/Configure button next to the entry launches the standalone editor.
 
 ---
 
@@ -42,18 +44,28 @@ These settings are not part of the addon itself, but they affect how it works. O
 
 ## Keyboard Layout Requirement
 
-This addon is **not a standalone keyboard layout** - it works **alongside** your existing keyboard layout.
+This addon is **not a standalone keyboard layout** — it works **alongside** your existing keyboard layout.
 
 **You always need a base keyboard layout** (e.g., US) in your Fcitx5 configuration. The addon:
 - Receives characters that are already translated by your base layout
-- Only modifies the configured keys (a, o, u, s, etc.)
+- Only modifies the configured input keys
 - Passes all other keys through unchanged
 
 ---
 
-| KDE System Settings | fcitx5-config-qt |
-|:-:|:-:|
-| ![KDE](assets/screenshot-addon-config-kde.png) | ![Qt](assets/screenshot-addon-config-qt.png) |
+## The Standalone Editor
+
+The editor has two tabs: **Settings** (delays, leader keys, app filter, overlay, theme) and **Mappings** (the input → output list).
+
+![Settings tab](assets/screenshot-editor-settings-kde.png)
+
+Changes are saved automatically and applied live — the bottom-right corner shows "Changes are saved automatically", and the bottom-left status indicator shows "Loaded" once the addon picks them up.
+
+![Mappings tab](assets/screenshot-editor-mappings-kde.png)
+
+The Mappings tab uses a dynamic list — add as many entries as you need with the **+** button at the top, remove them with the trash icon, drag the handle on the left to reorder. Each row has a gear icon for additional per-entry actions.
+
+---
 
 ## Delays
 
@@ -61,10 +73,10 @@ Customize the timing delays to match your typing speed:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| **DelayLowercase** | 400ms | Time window for lowercase gestures |
-| **DelayUppercase** | 700ms | Time window for uppercase gestures (longer because <kbd>Shift</kbd> + Letter + <kbd>Space</kbd> requires more coordination) |
+| **DelayLowercase** | 400 ms | Time window for lowercase gestures |
+| **DelayUppercase** | 700 ms | Time window for uppercase gestures (longer because <kbd>Shift</kbd> + Letter + <kbd>Space</kbd> requires more coordination) |
 
-Valid range: 50-2000ms, any exact value accepted.
+Valid range: 50–2000 ms.
 
 ```ini
 [Delay]
@@ -74,8 +86,8 @@ Uppercase=700
 
 **Tips:**
 - Start with defaults and adjust if needed
-- Faster typists may prefer shorter delays (300ms/600ms)
-- Slower, more deliberate typing benefits from longer delays (500ms/800ms)
+- Faster typists may prefer shorter delays (300/600 ms)
+- Slower, more deliberate typing benefits from longer delays (500/800 ms)
 
 ---
 
@@ -116,17 +128,15 @@ CustomKey2=
 >
 > When both custom leaders are set on **opposite keyboard halves** (US QWERTY), dual-split mode activates: each leader only triggers mappings on the other hand (e.g. left-hand leader `;` triggers right-hand inputs `u`, `o`, `i`). Same-hand or identical keys disable the split — both trigger all mappings.
 >
-> **Note:** A custom leader key must not be a mapped input key — it cannot trigger its own mapping. The config GUI shows a warning if a conflict is detected.
+> **Note:** A custom leader key must not be a mapped input key — it cannot trigger its own mapping. The editor surfaces a warning if a conflict is detected.
 
 ---
 
 ## Character Mappings
 
-![Mapping Editor](assets/screenshot-mapping-editor.png)
+The addon uses a **dynamic mapping list** — add as many input → output mappings as you need. Defaults are German umlauts (a/o/u/s and their Shifted forms — see [README](../README.md)).
 
-The addon uses a **dynamic mapping list** — add as many input→output mappings as you need. The first 7 entries are pre-configured with German umlauts (see default mappings in the [README](../README.md)).
-
-In the GUI, the mappings are shown as an inline list with Input → Output fields. Use the **+** button to add new entries, the **×** button to remove them, and drag handles to reorder. Click **"Defaults"** to restore German umlauts.
+In the editor's **Mappings** tab, type the input character in the Key field, the output (or comma-separated cycling variants) in the Output field, and press the **+** button to add. Existing rows can be edited inline; reorder by dragging the handle on the left, remove with the trash icon.
 
 Mappings are stored in a separate file using `Input=Output` format (one mapping per line):
 
@@ -144,24 +154,25 @@ e=é
 n=ñ
 ```
 
-> **Note:** Only the first `=` is used as separator — Output values can contain `=` characters.
+> **Note:** Only the first `=` is used as separator — output values can contain `=` characters.
 
-**Quick examples:** Any Unicode character works as Output — French accents (é, è, ê), Spanish (ñ, á), Greek letters (π, Ω, Δ), emojis (❤️, 👍, 😊), Braille (⠁⠃⠉), math symbols (±, ≠, ∞). See [Accent Cycling](#accent-cycling) for multi-variant mappings and [Snippets](#snippets-text-expansion) for text expansion.
+**Quick examples:** Any Unicode character works as output — French accents (é, è, ê), Spanish (ñ, á), Greek letters (π, Ω, Δ), emojis (❤️, 👍, 😊), Braille (⠁⠃⠉), math symbols (±, ≠, ∞). See [Accent Cycling](#accent-cycling) for multi-variant mappings and [Snippets](#snippets-text-expansion) for text expansion.
 
 ---
 
 ## Accent Cycling
 
-Cycle through multiple accent variants by pressing the leader key repeatedly. Instead of creating separate mappings for each variant, define all variants in a single Output field separated by commas.
+Cycle through multiple variants by pressing the leader key repeatedly. Define all variants in a single Output field separated by commas.
 
 **How it works:**
+
 1. Hold the input key (e.g., <kbd>e</kbd>)
 2. Press leader key (<kbd>Space</kbd>) → first variant appears (e.g., `é`)
 3. Press leader key again → next variant (e.g., `è`)
-4. Keep pressing → cycles through all variants (è → ê → ë → é → ...)
-5. Release input key → cycling stops, current selection is kept
+4. Keep pressing → cycles through all variants (è → ê → ë → é → …)
+5. Release input key → cycling stops, current selection is committed
 
-In the GUI, enter comma-separated variants in any Output field (e.g., `é,è,ê,ë` for Input `e`). To include a literal comma in an output, use double comma (`,,`) as escape — see [Snippets](#snippets-text-expansion) for details.
+In the editor, enter comma-separated variants in any Output field (e.g., `é,è,ê,ë` for Input `e`). To include a literal comma in an output, use double comma (`,,`) as escape — see [Snippets](#snippets-text-expansion) for details.
 
 **Config file example:**
 
@@ -182,12 +193,12 @@ Cycling works with any Unicode characters — accents, emojis, symbols, Greek le
 
 | Input | Output | Cycling sequence |
 |-------|--------|------------------|
-| <kbd>e</kbd> | é,è,ê,ë | é → è → ê → ë → é → ... |
-| <kbd>a</kbd> | á,à,â,ã,å | á → à → â → ã → å → á → ... |
-| <kbd>n</kbd> | ñ,ń,ň | ñ → ń → ň → ñ → ... |
-| <kbd>o</kbd> | ó,ò,ô,õ,ø | ó → ò → ô → õ → ø → ó → ... |
-| <kbd>s</kbd> | 😊,😀,😁,🙂 | 😊 → 😀 → 😁 → 🙂 → 😊 → ... |
-| <kbd>p</kbd> | π,Σ,Ω,Δ,μ | π → Σ → Ω → Δ → μ → π → ... |
+| <kbd>e</kbd> | é,è,ê,ë | é → è → ê → ë → é → … |
+| <kbd>a</kbd> | á,à,â,ã,å | á → à → â → ã → å → á → … |
+| <kbd>n</kbd> | ñ,ń,ň | ñ → ń → ň → ñ → … |
+| <kbd>o</kbd> | ó,ò,ô,õ,ø | ó → ò → ô → õ → ø → ó → … |
+| <kbd>s</kbd> | 😊,😀,😁,🙂 | 😊 → 😀 → 😁 → 🙂 → 😊 → … |
+| <kbd>p</kbd> | π,Σ,Ω,Δ,μ | π → Σ → Ω → Δ → μ → π → … |
 
 ---
 
@@ -229,17 +240,42 @@ l=a,, b,, c
 
 ---
 
-## Cycle Overlay
+## Theme
 
-An optional on-screen indicator can show the current variant while cycling. Enable it in the standalone editor:
+The editor and the cycle overlay share a theme. Pick one from the dropdown in the Settings tab.
 
-```bash
-schnelle-umlaute-editor
+![Theme dropdown](assets/screenshot-editor-theme-dropdown-kde.png)
+
+| Theme | Description |
+|---|---|
+| **Schnelle Umlaute** (default) | Project signature — dark with violet accent |
+| **Dark** | Neutral dark palette |
+| **Light** | Neutral light palette |
+| **Contrast** | High-contrast palette meeting WCAG AAA (7:1) |
+
+```ini
+[Theme]
+Theme=schnelle-umlaute
 ```
 
-Go to **Settings → Overlay**, toggle *Show overlay while cycling*, and pick a screen corner.
+The theme applies to both the editor window and the on-screen cycle overlay (when enabled), so they share a consistent look.
 
-The overlay relies on the **wlr-layer-shell** Wayland protocol. The editor detects your session at launch and disables the toggle on compositors that can't host layer-shell surfaces.
+---
+
+## Cycle Overlay
+
+An optional on-screen indicator that mirrors the current variant while you cycle. Toggle it in the editor's **Settings → Overlay**, then click on the position grid to choose where it appears on screen.
+
+```ini
+[Overlay]
+Enabled=True
+Row=Center
+Column=Col1
+```
+
+The overlay is provided by a separate daemon (`schnelle-umlaute-overlay`) that the addon starts on demand via DBus auto-activation — there is no autostart entry, the daemon only runs while the overlay is enabled. When you toggle it off in the editor, the addon calls `Quit()` on the daemon.
+
+The overlay relies on the **wlr-layer-shell** Wayland protocol. The editor detects your session at launch and disables the toggle on compositors that can't host layer-shell surfaces:
 
 | Session | Overlay |
 |---|---|
