@@ -1,3 +1,0 @@
-[D-BUS Service]
-Name=de.schnelle_umlaute.Overlay
-Exec=/usr/local/bin/schnelle-umlaute-overlay

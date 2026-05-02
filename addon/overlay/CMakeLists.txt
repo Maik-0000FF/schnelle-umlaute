@@ -67,9 +67,16 @@ install(TARGETS schnelle-umlaute-overlay
 # DBus session services: dbus only scans /usr/share/dbus-1/services by
 # default, not /usr/local/share/… Use a hardcoded path so on-demand
 # activation works whether the user installs under /usr or /usr/local.
+# The Exec= line is templated via configure_file() so it tracks the
+# actual install prefix (CMAKE_INSTALL_FULL_BINDIR), avoiding stale
+# /usr/local/bin paths when the user builds with -DCMAKE_INSTALL_PREFIX=/usr.
 # The daemon is started lazily the first time the addon calls Show() (or
 # when the user enables the overlay in the editor); we no longer install
 # an XDG autostart entry because that ran before Plasma had configured
 # the primary output, pinning the daemon to the login-screen monitor.
-install(FILES de.schnelle_umlaute.Overlay.service
+configure_file(
+    de.schnelle_umlaute.Overlay.service.in
+    de.schnelle_umlaute.Overlay.service
+    @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/de.schnelle_umlaute.Overlay.service"
         DESTINATION /usr/share/dbus-1/services)
