@@ -2524,10 +2524,13 @@ static void scheduleTimeoutTests(Instance *instance) {
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test59");
 
+        // Push expectation BEFORE sending the key — the addon arms its
+        // timeout timer in keyEvent, and on slow CI the timer can fire
+        // before the subsequent pushCommitExpectation lands, leaving
+        // the queue empty when the commit arrives.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-
-        tf->call<ITestFrontend::pushCommitExpectation>("a");
 
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
@@ -2560,9 +2563,9 @@ static void scheduleTest60(Instance *instance) {
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test60");
 
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        tf->call<ITestFrontend::pushCommitExpectation>("a");
 
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
@@ -2595,9 +2598,9 @@ static void scheduleTest61(Instance *instance) {
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test61");
 
+        tf->call<ITestFrontend::pushCommitExpectation>("o");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
-        tf->call<ITestFrontend::pushCommitExpectation>("o");
 
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
@@ -2673,9 +2676,9 @@ static void scheduleTest63(Instance *instance) {
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test63");
 
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        tf->call<ITestFrontend::pushCommitExpectation>("a");
 
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
@@ -2710,9 +2713,9 @@ static void scheduleTest64(Instance *instance) {
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test64");
 
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        tf->call<ITestFrontend::pushCommitExpectation>("a");
 
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
@@ -4145,12 +4148,11 @@ static void scheduleTest107(Instance *instance) {
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test107");
 
-        // Press 'a' → waiting with 100ms delay
+        // Addon timer fires at 100ms and commits 'a'.  Push expectation
+        // first so the queue is ready before the timer can fire.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-
-        // Addon timer fires at 100ms and commits 'a'
-        tf->call<ITestFrontend::pushCommitExpectation>("a");
 
         // Wait 700ms — well past 100ms window (600ms headroom).
         // Earlier 400ms still flaked on Ubuntu 24.04 CI runners where
@@ -4193,9 +4195,9 @@ static void scheduleDelayBoundaryTests(Instance *instance) {
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test110");
 
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        tf->call<ITestFrontend::pushCommitExpectation>("a");
 
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
@@ -4225,9 +4227,9 @@ static void scheduleTest111(Instance *instance) {
 
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("A");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
-        tf->call<ITestFrontend::pushCommitExpectation>("A");
 
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
@@ -4257,9 +4259,9 @@ static void scheduleTest112(Instance *instance) {
 
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_Shift_L, KeyStates(), kCodeShiftL), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("A");
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
-        tf->call<ITestFrontend::pushCommitExpectation>("A");
 
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
