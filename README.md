@@ -4,7 +4,11 @@
 
 [![Website](https://img.shields.io/badge/Website-Landing%20Page-4ade80)](https://maik-0000ff.github.io/schnelle-umlaute/)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://www.linux.org/)
+[![CI](https://github.com/Maik-0000FF/schnelle-umlaute/actions/workflows/ci.yml/badge.svg)](https://github.com/Maik-0000FF/schnelle-umlaute/actions/workflows/ci.yml)
+[![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793D1?logo=arch-linux&logoColor=white)](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaute-git)
+![Ubuntu/Debian](https://img.shields.io/badge/Ubuntu%2FDebian-E95420?logo=ubuntu&logoColor=white)
+![Fedora](https://img.shields.io/badge/Fedora-294172?logo=fedora&logoColor=white)
+![openSUSE](https://img.shields.io/badge/openSUSE-73BA25?logo=opensuse&logoColor=white)
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/Maik-0000FF)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20me-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/maik0000ff)
@@ -47,8 +51,6 @@ Unlike clipboard-based or keyboard simulation solutions, this Fcitx5 addon uses 
 
 ## Quick Start
 
-Supported: **Arch Linux** · **Ubuntu/Debian** · **Fedora** · **openSUSE**
-
 ### Arch Linux (AUR)
 
 Available on the [AUR](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaute-git). Install with any AUR helper:
@@ -61,7 +63,7 @@ yay -S fcitx5-schnelle-umlaute-git
 >
 > A stable AUR package (`fcitx5-schnelle-umlaute`) tracking tagged releases will be added in a future update.
 
-### Other distributions (manual install)
+### Install from source (Arch Linux · Ubuntu/Debian · Fedora · openSUSE)
 
 ```bash
 git clone https://github.com/Maik-0000FF/schnelle-umlaute.git
