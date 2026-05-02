@@ -7,7 +7,7 @@ All addon settings can be changed in two ways:
   - `~/.config/fcitx5/conf/schnelle-umlaute.conf` — Delays and Leader Keys (INI format)
   - `~/.config/fcitx5/schnelle-umlaute/mappings.txt` — Character Mappings (`Input=Output`, one per line)
 
-**After config file changes**, restart Fcitx5 with `fcitx5 -r`. GUI changes apply immediately after clicking Apply.
+**After config file changes**, reload Fcitx5 with `fcitx5-remote -r` (lighter than a full `fcitx5 -r` restart). GUI changes apply immediately after clicking Apply.
 
 ---
 
