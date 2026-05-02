@@ -11,6 +11,20 @@ Saves through the editor are **applied live** via fcitx5's `Controller1.ReloadAd
 
 ---
 
+## Launching the editor
+
+You can open `schnelle-umlaute-editor` in three equivalent ways:
+
+| Method | How |
+|---|---|
+| **Application launcher** | Search "Schnelle Umlaute Editor" in your DE's app menu (Plasma Search / KRunner / GNOME Activities / rofi / wofi) |
+| **Command line** | Run `schnelle-umlaute-editor` from any terminal |
+| **fcitx5-configtool** | Open `fcitx5-config-qt`, select **Schnelle Umlaute** in the Input Method list, click the **gear/Configure** button next to it |
+
+All three open the same editor window — pick whichever fits your workflow.
+
+---
+
 ## Adding Schnelle Umlaute to your Input Methods
 
 1. Open Fcitx5 configuration: `fcitx5-config-qt`
@@ -263,6 +277,8 @@ The theme applies to both the editor window and the on-screen cycle overlay (whe
 ---
 
 ## Cycle Overlay
+
+> **Not available on GNOME or X11.** The overlay needs the **wlr-layer-shell** Wayland protocol. GNOME's Mutter does not implement it, and X11 has no equivalent. The editor greys out the Overlay toggle on those sessions. Cycling itself works everywhere — only the visual on-screen indicator is gated.
 
 An optional on-screen indicator that mirrors the current variant while you cycle. Toggle it in the editor's **Settings → Overlay**, then click on the position grid to choose where it appears on screen.
 
