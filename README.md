@@ -21,6 +21,8 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Configurable leader keys (Space, Arrow ←→↑↓, Alt/AltGr, or custom keys with hand-split) — keep Space free for normal typing
 - Unlimited mapping slots
 - App blacklist/whitelist — disable in games, password managers, or apps with conflicting shortcuts
+- Standalone QML editor (`schnelle-umlaute-editor`) for managing mappings, leader keys, app filter, and the cycle overlay
+- Optional cycle overlay daemon (Wayland with wlr-layer-shell) showing accent variants on-screen
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
 
@@ -56,6 +58,10 @@ Available on the [AUR](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaut
 ```bash
 yay -S fcitx5-schnelle-umlaute-git
 ```
+
+> **About `-git`:** This package builds from the `dev` branch and ships features ahead of the latest tagged release — the standalone QML editor (`schnelle-umlaute-editor`), the cycle overlay daemon, and the per-user setup script (`schnelle-umlaute-setup`). Run `schnelle-umlaute-setup` once after install to write your fcitx5 environment variables.
+>
+> A stable AUR package (`fcitx5-schnelle-umlaute`) tracking tagged releases will be added in a future update.
 
 ### Other distributions (manual install)
 
