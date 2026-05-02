@@ -10,12 +10,48 @@ cd schnelle-umlaute
 
 The installer automatically detects your distribution (Arch, Debian, Ubuntu, Fedora, openSUSE) and will:
 - Check and install dependencies via the appropriate package manager
-- Build and install the addon
+- Build and install the addon, the standalone editor, the cycle overlay daemon, and the per-user setup helper
 - Configure environment variables automatically
 - Detect Shift trigger key conflicts that break uppercase mappings
 - Guide you through the setup
 
 **After installation:** Logout and login, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods.
+
+---
+
+## Arch Linux (AUR)
+
+```bash
+yay -S fcitx5-schnelle-umlaute-git
+```
+
+After install, run the per-user setup helper once (writes the fcitx5 environment variables to `~/.config/environment.d/fcitx5.conf` and sets up the autostart entry):
+
+```bash
+schnelle-umlaute-setup
+```
+
+Then logout and login. The `-git` package follows the `dev` branch and ships features ahead of the latest tagged release. A stable AUR package (`fcitx5-schnelle-umlaute`) tracking tagged releases will be added later.
+
+---
+
+## What gets installed
+
+All install paths (script, manual, AUR) deliver the same artifacts:
+
+| Path | Component |
+|---|---|
+| `/usr/lib/fcitx5/schnelle-umlaute.so` | Fcitx5 input method addon (the core engine) |
+| `/usr/bin/schnelle-umlaute-editor` | Standalone QML editor for mappings, leader keys, app filter, overlay |
+| `/usr/bin/schnelle-umlaute-overlay` | Cycle overlay daemon (Wayland with wlr-layer-shell) |
+| `/usr/bin/schnelle-umlaute-setup` | One-time per-user environment setup helper |
+| `/usr/share/applications/schnelle-umlaute-editor.desktop` | App launcher entry for the editor |
+| `/usr/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg` | Editor icon |
+| `/usr/share/dbus-1/services/de.schnelle_umlaute.Overlay.service` | DBus activation entry for the overlay daemon |
+| `/usr/share/fcitx5/addon/schnelle-umlaute.conf*` | Addon registration + config descriptor |
+| `/usr/share/fcitx5/inputmethod/schnelle-umlaute.conf` | Input-method registration |
+
+(Paths shown for an `/usr` prefix install; manual builds use `/usr/local/...` by default.)
 
 ---
 
@@ -42,29 +78,19 @@ cd build
 sudo cmake --install .
 ```
 
-**4. Configure Environment Variables**
-
-For the addon to work in ALL applications (GTK, Qt, browsers, terminals, etc.), set up environment variables:
+**4. First-run setup**
 
 ```bash
-mkdir -p ~/.config/environment.d
-cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
-GLFW_IM_MODULE=ibus
-EOF
+schnelle-umlaute-setup
 ```
 
-**Note:** `GLFW_IM_MODULE=ibus` is required for Kitty terminal and other GLFW-based applications.
+Writes `~/.config/environment.d/fcitx5.conf` (env-vars: GTK/Qt/X11) and configures autostart for your session (KDE Wayland gets `Hidden=true` because KWin handles startup; other sessions get a regular XDG autostart entry). Idempotent — safe to re-run.
 
 **5. Logout and Login**
 
-**IMPORTANT:** You must logout and login again for the environment variables to take effect!
-
 ```bash
 # After logout/login, verify Fcitx5 is running:
-fcitx5-remote
+fcitx5-remote   # Should print "1" (inactive) or "2" (active)
 ```
 
 ---
@@ -96,42 +122,25 @@ cd build
 sudo cmake --install .
 ```
 
-**4. Configure Environment Variables**
-
-```bash
-mkdir -p ~/.config/environment.d
-cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
-GLFW_IM_MODULE=ibus
-EOF
-```
-
-**Note:** `GLFW_IM_MODULE=ibus` is required for Kitty terminal and other GLFW-based applications.
-
-**5. Set Fcitx5 as Default Input Method**
+**4. Set Fcitx5 as Default Input Method**
 
 ```bash
 im-config -n fcitx5
 ```
 
-**6. Setup Autostart (GNOME only)**
-
-> Skip this step on KDE Wayland — KWin starts Fcitx5 automatically. Adding autostart causes a dual-instance conflict.
+**5. First-run setup**
 
 ```bash
-mkdir -p ~/.config/autostart
-cp /usr/share/applications/org.fcitx.Fcitx5.desktop ~/.config/autostart/
+schnelle-umlaute-setup
 ```
 
-**7. Logout and Login**
+Writes the env-vars and the autostart entry for your session.
 
-**IMPORTANT:** You must logout and login again for the environment variables to take effect!
+**6. Logout and Login**
 
 ```bash
 # After logout/login, verify Fcitx5 is running:
-fcitx5-remote
+fcitx5-remote   # Should print "1" (inactive) or "2" (active)
 ```
 
 **GNOME Users:** If Fcitx5 doesn't work in GNOME apps, run:
@@ -166,21 +175,17 @@ cd build
 sudo cmake --install .
 ```
 
-**4. Configure Environment Variables**
+**4. First-run setup**
 
 ```bash
-mkdir -p ~/.config/environment.d
-cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
-GLFW_IM_MODULE=ibus
-EOF
+schnelle-umlaute-setup
 ```
 
 **5. Logout and Login**
 
-**IMPORTANT:** You must logout and login again for the environment variables to take effect!
+```bash
+fcitx5-remote   # Should print "1" (inactive) or "2" (active)
+```
 
 ---
 
@@ -209,21 +214,25 @@ cd build
 sudo cmake --install .
 ```
 
-**4. Configure Environment Variables**
+**4. First-run setup**
 
 ```bash
-mkdir -p ~/.config/environment.d
-cat > ~/.config/environment.d/fcitx5.conf << 'EOF'
-GTK_IM_MODULE=fcitx
-QT_IM_MODULE=fcitx
-XMODIFIERS=@im=fcitx
-GLFW_IM_MODULE=ibus
-EOF
+schnelle-umlaute-setup
 ```
 
 **5. Logout and Login**
 
-**IMPORTANT:** You must logout and login again for the environment variables to take effect!
+```bash
+fcitx5-remote   # Should print "1" (inactive) or "2" (active)
+```
+
+---
+
+## Post-install: enable the Schnelle Umlaute input method
+
+Open `fcitx5-config-qt` (or KDE System Settings → Input Method), add **Schnelle Umlaute** to your active input methods, and toggle it with <kbd>Ctrl</kbd>+<kbd>Space</kbd>.
+
+To configure mappings, leader keys, the app filter, and the cycle overlay, click the gear/Configure button next to the addon — fcitx5-configtool launches the standalone `schnelle-umlaute-editor`. You can also start it directly from the command line, an application launcher, or its desktop entry.
 
 ---
 
@@ -238,7 +247,7 @@ EOF
 The uninstaller automatically detects your distribution and will:
 - Remove all installed addon files
 - Ask if you want to remove environment/autostart configuration
-- Restart Fcitx5
+- Reload Fcitx5
 
 ### Manual Uninstallation
 
@@ -246,8 +255,8 @@ If the build directory still exists, use the install manifest:
 ```bash
 cd addon/build
 sudo xargs rm -f < install_manifest.txt
-# Restart fcitx5 to unload the removed addon:
-fcitx5 -r
+# Reload fcitx5 to unload the removed addon:
+fcitx5-remote -r
 ```
 
 Otherwise, remove files manually. The addon library path depends on your distribution:
@@ -264,9 +273,15 @@ sudo rm /usr/lib64/fcitx5/schnelle-umlaute.so
 # Source build (cmake --install with default prefix)
 sudo rm /usr/local/lib/fcitx5/schnelle-umlaute.so
 
-# Standalone editor + overlay binaries (any distribution)
+# Standalone editor + overlay binaries + setup helper (any distribution)
 sudo rm /usr/bin/schnelle-umlaute-editor
 sudo rm /usr/bin/schnelle-umlaute-overlay
+sudo rm /usr/bin/schnelle-umlaute-setup
+
+# Editor desktop entry, icon, and overlay DBus service
+sudo rm /usr/share/applications/schnelle-umlaute-editor.desktop
+sudo rm /usr/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
+sudo rm /usr/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
 
 # Legacy fcitx5-configtool Qt plugin (only present on installs from
 # versions before 1.2.0 — ignore "No such file or directory" otherwise):
@@ -283,6 +298,6 @@ rm ~/.config/fcitx5/conf/schnelle-umlaute.conf
 rm -r ~/.config/fcitx5/schnelle-umlaute/
 rm ~/.config/environment.d/fcitx5.conf
 
-# Restart fcitx5 to unload the removed addon:
-fcitx5 -r
+# Reload fcitx5 to unload the removed addon:
+fcitx5-remote -r
 ```
