@@ -24,7 +24,7 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
 - Configurable leader keys (Space, Arrow ←→↑↓, Alt/AltGr, or custom keys with hand-split) — keep Space free for normal typing
 - Unlimited mapping slots
-- App blacklist/whitelist — disable in games, password managers, or apps with conflicting shortcuts ([details](docs/CONFIGURATION.md#app-filter))
+- App blacklist/whitelist — disable in games, password managers, or apps with conflicting shortcuts
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
 
