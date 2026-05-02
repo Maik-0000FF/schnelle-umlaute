@@ -11,10 +11,11 @@ This is a **native Fcitx5 addon** written in **C++**, using the Fcitx5 InputMeth
 ## How it works internally
 
 1. Fcitx5 calls our `keyEvent()` handler for every key
-2. When accent key (a/o/u/s) is pressed: suppress output, start timer
-3. If Space within delay (400ms lowercase, 700ms uppercase): call `commitString(umlaut)` for direct insertion
-4. If timeout or key released: call `commitString(normalLetter)`
-5. No clipboard, no key simulation - pure text insertion!
+2. App Filter check: if the current app is excluded by the configured blacklist or absent from the whitelist, the key passes through unchanged
+3. When accent key (a/o/u/s) is pressed: suppress output, start timer
+4. If Space within delay (400ms lowercase, 700ms uppercase): call `commitString(umlaut)` for direct insertion
+5. If timeout or key released: call `commitString(normalLetter)`
+6. No clipboard, no key simulation - pure text insertion!
 
 ## Comparison with Other Approaches
 
