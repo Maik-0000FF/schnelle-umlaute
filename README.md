@@ -49,8 +49,6 @@ Unlike clipboard-based or keyboard simulation solutions, this Fcitx5 addon uses 
 
 ## Quick Start
 
-Supported: **Arch Linux** · **Ubuntu/Debian** · **Fedora** · **openSUSE**
-
 ### Arch Linux (AUR)
 
 Available on the [AUR](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaute-git). Install with any AUR helper:
@@ -63,7 +61,7 @@ yay -S fcitx5-schnelle-umlaute-git
 >
 > A stable AUR package (`fcitx5-schnelle-umlaute`) tracking tagged releases will be added in a future update.
 
-### Other distributions (manual install)
+### Manual install (Arch Linux · Ubuntu/Debian · Fedora · openSUSE)
 
 ```bash
 git clone https://github.com/Maik-0000FF/schnelle-umlaute.git
