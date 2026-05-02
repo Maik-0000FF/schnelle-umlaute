@@ -82,6 +82,13 @@ Then **logout and login again** for changes to take effect.
 2. Check Fcitx5 is running: `ps aux | grep fcitx5`
 3. Try holding the key longer before pressing Space
 4. Verify environment variables are set: `echo $GTK_IM_MODULE` (should output "fcitx")
+5. Check the **App Filter** isn't blocking the current app — see next section
+
+## Addon doesn't work in a specific app (works elsewhere)
+
+Check the App Filter: in `fcitx5-config-qt` → **Schnelle Umlaute**, look at the **App Filter** mode and list. If the mode is **Blacklist** and the app is listed, the addon is intentionally disabled there. If the mode is **Whitelist**, the addon only fires in apps explicitly listed.
+
+Setting the mode back to **None** disables the filter entirely. See [Configuration → App Filter](CONFIGURATION.md#app-filter) for details on identifying program names.
 
 ## Addon is visible but not activatable / Fcitx5 not responding
 
