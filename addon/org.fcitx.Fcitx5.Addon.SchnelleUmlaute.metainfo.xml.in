@@ -22,6 +22,7 @@
   <developer_name>Maik-0000FF</developer_name>
   <update_contact>https://github.com/Maik-0000FF</update_contact>
   <releases>
+    <release version="1.1.0" date="2026-05-02"/>
     <release version="1.0.0" date="2026-04-02"/>
     <release version="0.1.5" date="2026-03-21"/>
     <release version="0.1.4" date="2026-03-19"/>
