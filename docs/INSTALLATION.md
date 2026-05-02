@@ -63,8 +63,10 @@ EOF
 
 ```bash
 # After logout/login, verify Fcitx5 is running:
-fcitx5-remote
+fcitx5-remote   # Should print "1" (inactive) or "2" (active)
 ```
+
+**Optional — restrict to specific apps:** v1.1.0 includes an App Filter that lets you blacklist specific apps (games, password managers) or whitelist only selected apps. Configure via `fcitx5-config-qt` → **Schnelle Umlaute** → **App Filter**, or see [Configuration → App Filter](CONFIGURATION.md#app-filter).
 
 ---
 
