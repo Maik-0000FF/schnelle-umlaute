@@ -2532,10 +2532,12 @@ static void scheduleTimeoutTests(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         // Defer cleanup so the addon's timeout timer (50ms) fires and
-        // commits before IC destruction.  300ms gives 250ms of headroom
-        // over the 50ms addon timer, avoiding flakes on loaded CI runners.
+        // commits before IC destruction.  600ms gives 550ms of headroom
+        // over the 50ms addon timer.  Earlier 300ms still flaked on
+        // Ubuntu 24.04 CI runners where the 50ms timer was observed to
+        // arrive at ~250ms, leaving only ~50ms before cleanup.
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 600'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -2565,7 +2567,7 @@ static void scheduleTest60(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 600'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -2600,7 +2602,7 @@ static void scheduleTest61(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 600'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -2678,7 +2680,7 @@ static void scheduleTest63(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 600'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -2715,7 +2717,7 @@ static void scheduleTest64(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 600'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -4150,11 +4152,13 @@ static void scheduleTest107(Instance *instance) {
         // Addon timer fires at 100ms and commits 'a'
         tf->call<ITestFrontend::pushCommitExpectation>("a");
 
-        // Wait 400ms — well past 100ms window (300ms headroom)
+        // Wait 700ms — well past 100ms window (600ms headroom).
+        // Earlier 400ms still flaked on Ubuntu 24.04 CI runners where
+        // the 100ms addon timer was observed to arrive at ~300ms.
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 400'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 700'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -4260,7 +4264,7 @@ static void scheduleTest112(Instance *instance) {
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 300'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 600'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
