@@ -61,6 +61,43 @@ jobs:
         run: ctest --test-dir build --output-on-failure
         working-directory: addon
 
+      - name: Verify artifacts
+        # v1.0.0 ships two shared libraries — the fcitx5 addon itself and
+        # the Qt widget plugin that fcitx5-configtool loads for the
+        # mapping editor. If either is missing the install appears green
+        # but the addon is unconfigurable. The addon .so has PREFIX ""
+        # (no "lib"), the config-editor plugin keeps CMake's default
+        # "lib" prefix — reflected in the STALE_CANDIDATES in install.sh.
+        run: |
+          missing=0
+          for f in build/schnelle-umlaute.so \
+                   build/config-editor/libschnelle-umlaute-config-editor.so; do
+            if [ -f "$f" ]; then
+              echo "ok: $f"
+            else
+              echo "missing: $f"
+              missing=1
+            fi
+          done
+          exit $missing
+        working-directory: addon
+
+      - name: Verify shared-library resolution
+        # Both .so files are dlopen()ed by fcitx5 at runtime. An unresolved
+        # dependency here means fcitx5 will silently skip the addon on the
+        # user's machine — no error, just missing functionality.
+        run: |
+          for f in build/schnelle-umlaute.so \
+                   build/config-editor/libschnelle-umlaute-config-editor.so; do
+            echo "=== ldd $f ==="
+            ldd "$f"
+            if ldd "$f" | grep -q "not found"; then
+              echo "unresolved libraries in $f"
+              exit 1
+            fi
+          done
+        working-directory: addon
+
   install-uninstall:
     # Runs install.sh and uninstall.sh back-to-back inside each distro
     # container, exactly as a real user would. Both scripts refuse to
