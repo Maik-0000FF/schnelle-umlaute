@@ -24,7 +24,7 @@ jobs:
             run_tests: true
           - distro: Ubuntu 24.04
             image: ubuntu:24.04
-            install: apt-get update && apt-get install -y --no-install-recommends build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
+            install: apt-get update && apt-get install -y --no-install-recommends ca-certificates build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: Fedora
