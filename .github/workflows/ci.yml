@@ -260,6 +260,42 @@ jobs:
           check "DBus .service"   find /usr /usr/local /etc -name 'de.schnelle_umlaute.Overlay.service' 2>/dev/null
           exit $fail
 
+      - name: Smoke test installed editor (headless)
+        # Validates the install.sh package list at runtime, not just at
+        # build time. A crash here means an end user would see the editor
+        # crash on first launch — usually a missing QML module that the
+        # build job didn't catch because that job uses ci.yml's richer
+        # package list while end users get install.sh's leaner one.
+        # Same offscreen-platform trick as the build job; the editor
+        # doesn't exit on its own, so timeout kills it after a moment.
+        # Locate via find rather than PATH because install prefixes
+        # differ across distros (/usr/bin on Fedora/openSUSE,
+        # /usr/local/bin on Arch/Debian via cmake default).
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_LOGGING_RULES: "*.debug=false;qt.qpa.*=false"
+        run: |
+          set +e
+          EDITOR=$(find /usr /usr/local -name 'schnelle-umlaute-editor' -type f 2>/dev/null | head -1)
+          if [ -z "$EDITOR" ]; then
+            echo "FAIL: schnelle-umlaute-editor not found"
+            exit 1
+          fi
+          echo "running $EDITOR"
+          timeout --preserve-status --signal=TERM 3 "$EDITOR" > /tmp/editor.log 2>&1
+          ec=$?
+          echo "editor exit code: $ec"
+          cat /tmp/editor.log
+          case $ec in
+            0|124|143) ;;
+            *) echo "editor crashed (exit $ec)"; exit 1 ;;
+          esac
+          if grep -qiE "segmentation fault|sanitizer|assertion failed|qml.*error.*file:" \
+             /tmp/editor.log; then
+            echo "editor produced errors"; exit 1
+          fi
+          echo "smoke test passed"
+
       - name: Run uninstall.sh
         # uninstall.sh uses [y/N] prompts (default N), so `yes` feeds "y"
         # to remove everything. Last step tries to restart fcitx5 —
