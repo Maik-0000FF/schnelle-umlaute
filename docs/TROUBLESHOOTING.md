@@ -2,17 +2,17 @@
 
 ## Accidental accents when typing fast
 
-**Symptom:** When typing fast with Space as leader key, accents appear at word boundaries instead of a normal letter + space.
+**Symptom:** When typing fast with Space as leader key, accents appear at word boundaries and the word separator is lost (the two words run together).
 
 **Examples:**
 
 | Language | Expected | Actual (fast typing) | Cause |
 |----------|----------|---------------------|-------|
-| German | Der Bus kommt gleich. | Der Buß kommt gleich. | `s` still held when Space is pressed → ß |
-| French | Je mange une pomme chaque jour. | Je mange une pommé chaque jour. | `e` still held when Space is pressed → é |
-| Spanish | El tren sale a las ocho. | El treñ sale a las ocho. | `n` still held when Space is pressed → ñ |
+| German | Der Bus kommt gleich. | Der Bußkommt gleich. | `s` still held when Space is pressed → ß, Space consumed as leader |
+| French | Je mange une pomme chaque jour. | Je mange une pomméchaque jour. | `e` still held when Space is pressed → é, Space consumed as leader |
+| Spanish | El tren sale a las ocho. | El treñsale a las ocho. | `n` still held when Space is pressed → ñ, Space consumed as leader |
 
-**Cause:** Space serves as both word separator and leader key. When typing quickly, the mapped key at the end of a word hasn't been released yet when Space is pressed — the addon interprets this as a hold+space gesture and outputs the accent instead of the normal letter + space.
+**Cause:** Space serves as both word separator and leader key. When typing quickly, the mapped key at the end of a word hasn't been released yet when Space is pressed — the addon interprets this as a hold+space gesture, outputs the accent, and consumes the Space as the leader trigger, so no word separator is emitted.
 
 **Solution:** Switch to a leader key that doesn't conflict with normal typing:
 
@@ -22,6 +22,8 @@
 - **Dual custom leaders** (hand-split) — one leader per keyboard half, near-zero conflicts
 
 See [Configuration → Leader Key](CONFIGURATION.md#leader-key) for setup instructions.
+
+**Alternative solution (keep Space as leader):** Reduce the **Lowercase Delay** in `schnelle-umlaute-editor` → Settings (default 400 ms). Start with **200 ms** and only go lower (down to the 50 ms minimum) if accidental accents still occur. With a shorter window the mapped key times out before you reach Space, so the addon falls back to the "normal letter + space" path — no accidental accent, word separator preserved. Trade-off: you have less time to press Space when you actually want the accent.
 
 ## Addon stops working after moving/switching windows (fcitx5 5.1.18+)
 
