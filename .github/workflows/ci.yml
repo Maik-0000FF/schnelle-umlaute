@@ -42,6 +42,25 @@ jobs:
       image: ${{ matrix.image }}
 
     steps:
+      - name: Switch to Azure Ubuntu mirror
+        # GitHub Actions runners live on Azure; the Azure-hosted Ubuntu
+        # mirror sits in the same datacenter network and is immune to
+        # the public archive.ubuntu.com overload that hung CI for 20+
+        # minutes today. Content is bit-identical (Canonical-signed
+        # .debs) — only the host changes.
+        # Ubuntu 24.04 ships sources in DEB822 format under
+        # /etc/apt/sources.list.d/ubuntu.sources; legacy
+        # /etc/apt/sources.list may also exist. The //-prefix in the
+        # match prevents rewriting an already-azure URL on re-runs.
+        if: matrix.distro == 'Ubuntu 24.04'
+        run: |
+          for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            [ -f "$f" ] && sed -i \
+              -e 's|//archive.ubuntu.com|//azure.archive.ubuntu.com|g' \
+              -e 's|//security.ubuntu.com|//azure.archive.ubuntu.com|g' \
+              "$f"
+          done
+
       - name: Cache apt archives (Ubuntu)
         if: matrix.distro == 'Ubuntu 24.04'
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
