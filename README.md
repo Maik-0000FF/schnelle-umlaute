@@ -93,7 +93,7 @@ After installation: **Logout and login**, then run `fcitx5-config-qt` to add "Sc
 
 All mappings are fully customizable — add French, Spanish, Emoji, Braille, or any Unicode character. See [Configuration](docs/CONFIGURATION.md).
 
-> **Tip:** When typing fast, Space as leader key can cause accidental accents at word boundaries — e.g. "Der Bus kommt" becomes "Der Buß kommt". Switch to an arrow key, Alt, or a custom leader (e.g. `f`, `j`) to keep Space free for normal typing. See [Configuration → Leader Key](docs/CONFIGURATION.md#leader-key) and [Troubleshooting](docs/TROUBLESHOOTING.md#accidental-accents-when-typing-fast).
+> **Tip:** When typing fast, Space as leader key can cause accidental accents at word boundaries — e.g. "une pomme chaque" becomes "une pomméchaque" (the `e` is still held when Space is pressed, so Space gets consumed as the leader and the word separator is lost). Switch to an arrow key, Alt, or a custom leader (e.g. `f`, `j`) to keep Space free for normal typing. See [Configuration → Leader Key](docs/CONFIGURATION.md#leader-key) and [Troubleshooting](docs/TROUBLESHOOTING.md#accidental-accents-when-typing-fast).
 
 ## Requirements
 
