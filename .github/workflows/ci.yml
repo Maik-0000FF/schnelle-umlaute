@@ -24,7 +24,7 @@ jobs:
             run_tests: true
           - distro: Ubuntu 24.04
             image: ubuntu:24.04
-            install: apt-get update && apt-get install -y build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
+            install: apt-get update && apt-get install -y --no-install-recommends build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: Fedora
@@ -42,6 +42,22 @@ jobs:
       image: ${{ matrix.image }}
 
     steps:
+      - name: Cache apt archives (Ubuntu)
+        if: matrix.distro == 'Ubuntu 24.04'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: /var/cache/apt/archives
+          key: apt-ubuntu-24.04-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: |
+            apt-ubuntu-24.04-
+
+      - name: Keep downloaded .debs for cache (Ubuntu)
+        # apt deletes /var/cache/apt/archives/*.deb after install by default,
+        # which would leave the cache empty. Override so the cache action has
+        # something to save.
+        if: matrix.distro == 'Ubuntu 24.04'
+        run: echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/01keep-debs
+
       - name: Install dependencies
         run: ${{ matrix.install }}
 
