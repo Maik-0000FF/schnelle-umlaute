@@ -150,7 +150,9 @@ case "$DISTRO" in
               fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev qt6-base-dev
               libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext pkg-config
               libxkbcommon-dev
-              qt6-declarative-dev qml6-module-qtquick-controls liblayershellqtinterface-dev)
+              qt6-declarative-dev qml6-module-qtquick-controls
+              qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtqml-workerscript
+              liblayershellqtinterface-dev)
         ;;
     fedora)
         DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
