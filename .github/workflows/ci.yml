@@ -5,6 +5,18 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly canary against the four supported distros' rolling/latest
+    # images. Catches drift the user can't see while not actively
+    # developing: a Tumbleweed Qt6 bump, a fcitx5 API change in the
+    # Arch package, a renamed Debian package, an updated Fedora 42
+    # base, etc. Also keeps the apt-archive cache hot (GitHub evicts
+    # caches after 7 days idle, so a weekly touch keeps it warm).
+    # GitHub cron is UTC-only — '0 8 * * 1' fires Mondays 08:00 UTC,
+    # which is 10:00 Europe/Berlin in CEST and 09:00 in CET. Switch
+    # to '0 9 * * 1' to keep 10:00 wall-clock through winter.
+    # Schedule triggers run only against the default branch (main).
+    - cron: '0 8 * * 1'
 
 permissions:
   contents: read
