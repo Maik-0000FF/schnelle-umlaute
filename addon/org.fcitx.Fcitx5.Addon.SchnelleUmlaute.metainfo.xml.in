@@ -3,7 +3,7 @@
   <id>org.fcitx.Fcitx5.Addon.SchnelleUmlaute</id>
   <extends>org.fcitx.Fcitx5</extends>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>GPL-3.0+</project_license>
+  <project_license>GPL-3.0-or-later</project_license>
   <name>Schnelle Umlaute</name>
   <summary>Quick accent and special-character input via hold-and-leader gesture</summary>
   <description>
