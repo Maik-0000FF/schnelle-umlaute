@@ -245,6 +245,26 @@ jobs:
         run: cmake -B build -DBUILD_TESTING=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
         working-directory: addon
 
+      - name: Verify code is clang-format clean
+        # --dry-run + --Werror: prints diff and exits non-zero if any file
+        # would be reformatted. Style is pinned by .clang-format at the
+        # repo root. Run before the build so style drift fails fast — no
+        # need to compile to find a misformatted file.
+        run: |
+          clang-format --dry-run --Werror \
+            addon/src/schnelle-umlaute.cpp \
+            addon/config-editor/editor.cpp \
+            addon/config-editor/main.cpp \
+            addon/config-editor/model.cpp \
+            addon/config-editor/editor.h \
+            addon/config-editor/main.h \
+            addon/config-editor/model.h \
+            addon/mappings-io.h \
+            tests/testschnelleumlaute.cpp \
+            tests/testmappingsio.cpp \
+            tests/testmappingmodel.cpp \
+            tests/testmappingmodelio.cpp
+
       - name: Build
         # AUTOUIC generates ui_editor.h from editor.ui, AUTOMOC generates
         # moc_*.cpp for Q_OBJECT classes. clang-tidy parses these in turn
