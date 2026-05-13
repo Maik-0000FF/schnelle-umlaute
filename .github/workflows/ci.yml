@@ -27,6 +27,18 @@ jobs:
             install: apt-get update && apt-get install -y --no-install-recommends ca-certificates build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev qt6-declarative-dev libxkbcommon-dev liblayershellqtinterface-dev qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
+          - distro: Linux Mint 22
+            # Mint 22 ships Ubuntu 24.04 packages plus mint-specific
+            # repos. The build only uses Ubuntu-provided libs, so this
+            # entry catches Mint-only regressions (renamed packages,
+            # im-config drift, /etc/os-release parsing) — the Ubuntu
+            # entry above already verifies the toolchain itself. Deps
+            # mirror the Ubuntu line including Qt6 Declarative and
+            # layer-shell so editor + overlay build the same way.
+            image: linuxmintd/mint22-amd64
+            install: apt-get update && apt-get install -y --no-install-recommends ca-certificates build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev qt6-declarative-dev libxkbcommon-dev liblayershellqtinterface-dev qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
+            cmake_extra: -DBUILD_TESTING=ON
+            run_tests: true
           - distro: Fedora
             image: fedora:42
             install: dnf install -y gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtquickcontrols2-devel libxkbcommon-devel layer-shell-qt-devel
@@ -179,6 +191,9 @@ jobs:
             bootstrap: pacman -Syu --noconfirm sudo
           - distro: Ubuntu 24.04
             image: ubuntu:24.04
+            bootstrap: apt-get update && apt-get install -y sudo
+          - distro: Linux Mint 22
+            image: linuxmintd/mint22-amd64
             bootstrap: apt-get update && apt-get install -y sudo
           - distro: Fedora
             image: fedora:42

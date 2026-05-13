@@ -70,7 +70,7 @@ case "$DISTRO" in
         ;;
     debian)
         echo -e "${GREEN}Debian/Ubuntu installer${NC}"
-        echo -e "${YELLOW}Supported: Ubuntu 24.04+, Debian Trixie (13)+, Kali Linux (rolling)${NC}"
+        echo -e "${YELLOW}Supported: Ubuntu 24.04+, Debian Trixie (13)+, Linux Mint 22+, Kali Linux (rolling)${NC}"
         echo -e "${YELLOW}Debian Bookworm (12) requires bookworm-backports enabled.${NC}"
         ;;
     fedora)
