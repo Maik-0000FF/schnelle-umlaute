@@ -2480,15 +2480,33 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
              nullptr,
              {
                  // QWERTZ: z/y swapped vs QWERTY
-                 {"q", true},  {"w", true},  {"e", true},  {"r", true},
-                 {"t", true},  {"a", true},  {"s", true},  {"d", true},
-                 {"f", true},  {"g", true},  {"y", true}, // keycode 52 (left) —
-                                                          // QWERTY has 'z' here
-                 {"x", true},  {"c", true},  {"v", true},  {"b", true},
+                 {"q", true},
+                 {"w", true},
+                 {"e", true},
+                 {"r", true},
+                 {"t", true},
+                 {"a", true},
+                 {"s", true},
+                 {"d", true},
+                 {"f", true},
+                 {"g", true},
+                 {"y", true}, // keycode 52 (left) —
+                              // QWERTY has 'z' here
+                 {"x", true},
+                 {"c", true},
+                 {"v", true},
+                 {"b", true},
                  {"z", false}, // keycode 29 (right) — QWERTY has 'y' here
-                 {"u", false}, {"i", false}, {"o", false}, {"p", false},
-                 {"h", false}, {"j", false}, {"k", false}, {"l", false},
-                 {"n", false}, {"m", false},
+                 {"u", false},
+                 {"i", false},
+                 {"o", false},
+                 {"p", false},
+                 {"h", false},
+                 {"j", false},
+                 {"k", false},
+                 {"l", false},
+                 {"n", false},
+                 {"m", false},
              }},
             {"fr",
              nullptr,
