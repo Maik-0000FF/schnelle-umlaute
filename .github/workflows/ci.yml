@@ -34,6 +34,17 @@ jobs:
             install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
+          - distro: Arch Linux (Clang)
+            # Same image as the GCC entry above; only the compiler differs.
+            # Clang's frontend produces different diagnostics than GCC —
+            # stricter -Wshadow handling, more aggressive template traces,
+            # different unused-warning heuristics. Running the full ctest
+            # suite under Clang also doubles test-binary coverage across
+            # the two toolchains.
+            image: archlinux:base-devel
+            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext clang
+            cmake_extra: -DBUILD_TESTING=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+            run_tests: true
           - distro: Ubuntu 24.04
             image: ubuntu:24.04
             install: apt-get update && apt-get install -y --no-install-recommends ca-certificates build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
