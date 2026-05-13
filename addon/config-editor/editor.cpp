@@ -30,10 +30,11 @@ MappingEditor::MappingEditor(QWidget *parent) : FcitxQtConfigUIWidget(parent) {
     helpLabel->setStyleSheet("QLabel { color: gray; font-size: 11px; }");
     mainLayout->addWidget(helpLabel, 2, 0);
 
-    // Validation error label
-    statusLabel_ = new QLabel(this);
+    // Validation error label. Always visible (with a placeholder space
+    // character when there's no message) so its line height is reserved
+    // and the rest of the form doesn't jump up/down as messages appear.
+    statusLabel_ = new QLabel(QStringLiteral(" "), this);
     statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    statusLabel_->setVisible(false);
     mainLayout->addWidget(statusLabel_, 3, 0);
 
     connect(addButton, &QPushButton::clicked, this, &MappingEditor::addMapping);
@@ -110,7 +111,8 @@ void MappingEditor::addMapping() {
         return;
     }
     if (!MappingModel::isValidInput(input)) {
-        showInputError(_("Input must be exactly one printable character"));
+        showInputError(
+            _("Input must be a visible character (no whitespace, no tab)"));
         return;
     }
     if (model_->hasInput(input)) {
@@ -129,29 +131,50 @@ void MappingEditor::addMapping() {
     inputEdit->setFocus();
 }
 
+// Style snippets for inline validation feedback. Object-name selector
+// (QLineEdit#inputEdit) gives higher specificity than QLineEdit alone, so
+// KDE/Qt themes that style QLineEdit globally don't suppress these borders.
+// background-color: palette(base) is the key trick — without an explicit
+// background, Qt keeps using the theme's background draw path (which is
+// often a 9-slice image with square corners) and border-radius is rendered
+// underneath that, invisibly. Setting the palette-base background forces
+// Qt onto its own draw path that honors border-radius.
+// 1px border + 3px/5px padding matches the size of the unstyled editfield
+// in Breeze, so the validated field doesn't visibly shrink vs its neighbors.
+static constexpr auto kInputErrorStyle =
+    "QLineEdit#inputEdit { border: 1px solid #cc0000; "
+    "border-radius: 4px; padding: 3px 5px; "
+    "background-color: palette(base); color: palette(text); }";
+static constexpr auto kInputWarnStyle =
+    "QLineEdit#inputEdit { border: 1px solid #cc8800; "
+    "border-radius: 4px; padding: 3px 5px; "
+    "background-color: palette(base); color: palette(text); }";
+static constexpr auto kOutputErrorStyle =
+    "QLineEdit#outputEdit { border: 1px solid #cc0000; "
+    "border-radius: 4px; padding: 3px 5px; "
+    "background-color: palette(base); color: palette(text); }";
+
 void MappingEditor::showInputError(const QString &msg) {
     statusLabel_->setText(msg);
     statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    statusLabel_->setVisible(true);
-    inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc0000; }");
+    inputEdit->setStyleSheet(kInputErrorStyle);
 }
 
 void MappingEditor::showInputWarning(const QString &msg) {
     statusLabel_->setText(msg);
     statusLabel_->setStyleSheet("QLabel { color: #cc8800; font-size: 11px; }");
-    statusLabel_->setVisible(true);
-    inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc8800; }");
+    inputEdit->setStyleSheet(kInputWarnStyle);
 }
 
 void MappingEditor::showOutputError(const QString &msg) {
     statusLabel_->setText(msg);
     statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    statusLabel_->setVisible(true);
-    outputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc0000; }");
+    outputEdit->setStyleSheet(kOutputErrorStyle);
 }
 
 void MappingEditor::clearInputError() {
-    statusLabel_->setVisible(false);
+    // Reserve the line with a placeholder space — see constructor for why.
+    statusLabel_->setText(QStringLiteral(" "));
     inputEdit->setStyleSheet("");
     outputEdit->setStyleSheet("");
 }
@@ -166,7 +189,8 @@ void MappingEditor::revalidate() {
     // Input blockers take precedence (same order as addMapping).
     if (!input.isEmpty()) {
         if (!MappingModel::isValidInput(input)) {
-            showInputError(_("Input must be exactly one printable character"));
+            showInputError(
+                _("Input must be a visible character (no whitespace, no tab)"));
             return;
         }
         if (model_->hasInput(input)) {
