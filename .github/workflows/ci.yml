@@ -155,6 +155,58 @@ jobs:
           done
         working-directory: addon
 
+  sanitizers:
+    # ASan catches heap/stack/global buffer overflows, use-after-free,
+    # double-free. UBSan catches signed-integer overflow, null deref,
+    # shift overflows, misaligned access, invalid enum values — UB that
+    # "works today" but breaks on the next toolchain bump. Runs the
+    # existing ctest suite under both sanitizers, so bugs in the addon's
+    # state lifecycle (recentlyCommitted_, heldRawCodes_, timer,
+    # reset/deactivate paths) surface as concrete stack traces.
+    # Arch chosen for the freshest GCC. fcitx5 itself is not built with
+    # sanitizers, so detect_leaks=0 avoids noise from fcitx5 statics —
+    # use-after-free and overflows in our code are still caught.
+    runs-on: ubuntu-24.04
+    name: ASan + UBSan
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext
+
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Configure with ASan + UBSan
+        # -O1: sanitizers need *some* optimization for realistic codepaths
+        # (inlining of small wrappers) but full -O2 hurts stack traces.
+        # -fno-sanitize-recover=all: abort on the first UBSan finding
+        # instead of just logging and continuing.
+        run: |
+          cmake -B build -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined" \
+            -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address,undefined"
+        working-directory: addon
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+        working-directory: addon
+
+      - name: Run tests under sanitizers
+        env:
+          # detect_leaks=0: fcitx5 statics dominate leak reports and aren't
+          # actionable here. Overflows / use-after-free still caught.
+          # halt_on_error=1 + abort_on_error=1: fail loud on first finding.
+          # print_stacktrace=1 for UBSan: default is off; the trace is the
+          # whole point.
+          ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:abort_on_error=1:print_stacktrace=1
+          UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --output-on-failure
+        working-directory: addon
+
   install-uninstall:
     # Runs install.sh and uninstall.sh back-to-back inside each distro
     # container, exactly as a real user would. Both scripts refuse to
