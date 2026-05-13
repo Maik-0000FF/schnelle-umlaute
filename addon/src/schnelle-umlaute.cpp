@@ -873,7 +873,7 @@ private:
 
     void updateClientPreedit(InputContext *ic, const std::string &text) {
         Text preedit(text);
-        preedit.setCursor(preedit.textLength());
+        preedit.setCursor(static_cast<int>(preedit.textLength()));
         ic->inputPanel().setClientPreedit(preedit);
         ic->updatePreedit();
     }
@@ -1120,7 +1120,7 @@ private:
     bool isLeftHand(const std::string &key) const {
         std::string lookup = key;
         if (lookup.size() == 1 && lookup[0] >= 'A' && lookup[0] <= 'Z')
-            lookup[0] = lookup[0] - 'A' + 'a';
+            lookup[0] = static_cast<char>(lookup[0] - 'A' + 'a');
         auto it = charToKeycode_.find(lookup);
         if (it == charToKeycode_.end()) return false;
         return isLeftHandKeycode(it->second);
@@ -1256,7 +1256,7 @@ private:
         size_t firstCharBytes = utf8::ncharByteLength(trimmed.begin(), 1);
         std::string result = trimmed.substr(0, firstCharBytes);
         if (result.size() == 1 && result[0] >= 'A' && result[0] <= 'Z')
-            result[0] = result[0] - 'A' + 'a';
+            result[0] = static_cast<char>(result[0] - 'A' + 'a');
         return result;
     }
 
