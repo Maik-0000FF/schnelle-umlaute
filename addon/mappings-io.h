@@ -68,7 +68,8 @@ inline size_t utf8FirstCharBytes(const char *s, size_t len) {
 inline std::vector<RawMapping> parseMappings(FILE *fp) {
     std::vector<RawMapping> entries;
     char buf[4096];
-    while (fgets(buf, sizeof(buf), fp)) {
+    bool streamEnded = false;
+    while (!streamEnded && fgets(buf, sizeof(buf), fp)) {
         std::string line(buf);
         // fgets filled the whole buffer AND did not reach a newline →
         // candidate for truncation. Still ambiguous: the line could end
@@ -83,15 +84,21 @@ inline std::vector<RawMapping> parseMappings(FILE *fp) {
         }
         if (mightBeTruncated) {
             int c = std::fgetc(fp);
-            if (c != EOF && c != '\n') {
+            if (c == EOF) {
+                // Stream ended on the buffer boundary. Parse this line
+                // as the final one; setting streamEnded ensures we don't
+                // re-enter fgets on a stream already in EOF state.
+                streamEnded = true;
+            } else if (c != '\n') {
                 // Truly truncated — drain the rest of the physical line
                 // and drop this entry. Parsing the prefix would store a
                 // corrupt mapping and misinterpret the tail as new lines.
                 while ((c = std::fgetc(fp)) != EOF && c != '\n') {}
+                if (c == EOF) break;
                 continue;
             }
-            // c == '\n' or EOF → the line just happened to end on the
-            // buffer boundary. It is complete; proceed with normal parsing.
+            // c == '\n' → the line just happened to end on the buffer
+            // boundary. It is complete; proceed with normal parsing.
         }
         if (line.empty() || line[0] == '#') continue;
         size_t inputLen = utf8FirstCharBytes(line.data(), line.size());

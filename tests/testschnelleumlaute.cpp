@@ -206,9 +206,8 @@ static int countDualLeaderWithinWordCollisions(
     for (char c : text) {
         if (c == ' ') { prev = 0; continue; }
         if (prev != 0 && c == leader) {
-            if (leaderControlsRightHand && isRightHandMapped(prev))
-                collisions++;
-            else if (!leaderControlsRightHand && isLeftHandMapped(prev))
+            if ((leaderControlsRightHand && isRightHandMapped(prev)) ||
+                (!leaderControlsRightHand && isLeftHandMapped(prev)))
                 collisions++;
         }
         prev = c;
@@ -447,11 +446,15 @@ static int typeTextWordBoundaryOverlap(
                 lastSym = static_cast<FcitxKeySym>(
                     FcitxKey_a + (lastLetter - 'a'));
                 lastCode = kLetterCodes[lastLetter - 'a'];
-            } else {
+            } else if (lastLetter >= 'A' && lastLetter <= 'Z') {
                 lastSym = static_cast<FcitxKeySym>(
                     FcitxKey_A + (lastLetter - 'A'));
                 lastStates = KeyState::Shift;
                 lastCode = kLetterCodes[lastLetter - 'A'];
+            } else {
+                FCITX_ASSERT(false) << "lastLetter out of range: "
+                                    << static_cast<int>(lastLetter);
+                continue;
             }
 
             if (mapped && spaceIsLeader) {
@@ -2330,7 +2333,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
                 const std::string &key) {
             std::string lookup = key;
             if (lookup.size() == 1 && lookup[0] >= 'A' && lookup[0] <= 'Z')
-                lookup[0] = lookup[0] - 'A' + 'a';
+                lookup[0] = static_cast<char>(lookup[0] - 'A' + 'a');
             auto it = m.find(lookup);
             if (it == m.end()) return false;
             return isLeftKeycode(it->second);
@@ -5011,5 +5014,8 @@ int main() {
     scheduleTests(&instance);
     instance.exec();
 
+    // Drop the dangling pointer before dispatcher leaves scope, so any
+    // post-loop access path the analyzer reasons about is well-defined.
+    testDispatcher = nullptr;
     return 0;
 }
