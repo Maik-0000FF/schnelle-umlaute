@@ -10,6 +10,7 @@ set_target_properties(schnelle-umlaute-config-editor PROPERTIES
     AUTOUIC TRUE
     AUTOUIC_OPTIONS "-tr=fcitx::tr2fcitx;--include=fcitxqti18nhelper.h"
 )
+target_compile_options(schnelle-umlaute-config-editor PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(schnelle-umlaute-config-editor
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::Widgets
