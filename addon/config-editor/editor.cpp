@@ -71,7 +71,9 @@ MappingEditor::MappingEditor(QWidget *parent)
             &MappingEditor::revalidate);
 
     loadLeaderKeys();
-    load();
+    // Qualified call: virtual dispatch is inert in constructors,
+    // being explicit silences clang-analyzer-optin.cplusplus.VirtualCall.
+    MappingEditor::load();
     itemFocusChanged();
 }
 

@@ -258,7 +258,9 @@ public:
         }
         buildCharToKeycode();
 
-        reloadConfig();
+        // Qualified call: virtual dispatch is inert in constructors,
+        // being explicit silences clang-analyzer-optin.cplusplus.VirtualCall.
+        SchnelleUmlauteEngine::reloadConfig();
     }
 
     ~SchnelleUmlauteEngine() {
