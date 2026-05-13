@@ -1,0 +1,10 @@
+# Commits listed here are skipped by `git blame --ignore-revs-file=...`
+# and by GitHub's blame view (which reads this file automatically).
+# Use sparingly — only for whole-tree reformats where attribution would
+# otherwise point to the wrong author.
+#
+# Each entry: full 40-char SHA, then a comment line above describing why.
+
+# Repo-wide clang-format pass adopting the upstream fcitx5 style.
+# 1191 insertions, 826 deletions, no functional change.
+4aa41101935bcfc6d2b3a4794e01a339ae50995b
