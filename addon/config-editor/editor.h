@@ -1,10 +1,10 @@
 #ifndef SCHNELLE_UMLAUTE_CONFIG_EDITOR_EDITOR_H
 #define SCHNELLE_UMLAUTE_CONFIG_EDITOR_EDITOR_H
 
-#include "ui_editor.h"
-#include <fcitxqtconfiguiwidget.h>
 #include <QLabel>
 #include <QStringList>
+#include <fcitxqtconfiguiwidget.h>
+#include "ui_editor.h"
 
 namespace fcitx {
 

@@ -1,17 +1,16 @@
 #include "editor.h"
-#include "model.h"
-#include <fcitx-utils/i18n.h>
 #include <QApplication>
-#include <QScreen>
-#include <QShowEvent>
 #include <QLabel>
+#include <QScreen>
 #include <QSettings>
+#include <QShowEvent>
 #include <QStandardPaths>
+#include <fcitx-utils/i18n.h>
+#include "model.h"
 
 namespace fcitx {
 
-MappingEditor::MappingEditor(QWidget *parent)
-    : FcitxQtConfigUIWidget(parent) {
+MappingEditor::MappingEditor(QWidget *parent) : FcitxQtConfigUIWidget(parent) {
     setupUi(this);
 
     model_ = new MappingModel(this);
@@ -37,12 +36,12 @@ MappingEditor::MappingEditor(QWidget *parent)
     statusLabel_->setVisible(false);
     mainLayout->addWidget(statusLabel_, 3, 0);
 
-    connect(addButton, &QPushButton::clicked, this,
-            &MappingEditor::addMapping);
+    connect(addButton, &QPushButton::clicked, this, &MappingEditor::addMapping);
     connect(deleteButton, &QPushButton::clicked, this,
             &MappingEditor::deleteMapping);
     connect(moveUpButton, &QPushButton::clicked, this, [this]() {
-        if (auto idx = mappingView->currentIndex(); idx.isValid() && idx.row() > 0) {
+        if (auto idx = mappingView->currentIndex();
+            idx.isValid() && idx.row() > 0) {
             model_->moveUp(idx.row());
             mappingView->setCurrentIndex(model_->index(idx.row() - 1, 0));
         }
@@ -55,9 +54,8 @@ MappingEditor::MappingEditor(QWidget *parent)
         }
     });
 
-    connect(mappingView->selectionModel(),
-            &QItemSelectionModel::currentChanged, this,
-            &MappingEditor::itemFocusChanged);
+    connect(mappingView->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, &MappingEditor::itemFocusChanged);
     connect(model_, &MappingModel::needSaveChanged, this,
             &MappingEditor::changed);
 
@@ -186,9 +184,8 @@ void MappingEditor::revalidate() {
     // Non-blocking warning: leader-key conflict. Only shown when there is
     // no higher-priority error, so the user's attention stays on blockers.
     if (!input.isEmpty() && isLeaderKeyConflict(input)) {
-        showInputWarning(
-            _("This key is configured as a Custom Leader — "
-              "it will not work as a mapped input"));
+        showInputWarning(_("This key is configured as a Custom Leader — "
+                           "it will not work as a mapped input"));
     }
 }
 
@@ -202,15 +199,15 @@ void MappingEditor::itemFocusChanged() {
     bool sel = mappingView->currentIndex().isValid();
     deleteButton->setEnabled(sel);
     moveUpButton->setEnabled(sel && mappingView->currentIndex().row() > 0);
-    moveDownButton->setEnabled(
-        sel && mappingView->currentIndex().row() + 1 < model_->rowCount());
+    moveDownButton->setEnabled(sel && mappingView->currentIndex().row() + 1 <
+                                          model_->rowCount());
 }
 
 void MappingEditor::loadLeaderKeys() {
     leaderKeys_.clear();
-    QString configPath =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
-        + "/fcitx5/conf/schnelle-umlaute.conf";
+    QString configPath = QStandardPaths::writableLocation(
+                             QStandardPaths::GenericConfigLocation) +
+                         "/fcitx5/conf/schnelle-umlaute.conf";
     QSettings settings(configPath, QSettings::IniFormat);
     settings.beginGroup("Leader/Custom");
     if (settings.value("CustomKeyEnabled", false).toBool()) {
@@ -235,7 +232,8 @@ void MappingEditor::loadLeaderKeys() {
 
 bool MappingEditor::isLeaderKeyConflict(const QString &input) const {
     for (const auto &leader : leaderKeys_) {
-        if (input.compare(leader, Qt::CaseInsensitive) == 0) return true;
+        if (input.compare(leader, Qt::CaseInsensitive) == 0)
+            return true;
     }
     return false;
 }

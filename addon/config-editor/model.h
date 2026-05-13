@@ -1,10 +1,10 @@
 #ifndef SCHNELLE_UMLAUTE_CONFIG_EDITOR_MODEL_H
 #define SCHNELLE_UMLAUTE_CONFIG_EDITOR_MODEL_H
 
+#include <vector>
 #include <QAbstractTableModel>
 #include <QChar>
 #include <QString>
-#include <vector>
 
 namespace fcitx {
 
@@ -36,11 +36,14 @@ public:
     // Kept inline so standalone unit tests can call it without linking
     // against model.cpp (which depends on fcitx-utils for load/save).
     static bool isValidInput(const QString &input) {
-        if (input.isEmpty()) return false;
+        if (input.isEmpty())
+            return false;
         auto ucs4 = input.toUcs4();
-        if (ucs4.size() != 1) return false;
+        if (ucs4.size() != 1)
+            return false;
         // Use UCS-4 codepoint for property checks — QChar only covers BMP,
-        // characters above U+FFFF would appear as surrogates and fail isPrint().
+        // characters above U+FFFF would appear as surrogates and fail
+        // isPrint().
         uint cp = ucs4[0];
         return QChar::isPrint(cp) && !QChar::isSpace(cp);
     }
