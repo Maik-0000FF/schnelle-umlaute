@@ -931,8 +931,9 @@ private:
 
     void commitCyclingValue(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->cyclingInput_) return;
+        const auto cyclingInput = *state->cyclingInput_;
         state->cancelTimeout();  // Cancel any deferred commit timer
-        auto it = umlautMap_.find(*state->cyclingInput_);
+        auto it = umlautMap_.find(cyclingInput);
         if (it != umlautMap_.end() && state->cyclingIndex_ < it->second.size()) {
             ic->inputPanel().reset();
             ic->commitString(it->second[state->cyclingIndex_]);
@@ -1201,6 +1202,7 @@ private:
 
     void scheduleTimeout(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->waitingKey_) return;
+        auto savedKey = *state->waitingKey_;
 
         state->cancelTimeout();
 
@@ -1209,8 +1211,6 @@ private:
 
         uint64_t now_usec = SchnelleUmlauteState::nowUsec();
         uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * kMicrosecondsPerMillisecond;
-
-        auto savedKey = *state->waitingKey_;
         auto savedRef = ic->watch();
         state->timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC,
