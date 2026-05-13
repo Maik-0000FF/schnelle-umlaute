@@ -4098,21 +4098,26 @@ static void scheduleAdvancedEdgeCaseTests(Instance *instance) {
 // =============================================================================
 
 // =========================================================================
-// TEST 106: Timeout boundary — Space just before expiry converts
-// With 100ms delay, Space at 90ms should still convert.
+// TEST 106: Timeout boundary — Space within window converts
+// With 600ms delay, Space at 200ms still converts. Margin (400ms)
+// generous so sanitizer slowdowns and CI scheduling jitter cannot
+// race the addon timer to expiry — the original 100ms margin flaked
+// under ASan where ~430ms wallclock elapsed between key press and
+// commit. Test 107 below covers the negative case (Space after
+// expiry passes through).
 // =========================================================================
 static void scheduleTest106(Instance *instance) {
     testDispatcher->schedule([instance]() {
         FCITX_INFO() << "=== Test 106: Timeout boundary — Space just before expiry ===";
-        configureWithDelay(instance, 300, 600);
+        configureWithDelay(instance, 600, 1200);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test106");
 
-        // Press 'a' → waiting with 300ms delay
+        // Press 'a' → waiting with 600ms delay
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Wait 200ms — well within 300ms window
+        // Wait 200ms — well within 600ms window (400ms margin)
         struct TH { std::unique_ptr<EventSourceTime> t; };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
@@ -4124,7 +4129,7 @@ static void scheduleTest106(Instance *instance) {
                     tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
                     bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
                         uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-                    FCITX_ASSERT(consumed) << "Space at 200ms should convert within 300ms window";
+                    FCITX_ASSERT(consumed) << "Space at 200ms should convert within 600ms window";
 
                     tf->call<ITestFrontend::keyEvent>(
                         uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
