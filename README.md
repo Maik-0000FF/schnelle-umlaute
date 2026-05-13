@@ -7,6 +7,7 @@
 [![CI](https://github.com/Maik-0000FF/schnelle-umlaute/actions/workflows/ci.yml/badge.svg)](https://github.com/Maik-0000FF/schnelle-umlaute/actions/workflows/ci.yml)
 [![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793D1?logo=arch-linux&logoColor=white)](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaute-git)
 ![Ubuntu/Debian](https://img.shields.io/badge/Ubuntu%2FDebian-E95420?logo=ubuntu&logoColor=white)
+![Linux Mint](https://img.shields.io/badge/Linux%20Mint-87CF3E?logo=linuxmint&logoColor=white)
 ![Fedora](https://img.shields.io/badge/Fedora-294172?logo=fedora&logoColor=white)
 ![openSUSE](https://img.shields.io/badge/openSUSE-73BA25?logo=opensuse&logoColor=white)
 [![Fcitx5 Addon](https://img.shields.io/badge/Fcitx5-Addon-orange)](https://fcitx-im.org/)
@@ -63,7 +64,7 @@ yay -S fcitx5-schnelle-umlaute-git
 >
 > A stable AUR package (`fcitx5-schnelle-umlaute`) tracking tagged releases will be added in a future update.
 
-### Install from source (Arch Linux · Ubuntu/Debian · Fedora · openSUSE)
+### Install from source (Arch Linux · Ubuntu/Debian · Linux Mint · Fedora · openSUSE)
 
 ```bash
 git clone https://github.com/Maik-0000FF/schnelle-umlaute.git
@@ -97,7 +98,7 @@ All mappings are fully customizable — add French, Spanish, Emoji, Braille, or 
 
 ## Requirements
 
-- **Linux** with Fcitx5 (Arch, Ubuntu/Debian, Fedora, openSUSE)
+- **Linux** with Fcitx5 (Arch, Ubuntu/Debian, Linux Mint, Fedora, openSUSE)
 - **CMake** and **extra-cmake-modules**
 - **GCC with C++20 support**
 
