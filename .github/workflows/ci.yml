@@ -252,13 +252,21 @@ jobs:
         run: cmake --build build -j$(nproc)
         working-directory: addon
 
-      - name: Run clang-tidy on production sources
+      - name: Run clang-tidy on production and test sources
+        # Tests are linted too — bugs in test code (out-of-bound array
+        # access, narrowing, dangling stack-pointer escape) can mask real
+        # regressions or silently weaken coverage. mappings-io.h is checked
+        # via inclusion from both production and test TUs.
         run: |
           clang-tidy -p build \
             src/schnelle-umlaute.cpp \
             config-editor/editor.cpp \
             config-editor/main.cpp \
-            config-editor/model.cpp
+            config-editor/model.cpp \
+            ../tests/testschnelleumlaute.cpp \
+            ../tests/testmappingsio.cpp \
+            ../tests/testmappingmodel.cpp \
+            ../tests/testmappingmodelio.cpp
         working-directory: addon
 
   install-uninstall:
