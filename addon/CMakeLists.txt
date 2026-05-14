@@ -58,17 +58,13 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/org.fcitx.Fcitx5.Addon.SchnelleUmlaut
 install(FILES data/schnelle-umlaute.conf
         DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon")
 
-# Install configuration descriptor
-install(FILES data/schnelle-umlaute.conf.in
-        DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon")
-
 # Install input method configuration
 install(FILES data/schnelle-umlaute-inputmethod.conf
         DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod"
         RENAME schnelle-umlaute.conf)
 
 # Standalone QML editor (launched directly from fcitx5-configtool's gear
-# icon via the [Editor] External entry in data/schnelle-umlaute.conf.in)
+# icon via the ExternalOption returned by SchnelleUmlauteEngine::getConfig())
 add_subdirectory(editor)
 
 # Standalone QML overlay daemon
