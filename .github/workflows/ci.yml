@@ -318,6 +318,14 @@ jobs:
         # Build-tree autogen sources (moc_*.cpp, ui_*.h) are not tracked
         # by git, so they are excluded automatically.
         run: |
+          # safe.directory: the Arch container's git refuses to read the
+          # workspace .git/ because the checkout was performed by a
+          # different effective user. The actions/checkout autoconfig
+          # only applies when the step's working-directory points
+          # directly at the repo root (see the format-check step above);
+          # this step runs from addon/ for run-clang-tidy's -p, so add
+          # the safe entry ourselves.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           files=$(cd .. && git ls-files 'addon/*.cpp' 'tests/*.cpp')
           run-clang-tidy -p build -j $(nproc) -quiet $files
         working-directory: addon
