@@ -1,5 +1,4 @@
 #include "model.h"
-#include <QTextStream>
 #include <fcitx-utils/i18n.h>
 #include "mappings-io.h"
 #if __has_include(<fcitx-utils/standardpaths.h>)
