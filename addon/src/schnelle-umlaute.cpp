@@ -153,21 +153,20 @@ FCITX_CONFIGURATION(MappingsConfig,
 
 FCITX_CONFIG_ENUM(AppFilterMode, Disabled, Blacklist, Whitelist);
 
+static constexpr const char *kAppFilterListTooltip =
+    "Case-sensitive substring match against the program identifier "
+    "fcitx5 reports. Some apps report their GUI library instead of their "
+    "name (e.g. Kitty \xe2\x86\x92 GLFW_Application).";
+
 FCITX_CONFIGURATION(
     AppFilterConfig,
     Option<AppFilterMode> mode{this, "Mode", "Mode", AppFilterMode::Disabled};
     OptionWithAnnotation<std::vector<std::string>, TooltipAnnotation> blacklist{
-        this, "Blacklist", "Blacklist", {}, {}, {},
-        TooltipAnnotation("Case-sensitive substring match against the program "
-                          "identifier fcitx5 reports. Some apps report their "
-                          "GUI library instead of their name (e.g. Kitty "
-                          "\xe2\x86\x92 GLFW_Application).")};
+        this,        "Blacklist", "Blacklist", {}, {}, {},
+        TooltipAnnotation(kAppFilterListTooltip)};
     OptionWithAnnotation<std::vector<std::string>, TooltipAnnotation> whitelist{
-        this, "Whitelist", "Whitelist", {}, {}, {},
-        TooltipAnnotation("Case-sensitive substring match against the program "
-                          "identifier fcitx5 reports. Some apps report their "
-                          "GUI library instead of their name (e.g. Kitty "
-                          "\xe2\x86\x92 GLFW_Application).")};);
+        this,        "Whitelist", "Whitelist", {}, {}, {},
+        TooltipAnnotation(kAppFilterListTooltip)};);
 
 FCITX_CONFIGURATION(
     SchnelleUmlauteConfig, Option<DelayConfig> delay{this, "Delay", "Delay"};
