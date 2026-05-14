@@ -8,9 +8,11 @@ OverlayDBusClient::OverlayDBusClient(QObject *parent) : QObject(parent) {}
 
 void OverlayDBusClient::sendTheme(const QString &theme) {
     auto bus = QDBusConnection::sessionBus();
-    if (!bus.isConnected()) return;
+    if (!bus.isConnected())
+        return;
     auto *iface = bus.interface();
-    if (!iface) return;
+    if (!iface)
+        return;
     if (!iface->isServiceRegistered(
             QStringLiteral("de.schnelle_umlaute.Overlay"))) {
         return;

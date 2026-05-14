@@ -1,11 +1,11 @@
 #ifndef SCHNELLE_UMLAUTE_EDITOR_MAPPING_LIST_MODEL_H
 #define SCHNELLE_UMLAUTE_EDITOR_MAPPING_LIST_MODEL_H
 
+#include <vector>
 #include <QAbstractListModel>
 #include <QChar>
 #include <QQmlEngine>
 #include <QString>
-#include <vector>
 
 class MappingListModel : public QAbstractListModel {
     Q_OBJECT

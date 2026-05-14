@@ -19,8 +19,7 @@ public:
     // Replace the active configuration. Values are moved in; no copies
     // are retained by the caller. Safe to call at any time; subsequent
     // isFiltered() calls see the new state.
-    void configure(AppFilterMode mode,
-                   std::vector<std::string> blacklist,
+    void configure(AppFilterMode mode, std::vector<std::string> blacklist,
                    std::vector<std::string> whitelist);
 
     // Whether processing should be skipped for this IC's program.

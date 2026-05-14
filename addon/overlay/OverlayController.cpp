@@ -10,7 +10,8 @@ void OverlayController::show(const QStringList &variants, int currentIndex,
                              const QString &position) {
     variants_ = variants;
     currentIndex_ = currentIndex;
-    if (!position.isEmpty()) position_ = position;
+    if (!position.isEmpty())
+        position_ = position;
     visible_ = !variants.isEmpty();
     Q_EMIT stateChanged();
 }
@@ -35,16 +36,16 @@ void OverlayController::setTheme(const QString &theme) {
                      theme.toUtf8().constData());
         return;
     }
-    if (theme_ == theme) return;
+    if (theme_ == theme)
+        return;
     theme_ = theme;
     Q_EMIT themeChanged();
 }
 
 bool OverlayController::isValidTheme(const QString &name) {
-    return name == QLatin1String("schnelle-umlaute")
-        || name == QLatin1String("dark")
-        || name == QLatin1String("light")
-        || name == QLatin1String("contrast");
+    return name == QLatin1String("schnelle-umlaute") ||
+           name == QLatin1String("dark") || name == QLatin1String("light") ||
+           name == QLatin1String("contrast");
 }
 
 OverlayDBusAdaptor::OverlayDBusAdaptor(OverlayController *ctrl)

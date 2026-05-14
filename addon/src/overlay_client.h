@@ -4,11 +4,11 @@
 #include "layer_shell_capability.h"
 #include "overlay_lifecycle.h"
 
-#include <fcitx-utils/dbus/bus.h>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
+#include <fcitx-utils/dbus/bus.h>
 
 namespace fcitx {
 

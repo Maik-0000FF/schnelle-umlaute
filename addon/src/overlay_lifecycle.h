@@ -29,8 +29,10 @@ decideOverlayLifecycleAction(std::optional<bool> previous, bool current) {
         return current ? OverlayLifecycleAction::Start
                        : OverlayLifecycleAction::None;
     }
-    if (!*previous && current) return OverlayLifecycleAction::Start;
-    if (*previous && !current) return OverlayLifecycleAction::Quit;
+    if (!*previous && current)
+        return OverlayLifecycleAction::Start;
+    if (*previous && !current)
+        return OverlayLifecycleAction::Quit;
     return OverlayLifecycleAction::None;
 }
 

@@ -23,13 +23,13 @@ MappingListModel::MappingListModel(QObject *parent)
 }
 
 int MappingListModel::rowCount(const QModelIndex &parent) const {
-    if (parent.isValid()) return 0;
+    if (parent.isValid())
+        return 0;
     return static_cast<int>(entries_.size());
 }
 
 QVariant MappingListModel::data(const QModelIndex &index, int role) const {
-    if (index.row() < 0 ||
-        index.row() >= static_cast<int>(entries_.size())) {
+    if (index.row() < 0 || index.row() >= static_cast<int>(entries_.size())) {
         return {};
     }
     const auto &e = entries_[index.row()];
@@ -51,9 +51,11 @@ QHash<int, QByteArray> MappingListModel::roleNames() const {
 }
 
 bool MappingListModel::isValidInputChar(const QString &input) {
-    if (input.isEmpty()) return false;
+    if (input.isEmpty())
+        return false;
     auto ucs4 = input.toUcs4();
-    if (ucs4.size() != 1) return false;
+    if (ucs4.size() != 1)
+        return false;
     uint cp = ucs4[0];
     return QChar::isPrint(cp) && !QChar::isSpace(cp);
 }
@@ -64,8 +66,10 @@ bool MappingListModel::isValidOutputChar(const QString &output) {
 
 bool MappingListModel::hasInput(const QString &input, int excludeRow) const {
     for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
-        if (i == excludeRow) continue;
-        if (entries_[i].input == input) return true;
+        if (i == excludeRow)
+            continue;
+        if (entries_[i].input == input)
+            return true;
     }
     return false;
 }
@@ -81,7 +85,8 @@ bool MappingListModel::validateOutput(const QString &output) const {
 
 QString MappingListModel::inputErrorFor(const QString &input,
                                         int excludeRow) const {
-    if (input.isEmpty()) return {};
+    if (input.isEmpty())
+        return {};
     if (!isValidInputChar(input)) {
         return tr("Must be a single printable character");
     }
@@ -91,8 +96,7 @@ QString MappingListModel::inputErrorFor(const QString &input,
     return {};
 }
 
-bool MappingListModel::addMapping(const QString &input,
-                                  const QString &output) {
+bool MappingListModel::addMapping(const QString &input, const QString &output) {
     if (!validateInput(input) || !validateOutput(output)) {
         Q_EMIT errorOccurred(tr("Invalid entry"));
         return false;
@@ -107,7 +111,8 @@ bool MappingListModel::addMapping(const QString &input,
 }
 
 void MappingListModel::removeMapping(int row) {
-    if (row < 0 || row >= static_cast<int>(entries_.size())) return;
+    if (row < 0 || row >= static_cast<int>(entries_.size()))
+        return;
     beginRemoveRows(QModelIndex(), row, row);
     entries_.erase(entries_.begin() + row);
     endRemoveRows();
@@ -117,7 +122,8 @@ void MappingListModel::removeMapping(int row) {
 
 bool MappingListModel::updateMapping(int row, const QString &input,
                                      const QString &output) {
-    if (row < 0 || row >= static_cast<int>(entries_.size())) return false;
+    if (row < 0 || row >= static_cast<int>(entries_.size()))
+        return false;
     if (!isValidInputChar(input) || hasInput(input, row)) {
         Q_EMIT errorOccurred(inputErrorFor(input, row));
         return false;
@@ -136,7 +142,8 @@ bool MappingListModel::updateMapping(int row, const QString &input,
 
 void MappingListModel::moveMapping(int from, int to) {
     int n = static_cast<int>(entries_.size());
-    if (from < 0 || from >= n || to < 0 || to >= n || from == to) return;
+    if (from < 0 || from >= n || to < 0 || to >= n || from == to)
+        return;
     // Qt wants the insertion position in the *original* index space, so an
     // in-place move down needs +1.
     int destRow = (to > from) ? to + 1 : to;

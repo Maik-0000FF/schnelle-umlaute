@@ -33,7 +33,8 @@ namespace {
 // that we want to use freely. Drain the model so every test starts from a
 // clean slate without assuming a specific default set.
 void clearModel(MappingListModel &m) {
-    while (m.rowCount() > 0) m.removeMapping(0);
+    while (m.rowCount() > 0)
+        m.removeMapping(0);
 }
 
 } // namespace
@@ -80,7 +81,8 @@ void testOutputAcceptsTabs(MappingListModel &m) {
     EXPECT(m.validateOutput(QStringLiteral("\tindent")));
     EXPECT(m.validateOutput(QStringLiteral("col1\tcol2")));
 }
-// Cycling variant separator — splitOutputs handles it later; not a format hazard.
+// Cycling variant separator — splitOutputs handles it later; not a format
+// hazard.
 void testOutputAcceptsCommas(MappingListModel &m) {
     EXPECT(m.validateOutput(QStringLiteral("ä,à,á,â")));
 }
@@ -188,29 +190,34 @@ struct TestCase {
 };
 
 const TestCase kTests[] = {
-    {"testOutputRejectsNewline",                   testOutputRejectsNewline},
-    {"testOutputRejectsCarriageReturn",            testOutputRejectsCarriageReturn},
-    {"testOutputRejectsEmpty",                     testOutputRejectsEmpty},
-    {"testOutputAcceptsPlainAscii",                testOutputAcceptsPlainAscii},
-    {"testOutputAcceptsMultiByteUtf8",             testOutputAcceptsMultiByteUtf8},
-    {"testOutputAcceptsLeadingAndTrailingSpace",   testOutputAcceptsLeadingAndTrailingSpace},
-    {"testOutputAcceptsTabs",                      testOutputAcceptsTabs},
-    {"testOutputAcceptsCommas",                    testOutputAcceptsCommas},
-    {"testOutputAcceptsEmoji",                     testOutputAcceptsEmoji},
-    {"testInputRejectsEmpty",                      testInputRejectsEmpty},
-    {"testInputRejectsMultipleChars",              testInputRejectsMultipleChars},
-    {"testInputRejectsWhitespace",                 testInputRejectsWhitespace},
-    {"testInputRejectsControlChars",               testInputRejectsControlChars},
-    {"testInputAcceptsSinglePrintable",            testInputAcceptsSinglePrintable},
-    {"testInputAcceptsSingleUtf8Codepoint",        testInputAcceptsSingleUtf8Codepoint},
-    {"testExcludeRowAllowsSelfInput",              testExcludeRowAllowsSelfInput},
-    {"testExcludeRowRejectsOtherRowsInput",        testExcludeRowRejectsOtherRowsInput},
-    {"testExcludeRowOutOfRangeDoesNothing",        testExcludeRowOutOfRangeDoesNothing},
-    {"testInputErrorEmptyInputReturnsEmpty",       testInputErrorEmptyInputReturnsEmpty},
-    {"testInputErrorReportsMultiChar",             testInputErrorReportsMultiChar},
-    {"testInputErrorReportsDuplicate",             testInputErrorReportsDuplicate},
+    {"testOutputRejectsNewline", testOutputRejectsNewline},
+    {"testOutputRejectsCarriageReturn", testOutputRejectsCarriageReturn},
+    {"testOutputRejectsEmpty", testOutputRejectsEmpty},
+    {"testOutputAcceptsPlainAscii", testOutputAcceptsPlainAscii},
+    {"testOutputAcceptsMultiByteUtf8", testOutputAcceptsMultiByteUtf8},
+    {"testOutputAcceptsLeadingAndTrailingSpace",
+     testOutputAcceptsLeadingAndTrailingSpace},
+    {"testOutputAcceptsTabs", testOutputAcceptsTabs},
+    {"testOutputAcceptsCommas", testOutputAcceptsCommas},
+    {"testOutputAcceptsEmoji", testOutputAcceptsEmoji},
+    {"testInputRejectsEmpty", testInputRejectsEmpty},
+    {"testInputRejectsMultipleChars", testInputRejectsMultipleChars},
+    {"testInputRejectsWhitespace", testInputRejectsWhitespace},
+    {"testInputRejectsControlChars", testInputRejectsControlChars},
+    {"testInputAcceptsSinglePrintable", testInputAcceptsSinglePrintable},
+    {"testInputAcceptsSingleUtf8Codepoint",
+     testInputAcceptsSingleUtf8Codepoint},
+    {"testExcludeRowAllowsSelfInput", testExcludeRowAllowsSelfInput},
+    {"testExcludeRowRejectsOtherRowsInput",
+     testExcludeRowRejectsOtherRowsInput},
+    {"testExcludeRowOutOfRangeDoesNothing",
+     testExcludeRowOutOfRangeDoesNothing},
+    {"testInputErrorEmptyInputReturnsEmpty",
+     testInputErrorEmptyInputReturnsEmpty},
+    {"testInputErrorReportsMultiChar", testInputErrorReportsMultiChar},
+    {"testInputErrorReportsDuplicate", testInputErrorReportsDuplicate},
     {"testInputErrorExcludeRowSuppressesSelfDuplicate",
-        testInputErrorExcludeRowSuppressesSelfDuplicate},
+     testInputErrorExcludeRowSuppressesSelfDuplicate},
 };
 
 int main(int argc, char **argv) {

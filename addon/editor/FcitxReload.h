@@ -7,8 +7,7 @@
 
 inline void reloadSchnelleUmlauteAddon() {
     auto msg = QDBusMessage::createMethodCall(
-        QStringLiteral("org.fcitx.Fcitx5"),
-        QStringLiteral("/controller"),
+        QStringLiteral("org.fcitx.Fcitx5"), QStringLiteral("/controller"),
         QStringLiteral("org.fcitx.Fcitx.Controller1"),
         QStringLiteral("ReloadAddonConfig"));
     msg << QStringLiteral("schnelle-umlaute");

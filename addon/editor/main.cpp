@@ -10,7 +10,8 @@
 
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
-    QGuiApplication::setApplicationName(QStringLiteral("schnelle-umlaute-editor"));
+    QGuiApplication::setApplicationName(
+        QStringLiteral("schnelle-umlaute-editor"));
     QGuiApplication::setOrganizationName(QStringLiteral("schnelle-umlaute"));
     QGuiApplication::setWindowIcon(
         QIcon::fromTheme(QStringLiteral("schnelle-umlaute-editor")));

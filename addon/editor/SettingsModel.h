@@ -17,27 +17,27 @@ class SettingsModel : public QObject {
     Q_PROPERTY(int delayUppercase READ delayUppercase WRITE setDelayUppercase
                    NOTIFY delayUppercaseChanged)
 
-    Q_PROPERTY(bool leaderSpace READ leaderSpace WRITE setLeaderSpace
-                   NOTIFY leaderSpaceChanged)
-    Q_PROPERTY(bool leaderLeft READ leaderLeft WRITE setLeaderLeft
-                   NOTIFY leaderLeftChanged)
-    Q_PROPERTY(bool leaderRight READ leaderRight WRITE setLeaderRight
-                   NOTIFY leaderRightChanged)
-    Q_PROPERTY(bool leaderUp READ leaderUp WRITE setLeaderUp
-                   NOTIFY leaderUpChanged)
-    Q_PROPERTY(bool leaderDown READ leaderDown WRITE setLeaderDown
-                   NOTIFY leaderDownChanged)
-    Q_PROPERTY(bool leaderAlt READ leaderAlt WRITE setLeaderAlt
-                   NOTIFY leaderAltChanged)
+    Q_PROPERTY(bool leaderSpace READ leaderSpace WRITE setLeaderSpace NOTIFY
+                   leaderSpaceChanged)
+    Q_PROPERTY(bool leaderLeft READ leaderLeft WRITE setLeaderLeft NOTIFY
+                   leaderLeftChanged)
+    Q_PROPERTY(bool leaderRight READ leaderRight WRITE setLeaderRight NOTIFY
+                   leaderRightChanged)
+    Q_PROPERTY(
+        bool leaderUp READ leaderUp WRITE setLeaderUp NOTIFY leaderUpChanged)
+    Q_PROPERTY(bool leaderDown READ leaderDown WRITE setLeaderDown NOTIFY
+                   leaderDownChanged)
+    Q_PROPERTY(bool leaderAlt READ leaderAlt WRITE setLeaderAlt NOTIFY
+                   leaderAltChanged)
 
-    Q_PROPERTY(bool customKey1Enabled READ customKey1Enabled
-                   WRITE setCustomKey1Enabled NOTIFY customKey1EnabledChanged)
-    Q_PROPERTY(QString customKey1 READ customKey1 WRITE setCustomKey1
-                   NOTIFY customKey1Changed)
-    Q_PROPERTY(bool customKey2Enabled READ customKey2Enabled
-                   WRITE setCustomKey2Enabled NOTIFY customKey2EnabledChanged)
-    Q_PROPERTY(QString customKey2 READ customKey2 WRITE setCustomKey2
-                   NOTIFY customKey2Changed)
+    Q_PROPERTY(bool customKey1Enabled READ customKey1Enabled WRITE
+                   setCustomKey1Enabled NOTIFY customKey1EnabledChanged)
+    Q_PROPERTY(QString customKey1 READ customKey1 WRITE setCustomKey1 NOTIFY
+                   customKey1Changed)
+    Q_PROPERTY(bool customKey2Enabled READ customKey2Enabled WRITE
+                   setCustomKey2Enabled NOTIFY customKey2EnabledChanged)
+    Q_PROPERTY(QString customKey2 READ customKey2 WRITE setCustomKey2 NOTIFY
+                   customKey2Changed)
 
     Q_PROPERTY(QString appFilterMode READ appFilterMode WRITE setAppFilterMode
                    NOTIFY appFilterModeChanged)
@@ -46,8 +46,8 @@ class SettingsModel : public QObject {
 
     Q_PROPERTY(bool overlayEnabled READ overlayEnabled WRITE setOverlayEnabled
                    NOTIFY overlayEnabledChanged)
-    Q_PROPERTY(QString overlayPosition READ overlayPosition
-                   WRITE setOverlayPosition NOTIFY overlayPositionChanged)
+    Q_PROPERTY(QString overlayPosition READ overlayPosition WRITE
+                   setOverlayPosition NOTIFY overlayPositionChanged)
 
     Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
 

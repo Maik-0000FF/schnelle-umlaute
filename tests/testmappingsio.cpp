@@ -36,12 +36,14 @@ std::vector<RawMapping> parseString(const std::string &content) {
     return result;
 }
 
-#define EXPECT(cond) do {                                                   \
-    if (!(cond)) {                                                          \
-        std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);\
-        std::abort();                                                       \
-    }                                                                       \
-} while (0)
+#define EXPECT(cond)                                                           \
+    do {                                                                       \
+        if (!(cond)) {                                                         \
+            std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__,       \
+                         #cond);                                               \
+            std::abort();                                                      \
+        }                                                                      \
+    } while (0)
 
 // -- Valid input shapes ------------------------------------------------------
 
@@ -56,10 +58,9 @@ void testValidMultiByte() {
     // 'ä' (U+00E4) = C3 A4                — 2-byte
     // '€' (U+20AC) = E2 82 AC              — 3-byte
     // '😀' (U+1F600) = F0 9F 98 80         — 4-byte
-    auto r = parseString(
-        "\xc3\xa4=ae\n"
-        "\xe2\x82\xac=EUR\n"
-        "\xf0\x9f\x98\x80=smile\n");
+    auto r = parseString("\xc3\xa4=ae\n"
+                         "\xe2\x82\xac=EUR\n"
+                         "\xf0\x9f\x98\x80=smile\n");
     EXPECT(r.size() == 3);
     EXPECT(r[0].input == "\xc3\xa4");
     EXPECT(r[0].output == "ae");
@@ -110,26 +111,27 @@ void testFfByteAsLeadSkipped() {
 // Mixed file: valid entries must still be parsed when invalid lines are
 // interleaved — one bad line must not poison the rest of the file.
 void testMixedValidAndInvalid() {
-    auto r = parseString(
-        "a=eins\n"
-        "\xc3\x41=bogus\n"   // invalid 2-byte continuation
-        "o=zwei\n"
-        "\xe2\x82\x41=x\n"   // invalid 3-byte continuation
-        "u=drei\n");
+    auto r = parseString("a=eins\n"
+                         "\xc3\x41=bogus\n" // invalid 2-byte continuation
+                         "o=zwei\n"
+                         "\xe2\x82\x41=x\n" // invalid 3-byte continuation
+                         "u=drei\n");
     EXPECT(r.size() == 3);
-    EXPECT(r[0].input == "a"); EXPECT(r[0].output == "eins");
-    EXPECT(r[1].input == "o"); EXPECT(r[1].output == "zwei");
-    EXPECT(r[2].input == "u"); EXPECT(r[2].output == "drei");
+    EXPECT(r[0].input == "a");
+    EXPECT(r[0].output == "eins");
+    EXPECT(r[1].input == "o");
+    EXPECT(r[1].output == "zwei");
+    EXPECT(r[2].input == "u");
+    EXPECT(r[2].output == "drei");
 }
 
 // -- Format edge cases (not F1 specific, but guard against regressions) -----
 
 void testCommentAndEmptyLinesSkipped() {
-    auto r = parseString(
-        "# comment\n"
-        "\n"
-        "a=eins\n"
-        "# another comment\n");
+    auto r = parseString("# comment\n"
+                         "\n"
+                         "a=eins\n"
+                         "# another comment\n");
     EXPECT(r.size() == 1);
     EXPECT(r[0].input == "a");
     EXPECT(r[0].output == "eins");
@@ -154,7 +156,8 @@ void testEmptyOutputSkipped() {
     EXPECT(r.empty());
 }
 
-// CRLF line endings must be trimmed (file edited on Windows should still parse).
+// CRLF line endings must be trimmed (file edited on Windows should still
+// parse).
 void testCrlfTrimmed() {
     auto r = parseString("a=eins\r\n");
     EXPECT(r.size() == 1);
@@ -182,8 +185,10 @@ void testOverlongLineSkipped() {
     std::string big(5000, 'x');
     auto r = parseString("a=eins\no=" + big + "\nu=drei\n");
     EXPECT(r.size() == 2);
-    EXPECT(r[0].input == "a"); EXPECT(r[0].output == "eins");
-    EXPECT(r[1].input == "u"); EXPECT(r[1].output == "drei");
+    EXPECT(r[0].input == "a");
+    EXPECT(r[0].output == "eins");
+    EXPECT(r[1].input == "u");
+    EXPECT(r[1].output == "drei");
 }
 
 // A line whose byte layout lands exactly on the buffer boundary (4094
@@ -194,9 +199,12 @@ void testLineExactlyAtBufferBoundary() {
     std::string big(4092, 'x');
     auto r = parseString("a=eins\no=" + big + "\nu=drei\n");
     EXPECT(r.size() == 3);
-    EXPECT(r[0].input == "a"); EXPECT(r[0].output == "eins");
-    EXPECT(r[1].input == "o"); EXPECT(r[1].output.size() == 4092);
-    EXPECT(r[2].input == "u"); EXPECT(r[2].output == "drei");
+    EXPECT(r[0].input == "a");
+    EXPECT(r[0].output == "eins");
+    EXPECT(r[1].input == "o");
+    EXPECT(r[1].output.size() == 4092);
+    EXPECT(r[2].input == "u");
+    EXPECT(r[2].output == "drei");
 }
 
 // A line of 4095 content bytes with no trailing newline, followed by EOF.
@@ -216,12 +224,15 @@ void testLineFillsBufferEofNoNewline() {
 void testConsecutiveOverlongLinesSkipped() {
     std::string big1(6000, 'x');
     std::string big2(7000, 'y');
-    auto r = parseString(
-        "a=" + big1 + "\n"
-        "o=" + big2 + "\n"
-        "u=drei\n");
+    auto r = parseString("a=" + big1 +
+                         "\n"
+                         "o=" +
+                         big2 +
+                         "\n"
+                         "u=drei\n");
     EXPECT(r.size() == 1);
-    EXPECT(r[0].input == "u"); EXPECT(r[0].output == "drei");
+    EXPECT(r[0].input == "u");
+    EXPECT(r[0].output == "drei");
 }
 
 } // namespace

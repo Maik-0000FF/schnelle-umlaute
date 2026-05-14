@@ -1,7 +1,7 @@
 #include "overlay_client.h"
 
-#include <fcitx-utils/log.h>
 #include <fcitx-utils/dbus/message.h>
+#include <fcitx-utils/log.h>
 
 namespace fcitx {
 
@@ -27,8 +27,10 @@ OverlayClient::~OverlayClient() = default;
 
 void OverlayClient::show(const std::vector<std::string> &variants,
                          int currentIndex, const std::string &position) {
-    if (!capability_.supported) return;
-    if (!bus_ || !bus_->isOpen() || variants.empty()) return;
+    if (!capability_.supported)
+        return;
+    if (!bus_ || !bus_->isOpen() || variants.empty())
+        return;
     auto msg = bus_->createMethodCall(kService, kPath, kInterface, "Show");
     msg << variants << int32_t(currentIndex) << position;
     // Fire-and-forget. flush() is needed because the bus isn't attached to
@@ -39,7 +41,8 @@ void OverlayClient::show(const std::vector<std::string> &variants,
 }
 
 void OverlayClient::hide() {
-    if (!bus_ || !bus_->isOpen()) return;
+    if (!bus_ || !bus_->isOpen())
+        return;
     auto msg = bus_->createMethodCall(kService, kPath, kInterface, "Hide");
     msg.send();
     bus_->flush();
@@ -49,15 +52,18 @@ void OverlayClient::start() {
     // Sends a no-op Hide to the service name. DBus sees the call and, if
     // the daemon isn't already running, activates it via the .service file.
     // If the daemon is already running, Hide is idempotent.
-    if (!capability_.supported) return;
-    if (!bus_ || !bus_->isOpen()) return;
+    if (!capability_.supported)
+        return;
+    if (!bus_ || !bus_->isOpen())
+        return;
     auto msg = bus_->createMethodCall(kService, kPath, kInterface, "Hide");
     msg.send();
     bus_->flush();
 }
 
 void OverlayClient::quit() {
-    if (!bus_ || !bus_->isOpen()) return;
+    if (!bus_ || !bus_->isOpen())
+        return;
     auto msg = bus_->createMethodCall(kService, kPath, kInterface, "Quit");
     msg.send();
     bus_->flush();
@@ -65,9 +71,14 @@ void OverlayClient::quit() {
 
 void OverlayClient::applyEnabledTransition(bool enabled) {
     switch (decideOverlayLifecycleAction(lastEnabled_, enabled)) {
-    case OverlayLifecycleAction::Start: start(); break;
-    case OverlayLifecycleAction::Quit:  quit();  break;
-    case OverlayLifecycleAction::None:  break;
+    case OverlayLifecycleAction::Start:
+        start();
+        break;
+    case OverlayLifecycleAction::Quit:
+        quit();
+        break;
+    case OverlayLifecycleAction::None:
+        break;
     }
     lastEnabled_ = enabled;
 }

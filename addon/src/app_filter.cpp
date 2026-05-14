@@ -16,7 +16,8 @@ void AppFilter::configure(AppFilterMode mode,
 }
 
 bool AppFilter::isFiltered(InputContext *ic) const {
-    if (mode_ == AppFilterMode::Disabled) return false;
+    if (mode_ == AppFilterMode::Disabled)
+        return false;
 
     const std::string &program = ic->program();
     if (program.empty())
@@ -28,15 +29,19 @@ bool AppFilter::isFiltered(InputContext *ic) const {
     // bypass the filter entirely.
     if (mode_ == AppFilterMode::Blacklist) {
         for (const auto &app : blacklist_) {
-            if (app.empty()) continue;
-            if (program.find(app) != std::string::npos) return true;
+            if (app.empty())
+                continue;
+            if (program.find(app) != std::string::npos)
+                return true;
         }
         return false;
     }
     // Whitelist: only active in listed apps
     for (const auto &app : whitelist_) {
-        if (app.empty()) continue;
-        if (program.find(app) != std::string::npos) return false;
+        if (app.empty())
+            continue;
+        if (program.find(app) != std::string::npos)
+            return false;
     }
     return true;
 }

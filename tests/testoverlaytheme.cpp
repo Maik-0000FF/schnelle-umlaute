@@ -11,12 +11,14 @@
 #include <cstdio>
 #include <cstdlib>
 
-#define EXPECT(cond) do {                                                   \
-    if (!(cond)) {                                                          \
-        std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);\
-        std::abort();                                                       \
-    }                                                                       \
-} while (0)
+#define EXPECT(cond)                                                           \
+    do {                                                                       \
+        if (!(cond)) {                                                         \
+            std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__,       \
+                         #cond);                                               \
+            std::abort();                                                      \
+        }                                                                      \
+    } while (0)
 
 // Fresh controller starts on the schnelle-umlaute palette so the first
 // cycle after install looks like the marketing screenshots.
@@ -77,7 +79,8 @@ void testIsValidThemeMatchesPalettes() {
     EXPECT(OverlayController::isValidTheme(QStringLiteral("contrast")));
 
     EXPECT(!OverlayController::isValidTheme(QString()));
-    EXPECT(!OverlayController::isValidTheme(QStringLiteral("Dark"))); // case-sensitive
+    EXPECT(!OverlayController::isValidTheme(
+        QStringLiteral("Dark"))); // case-sensitive
     EXPECT(!OverlayController::isValidTheme(QStringLiteral("solarized")));
 }
 

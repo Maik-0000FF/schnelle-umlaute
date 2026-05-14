@@ -11,12 +11,14 @@
 using fcitx::decideOverlayLifecycleAction;
 using fcitx::OverlayLifecycleAction;
 
-#define EXPECT(cond) do {                                                   \
-    if (!(cond)) {                                                          \
-        std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);\
-        std::abort();                                                       \
-    }                                                                       \
-} while (0)
+#define EXPECT(cond)                                                           \
+    do {                                                                       \
+        if (!(cond)) {                                                         \
+            std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__,       \
+                         #cond);                                               \
+            std::abort();                                                      \
+        }                                                                      \
+    } while (0)
 
 // First call after fcitx5 startup: eager-start when enabled so the
 // daemon is ready for the first cycling event. When disabled there's
