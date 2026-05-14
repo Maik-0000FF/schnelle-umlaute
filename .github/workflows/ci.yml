@@ -5,6 +5,18 @@ on:
     branches: ['**']
   pull_request:
     branches: [main, dev]
+  schedule:
+    # Weekly canary against the four supported distros' rolling/latest
+    # images. Catches drift the user can't see while not actively
+    # developing: a Tumbleweed Qt6 bump, a fcitx5 API change in the
+    # Arch package, a renamed Debian package, an updated Fedora 42
+    # base, etc. Also keeps the apt-archive cache hot (GitHub evicts
+    # caches after 7 days idle, so a weekly touch keeps it warm).
+    # GitHub cron is UTC-only — '0 8 * * 1' fires Mondays 08:00 UTC,
+    # which is 10:00 Europe/Berlin in CEST and 09:00 in CET. Switch
+    # to '0 9 * * 1' to keep 10:00 wall-clock through winter.
+    # Schedule triggers run only against the default branch (dev).
+    - cron: '0 8 * * 1'
 
 permissions:
   contents: read
@@ -22,6 +34,17 @@ jobs:
             install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext qt6-declarative layer-shell-qt
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
+          - distro: Arch Linux (Clang)
+            # Same image as the GCC entry above; only the compiler differs.
+            # Clang's frontend produces different diagnostics than GCC —
+            # stricter -Wshadow handling, more aggressive template traces,
+            # different unused-warning heuristics. Running the full ctest
+            # suite under Clang also doubles test-binary coverage across
+            # the two toolchains.
+            image: archlinux:base-devel
+            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext qt6-declarative layer-shell-qt clang
+            cmake_extra: -DBUILD_TESTING=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+            run_tests: true
           - distro: Ubuntu 24.04
             image: ubuntu:24.04
             install: apt-get update && apt-get install -y --no-install-recommends ca-certificates build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev qt6-declarative-dev libxkbcommon-dev liblayershellqtinterface-dev qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
@@ -32,9 +55,7 @@ jobs:
             # repos. The build only uses Ubuntu-provided libs, so this
             # entry catches Mint-only regressions (renamed packages,
             # im-config drift, /etc/os-release parsing) — the Ubuntu
-            # entry above already verifies the toolchain itself. Deps
-            # mirror the Ubuntu line including Qt6 Declarative and
-            # layer-shell so editor + overlay build the same way.
+            # entry above already verifies the toolchain itself.
             image: linuxmintd/mint22-amd64
             install: apt-get update && apt-get install -y --no-install-recommends ca-certificates build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev qt6-declarative-dev libxkbcommon-dev liblayershellqtinterface-dev qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
             cmake_extra: -DBUILD_TESTING=ON
@@ -103,10 +124,18 @@ jobs:
         run: cmake --build build -j$(nproc)
         working-directory: addon
 
+      - name: Test
+        if: matrix.run_tests
+        run: ctest --test-dir build --output-on-failure
+        working-directory: addon
+
       - name: Verify artifacts
-        # Fail the job if any of the three shipped binaries is missing. The
-        # overlay daemon in particular can silently skip when LayerShellQt
-        # isn't packaged — make that loud rather than a green-but-broken CI.
+        # v1.2.0 ships the fcitx5 addon .so plus two standalone Qt6
+        # binaries: the QML editor (replaces the old config-editor Qt
+        # plugin) and the overlay daemon. Fail the job if any of the
+        # three is missing — the overlay in particular can silently
+        # skip when LayerShellQt isn't packaged, which would otherwise
+        # produce a green-but-broken CI.
         run: |
           missing=0
           for f in build/schnelle-umlaute.so \
@@ -123,9 +152,11 @@ jobs:
         working-directory: addon
 
       - name: Verify shared-library resolution
-        # Catches binaries that build but wouldn't start on the user's
-        # system because a runtime dep is unresolved. "not found" in ldd
-        # output is the signal for a missing .so.
+        # The addon .so is dlopen()ed by fcitx5 at runtime; the editor
+        # and overlay are linked executables. An unresolved dependency
+        # here means fcitx5 will silently skip the addon, or the user
+        # will see an immediate exec failure on launch. "not found" in
+        # ldd output is the signal for a missing .so.
         run: |
           for f in build/editor/schnelle-umlaute-editor \
                    build/overlay/schnelle-umlaute-overlay; do
@@ -170,8 +201,55 @@ jobs:
           echo "smoke test passed"
         working-directory: addon
 
-      - name: Test
-        if: matrix.run_tests
+  sanitizers:
+    # ASan catches heap/stack/global buffer overflows, use-after-free,
+    # double-free. UBSan catches signed-integer overflow, null deref,
+    # shift overflows, misaligned access, invalid enum values — UB that
+    # "works today" but breaks on the next toolchain bump. Runs the
+    # existing ctest suite under both sanitizers, so bugs in the addon's
+    # state lifecycle (recentlyCommitted_, heldRawCodes_, timer,
+    # reset/deactivate paths) surface as concrete stack traces.
+    # Arch chosen for the freshest GCC. fcitx5 itself is not built with
+    # sanitizers, so detect_leaks=0 avoids noise from fcitx5 statics —
+    # use-after-free and overflows in our code are still caught.
+    runs-on: ubuntu-24.04
+    name: ASan + UBSan
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext qt6-declarative layer-shell-qt
+
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Configure with ASan + UBSan
+        # -O1: sanitizers need *some* optimization for realistic codepaths
+        # (inlining of small wrappers) but full -O2 hurts stack traces.
+        # -fno-sanitize-recover=all: abort on the first UBSan finding
+        # instead of just logging and continuing.
+        run: |
+          cmake -B build -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined" \
+            -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address,undefined"
+        working-directory: addon
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+        working-directory: addon
+
+      - name: Run tests under sanitizers
+        env:
+          # detect_leaks=0: fcitx5 statics dominate leak reports and aren't
+          # actionable here. Overflows / use-after-free still caught.
+          # halt_on_error=1 + abort_on_error=1: fail loud on first finding.
+          # print_stacktrace=1 for UBSan: default is off; the trace is the
+          # whole point.
+          ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:abort_on_error=1:print_stacktrace=1
+          UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
         run: ctest --test-dir build --output-on-failure
         working-directory: addon
 
@@ -213,6 +291,7 @@ jobs:
         # are picked up automatically — a hardcoded list silently grew out
         # of date as the editor / overlay code expanded.
         run: git ls-files '*.cpp' '*.h' | xargs clang-format --dry-run --Werror
+        working-directory: ${{ github.workspace }}
 
       - name: Build
         # AUTOMOC generates moc_*.cpp for Q_OBJECT classes (editor models,
@@ -239,7 +318,7 @@ jobs:
         # Build-tree autogen sources (moc_*.cpp, ui_*.h) are not tracked
         # by git, so they are excluded automatically.
         run: |
-          files=$(git -C .. ls-files 'addon/*.cpp' 'tests/*.cpp')
+          files=$(cd .. && git ls-files 'addon/*.cpp' 'tests/*.cpp')
           run-clang-tidy -p build -j $(nproc) -quiet $files
         working-directory: addon
 
@@ -301,8 +380,13 @@ jobs:
         run: chown -R tester:tester "$GITHUB_WORKSPACE"
 
       - name: Run install.sh
-        # `yes` answers every "Y/n" prompt with y. DEBIAN_FRONTEND is
-        # kept for Ubuntu's tzdata debconf during apt install.
+        # `yes` answers every "Y/n" prompt with y: install deps, remove
+        # stale files, overwrite environment.d. tester's $HOME is
+        # ephemeral so overwriting ~/.config/environment.d is harmless.
+        # sudo -u (not su) because the Fedora minimal image doesn't ship
+        # /bin/su — sudo is already installed by the bootstrap step.
+        # DEBIAN_FRONTEND=noninteractive silences Ubuntu's tzdata prompt
+        # (harmless no-op on Arch/Fedora/openSUSE where apt is unused).
         run: sudo -u tester bash -c "export DEBIAN_FRONTEND=noninteractive && cd '$GITHUB_WORKSPACE' && yes | ./install.sh"
 
       - name: Verify installed files
@@ -381,9 +465,11 @@ jobs:
 
       - name: Run uninstall.sh
         # uninstall.sh uses [y/N] prompts (default N), so `yes` feeds "y"
-        # to remove everything. Last step tries to restart fcitx5 —
-        # no-op in a container without a display server, swallowed by
-        # 2>/dev/null in the script.
+        # to remove everything: system .so files, user config, mappings
+        # dir, environment.d, autostart. The script's last step tries to
+        # restart fcitx5 — harmless no-op in a container without a
+        # display server. Any fcitx5 -d background attempt is swallowed
+        # by 2>/dev/null and the script continues.
         run: sudo -u tester bash -c "cd '$GITHUB_WORKSPACE' && yes | ./uninstall.sh"
 
       - name: Verify files removed
@@ -416,25 +502,26 @@ jobs:
           fi
           exit $remaining
 
-  scripts:
+  lint:
     runs-on: ubuntu-24.04
-    name: Lint install/uninstall scripts
+    name: shellcheck
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Install shellcheck
-        # Download the static binary from upstream releases instead of
-        # apt — apt on the ubuntu-24.04 runner occasionally hangs for
-        # minutes on a slow mirror, which this job doesn't need.
-        run: |
-          curl -fsSL \
-            "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz" \
-            | tar -xJ -C /tmp
-          sudo mv /tmp/shellcheck-v0.10.0/shellcheck /usr/local/bin/
-          shellcheck --version
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
 
-      - name: shellcheck
-        # Only errors fail the job — warnings (like SC2086 word splitting)
-        # would flag too much style.
-        run: shellcheck --severity=error install.sh uninstall.sh addon/build.sh
+      - name: Syntax check
+        run: |
+          bash -n install.sh
+          bash -n uninstall.sh
+          bash -n addon/build.sh
+
+      - name: Shellcheck (warnings and above)
+        # -S warning filters out info/style notes so only real issues fail
+        # the job. Tighten to 'info' later if the scripts are clean.
+        run: |
+          shellcheck -S warning install.sh
+          shellcheck -S warning uninstall.sh
+          shellcheck -S warning addon/build.sh
