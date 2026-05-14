@@ -1,0 +1,12 @@
+# Commits listed here are skipped by `git blame --ignore-revs-file=...`
+# and by GitHub's blame view (which reads this file automatically).
+# Use sparingly — only for whole-tree reformats where attribution would
+# otherwise point to the wrong author.
+#
+# Each entry: full 40-char SHA, then a comment line above describing why.
+
+# Repo-wide clang-format pass adopting the upstream fcitx5 style.
+# 1642 insertions, 1071 deletions across 31 .cpp/.h files plus the
+# .clang-format config. Two format passes converged in this commit;
+# no functional change.
+f4ee1c75fd630dd90ce0b1b7ddf45ea7572a8330
