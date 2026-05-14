@@ -7,7 +7,7 @@
     <title>Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux</title>
     <meta name="title" content="Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux">
     <meta name="description" content="PowerToys Quick Accent Alternative for Linux - Type German umlauts (ä, ö, ü, ß), French accents (é, è, ê, ç), Spanish characters (ñ, á, í), Portuguese accents (ã, õ, ç), Braille Unicode characters (⠁⠃⠉⠙⠑) with hold + space gesture. Native Fcitx5 addon with accent cycling, snippets, emoji mappings. No clipboard interference, works on X11 and Wayland.">
-    <meta name="keywords" content="PowerToys, Quick Accent, Linux, German umlauts, Fcitx5, keyboard, input method, umlaut, ä, ö, ü, ß, Arch Linux, Ubuntu, Fedora, openSUSE, Wayland, X11, accent cycling, snippets, text expansion, emoji, special characters, diacritics, accented characters, Linux input method, keyboard layout, Umlaute tippen Linux, deutsche Sonderzeichen, Umlaute ohne Nummernblock, accents français Linux, caractères accentués, accent aigu grave circonflexe, é è ê ë à ç, clavier français, acentos español Linux, tilde eñe, á é í ó ú ñ, teclado español, caracteres especiales, acentos português Linux, caracteres acentuados, teclado português, ã õ á é í ó ú â ê ô à ç, cedilha, til, digitar acentos Linux, Sonderzeichen Linux, diakritische Zeichen, Braille Unicode, ⠁⠃⠉⠙⠑, Braille input Linux">
+    <meta name="keywords" content="PowerToys, Quick Accent, Linux, German umlauts, Fcitx5, keyboard, input method, umlaut, ä, ö, ü, ß, Arch Linux, Ubuntu, Debian, Linux Mint, Fedora, openSUSE, Wayland, X11, accent cycling, snippets, text expansion, emoji, special characters, diacritics, accented characters, Linux input method, keyboard layout, Umlaute tippen Linux, deutsche Sonderzeichen, Umlaute ohne Nummernblock, accents français Linux, caractères accentués, accent aigu grave circonflexe, é è ê ë à ç, clavier français, acentos español Linux, tilde eñe, á é í ó ú ñ, teclado español, caracteres especiales, acentos português Linux, caracteres acentuados, teclado português, ã õ á é í ó ú â ê ô à ç, cedilha, til, digitar acentos Linux, Sonderzeichen Linux, diakritische Zeichen, Braille Unicode, ⠁⠃⠉⠙⠑, Braille input Linux">
     <meta name="author" content="Maik-0000FF">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="googlebot" content="index, follow">
@@ -190,7 +190,7 @@
             { "@type": "Question", "name": "Does it work on Wayland?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Natively on both X11 and Wayland, no extra configuration. It integrates directly with Fcitx5." } },
             { "@type": "Question", "name": "Does it touch the clipboard?", "acceptedAnswer": { "@type": "Answer", "text": "Never. Unlike xdotool-based workarounds, Schnelle Umlaute uses Fcitx5's commitString() API — direct insertion, clipboard untouched." } },
             { "@type": "Question", "name": "What characters can I type?", "acceptedAnswer": { "@type": "Answer", "text": "German umlauts by default (ä ö ü ß Ä Ö Ü). With unlimited configurable mappings: French accents, Spanish, Portuguese, Braille Unicode, emojis, math symbols, full text snippets." } },
-            { "@type": "Question", "name": "Which distros are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Supported on Arch Linux, Ubuntu/Debian, Fedora, and openSUSE. Works on any distro with Fcitx5." } },
+            { "@type": "Question", "name": "Which distros are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Supported on Arch Linux, Ubuntu/Debian, Linux Mint, Fedora, and openSUSE. Works on any distro with Fcitx5." } },
             { "@type": "Question", "name": "Can I adjust the timing?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, via fcitx5-config-qt. Default: 400ms lowercase, 700ms uppercase. Adjustable from 50ms to 2000ms to match your typing speed." } },
             { "@type": "Question", "name": "Can I use it for text snippets?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Map any key to a full phrase — e.g. hold m + Space to insert your email address, g for a Vim command like ggVGy (select all + yank), or u for sudo apt update. Works with any length of text." } },
             { "@type": "Question", "name": "What leader keys are available?", "acceptedAnswer": { "@type": "Answer", "text": "Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing." } },
@@ -1425,6 +1425,7 @@
                 <span class="tag">Arch Linux</span>
                 <span class="tag">Ubuntu</span>
                 <span class="tag">Debian</span>
+                <span class="tag">Linux Mint</span>
                 <span class="tag">Fedora</span>
                 <span class="tag">openSUSE</span>
             </div>
@@ -1550,7 +1551,7 @@
         </details>
         <details class="q">
             <summary>Which distros are supported?</summary>
-            <p class="q-body">Supported on Arch Linux, Ubuntu/Debian, Fedora, and openSUSE. Works on any distro with Fcitx5.</p>
+            <p class="q-body">Supported on Arch Linux, Ubuntu/Debian, Linux Mint, Fedora, and openSUSE. Works on any distro with Fcitx5.</p>
         </details>
         <details class="q">
             <summary>Can I adjust the timing?</summary>

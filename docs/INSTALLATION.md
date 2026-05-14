@@ -8,7 +8,7 @@ cd schnelle-umlaute
 ./install.sh
 ```
 
-The installer automatically detects your distribution (Arch, Debian, Ubuntu, Fedora, openSUSE) and will:
+The installer automatically detects your distribution (Arch, Debian, Ubuntu, Linux Mint, Fedora, openSUSE) and will:
 - Check and install dependencies via the appropriate package manager
 - Build and install the addon
 - Configure environment variables automatically
@@ -70,7 +70,7 @@ fcitx5-remote   # Should print "1" (inactive) or "2" (active)
 
 ---
 
-## Manual Installation (Ubuntu / Debian)
+## Manual Installation (Ubuntu / Debian / Linux Mint)
 
 **1. Install Dependencies**
 
