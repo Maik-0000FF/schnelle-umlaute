@@ -47,9 +47,14 @@ std::string readConfig() {
     if (!fp) return {};
     std::string out;
     char buf[4096];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof(buf), fp)) > 0) {
-        out.append(buf, n);
+    // Read until a short fread tells us the stream is exhausted, then
+    // exit the loop. Re-entering fread on an EOF-stream is what the
+    // unix.Stream analyzer flags as undefined behaviour.
+    bool streamEnded = false;
+    while (!streamEnded) {
+        size_t n = std::fread(buf, 1, sizeof(buf), fp);
+        if (n > 0) out.append(buf, n);
+        if (n < sizeof(buf)) streamEnded = true;
     }
     std::fclose(fp);
     return out;

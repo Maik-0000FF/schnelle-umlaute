@@ -37,7 +37,7 @@ constexpr uint32_t kMaxUnicodeCodepoint = 0x10FFFF;
 // - When input key is released, cycling ends
 // =============================================================================
 
-class SchnelleUmlauteEngine : public InputMethodEngineV2 {
+class SchnelleUmlauteEngine final : public InputMethodEngineV2 {
 public:
     SchnelleUmlauteEngine(Instance *instance)
         : instance_(instance),
@@ -391,7 +391,7 @@ public:
                         // Cycle to next variant
                         state->cyclingIndex_ = (state->cyclingIndex_ + 1) % it->second.size();
                         updateClientPreedit(ic, it->second[state->cyclingIndex_]);
-                        overlayShow(ic, it->second, state->cyclingIndex_);
+                        overlayShow(ic, it->second, static_cast<int>(state->cyclingIndex_));
                     } else if (state->altGestureSession_ &&
                                !(isAlt && rawCode == state->consumedAltCode_)) {
                         // Single-output Alt cycling: a different leader (not
@@ -660,7 +660,7 @@ private:
 
     void updateClientPreedit(InputContext *ic, const std::string &text) {
         Text preedit(text);
-        preedit.setCursor(preedit.textLength());
+        preedit.setCursor(static_cast<int>(preedit.textLength()));
         ic->inputPanel().setClientPreedit(preedit);
         ic->updatePreedit();
     }
@@ -718,8 +718,9 @@ private:
 
     void commitCyclingValue(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->cyclingInput_) return;
+        const auto cyclingInput = *state->cyclingInput_;
         state->cancelTimeout();  // Cancel any deferred commit timer
-        auto it = umlautMap_.find(*state->cyclingInput_);
+        auto it = umlautMap_.find(cyclingInput);
         if (it != umlautMap_.end() && state->cyclingIndex_ < it->second.size()) {
             ic->inputPanel().reset();
             ic->commitString(it->second[state->cyclingIndex_]);
@@ -872,6 +873,7 @@ private:
 
     void scheduleTimeout(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->waitingKey_) return;
+        auto savedKey = *state->waitingKey_;
 
         state->cancelTimeout();
 
@@ -881,7 +883,6 @@ private:
         uint64_t now_usec = SchnelleUmlauteState::nowUsec();
         uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * kMicrosecondsPerMillisecond;
 
-        auto savedKey = *state->waitingKey_;
         auto savedRef = ic->watch();
         state->timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC,
@@ -938,7 +939,7 @@ private:
         size_t firstCharBytes = utf8::ncharByteLength(trimmed.begin(), 1);
         std::string result = trimmed.substr(0, firstCharBytes);
         if (result.size() == 1 && result[0] >= 'A' && result[0] <= 'Z')
-            result[0] = result[0] - 'A' + 'a';
+            result[0] = static_cast<char>(result[0] - 'A' + 'a');
         return result;
     }
 

@@ -41,7 +41,7 @@ QString loadInitialTheme() {
             continue;
         }
         if (section != QLatin1String("Theme")) continue;
-        const int eq = line.indexOf('=');
+        const int eq = static_cast<int>(line.indexOf('='));
         if (eq < 0) continue;
         if (line.left(eq) == QLatin1String("Theme")) {
             return line.mid(eq + 1).trimmed();

@@ -27,7 +27,10 @@ std::vector<RawMapping> parseString(const std::string &content) {
     if (!content.empty()) {
         std::fwrite(content.data(), 1, content.size(), fp);
     }
-    std::rewind(fp);
+    if (std::fseek(fp, 0, SEEK_SET) != 0) {
+        std::fprintf(stderr, "fseek to start of tmpfile failed\n");
+        std::abort();
+    }
     auto result = parseMappings(fp);
     std::fclose(fp);
     return result;

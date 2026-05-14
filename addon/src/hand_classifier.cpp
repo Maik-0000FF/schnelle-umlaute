@@ -23,7 +23,7 @@ bool HandClassifier::isLeftHandKeycode(int keycode) {
 bool HandClassifier::isLeftHand(const std::string &key) const {
     std::string lookup = key;
     if (lookup.size() == 1 && lookup[0] >= 'A' && lookup[0] <= 'Z')
-        lookup[0] = lookup[0] - 'A' + 'a';
+        lookup[0] = static_cast<char>(lookup[0] - 'A' + 'a');
     auto it = charToKeycode_.find(lookup);
     if (it == charToKeycode_.end()) return false;
     return isLeftHandKeycode(it->second);

@@ -238,7 +238,7 @@ void SettingsModel::load() {
             section = line.mid(1, line.size() - 2);
             continue;
         }
-        int eq = line.indexOf('=');
+        const int eq = static_cast<int>(line.indexOf('='));
         if (eq < 0) continue;
         QString key = line.left(eq);
         QString val = line.mid(eq + 1);
@@ -380,7 +380,7 @@ void SettingsModel::save() {
         << "Enabled=" << toBool(overlayEnabled_) << "\n";
     // Split "TopCol4" into Row=Top + Column=Col4 for the fcitx5 config
     // schema, which represents each as a small enum (capped at 12 values).
-    const int splitAt = overlayPosition_.indexOf(QLatin1String("Col"));
+    const int splitAt = static_cast<int>(overlayPosition_.indexOf(QLatin1String("Col")));
     const QString row = splitAt > 0
         ? overlayPosition_.left(splitAt) : QStringLiteral("Top");
     const QString col = splitAt > 0
