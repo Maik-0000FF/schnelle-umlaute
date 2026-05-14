@@ -250,20 +250,12 @@ jobs:
         # would be reformatted. Style is pinned by .clang-format at the
         # repo root. Run before the build so style drift fails fast — no
         # need to compile to find a misformatted file.
-        run: |
-          clang-format --dry-run --Werror \
-            addon/src/schnelle-umlaute.cpp \
-            addon/config-editor/editor.cpp \
-            addon/config-editor/main.cpp \
-            addon/config-editor/model.cpp \
-            addon/config-editor/editor.h \
-            addon/config-editor/main.h \
-            addon/config-editor/model.h \
-            addon/mappings-io.h \
-            tests/testschnelleumlaute.cpp \
-            tests/testmappingsio.cpp \
-            tests/testmappingmodel.cpp \
-            tests/testmappingmodelio.cpp
+        #
+        # File list comes from `git ls-files` so newly added .cpp/.h files
+        # are picked up automatically — a hardcoded list silently grew out
+        # of date as the editor / overlay code expanded.
+        run: git ls-files '*.cpp' '*.h' | xargs clang-format --dry-run --Werror
+        working-directory: ${{ github.workspace }}
 
       - name: Build
         # AUTOUIC generates ui_editor.h from editor.ui, AUTOMOC generates
@@ -277,8 +269,14 @@ jobs:
         # access, narrowing, dangling stack-pointer escape) can mask real
         # regressions or silently weaken coverage. mappings-io.h is checked
         # via inclusion from both production and test TUs.
+        #
+        # run-clang-tidy parallelises across TUs (one process per source
+        # file). At 8 TUs today this halves the job's wallclock; the
+        # difference grows linearly as more sources are added (editor,
+        # overlay refactors). Arguments are matched as regex against the
+        # `file` field in compile_commands.json — full paths work.
         run: |
-          clang-tidy -p build \
+          run-clang-tidy -p build -j $(nproc) -quiet \
             src/schnelle-umlaute.cpp \
             config-editor/editor.cpp \
             config-editor/main.cpp \
