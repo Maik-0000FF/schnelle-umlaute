@@ -268,9 +268,12 @@ sudo rm /usr/local/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
 
 # Common data files (all distributions)
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf
-sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
 sudo rm /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
 sudo rm /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf
+
+# Legacy schema descriptor (only present on installs from earlier
+# versions — ignore "No such file or directory" otherwise):
+sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf.in 2>/dev/null
 
 # Optional: remove user configuration
 rm ~/.config/fcitx5/conf/schnelle-umlaute.conf
