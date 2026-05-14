@@ -13,6 +13,7 @@ set(EDITOR_SRCS
     MappingListModel.cpp
     OverlayDBusClient.cpp
     SettingsModel.cpp
+    SingleInstance.cpp
 )
 
 qt_add_executable(schnelle-umlaute-editor ${EDITOR_SRCS})
