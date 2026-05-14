@@ -19,7 +19,7 @@ Window {
     // themes share this value so a future tweak is one line, not four
     // embedded alpha bytes in the palette hex strings. Cell colors,
     // borders and text stay fully opaque — only the frame fades.
-    readonly property real frameOpacity: 0.80
+    readonly property real frameOpacity: 0.75
 
     // Animation constants — keep every color / border transition (frame,
     // cells, text) at the same duration so the active-cell handover and
