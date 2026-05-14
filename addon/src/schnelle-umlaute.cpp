@@ -84,6 +84,23 @@ private:
     std::string tooltip_;
 };
 
+/// Annotation that sets only a tooltip (for fields without a placeholder,
+/// e.g. list types). Note: fcitx5-config-qt 5.1.13 sets the tooltip on the
+/// outer ListOptionWidget but its children cover the parent's hover area,
+/// so the tooltip is unreachable there. The KCM/QML variant renders it
+/// correctly.
+struct TooltipAnnotation {
+    TooltipAnnotation(std::string tooltip) : tooltip_(std::move(tooltip)) {}
+    bool skipDescription() const { return false; }
+    bool skipSave() const { return false; }
+    void dumpDescription(RawConfig &config) const {
+        config.setValueByPath("Tooltip", tooltip_);
+    }
+
+private:
+    std::string tooltip_;
+};
+
 FCITX_CONFIGURATION(DelayConfig,
                     Option<int, IntConstrainWithStep> lowercase{
                         this, "Lowercase", "Lowercase (ms)", 400,
@@ -139,10 +156,18 @@ FCITX_CONFIG_ENUM(AppFilterMode, Disabled, Blacklist, Whitelist);
 FCITX_CONFIGURATION(
     AppFilterConfig,
     Option<AppFilterMode> mode{this, "Mode", "Mode", AppFilterMode::Disabled};
-    Option<std::vector<std::string>> blacklist{
-        this, "Blacklist", "Blacklist", {}};
-    Option<std::vector<std::string>> whitelist{
-        this, "Whitelist", "Whitelist", {}};);
+    OptionWithAnnotation<std::vector<std::string>, TooltipAnnotation> blacklist{
+        this, "Blacklist", "Blacklist", {}, {}, {},
+        TooltipAnnotation("Case-sensitive substring match against the program "
+                          "identifier fcitx5 reports. Some apps report their "
+                          "GUI library instead of their name (e.g. Kitty "
+                          "\xe2\x86\x92 GLFW_Application).")};
+    OptionWithAnnotation<std::vector<std::string>, TooltipAnnotation> whitelist{
+        this, "Whitelist", "Whitelist", {}, {}, {},
+        TooltipAnnotation("Case-sensitive substring match against the program "
+                          "identifier fcitx5 reports. Some apps report their "
+                          "GUI library instead of their name (e.g. Kitty "
+                          "\xe2\x86\x92 GLFW_Application).")};);
 
 FCITX_CONFIGURATION(
     SchnelleUmlauteConfig, Option<DelayConfig> delay{this, "Delay", "Delay"};
