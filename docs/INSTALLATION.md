@@ -254,7 +254,7 @@ Otherwise, remove files manually. The addon library path depends on your distrib
 sudo rm /usr/lib/fcitx5/schnelle-umlaute.so
 sudo rm /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
 
-# Ubuntu/Debian (x86_64)
+# Ubuntu/Debian/Linux Mint (x86_64)
 sudo rm /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
 sudo rm /usr/lib/x86_64-linux-gnu/fcitx5/qt6/libschnelle-umlaute-config-editor.so
 
