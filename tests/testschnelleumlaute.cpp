@@ -1,5 +1,6 @@
 // Test Suite for Schnelle Umlaute (135 tests)
 //
+// clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
 // 12-16   Custom leaders       Shift-invariant, case-insensitive, double-comma escaping, cycling, triple comma
 // 17-20   Arrow leaders        Left, Right, Up, Down
@@ -27,6 +28,7 @@
 // 122-128 Shifted input split  shifted symbols (! * @) with dual split, cycling, Shift-held leader, single key
 // 129-132 Focus-flap resilience FocusOut during preedit/cycling, rapid 50x flap, flap after commit (sim. MouseTiler 100ms)
 // 133-135 State invariants    recentlyCommitted_ lifecycle, getBaseChar edge keycodes, AppFilter Whitelist empty program
+// clang-format on
 
 #include "testdir.h"
 #include "testfrontend_public.h"
@@ -517,6 +519,7 @@ static int typeTextWordBoundaryOverlap(
 // the analysis — they are skipped as non-ASCII, and the surrounding
 // ASCII letters determine word boundaries and collisions.
 
+// clang-format off
 static const char *kGerman1000 =
     "Die Sonne scheint hell durch das Fenster und wirft lange Schatten "
     "auf den Boden. Es ist ein ruhiger Morgen in der kleinen Stadt am "
@@ -598,6 +601,7 @@ static const char *kSpanish1000 =
     "se\xc3\xb1""ora mayor se sienta en el porche leyendo un libro "
     "mientras su gato duerme al sol. Por el camino un granjero lleva "
     "sus productos frescos al mercado de la ciudad vecina.";
+// clang-format on
 
 // Tests 24+ are scheduled from within the Alt leader timer chain (Tests 21-23)
 // to guarantee deferred commits are verified before any subsequent test runs.
