@@ -203,6 +203,17 @@ jobs:
         run: cmake -B build -DBUILD_TESTING=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
         working-directory: addon
 
+      - name: Verify code is clang-format clean
+        # --dry-run + --Werror: prints diff and exits non-zero if any file
+        # would be reformatted. Style is pinned by .clang-format at the
+        # repo root. Run before the build so style drift fails fast — no
+        # need to compile to find a misformatted file.
+        #
+        # File list comes from `git ls-files` so newly added .cpp/.h files
+        # are picked up automatically — a hardcoded list silently grew out
+        # of date as the editor / overlay code expanded.
+        run: git ls-files '*.cpp' '*.h' | xargs clang-format --dry-run --Werror
+
       - name: Build
         # AUTOMOC generates moc_*.cpp for Q_OBJECT classes (editor models,
         # OverlayController). clang-tidy parses these via #include, so the
