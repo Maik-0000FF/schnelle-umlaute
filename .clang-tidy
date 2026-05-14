@@ -8,5 +8,5 @@ Checks: >
   -performance-no-int-to-ptr,
   -performance-enum-size
 WarningsAsErrors: '*'
-HeaderFilterRegex: '^.*/(addon|tests)/.*\.h$'
+HeaderFilterRegex: '/schnelle-umlaute/(addon|tests)/.*\.h$'
 FormatStyle: none
