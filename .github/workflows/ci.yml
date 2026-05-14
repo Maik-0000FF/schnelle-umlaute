@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: ['**']
   pull_request:
     branches: [main]
   schedule:
@@ -216,6 +216,77 @@ jobs:
           ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:abort_on_error=1:print_stacktrace=1
           UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
         run: ctest --test-dir build --output-on-failure
+        working-directory: addon
+
+  clang-tidy:
+    # Static analysis on production C++ sources. Check selection lives in
+    # .clang-tidy at the repo root: bugprone-* (real bug patterns),
+    # clang-analyzer-* (LLVM's built-in static analyzer), and performance-*
+    # excluding enum-size (covered by fcitx5's FCITX_CONFIG_ENUM macro).
+    # WarningsAsErrors='*' fails the job on any new finding.
+    # Build with Clang (not GCC) so compile_commands.json contains clang-
+    # compatible flags only — GCC-only flags like -mno-direct-extern-access
+    # would otherwise make clang-tidy reject every translation unit.
+    runs-on: ubuntu-24.04
+    name: clang-tidy
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext clang
+
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Configure with Clang and compile_commands export
+        # CMAKE_EXPORT_COMPILE_COMMANDS produces compile_commands.json so
+        # clang-tidy sees the exact -I paths and -D defines used in the
+        # build. Without it, every Qt6/fcitx5 include would fail to resolve.
+        run: cmake -B build -DBUILD_TESTING=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        working-directory: addon
+
+      - name: Verify code is clang-format clean
+        # --dry-run + --Werror: prints diff and exits non-zero if any file
+        # would be reformatted. Style is pinned by .clang-format at the
+        # repo root. Run before the build so style drift fails fast — no
+        # need to compile to find a misformatted file.
+        run: |
+          clang-format --dry-run --Werror \
+            addon/src/schnelle-umlaute.cpp \
+            addon/config-editor/editor.cpp \
+            addon/config-editor/main.cpp \
+            addon/config-editor/model.cpp \
+            addon/config-editor/editor.h \
+            addon/config-editor/main.h \
+            addon/config-editor/model.h \
+            addon/mappings-io.h \
+            tests/testschnelleumlaute.cpp \
+            tests/testmappingsio.cpp \
+            tests/testmappingmodel.cpp \
+            tests/testmappingmodelio.cpp
+
+      - name: Build
+        # AUTOUIC generates ui_editor.h from editor.ui, AUTOMOC generates
+        # moc_*.cpp for Q_OBJECT classes. clang-tidy parses these in turn
+        # via #include, so they have to exist before the lint step runs.
+        run: cmake --build build -j$(nproc)
+        working-directory: addon
+
+      - name: Run clang-tidy on production and test sources
+        # Tests are linted too — bugs in test code (out-of-bound array
+        # access, narrowing, dangling stack-pointer escape) can mask real
+        # regressions or silently weaken coverage. mappings-io.h is checked
+        # via inclusion from both production and test TUs.
+        run: |
+          clang-tidy -p build \
+            src/schnelle-umlaute.cpp \
+            config-editor/editor.cpp \
+            config-editor/main.cpp \
+            config-editor/model.cpp \
+            ../tests/testschnelleumlaute.cpp \
+            ../tests/testmappingsio.cpp \
+            ../tests/testmappingmodel.cpp \
+            ../tests/testmappingmodelio.cpp
         working-directory: addon
 
   install-uninstall:

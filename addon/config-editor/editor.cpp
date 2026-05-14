@@ -1,17 +1,16 @@
 #include "editor.h"
-#include "model.h"
-#include <fcitx-utils/i18n.h>
 #include <QApplication>
-#include <QScreen>
-#include <QShowEvent>
 #include <QLabel>
+#include <QScreen>
 #include <QSettings>
+#include <QShowEvent>
 #include <QStandardPaths>
+#include <fcitx-utils/i18n.h>
+#include "model.h"
 
 namespace fcitx {
 
-MappingEditor::MappingEditor(QWidget *parent)
-    : FcitxQtConfigUIWidget(parent) {
+MappingEditor::MappingEditor(QWidget *parent) : FcitxQtConfigUIWidget(parent) {
     setupUi(this);
 
     model_ = new MappingModel(this);
@@ -31,18 +30,19 @@ MappingEditor::MappingEditor(QWidget *parent)
     helpLabel->setStyleSheet("QLabel { color: gray; font-size: 11px; }");
     mainLayout->addWidget(helpLabel, 2, 0);
 
-    // Validation error label
-    statusLabel_ = new QLabel(this);
+    // Validation error label. Always visible (with a placeholder space
+    // character when there's no message) so its line height is reserved
+    // and the rest of the form doesn't jump up/down as messages appear.
+    statusLabel_ = new QLabel(QStringLiteral(" "), this);
     statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    statusLabel_->setVisible(false);
     mainLayout->addWidget(statusLabel_, 3, 0);
 
-    connect(addButton, &QPushButton::clicked, this,
-            &MappingEditor::addMapping);
+    connect(addButton, &QPushButton::clicked, this, &MappingEditor::addMapping);
     connect(deleteButton, &QPushButton::clicked, this,
             &MappingEditor::deleteMapping);
     connect(moveUpButton, &QPushButton::clicked, this, [this]() {
-        if (auto idx = mappingView->currentIndex(); idx.isValid() && idx.row() > 0) {
+        if (auto idx = mappingView->currentIndex();
+            idx.isValid() && idx.row() > 0) {
             model_->moveUp(idx.row());
             mappingView->setCurrentIndex(model_->index(idx.row() - 1, 0));
         }
@@ -55,9 +55,8 @@ MappingEditor::MappingEditor(QWidget *parent)
         }
     });
 
-    connect(mappingView->selectionModel(),
-            &QItemSelectionModel::currentChanged, this,
-            &MappingEditor::itemFocusChanged);
+    connect(mappingView->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, &MappingEditor::itemFocusChanged);
     connect(model_, &MappingModel::needSaveChanged, this,
             &MappingEditor::changed);
 
@@ -71,7 +70,9 @@ MappingEditor::MappingEditor(QWidget *parent)
             &MappingEditor::revalidate);
 
     loadLeaderKeys();
-    load();
+    // Qualified call: virtual dispatch is inert in constructors,
+    // being explicit silences clang-analyzer-optin.cplusplus.VirtualCall.
+    MappingEditor::load();
     itemFocusChanged();
 }
 
@@ -110,7 +111,8 @@ void MappingEditor::addMapping() {
         return;
     }
     if (!MappingModel::isValidInput(input)) {
-        showInputError(_("Input must be exactly one printable character"));
+        showInputError(
+            _("Input must be a visible character (no whitespace, no tab)"));
         return;
     }
     if (model_->hasInput(input)) {
@@ -129,29 +131,50 @@ void MappingEditor::addMapping() {
     inputEdit->setFocus();
 }
 
+// Style snippets for inline validation feedback. Object-name selector
+// (QLineEdit#inputEdit) gives higher specificity than QLineEdit alone, so
+// KDE/Qt themes that style QLineEdit globally don't suppress these borders.
+// background-color: palette(base) is the key trick — without an explicit
+// background, Qt keeps using the theme's background draw path (which is
+// often a 9-slice image with square corners) and border-radius is rendered
+// underneath that, invisibly. Setting the palette-base background forces
+// Qt onto its own draw path that honors border-radius.
+// 1px border + 3px/5px padding matches the size of the unstyled editfield
+// in Breeze, so the validated field doesn't visibly shrink vs its neighbors.
+static constexpr auto kInputErrorStyle =
+    "QLineEdit#inputEdit { border: 1px solid #cc0000; "
+    "border-radius: 4px; padding: 3px 5px; "
+    "background-color: palette(base); color: palette(text); }";
+static constexpr auto kInputWarnStyle =
+    "QLineEdit#inputEdit { border: 1px solid #cc8800; "
+    "border-radius: 4px; padding: 3px 5px; "
+    "background-color: palette(base); color: palette(text); }";
+static constexpr auto kOutputErrorStyle =
+    "QLineEdit#outputEdit { border: 1px solid #cc0000; "
+    "border-radius: 4px; padding: 3px 5px; "
+    "background-color: palette(base); color: palette(text); }";
+
 void MappingEditor::showInputError(const QString &msg) {
     statusLabel_->setText(msg);
     statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    statusLabel_->setVisible(true);
-    inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc0000; }");
+    inputEdit->setStyleSheet(kInputErrorStyle);
 }
 
 void MappingEditor::showInputWarning(const QString &msg) {
     statusLabel_->setText(msg);
     statusLabel_->setStyleSheet("QLabel { color: #cc8800; font-size: 11px; }");
-    statusLabel_->setVisible(true);
-    inputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc8800; }");
+    inputEdit->setStyleSheet(kInputWarnStyle);
 }
 
 void MappingEditor::showOutputError(const QString &msg) {
     statusLabel_->setText(msg);
     statusLabel_->setStyleSheet("QLabel { color: #cc0000; font-size: 11px; }");
-    statusLabel_->setVisible(true);
-    outputEdit->setStyleSheet("QLineEdit { border: 1px solid #cc0000; }");
+    outputEdit->setStyleSheet(kOutputErrorStyle);
 }
 
 void MappingEditor::clearInputError() {
-    statusLabel_->setVisible(false);
+    // Reserve the line with a placeholder space — see constructor for why.
+    statusLabel_->setText(QStringLiteral(" "));
     inputEdit->setStyleSheet("");
     outputEdit->setStyleSheet("");
 }
@@ -166,7 +189,8 @@ void MappingEditor::revalidate() {
     // Input blockers take precedence (same order as addMapping).
     if (!input.isEmpty()) {
         if (!MappingModel::isValidInput(input)) {
-            showInputError(_("Input must be exactly one printable character"));
+            showInputError(
+                _("Input must be a visible character (no whitespace, no tab)"));
             return;
         }
         if (model_->hasInput(input)) {
@@ -184,9 +208,8 @@ void MappingEditor::revalidate() {
     // Non-blocking warning: leader-key conflict. Only shown when there is
     // no higher-priority error, so the user's attention stays on blockers.
     if (!input.isEmpty() && isLeaderKeyConflict(input)) {
-        showInputWarning(
-            _("This key is configured as a Custom Leader — "
-              "it will not work as a mapped input"));
+        showInputWarning(_("This key is configured as a Custom Leader — "
+                           "it will not work as a mapped input"));
     }
 }
 
@@ -200,15 +223,15 @@ void MappingEditor::itemFocusChanged() {
     bool sel = mappingView->currentIndex().isValid();
     deleteButton->setEnabled(sel);
     moveUpButton->setEnabled(sel && mappingView->currentIndex().row() > 0);
-    moveDownButton->setEnabled(
-        sel && mappingView->currentIndex().row() + 1 < model_->rowCount());
+    moveDownButton->setEnabled(sel && mappingView->currentIndex().row() + 1 <
+                                          model_->rowCount());
 }
 
 void MappingEditor::loadLeaderKeys() {
     leaderKeys_.clear();
-    QString configPath =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
-        + "/fcitx5/conf/schnelle-umlaute.conf";
+    QString configPath = QStandardPaths::writableLocation(
+                             QStandardPaths::GenericConfigLocation) +
+                         "/fcitx5/conf/schnelle-umlaute.conf";
     QSettings settings(configPath, QSettings::IniFormat);
     settings.beginGroup("Leader/Custom");
     if (settings.value("CustomKeyEnabled", false).toBool()) {
@@ -233,7 +256,8 @@ void MappingEditor::loadLeaderKeys() {
 
 bool MappingEditor::isLeaderKeyConflict(const QString &input) const {
     for (const auto &leader : leaderKeys_) {
-        if (input.compare(leader, Qt::CaseInsensitive) == 0) return true;
+        if (input.compare(leader, Qt::CaseInsensitive) == 0)
+            return true;
     }
     return false;
 }

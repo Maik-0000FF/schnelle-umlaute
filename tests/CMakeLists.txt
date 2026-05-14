@@ -5,8 +5,13 @@ configure_file(testdir.h.in ${CMAKE_CURRENT_BINARY_DIR}/testdir.h @ONLY)
 add_subdirectory(addon)
 add_subdirectory(inputmethod)
 
+# Shared strict warning flags for all test binaries — same as the
+# production library target so test code is held to the same bar.
+set(SU_TEST_WARN_FLAGS -Wall -Wextra -Wpedantic)
+
 add_executable(testschnelleumlaute testschnelleumlaute.cpp)
 target_include_directories(testschnelleumlaute PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_compile_options(testschnelleumlaute PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testschnelleumlaute Fcitx5::Core Fcitx5::Module::TestFrontend Fcitx5::Module::TestIM PkgConfig::XKBCommon)
 add_dependencies(testschnelleumlaute copy-addon-conf copy-im-conf schnelle-umlaute)
 add_test(NAME testschnelleumlaute COMMAND testschnelleumlaute)
@@ -15,6 +20,7 @@ set_tests_properties(testschnelleumlaute PROPERTIES TIMEOUT 30)
 # Standalone unit test for the mappings-io parser — no fcitx5 runtime needed.
 add_executable(testmappingsio testmappingsio.cpp)
 target_include_directories(testmappingsio PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testmappingsio PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testmappingsio COMMAND testmappingsio)
 set_tests_properties(testmappingsio PROPERTIES TIMEOUT 10)
 
@@ -24,6 +30,7 @@ set_tests_properties(testmappingsio PROPERTIES TIMEOUT 10)
 add_executable(testmappingmodel testmappingmodel.cpp)
 target_include_directories(testmappingmodel PRIVATE
     ${PROJECT_SOURCE_DIR}/config-editor)
+target_compile_options(testmappingmodel PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testmappingmodel Qt${QT_MAJOR_VERSION}::Core)
 add_test(NAME testmappingmodel COMMAND testmappingmodel)
 set_tests_properties(testmappingmodel PROPERTIES TIMEOUT 10)
@@ -40,6 +47,7 @@ set_target_properties(testmappingmodelio PROPERTIES AUTOMOC ON)
 target_include_directories(testmappingmodelio PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/config-editor)
+target_compile_options(testmappingmodelio PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testmappingmodelio
     Qt${QT_MAJOR_VERSION}::Core
     Fcitx5::Utils)

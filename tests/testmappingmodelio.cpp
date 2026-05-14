@@ -28,12 +28,14 @@ using schnelle_umlaute::defaultMappings;
 using schnelle_umlaute::parseMappings;
 using schnelle_umlaute::RawMapping;
 
-#define EXPECT(cond) do {                                                    \
-    if (!(cond)) {                                                           \
-        std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-        std::abort();                                                        \
-    }                                                                        \
-} while (0)
+#define EXPECT(cond)                                                           \
+    do {                                                                       \
+        if (!(cond)) {                                                         \
+            std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__,       \
+                         #cond);                                               \
+            std::abort();                                                      \
+        }                                                                      \
+    } while (0)
 
 namespace {
 
@@ -46,8 +48,7 @@ std::string mappingsPath() {
 // Ensure the parent directory exists so we can pre-seed files for tests.
 // save() creates it itself, but load-fallback tests write the file directly.
 void ensureMappingsDir() {
-    std::filesystem::create_directories(
-        g_tempdir + "/fcitx5/schnelle-umlaute");
+    std::filesystem::create_directories(g_tempdir + "/fcitx5/schnelle-umlaute");
 }
 
 void removeMappingsFile() {
@@ -67,7 +68,8 @@ void writeMappingsFile(const std::string &content) {
 
 std::vector<RawMapping> reparseMappingsFile() {
     FILE *fp = std::fopen(mappingsPath().c_str(), "r");
-    if (!fp) return {};
+    if (!fp)
+        return {};
     auto r = parseMappings(fp);
     std::fclose(fp);
     return r;
@@ -114,16 +116,19 @@ void testRoundTripWithCustomEntries() {
     }
     EXPECT(m.rowCount() == 0);
 
-    struct Entry { const char *input; const char *output; };
+    struct Entry {
+        const char *input;
+        const char *output;
+    };
     Entry entries[] = {
-        {"a", "\xc3\xa4"},                    // single-byte input, 2-byte output
-        {"\xc3\xa4", "ae"},                   // 2-byte input, ASCII output
-        {"\xe2\x82\xac", "EUR"},              // 3-byte input (€)
-        {"\xf0\x9f\x98\x80", "smile"},        // 4-byte input (😀)
-        {"o", "\xc3\xb6,oe,O"},               // cycling variants with commas
-        {"s", " ls"},                         // leading space (intentional)
-        {"t", "trail "},                      // trailing space (intentional)
-        {"=", "bang"},                        // '=' as input key
+        {"a", "\xc3\xa4"},             // single-byte input, 2-byte output
+        {"\xc3\xa4", "ae"},            // 2-byte input, ASCII output
+        {"\xe2\x82\xac", "EUR"},       // 3-byte input (€)
+        {"\xf0\x9f\x98\x80", "smile"}, // 4-byte input (😀)
+        {"o", "\xc3\xb6,oe,O"},        // cycling variants with commas
+        {"s", " ls"},                  // leading space (intentional)
+        {"t", "trail "},               // trailing space (intentional)
+        {"=", "bang"},                 // '=' as input key
     };
     for (const auto &e : entries) {
         m.addItem(QString::fromUtf8(e.input), QString::fromUtf8(e.output));
@@ -142,7 +147,8 @@ void testRoundTripWithCustomEntries() {
     // (e.g. if load silently dropped entries save would not put back).
     MappingModel m2;
     m2.load();
-    EXPECT(m2.rowCount() == static_cast<int>(sizeof(entries) / sizeof(entries[0])));
+    EXPECT(m2.rowCount() ==
+           static_cast<int>(sizeof(entries) / sizeof(entries[0])));
     m2.save();
     auto parsed2 = reparseMappingsFile();
     EXPECT(parsed2.size() == parsed.size());
@@ -189,12 +195,11 @@ void testLoadFallbackEmptyFile() {
 // output). parseMappings returns empty, fallback kicks in. Same reasoning
 // as the empty-file case: never leave the user with zero mappings.
 void testLoadFallbackAllInvalid() {
-    writeMappingsFile(
-        "\xc3\x41=bad\n"   // invalid UTF-8 continuation
-        "noequals\n"        // missing '='
-        "a=\n"              // empty output
-        "# just a comment\n"
-        "\n");
+    writeMappingsFile("\xc3\x41=bad\n" // invalid UTF-8 continuation
+                      "noequals\n"     // missing '='
+                      "a=\n"           // empty output
+                      "# just a comment\n"
+                      "\n");
     MappingModel m;
     m.load();
     EXPECT(m.rowCount() == static_cast<int>(defaultMappings().size()));
@@ -220,10 +225,9 @@ void testLoadValidFile() {
 // Covers the case where a user hand-edited mappings.txt and introduced one
 // syntax error — they lose the bad line, not their whole config.
 void testLoadValidWithSomeInvalidLines() {
-    writeMappingsFile(
-        "x=eins\n"
-        "\xc3\x41=bad\n"
-        "y=zwei\n");
+    writeMappingsFile("x=eins\n"
+                      "\xc3\x41=bad\n"
+                      "y=zwei\n");
     MappingModel m;
     m.load();
     EXPECT(m.rowCount() == 2);

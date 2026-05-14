@@ -15,12 +15,14 @@
 
 using fcitx::MappingModel;
 
-#define EXPECT(cond) do {                                                   \
-    if (!(cond)) {                                                          \
-        std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);\
-        std::abort();                                                       \
-    }                                                                       \
-} while (0)
+#define EXPECT(cond)                                                           \
+    do {                                                                       \
+        if (!(cond)) {                                                         \
+            std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__,       \
+                         #cond);                                               \
+            std::abort();                                                      \
+        }                                                                      \
+    } while (0)
 
 // -- isValidOutput: F3 guard -------------------------------------------------
 
@@ -100,15 +102,14 @@ void testInputAcceptsSingleMultiByte() {
 void testInputAcceptsSingleEmoji() {
     EXPECT(MappingModel::isValidInput(QString::fromUtf8("😀")));
 }
-void testInputRejectsEmpty() {
-    EXPECT(!MappingModel::isValidInput(QString()));
-}
+void testInputRejectsEmpty() { EXPECT(!MappingModel::isValidInput(QString())); }
 void testInputRejectsMultipleCodepoints() {
     EXPECT(!MappingModel::isValidInput(QStringLiteral("ab")));
-    // ZWJ sequence (👨‍💻) is 4 codepoints — input field requires exactly 1.
+    // ZWJ sequence (👨‍💻) is 4 codepoints — input field requires
+    // exactly 1.
     EXPECT(!MappingModel::isValidInput(QString::fromUtf8("\xf0\x9f\x91\xa8"
-                                                          "\xe2\x80\x8d"
-                                                          "\xf0\x9f\x92\xbb")));
+                                                         "\xe2\x80\x8d"
+                                                         "\xf0\x9f\x92\xbb")));
 }
 void testInputRejectsWhitespace() {
     EXPECT(!MappingModel::isValidInput(QStringLiteral(" ")));

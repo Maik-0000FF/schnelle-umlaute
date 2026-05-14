@@ -1,7 +1,7 @@
 #include "model.h"
-#include "mappings-io.h"
 #include <QTextStream>
 #include <fcitx-utils/i18n.h>
+#include "mappings-io.h"
 #if __has_include(<fcitx-utils/standardpaths.h>)
 #include <fcitx-utils/standardpaths.h>
 #define SU_HAS_NEW_STDPATHS 1
@@ -9,9 +9,9 @@
 #include <fcitx-utils/standardpath.h>
 #define SU_HAS_NEW_STDPATHS 0
 #endif
-#include <fcitx-utils/unixfd.h>
-#include <fcitx-utils/fs.h>
 #include <fcntl.h>
+#include <fcitx-utils/fs.h>
+#include <fcitx-utils/unixfd.h>
 
 namespace fcitx {
 
@@ -24,8 +24,7 @@ int MappingModel::rowCount(const QModelIndex &) const {
 int MappingModel::columnCount(const QModelIndex &) const { return 2; }
 
 QVariant MappingModel::data(const QModelIndex &index, int role) const {
-    if (index.row() < 0 ||
-        index.row() >= static_cast<int>(entries_.size())) {
+    if (index.row() < 0 || index.row() >= static_cast<int>(entries_.size())) {
         return {};
     }
     if (role == Qt::DisplayRole || role == Qt::EditRole) {
@@ -56,7 +55,8 @@ bool MappingModel::setData(const QModelIndex &index, const QVariant &value,
     if (role != Qt::EditRole || !index.isValid()) {
         return false;
     }
-    // Guard against out-of-range indices (e.g. stale edit delegate after row removal).
+    // Guard against out-of-range indices (e.g. stale edit delegate after row
+    // removal).
     if (index.row() < 0 || index.row() >= static_cast<int>(entries_.size())) {
         return false;
     }
@@ -82,8 +82,7 @@ bool MappingModel::setData(const QModelIndex &index, const QVariant &value,
     return true;
 }
 
-QModelIndex MappingModel::addItem(const QString &input,
-                                  const QString &output) {
+QModelIndex MappingModel::addItem(const QString &input, const QString &output) {
     int row = static_cast<int>(entries_.size());
     beginInsertRows(QModelIndex(), row, row);
     entries_.push_back({input, output});
@@ -135,16 +134,16 @@ void MappingModel::load() {
     if (file.isValid()) {
         auto fp = fs::openFD(file, "r");
 #else
-    auto file = StandardPath::global().open(
-        StandardPath::Type::PkgConfig, "schnelle-umlaute/mappings.txt", O_RDONLY);
+    auto file =
+        StandardPath::global().open(StandardPath::Type::PkgConfig,
+                                    "schnelle-umlaute/mappings.txt", O_RDONLY);
     if (file.fd() >= 0) {
         auto fp = fs::openFD(file, "r");
 #endif
         if (fp) {
             for (const auto &m : schnelle_umlaute::parseMappings(fp.get())) {
-                entries_.push_back(
-                    {QString::fromStdString(m.input),
-                     QString::fromStdString(m.output)});
+                entries_.push_back({QString::fromStdString(m.input),
+                                    QString::fromStdString(m.output)});
             }
         }
     }
@@ -160,8 +159,9 @@ void MappingModel::save() {
     bool ok = StandardPaths::global().safeSave(
         StandardPathsType::PkgConfig, "schnelle-umlaute/mappings.txt",
 #else
-    bool ok = StandardPath::global().safeSave(
-        StandardPath::Type::PkgConfig, "schnelle-umlaute/mappings.txt",
+    bool ok =
+        StandardPath::global().safeSave(StandardPath::Type::PkgConfig,
+                                        "schnelle-umlaute/mappings.txt",
 #endif
         [this](int fd) {
             UnixFD ufd(fd);
@@ -170,8 +170,7 @@ void MappingModel::save() {
                 return false;
             }
             for (const auto &e : entries_) {
-                fprintf(fp.get(), "%s=%s\n",
-                        e.input.toUtf8().constData(),
+                fprintf(fp.get(), "%s=%s\n", e.input.toUtf8().constData(),
                         e.output.toUtf8().constData());
             }
             // Flush buffered writes so ferror() catches late errors
@@ -196,16 +195,17 @@ void MappingModel::setNeedSave(bool needSave) {
 void MappingModel::loadDefaults() {
     entries_.clear();
     for (const auto &m : schnelle_umlaute::defaultMappings()) {
-        entries_.push_back(
-            {QString::fromStdString(m.input),
-             QString::fromStdString(m.output)});
+        entries_.push_back({QString::fromStdString(m.input),
+                            QString::fromStdString(m.output)});
     }
 }
 
 bool MappingModel::hasInput(const QString &input, int excludeRow) const {
     for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
-        if (i == excludeRow) continue;
-        if (entries_[i].input == input) return true;
+        if (i == excludeRow)
+            continue;
+        if (entries_[i].input == input)
+            return true;
     }
     return false;
 }
