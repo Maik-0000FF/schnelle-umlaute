@@ -9,8 +9,14 @@ configure_file(testdir.h.in ${CMAKE_CURRENT_BINARY_DIR}/testdir.h @ONLY)
 add_subdirectory(addon)
 add_subdirectory(inputmethod)
 
+# Shared strict warning flags for all test binaries — same as the
+# production library, editor, and overlay targets so test code is
+# held to the same bar.
+set(SU_TEST_WARN_FLAGS -Wall -Wextra -Wpedantic)
+
 add_executable(testschnelleumlaute testschnelleumlaute.cpp)
 target_include_directories(testschnelleumlaute PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_compile_options(testschnelleumlaute PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testschnelleumlaute Fcitx5::Core Fcitx5::Module::TestFrontend Fcitx5::Module::TestIM PkgConfig::XKBCommon)
 add_dependencies(testschnelleumlaute copy-addon-conf copy-im-conf schnelle-umlaute)
 add_test(NAME testschnelleumlaute COMMAND testschnelleumlaute)
@@ -19,6 +25,7 @@ set_tests_properties(testschnelleumlaute PROPERTIES TIMEOUT 30)
 # Standalone unit test for the mappings-io parser — no fcitx5 runtime needed.
 add_executable(testmappingsio testmappingsio.cpp)
 target_include_directories(testmappingsio PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testmappingsio PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testmappingsio COMMAND testmappingsio)
 set_tests_properties(testmappingsio PROPERTIES TIMEOUT 10)
 
@@ -27,6 +34,7 @@ set_tests_properties(testmappingsio PROPERTIES TIMEOUT 10)
 # drives the daemon start/stop on enable-flag transitions.
 add_executable(testoverlaylifecycle testoverlaylifecycle.cpp)
 target_include_directories(testoverlaylifecycle PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testoverlaylifecycle PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testoverlaylifecycle COMMAND testoverlaylifecycle)
 set_tests_properties(testoverlaylifecycle PROPERTIES TIMEOUT 10)
 
@@ -35,6 +43,7 @@ set_tests_properties(testoverlaylifecycle PROPERTIES TIMEOUT 10)
 # user's compositor (GNOME/X11 → no, KDE/sway/Hyprland → yes).
 add_executable(testlayershellcapability testlayershellcapability.cpp)
 target_include_directories(testlayershellcapability PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testlayershellcapability PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testlayershellcapability COMMAND testlayershellcapability)
 set_tests_properties(testlayershellcapability PROPERTIES TIMEOUT 10)
 
@@ -46,6 +55,7 @@ add_executable(testoverlaycontroller
     ${PROJECT_SOURCE_DIR}/overlay/OverlayController.cpp)
 set_target_properties(testoverlaycontroller PROPERTIES AUTOMOC ON)
 target_include_directories(testoverlaycontroller PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testoverlaycontroller PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testoverlaycontroller
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
@@ -60,6 +70,7 @@ add_executable(testoverlaytheme
     ${PROJECT_SOURCE_DIR}/overlay/OverlayController.cpp)
 set_target_properties(testoverlaytheme PROPERTIES AUTOMOC ON)
 target_include_directories(testoverlaytheme PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testoverlaytheme PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testoverlaytheme
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
@@ -79,6 +90,7 @@ set_target_properties(testmappinglistmodel PROPERTIES AUTOMOC ON)
 target_include_directories(testmappinglistmodel PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testmappinglistmodel PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testmappinglistmodel
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
@@ -96,6 +108,7 @@ set_target_properties(testmappinglistmodelio PROPERTIES AUTOMOC ON)
 target_include_directories(testmappinglistmodelio PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testmappinglistmodelio PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testmappinglistmodelio
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
@@ -116,6 +129,7 @@ set_target_properties(testsettingsmodel PROPERTIES AUTOMOC ON)
 target_include_directories(testsettingsmodel PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testsettingsmodel PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testsettingsmodel
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus

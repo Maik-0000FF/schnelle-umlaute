@@ -110,7 +110,7 @@ static void setMappings(Instance *instance,
 }
 
 // Helper: create IC and activate schnelle-umlaute
-static ICUUID createAndActivate(Instance *instance, AddonInstance *testfrontend,
+static ICUUID createAndActivate(Instance * /*instance*/, AddonInstance *testfrontend,
                                 const std::string &name) {
     auto uuid = testfrontend->call<ITestFrontend::createInputContext>(name);
     testfrontend->call<ITestFrontend::keyEvent>(
@@ -3218,7 +3218,7 @@ static void scheduleRemainingTests(Instance *instance) {
         FCITX_ASSERT(preedit.empty()) << "Preedit should be empty after reload, got '" << preedit << "'";
 
         // Release 'a' — no commit expected (gesture was cleared)
-        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+        [[maybe_unused]] bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
