@@ -1,41 +1,33 @@
 // Test Suite for Schnelle Umlaute (132 tests)
 //
-//  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences,
-//  uppercase, ordering guard
-// 12-16   Custom leaders       Shift-invariant, case-insensitive, double-comma
-// escaping, cycling, triple comma 17-20   Arrow leaders        Left, Right, Up,
-// Down 21-23   Alt leader           Alt_L, AltGr, release consumed
-// (timer-chained) 24-29   Custom key variants  auto-repeat suppression, '#',
-// UTF-8 '§', multi-char trim, whitespace trim 30-36   Cycling multiple outputs,
-// wrap-around, overlapping, passthrough, ordering guard, new gesture 37-44
-// Real-world text      German/English/French/Portuguese 1000-char, Alt/Custom
-// leader, anbau demo, dual analysis 45-53   Dual custom leaders  basic, split
-// allowed/blocked/reverse, single key, built-in ignores, Super/Alt+Space,
-// same-hand 54-58   Edge cases           accent repeat, modifier during
-// waiting, Alt+new key, layout classification, Alt re-press 59-64   Timeout
-// behavior     timer fires, non-mapped/mapped after timeout, uppercase delay,
-// lowercase delay, ordering guard 65-70   IC lifecycle         activate clears,
-// deactivate commits pending/cycling, reset survives, multi-IC independence
-// 71-75   Preedit              waiting char, first variant, cycle updates,
-// cleared after commit, uppercase 76-81   Non-mapped keys      during
-// waiting/cycling, Backspace, Enter, Tab 82-84   Config reload        clears
-// gestures, empty→defaults, custom key = mapped input 85-86   Alt bypass
-// non-mapped key via commitString, new mapped key during gesture 87-91
-// splitOutputs         trailing/leading comma, double-comma+separator,
-// only-commas, double-comma in cycling 92-94   sanitizeCustomKey
-// whitespace-only, empty string, uppercase normalized 95-96   Ordering guard
-// consecutive commits, Shift+Space 97-100  Stress/regression    double-tap,
-// leader without gesture, all leaders enabled, Ctrl+key during gesture 101-103
-// Empty outputs        single-comma skipped, double-comma literal,
-// all-empty→defaults 104-109 Advanced edge cases  reload during cycling, IC
-// state pollution, timeout boundary (timer-chained), rapid keys, Shift+Space
-// 110-113 Delay boundaries     default 400/700ms timer fires, uppercase min
-// 50ms, max 2000ms within window 114-118 App filter           disabled,
-// blacklist blocks/allows, whitelist allows/blocks 119-121 Error handling mixed
-// invalid mappings, out-of-range delay, all-invalid mappings fallback 122-128
-// Shifted input split  shifted symbols (! * @) with dual split, cycling,
-// Shift-held leader, single key 129-132 Focus-flap resilience FocusOut during
-// preedit/cycling, rapid 50x flap, flap after commit (sim. MouseTiler 100ms)
+// clang-format off
+//  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
+// 12-16   Custom leaders       Shift-invariant, case-insensitive, double-comma escaping, cycling, triple comma
+// 17-20   Arrow leaders        Left, Right, Up, Down
+// 21-23   Alt leader           Alt_L, AltGr, release consumed (timer-chained)
+// 24-29   Custom key variants  auto-repeat suppression, '#', UTF-8 '§', multi-char trim, whitespace trim
+// 30-36   Cycling              multiple outputs, wrap-around, overlapping, passthrough, ordering guard, new gesture
+// 37-44   Real-world text      German/English/French/Portuguese 1000-char, Alt/Custom leader, anbau demo, dual analysis
+// 45-53   Dual custom leaders  basic, split allowed/blocked/reverse, single key, built-in ignores, Super/Alt+Space, same-hand
+// 54-58   Edge cases           accent repeat, modifier during waiting, Alt+new key, layout classification, Alt re-press
+// 59-64   Timeout behavior     timer fires, non-mapped/mapped after timeout, uppercase delay, lowercase delay, ordering guard
+// 65-70   IC lifecycle         activate clears, deactivate commits pending/cycling, reset survives, multi-IC independence
+// 71-75   Preedit              waiting char, first variant, cycle updates, cleared after commit, uppercase
+// 76-81   Non-mapped keys      during waiting/cycling, Backspace, Enter, Tab
+// 82-84   Config reload        clears gestures, empty→defaults, custom key = mapped input
+// 85-86   Alt bypass           non-mapped key via commitString, new mapped key during gesture
+// 87-91   splitOutputs         trailing/leading comma, double-comma+separator, only-commas, double-comma in cycling
+// 92-94   sanitizeCustomKey    whitespace-only, empty string, uppercase normalized
+// 95-96   Ordering guard       consecutive commits, Shift+Space
+// 97-100  Stress/regression    double-tap, leader without gesture, all leaders enabled, Ctrl+key during gesture
+// 101-103 Empty outputs        single-comma skipped, double-comma literal, all-empty→defaults
+// 104-109 Advanced edge cases  reload during cycling, IC state pollution, timeout boundary (timer-chained), rapid keys, Shift+Space
+// 110-113 Delay boundaries     default 400/700ms timer fires, uppercase min 50ms, max 2000ms within window
+// 114-118 App filter           disabled, blacklist blocks/allows, whitelist allows/blocks
+// 119-121 Error handling       mixed invalid mappings, out-of-range delay, all-invalid mappings fallback
+// 122-128 Shifted input split  shifted symbols (! * @) with dual split, cycling, Shift-held leader, single key
+// 129-132 Focus-flap resilience FocusOut during preedit/cycling, rapid 50x flap, flap after commit (sim. MouseTiler 100ms)
+// clang-format on
 
 #include <ctime>
 #include <memory>
@@ -568,6 +560,13 @@ static int typeTextWordBoundaryOverlap(AddonInstance *tf, ICUUID uuid,
 // the analysis — they are skipped as non-ASCII, and the surrounding
 // ASCII letters determine word boundaries and collisions.
 
+// clang-format off
+// Real-world text constants. Kept verbatim — clang-format off because the
+// 80-column wrapper otherwise splits string literals at hex-escape boundaries
+// (e.g. "m\xc3\xa9" on one line, "langent" on the next), which destroys word
+// readability. Empty-string concatenations ("\xc3\xa9""es") are required where
+// the next character is a valid hex digit: \xHH... is greedy, so "\xc3\xa9es"
+// would parse \xa9e as a 3-digit escape and overflow.
 static const char *kGerman1000 =
     "Die Sonne scheint hell durch das Fenster und wirft lange Schatten "
     "auf den Boden. Es ist ein ruhiger Morgen in der kleinen Stadt am "
@@ -605,65 +604,50 @@ static const char *kFrench1000 =
     "Le petit chat dort sur le tapis pendant que la pluie tombe "
     "doucement dehors. Les enfants jouent dans le jardin avec un ballon "
     "rouge et bleu. La m\xc3\xa8re pr\xc3\xa9pare le repas dans la "
-    "grande cuisine o\xc3\xb9 les odeurs de pain frais se m\xc3\xa9"
-    "langent avec celles des l\xc3\xa9gumes grill\xc3\xa9"
-    "es. Le "
-    "p\xc3\xa8re lit son journal, assis dans le fauteuil pr\xc3\xa8"
-    "s "
-    "de la fen\xc3\xaatre ouverte par laquelle entre une brise "
-    "l\xc3\xa9g\xc3\xa8re. Les oiseaux chantent sur les branches des "
-    "vieux arbres. Le soleil brille entre les nuages et fait danser des "
-    "ombres sur le sol de la cour. Il fait tr\xc3\xa8"
-    "s bon vivre ici "
-    "dans ce village tranquille. Les rues sont calmes et les gens se "
-    "connaissent depuis toujours. Chaque matin, le boulanger ouvre sa "
-    "boutique et le parfum du pain chaud se r\xc3\xa9pand dans tout le "
-    "quartier. Les voisins se retrouvent au caf\xc3\xa9 pour discuter "
-    "des nouvelles du jour.";
+    "grande cuisine o\xc3\xb9 les odeurs de pain frais se m\xc3\xa9langent "
+    "avec celles des l\xc3\xa9gumes grill\xc3\xa9""es. Le p\xc3\xa8re lit "
+    "son journal, assis dans le fauteuil pr\xc3\xa8s de la fen\xc3\xaatre "
+    "ouverte par laquelle entre une brise l\xc3\xa9g\xc3\xa8re. Les "
+    "oiseaux chantent sur les branches des vieux arbres. Le soleil "
+    "brille entre les nuages et fait danser des ombres sur le sol de la "
+    "cour. Il fait tr\xc3\xa8s bon vivre ici dans ce village tranquille. "
+    "Les rues sont calmes et les gens se connaissent depuis toujours. "
+    "Chaque matin, le boulanger ouvre sa boutique et le parfum du pain "
+    "chaud se r\xc3\xa9pand dans tout le quartier. Les voisins se "
+    "retrouvent au caf\xc3\xa9 pour discuter des nouvelles du jour.";
 
 static const char *kPortuguese1000 =
     "O gato pequeno dorme no tapete macio enquanto a chuva cai "
-    "suavemente l\xc3\xa1 fora. As crian\xc3\xa7"
-    "as brincam no jardim "
-    "com uma bola vermelha e azul. A m\xc3\xa3"
-    "e prepara a "
-    "refei\xc3\xa7\xc3\xa3"
-    "o na cozinha grande onde os cheiros de "
-    "p\xc3\xa3"
-    "o fresco se misturam com os dos legumes grelhados. O "
-    "pai l\xc3\xaa o jornal sentado na poltrona perto da janela aberta "
-    "pela qual entra uma brisa suave. Os p\xc3\xa1"
-    "ssaros cantam nos "
-    "galhos das velhas \xc3\xa1rvores. O sol brilha entre as nuvens "
-    "brancas e faz dan\xc3\xa7"
-    "ar sombras no ch\xc3\xa3"
-    "o do quintal. "
-    "Faz um belo dia para sair de casa e aproveitar o ar livre. As "
-    "flores desabrocham nos jardins e as abelhas voam de flor em flor. "
-    "Uma senhora idosa senta na varanda lendo um livro enquanto seu "
-    "gato dorme ao sol. Na estrada um fazendeiro leva seus produtos "
-    "frescos para o mercado da cidade vizinha.";
+    "suavemente l\xc3\xa1 fora. As crian\xc3\xa7""as brincam no jardim "
+    "com uma bola vermelha e azul. A m\xc3\xa3""e prepara a "
+    "refei\xc3\xa7\xc3\xa3""o na cozinha grande onde os cheiros de "
+    "p\xc3\xa3o fresco se misturam com os dos legumes grelhados. O pai "
+    "l\xc3\xaa o jornal sentado na poltrona perto da janela aberta pela "
+    "qual entra uma brisa suave. Os p\xc3\xa1ssaros cantam nos galhos "
+    "das velhas \xc3\xa1rvores. O sol brilha entre as nuvens brancas e "
+    "faz dan\xc3\xa7""ar sombras no ch\xc3\xa3o do quintal. Faz um belo "
+    "dia para sair de casa e aproveitar o ar livre. As flores "
+    "desabrocham nos jardins e as abelhas voam de flor em flor. Uma "
+    "senhora idosa senta na varanda lendo um livro enquanto seu gato "
+    "dorme ao sol. Na estrada um fazendeiro leva seus produtos frescos "
+    "para o mercado da cidade vizinha.";
 
 static const char *kSpanish1000 =
-    "El peque\xc3\xb1"
-    "o gato duerme en la alfombra mientras la lluvia "
-    "cae suavemente afuera. Los ni\xc3\xb1"
-    "os juegan en el jard\xc3"
-    "\xadn con una pelota roja y azul. La madre prepara la comida en "
-    "la cocina grande donde los olores de pan fresco se mezclan con los "
-    "de las verduras asadas. El padre lee el peri\xc3\xb3"
-    "dico sentado "
+    "El peque\xc3\xb1o gato duerme en la alfombra mientras la lluvia "
+    "cae suavemente afuera. Los ni\xc3\xb1os juegan en el jard\xc3\xadn "
+    "con una pelota roja y azul. La madre prepara la comida en la "
+    "cocina grande donde los olores de pan fresco se mezclan con los "
+    "de las verduras asadas. El padre lee el peri\xc3\xb3""dico sentado "
     "en el sill\xc3\xb3n cerca de la ventana abierta por la cual entra "
     "una brisa suave. Los p\xc3\xa1jaros cantan en las ramas de los "
     "viejos \xc3\xa1rboles. El sol brilla entre las nubes y hace bailar "
-    "sombras en el suelo del patio. Hace un hermoso d\xc3\xad"
-    "a para "
+    "sombras en el suelo del patio. Hace un hermoso d\xc3\xad""a para "
     "salir de casa y disfrutar del aire libre. Las flores florecen en "
     "todos los jardines y las abejas vuelan de flor en flor. Una "
-    "se\xc3\xb1"
-    "ora mayor se sienta en el porche leyendo un libro "
+    "se\xc3\xb1ora mayor se sienta en el porche leyendo un libro "
     "mientras su gato duerme al sol. Por el camino un granjero lleva "
     "sus productos frescos al mercado de la ciudad vecina.";
+// clang-format on
 
 // Tests 24+ are scheduled from within the Alt leader timer chain (Tests 21-23)
 // to guarantee deferred commits are verified before any subsequent test runs.
