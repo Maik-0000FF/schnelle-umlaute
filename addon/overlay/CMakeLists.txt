@@ -46,6 +46,12 @@ target_link_libraries(schnelle-umlaute-overlay PRIVATE
 )
 
 target_compile_options(schnelle-umlaute-overlay PRIVATE -Wall -Wextra -Wpedantic)
+# QT_NO_KEYWORDS forces use of Q_SIGNALS / Q_SLOTS / Q_EMIT / Q_FOREACH in
+# OverlayController (already the case today). Same reasoning as the editor
+# target: keeps the Qt macros namespaced so a future include of an fcitx5
+# header declaring methods named `emit` / `foreach` is not preprocessor-
+# corrupted into Qt's macro forms.
+target_compile_definitions(schnelle-umlaute-overlay PRIVATE QT_NO_KEYWORDS)
 
 # Screen-selection API differs across LayerShellQt versions:
 #   6.6+  → setWantsToBeOnActiveScreen (preferred)

@@ -56,6 +56,7 @@ add_executable(testoverlaycontroller
 set_target_properties(testoverlaycontroller PROPERTIES AUTOMOC ON)
 target_include_directories(testoverlaycontroller PRIVATE ${PROJECT_SOURCE_DIR})
 target_compile_options(testoverlaycontroller PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testoverlaycontroller PRIVATE QT_NO_KEYWORDS)
 target_link_libraries(testoverlaycontroller
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
@@ -71,6 +72,7 @@ add_executable(testoverlaytheme
 set_target_properties(testoverlaytheme PROPERTIES AUTOMOC ON)
 target_include_directories(testoverlaytheme PRIVATE ${PROJECT_SOURCE_DIR})
 target_compile_options(testoverlaytheme PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testoverlaytheme PRIVATE QT_NO_KEYWORDS)
 target_link_libraries(testoverlaytheme
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
@@ -91,6 +93,7 @@ target_include_directories(testmappinglistmodel PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/editor)
 target_compile_options(testmappinglistmodel PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testmappinglistmodel PRIVATE QT_NO_KEYWORDS)
 target_link_libraries(testmappinglistmodel
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
@@ -109,6 +112,7 @@ target_include_directories(testmappinglistmodelio PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/editor)
 target_compile_options(testmappinglistmodelio PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testmappinglistmodelio PRIVATE QT_NO_KEYWORDS)
 target_link_libraries(testmappinglistmodelio
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
@@ -130,6 +134,7 @@ target_include_directories(testsettingsmodel PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/editor)
 target_compile_options(testsettingsmodel PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testsettingsmodel PRIVATE QT_NO_KEYWORDS)
 target_link_libraries(testsettingsmodel
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
