@@ -86,13 +86,13 @@ constexpr int kCodeAltGr = 108;
 constexpr int kCodeHash = 20;
 constexpr int kCodeO = 32;
 constexpr int kCodeU = 30;
-constexpr int kCodeE = 26;
+[[maybe_unused]] constexpr int kCodeE = 26;
 constexpr int kCodeReturn = 36;
 constexpr int kCodeBackSpace = 22;
 constexpr int kCodeTab = 23;
-constexpr int kCodeSuperL = 133;
+[[maybe_unused]] constexpr int kCodeSuperL = 133;
 constexpr int kCode1 = 10;       // physical key for 1/!
-constexpr int kCode2 = 11;       // physical key for 2/@
+[[maybe_unused]] constexpr int kCode2 = 11;       // physical key for 2/@
 constexpr int kCode8 = 17;       // physical key for 8/*
 constexpr int kCodeF = 41;       // physical key for f
 constexpr int kCodeJ = 44;       // physical key for j
@@ -1866,7 +1866,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // a word AND keys overlap — much rarer.
     // ';' leader never appears in normal text → 0 collisions.
     // =========================================================================
-    testDispatcher->schedule([instance]() {
+    testDispatcher->schedule([]() {
         FCITX_INFO() << "=== Test 44: Dual leader collision analysis ===";
 
         struct LangResult {
@@ -2296,7 +2296,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // The same physical key must always be classified to the same hand,
     // regardless of which character the layout assigns to it.
     // =========================================================================
-    testDispatcher->schedule([instance]() {
+    testDispatcher->schedule([]() {
         FCITX_INFO() << "=== Test 57: Layout-independent hand classification ===";
 
         // Mirror engine logic: isLeftHandKeycode + char→keycode reverse map
