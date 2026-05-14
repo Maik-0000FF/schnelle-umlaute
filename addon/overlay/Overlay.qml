@@ -15,30 +15,38 @@ Window {
     // show() once the surface role is fully set up.
     visible: false
 
+    // Single source of truth for the panel background opacity. All four
+    // themes share this value so a future tweak is one line, not four
+    // embedded alpha bytes in the palette hex strings. Cell colors,
+    // borders and text stay fully opaque — only the frame fades.
+    readonly property real frameOpacity: 0.80
+
     // Palettes mirror addon/editor/Theme.qml. Inlined because the overlay
     // lives in its own QML module and process — sharing a singleton would
     // cost more build plumbing than the 4 small dicts are worth.
+    // `frame` stores RGB only; the panel applies frameOpacity at render
+    // time via Qt.alpha().
     readonly property var palettes: ({
         "schnelle-umlaute": {
-            frame: "#ee12101d", border: "#2a2640",
+            frame: "#12101d", border: "#2a2640",
             cellInactive: "#1a1728", cellInactiveBorder: "#2a2640",
             cellActive: "#4ade80", cellActiveBorder: "#4ade80",
             textInactive: "#f0fdf4", textActive: "#08060f"
         },
         "dark": {
-            frame: "#ee181b22", border: "#2a2f3a",
+            frame: "#181b22", border: "#2a2f3a",
             cellInactive: "#232832", cellInactiveBorder: "#2a2f3a",
             cellActive: "#60a5fa", cellActiveBorder: "#60a5fa",
             textInactive: "#e5e7eb", textActive: "#0f1115"
         },
         "light": {
-            frame: "#f2ffffff", border: "#d4d4d8",
+            frame: "#ffffff", border: "#d4d4d8",
             cellInactive: "#f4f4f5", cellInactiveBorder: "#d4d4d8",
             cellActive: "#2563eb", cellActiveBorder: "#2563eb",
             textInactive: "#0f172a", textActive: "#ffffff"
         },
         "contrast": {
-            frame: "#f0000000", border: "#ffffff",
+            frame: "#000000", border: "#ffffff",
             cellInactive: "#0a0a0a", cellInactiveBorder: "#ffffff",
             cellActive: "#ffd60a", cellActiveBorder: "#ffd60a",
             textInactive: "#ffffff", textActive: "#000000"
@@ -100,7 +108,7 @@ Window {
     Rectangle {
         id: frame
         anchors.fill: parent
-        color: win.p.frame
+        color: Qt.alpha(win.p.frame, win.frameOpacity)
         radius: 16
         border.color: win.p.border
         border.width: 1
