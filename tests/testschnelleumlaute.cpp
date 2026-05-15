@@ -57,9 +57,10 @@
 using namespace fcitx;
 
 // Delay (in microseconds) to wait for the deferred Alt cycling commit timer
-// (5ms) to fire before verifying the committed string.  25ms gives 20ms of
-// headroom over the 5ms addon timer, avoiding flakes on loaded CI runners.
-constexpr uint64_t kDeferredVerifyDelayUsec = 25'000; // 25ms
+// (5ms) to fire before verifying the committed string.  50ms gives 45ms of
+// headroom over the 5ms addon timer — enough for sanitizer-instrumented CI
+// runners (ASan/UBSan) where 25ms was occasionally tight.
+constexpr uint64_t kDeferredVerifyDelayUsec = 50'000; // 50ms
 
 // Standalone dispatcher for scheduling test callbacks on the fcitx5 event loop.
 // Avoids Instance::eventDispatcher() which is unavailable in older fcitx5
