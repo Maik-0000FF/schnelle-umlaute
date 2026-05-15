@@ -146,6 +146,17 @@ void testEqualsAsInputKey() {
     EXPECT(r[0].output == "bang");
 }
 
+// '=' embedded in the output must round-trip verbatim: the delimiter is the
+// FIRST '=' after the leading UTF-8 char, every later '=' is data. Pinning
+// this guards against a "split on '='" refactor that would silently truncate
+// the output at the first inner '='.
+void testEqualsInOutput() {
+    auto r = parseString("a=hello=world\n");
+    EXPECT(r.size() == 1);
+    EXPECT(r[0].input == "a");
+    EXPECT(r[0].output == "hello=world");
+}
+
 void testMissingEqualsSkipped() {
     auto r = parseString("noequals\n");
     EXPECT(r.empty());
@@ -250,6 +261,7 @@ int main() {
 
     testCommentAndEmptyLinesSkipped();
     testEqualsAsInputKey();
+    testEqualsInOutput();
     testMissingEqualsSkipped();
     testEmptyOutputSkipped();
     testCrlfTrimmed();
