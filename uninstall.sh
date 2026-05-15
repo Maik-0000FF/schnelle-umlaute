@@ -166,10 +166,11 @@ fi
 # Kill the overlay daemon before deleting its binary so the old process
 # doesn't keep running with a stale file descriptor. pkill -f matches the
 # full command line — killall/pkill without -f truncate to 15 chars
-# (TASK_COMM_LEN) and miss our 24-char name.
-if pgrep -f "schnelle-umlaute-overlay" >/dev/null; then
+# (TASK_COMM_LEN) and miss our 24-char name. -u "$USER" scopes the kill
+# to the invoking user on shared hosts.
+if pgrep -u "$USER" -f "schnelle-umlaute-overlay" >/dev/null; then
     echo -e "${BLUE}Stopping overlay daemon...${NC}"
-    pkill -f "schnelle-umlaute-overlay" 2>/dev/null || true
+    pkill -u "$USER" -f "schnelle-umlaute-overlay" 2>/dev/null || true
     sleep 1
 fi
 
