@@ -15,89 +15,22 @@ echo
 
 # --- Distribution Detection ---
 
-detect_distro() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        case "$ID" in
-            arch|manjaro|endeavouros|garuda|artix|cachyos)
-                echo "arch" ;;
-            debian|ubuntu|linuxmint|pop|kali|elementary|zorin|mx|neon)
-                echo "debian" ;;
-            fedora|nobara)
-                echo "fedora" ;;
-            opensuse*|suse)
-                echo "suse" ;;
-            *)
-                # Fallback to ID_LIKE
-                case "${ID_LIKE:-}" in
-                    *arch*)                 echo "arch" ;;
-                    *debian*|*ubuntu*)      echo "debian" ;;
-                    *fedora*)               echo "fedora" ;;
-                    *suse*)                 echo "suse" ;;
-                    *)                      echo "unknown" ;;
-                esac ;;
-        esac
-    elif command -v pacman >/dev/null 2>&1; then
-        echo "arch"
-    elif command -v apt >/dev/null 2>&1; then
-        echo "debian"
-    elif command -v dnf >/dev/null 2>&1; then
-        echo "fedora"
-    elif command -v zypper >/dev/null 2>&1; then
-        echo "suse"
-    else
-        echo "unknown"
-    fi
-}
-
-DISTRO=$(detect_distro)
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/_distro.sh
+. "$PROJECT_ROOT/scripts/_distro.sh"
+detect_distro_info
 
-# Show detected distro
+# Show detected distro using the PRETTY_NAME line if available; falls
+# back to the family label we just derived.
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     DISTRO_NAME="${PRETTY_NAME:-$ID}"
 else
-    DISTRO_NAME="Unknown"
+    DISTRO_NAME="$FAMILY_LABEL"
 fi
 
 echo -e "${BLUE}Distribution:${NC} $DISTRO_NAME"
 echo
-
-# Map os-release ID to a user-facing label per derivative. The DISTRO
-# family below still drives the package-manager paths; this only affects
-# the displayed "X installer" line so e.g. a Mint user sees "Linux Mint
-# installer" instead of the generic "Debian/Ubuntu installer".
-case "${ID:-}" in
-    arch)                 FAMILY_LABEL="Arch Linux" ;;
-    manjaro)              FAMILY_LABEL="Manjaro" ;;
-    endeavouros)          FAMILY_LABEL="EndeavourOS" ;;
-    garuda)               FAMILY_LABEL="Garuda" ;;
-    artix)                FAMILY_LABEL="Artix" ;;
-    cachyos)              FAMILY_LABEL="CachyOS" ;;
-    debian)               FAMILY_LABEL="Debian" ;;
-    ubuntu)               FAMILY_LABEL="Ubuntu" ;;
-    linuxmint)            FAMILY_LABEL="Linux Mint" ;;
-    pop)                  FAMILY_LABEL="Pop!_OS" ;;
-    kali)                 FAMILY_LABEL="Kali Linux" ;;
-    elementary)           FAMILY_LABEL="elementary OS" ;;
-    zorin)                FAMILY_LABEL="Zorin OS" ;;
-    mx)                   FAMILY_LABEL="MX Linux" ;;
-    neon)                 FAMILY_LABEL="KDE neon" ;;
-    fedora)               FAMILY_LABEL="Fedora" ;;
-    nobara)               FAMILY_LABEL="Nobara" ;;
-    opensuse-tumbleweed)  FAMILY_LABEL="openSUSE Tumbleweed" ;;
-    opensuse-leap)        FAMILY_LABEL="openSUSE Leap" ;;
-    opensuse*)            FAMILY_LABEL="openSUSE" ;;
-    *)
-        case "$DISTRO" in
-            arch)    FAMILY_LABEL="Arch Linux derivative" ;;
-            debian)  FAMILY_LABEL="Debian/Ubuntu derivative" ;;
-            fedora)  FAMILY_LABEL="Fedora derivative" ;;
-            suse)    FAMILY_LABEL="openSUSE derivative" ;;
-        esac
-        ;;
-esac
 
 case "$DISTRO" in
     arch)

@@ -15,47 +15,16 @@ echo
 
 # --- Distribution Detection ---
 
-detect_distro() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        case "$ID" in
-            arch|manjaro|endeavouros|garuda|artix|cachyos)
-                echo "arch" ;;
-            debian|ubuntu|linuxmint|pop|kali|elementary|zorin|mx|neon)
-                echo "debian" ;;
-            fedora|nobara)
-                echo "fedora" ;;
-            opensuse*|suse)
-                echo "suse" ;;
-            *)
-                case "${ID_LIKE:-}" in
-                    *arch*)                 echo "arch" ;;
-                    *debian*|*ubuntu*)      echo "debian" ;;
-                    *fedora*)               echo "fedora" ;;
-                    *suse*)                 echo "suse" ;;
-                    *)                      echo "unknown" ;;
-                esac ;;
-        esac
-    elif command -v pacman >/dev/null 2>&1; then
-        echo "arch"
-    elif command -v apt >/dev/null 2>&1; then
-        echo "debian"
-    elif command -v dnf >/dev/null 2>&1; then
-        echo "fedora"
-    elif command -v zypper >/dev/null 2>&1; then
-        echo "suse"
-    else
-        echo "unknown"
-    fi
-}
-
-DISTRO=$(detect_distro)
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/_distro.sh
+. "$PROJECT_ROOT/scripts/_distro.sh"
+detect_distro_info
 
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     DISTRO_NAME="${PRETTY_NAME:-$ID}"
 else
-    DISTRO_NAME="Unknown"
+    DISTRO_NAME="$FAMILY_LABEL"
 fi
 
 echo -e "${BLUE}Distribution:${NC} $DISTRO_NAME"
