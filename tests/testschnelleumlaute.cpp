@@ -4371,13 +4371,16 @@ static void scheduleTest106(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Wait 200ms — well within 300ms window
+        // Wait 100ms — comfortably inside the 300ms window. Lower than the
+        // 200ms originally used because the fcitx5 event loop under ASan can
+        // dispatch the callback noticeably after wall-clock target, eating
+        // into the addon's timeout budget. 100ms keeps 200ms of headroom.
         struct TH {
             std::unique_ptr<EventSourceTime> t;
         };
         auto h = std::make_shared<TH>();
         h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 200'000, 0,
+            CLOCK_MONOTONIC, nowUsec() + 100'000, 0,
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 testDispatcher->schedule([instance, uuid]() {
                     auto *tf = instance->addonManager().addon("testfrontend");
@@ -4387,7 +4390,7 @@ static void scheduleTest106(Instance *instance) {
                         uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace),
                         false);
                     FCITX_ASSERT(consumed)
-                        << "Space at 200ms should convert within 300ms window";
+                        << "Space at 100ms should convert within 300ms window";
 
                     tf->call<ITestFrontend::keyEvent>(
                         uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
