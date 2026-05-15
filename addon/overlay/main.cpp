@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <memory>
 #include <QDBusConnection>
 #include <QFile>
 #include <QGuiApplication>
@@ -9,8 +11,6 @@
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QWindow>
-#include <algorithm>
-#include <memory>
 
 #include <LayerShellQt/Shell>
 #include <LayerShellQt/Window>
@@ -30,19 +30,23 @@ QString loadInitialTheme() {
     const QString base =
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     QFile f(base + QStringLiteral("/fcitx5/conf/schnelle-umlaute.conf"));
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return {};
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return {};
     QTextStream in(&f);
     QString section;
     while (!in.atEnd()) {
         const QString line = in.readLine().trimmed();
-        if (line.isEmpty() || line.startsWith('#')) continue;
+        if (line.isEmpty() || line.startsWith('#'))
+            continue;
         if (line.startsWith('[') && line.endsWith(']')) {
             section = line.mid(1, line.size() - 2);
             continue;
         }
-        if (section != QLatin1String("Theme")) continue;
-        const int eq = line.indexOf('=');
-        if (eq < 0) continue;
+        if (section != QLatin1String("Theme"))
+            continue;
+        const int eq = static_cast<int>(line.indexOf('='));
+        if (eq < 0)
+            continue;
         if (line.left(eq) == QLatin1String("Theme")) {
             return line.mid(eq + 1).trimmed();
         }
@@ -59,28 +63,45 @@ struct Anchored {
 // the equivalent column so legacy DBus callers and older configs keep
 // working.
 QString canonicalizePosition(const QString &v) {
-    if (v == QLatin1String("TopLeft"))      return QStringLiteral("TopCol1");
-    if (v == QLatin1String("TopCenter"))    return QStringLiteral("TopCol4");
-    if (v == QLatin1String("TopRight"))     return QStringLiteral("TopCol7");
-    if (v == QLatin1String("CenterLeft"))   return QStringLiteral("CenterCol1");
-    if (v == QLatin1String("Center"))       return QStringLiteral("CenterCol4");
-    if (v == QLatin1String("CenterRight"))  return QStringLiteral("CenterCol7");
-    if (v == QLatin1String("BottomLeft"))   return QStringLiteral("BottomCol1");
-    if (v == QLatin1String("BottomCenter")) return QStringLiteral("BottomCol4");
-    if (v == QLatin1String("BottomRight"))  return QStringLiteral("BottomCol7");
+    if (v == QLatin1String("TopLeft"))
+        return QStringLiteral("TopCol1");
+    if (v == QLatin1String("TopCenter"))
+        return QStringLiteral("TopCol4");
+    if (v == QLatin1String("TopRight"))
+        return QStringLiteral("TopCol7");
+    if (v == QLatin1String("CenterLeft"))
+        return QStringLiteral("CenterCol1");
+    if (v == QLatin1String("Center"))
+        return QStringLiteral("CenterCol4");
+    if (v == QLatin1String("CenterRight"))
+        return QStringLiteral("CenterCol7");
+    if (v == QLatin1String("BottomLeft"))
+        return QStringLiteral("BottomCol1");
+    if (v == QLatin1String("BottomCenter"))
+        return QStringLiteral("BottomCol4");
+    if (v == QLatin1String("BottomRight"))
+        return QStringLiteral("BottomCol7");
     return v;
 }
 
 bool parsePosition(const QString &pos, int &row, int &col) {
     int prefixLen = 0;
-    if (pos.startsWith(QLatin1String("TopCol")))         { row = 0; prefixLen = 6; }
-    else if (pos.startsWith(QLatin1String("CenterCol"))) { row = 1; prefixLen = 9; }
-    else if (pos.startsWith(QLatin1String("BottomCol"))) { row = 2; prefixLen = 9; }
-    else return false;
+    if (pos.startsWith(QLatin1String("TopCol"))) {
+        row = 0;
+        prefixLen = 6;
+    } else if (pos.startsWith(QLatin1String("CenterCol"))) {
+        row = 1;
+        prefixLen = 9;
+    } else if (pos.startsWith(QLatin1String("BottomCol"))) {
+        row = 2;
+        prefixLen = 9;
+    } else
+        return false;
 
     bool ok = false;
     const int n = pos.mid(prefixLen).toInt(&ok);
-    if (!ok || n < 1 || n > 7) return false;
+    if (!ok || n < 1 || n > 7)
+        return false;
     col = n - 1;
     return true;
 }
@@ -101,8 +122,13 @@ Anchored anchorsFor(const QString &position, int screenWidth,
     LSWindow::Anchors a;
     int top = 0, bottom = 0, left = 0, right = 0;
 
-    if (row == 0)      { a |= LSWindow::AnchorTop;    top = kEdgeMargin; }
-    else if (row == 2) { a |= LSWindow::AnchorBottom; bottom = kEdgeMargin; }
+    if (row == 0) {
+        a |= LSWindow::AnchorTop;
+        top = kEdgeMargin;
+    } else if (row == 2) {
+        a |= LSWindow::AnchorBottom;
+        bottom = kEdgeMargin;
+    }
 
     if (col == 3) {
         // no horizontal anchor → screen-centered
@@ -152,8 +178,8 @@ private:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
         engine_->loadFromModule("SchnelleUmlauteOverlay", "Overlay");
 #else
-        engine_->load(QUrl(QStringLiteral(
-            "qrc:/SchnelleUmlauteOverlay/Overlay.qml")));
+        engine_->load(
+            QUrl(QStringLiteral("qrc:/SchnelleUmlauteOverlay/Overlay.qml")));
 #endif
         if (engine_->rootObjects().isEmpty()) {
             engine_.reset();
@@ -165,7 +191,8 @@ private:
             return;
         }
         auto *ls = LSWindow::get(qwin);
-        if (!ls) return;
+        if (!ls)
+            return;
         ls->setLayer(LSWindow::LayerOverlay);
         ls->setKeyboardInteractivity(LSWindow::KeyboardInteractivityNone);
         ls->setScope(QStringLiteral("schnelle-umlaute-overlay"));
@@ -186,7 +213,8 @@ private:
         // Best we can do is ask Qt for "primary" and pin the window there
         // via QWindow::setScreen — this is the buggy-on-multi-monitor path
         // but keeps the overlay functional on older distros.
-        if (auto *scr = QGuiApplication::primaryScreen()) qwin->setScreen(scr);
+        if (auto *scr = QGuiApplication::primaryScreen())
+            qwin->setScreen(scr);
 #endif
         // Col 2/3/5/6 need the screen width (to place the overlay at a
         // fraction of it) and the overlay's own width (to subtract half
@@ -194,12 +222,12 @@ private:
         // the target fraction, not its leading edge). Col 1/4/7 don't
         // use these values, so inaccurate fallbacks are harmless.
         QScreen *targetScreen = qwin->screen();
-        if (!targetScreen) targetScreen = QGuiApplication::primaryScreen();
+        if (!targetScreen)
+            targetScreen = QGuiApplication::primaryScreen();
         const int screenWidth =
             targetScreen ? targetScreen->geometry().width() : 1920;
         const int overlayWidth = qwin->width() > 0 ? qwin->width() : 200;
-        const auto a =
-            anchorsFor(ctrl_->position(), screenWidth, overlayWidth);
+        const auto a = anchorsFor(ctrl_->position(), screenWidth, overlayWidth);
         ls->setAnchors(a.anchors);
         ls->setMargins(a.margins);
         // Layer-shell props must be set before the first commit. Now that
@@ -232,13 +260,15 @@ int main(int argc, char *argv[]) {
 #endif
 
     QGuiApplication app(argc, argv);
-    QGuiApplication::setApplicationName(QStringLiteral("schnelle-umlaute-overlay"));
+    QGuiApplication::setApplicationName(
+        QStringLiteral("schnelle-umlaute-overlay"));
     QGuiApplication::setOrganizationName(QStringLiteral("schnelle-umlaute"));
     QGuiApplication::setQuitOnLastWindowClosed(false);
 
     auto *ctrl = new OverlayController(&app);
     const QString initialTheme = loadInitialTheme();
-    if (!initialTheme.isEmpty()) ctrl->setTheme(initialTheme);
+    if (!initialTheme.isEmpty())
+        ctrl->setTheme(initialTheme);
     new OverlayDBusAdaptor(ctrl);
     new OverlayRenderer(ctrl);
 

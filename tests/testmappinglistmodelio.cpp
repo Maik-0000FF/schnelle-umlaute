@@ -44,14 +44,15 @@ std::string mappingsPath() {
 }
 
 void ensureDirs() {
-    std::filesystem::create_directories(
-        g_tempdir->path() + "/fcitx5/schnelle-umlaute");
+    std::filesystem::create_directories(g_tempdir->path() +
+                                        "/fcitx5/schnelle-umlaute");
 }
 
 void seedEmptyMappings() {
     ensureDirs();
     std::FILE *fp = std::fopen(mappingsPath().c_str(), "w");
-    if (fp) std::fclose(fp);
+    if (fp)
+        std::fclose(fp);
 }
 
 // The constructor loads defaultMappings() as a fallback whenever the file
@@ -60,7 +61,8 @@ void seedEmptyMappings() {
 // entries but keep the instance; removeMapping() triggers save() so the
 // file on disk ends up empty, matching the in-memory state.
 void drainDefaults(MappingListModel &m) {
-    while (m.rowCount() > 0) m.removeMapping(0);
+    while (m.rowCount() > 0)
+        m.removeMapping(0);
 }
 
 void writeMappingsFile(const std::string &contents) {
@@ -76,12 +78,20 @@ void writeMappingsFile(const std::string &contents) {
 
 std::string readMappingsFile() {
     std::FILE *fp = std::fopen(mappingsPath().c_str(), "r");
-    if (!fp) return {};
+    if (!fp)
+        return {};
     std::string out;
     char buf[4096];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof(buf), fp)) > 0) {
-        out.append(buf, n);
+    // Read until a short fread tells us the stream is exhausted, then
+    // exit the loop. Re-entering fread on an EOF-stream is what the
+    // unix.Stream analyzer flags as undefined behaviour.
+    bool streamEnded = false;
+    while (!streamEnded) {
+        size_t n = std::fread(buf, 1, sizeof(buf), fp);
+        if (n > 0)
+            out.append(buf, n);
+        if (n < sizeof(buf))
+            streamEnded = true;
     }
     std::fclose(fp);
     return out;
@@ -326,8 +336,7 @@ void testMutationsPersistToDisk() {
         EXPECT(m.addMapping(QStringLiteral("u"), QString::fromUtf8("ü")));
         m.moveMapping(2, 0);
         m.removeMapping(1);
-        EXPECT(m.updateMapping(0, QStringLiteral("U"),
-                               QString::fromUtf8("Ü")));
+        EXPECT(m.updateMapping(0, QStringLiteral("U"), QString::fromUtf8("Ü")));
     }
     // Fresh model reads from the same file — state must match what the
     // previous model left behind.
@@ -359,29 +368,35 @@ void testOnDiskFormatIsUtf8KeyValue() {
 // -- test runner -------------------------------------------------------------
 
 using TestFn = void (*)();
-struct TestCase { const char *name; TestFn fn; };
+struct TestCase {
+    const char *name;
+    TestFn fn;
+};
 
 const TestCase kTests[] = {
-    {"testEmptyFileLoadsDefaults",               testEmptyFileLoadsDefaults},
-    {"testExplicitEmptyFileLoadsDefaults",       testExplicitEmptyFileLoadsDefaults},
-    {"testExistingFileIsPreferredOverDefaults",  testExistingFileIsPreferredOverDefaults},
-    {"testAddMappingAppends",                    testAddMappingAppends},
-    {"testAddMappingRejectsInvalidInput",        testAddMappingRejectsInvalidInput},
-    {"testAddMappingRejectsInvalidOutput",       testAddMappingRejectsInvalidOutput},
-    {"testAddMappingRejectsDuplicateInput",      testAddMappingRejectsDuplicateInput},
-    {"testRemoveMappingByRow",                   testRemoveMappingByRow},
-    {"testRemoveMappingOutOfRangeIsNoOp",        testRemoveMappingOutOfRangeIsNoOp},
-    {"testUpdateMappingChangesValues",           testUpdateMappingChangesValues},
-    {"testUpdateMappingKeepsSelfInput",          testUpdateMappingKeepsSelfInput},
+    {"testEmptyFileLoadsDefaults", testEmptyFileLoadsDefaults},
+    {"testExplicitEmptyFileLoadsDefaults", testExplicitEmptyFileLoadsDefaults},
+    {"testExistingFileIsPreferredOverDefaults",
+     testExistingFileIsPreferredOverDefaults},
+    {"testAddMappingAppends", testAddMappingAppends},
+    {"testAddMappingRejectsInvalidInput", testAddMappingRejectsInvalidInput},
+    {"testAddMappingRejectsInvalidOutput", testAddMappingRejectsInvalidOutput},
+    {"testAddMappingRejectsDuplicateInput",
+     testAddMappingRejectsDuplicateInput},
+    {"testRemoveMappingByRow", testRemoveMappingByRow},
+    {"testRemoveMappingOutOfRangeIsNoOp", testRemoveMappingOutOfRangeIsNoOp},
+    {"testUpdateMappingChangesValues", testUpdateMappingChangesValues},
+    {"testUpdateMappingKeepsSelfInput", testUpdateMappingKeepsSelfInput},
     {"testUpdateMappingRejectsDuplicateFromOtherRow",
-        testUpdateMappingRejectsDuplicateFromOtherRow},
-    {"testUpdateMappingOutOfRangeIsRejected",    testUpdateMappingOutOfRangeIsRejected},
-    {"testMoveMappingDown",                      testMoveMappingDown},
-    {"testMoveMappingUp",                        testMoveMappingUp},
-    {"testMoveMappingSameIndexIsNoOp",           testMoveMappingSameIndexIsNoOp},
-    {"testMoveMappingOutOfRangeIsNoOp",          testMoveMappingOutOfRangeIsNoOp},
-    {"testMutationsPersistToDisk",               testMutationsPersistToDisk},
-    {"testOnDiskFormatIsUtf8KeyValue",           testOnDiskFormatIsUtf8KeyValue},
+     testUpdateMappingRejectsDuplicateFromOtherRow},
+    {"testUpdateMappingOutOfRangeIsRejected",
+     testUpdateMappingOutOfRangeIsRejected},
+    {"testMoveMappingDown", testMoveMappingDown},
+    {"testMoveMappingUp", testMoveMappingUp},
+    {"testMoveMappingSameIndexIsNoOp", testMoveMappingSameIndexIsNoOp},
+    {"testMoveMappingOutOfRangeIsNoOp", testMoveMappingOutOfRangeIsNoOp},
+    {"testMutationsPersistToDisk", testMutationsPersistToDisk},
+    {"testOnDiskFormatIsUtf8KeyValue", testOnDiskFormatIsUtf8KeyValue},
 };
 
 int main(int argc, char **argv) {

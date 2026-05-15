@@ -15,11 +15,13 @@
 #include <cstdio>
 #include <cstdlib>
 
-#define EXPECT(cond) do {                                                    \
-    if (!(cond)) {                                                           \
-        std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-        std::abort();                                                        \
-    }                                                                        \
-} while (0)
+#define EXPECT(cond)                                                           \
+    do {                                                                       \
+        if (!(cond)) {                                                         \
+            std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__,       \
+                         #cond);                                               \
+            std::abort();                                                      \
+        }                                                                      \
+    } while (0)
 
 #endif

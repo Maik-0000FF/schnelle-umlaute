@@ -15,30 +15,60 @@ Window {
     // show() once the surface role is fully set up.
     visible: false
 
+    // Single source of truth for the panel background opacity. All four
+    // themes share this value so a future tweak is one line, not four
+    // embedded alpha bytes in the palette hex strings. Cell colors,
+    // borders and text stay fully opaque — only the frame fades.
+    readonly property real frameOpacity: 0.75
+
+    // Animation constants — keep every color / border transition (frame,
+    // cells, text) at the same duration so the active-cell handover and
+    // theme switches feel like one motion rather than three offset ones.
+    readonly property int animationDuration: 120
+
+    // Layout constants — `cellSize` is the 44 px referenced in the
+    // truncateDisplay comment below ("Three codepoints fit in JetBrains
+    // Mono at pixelSize 16 (≈9.6 px each)" against a 44 px cell).
+    // `framePadding` is per-side: the panel rectangle's implicitWidth
+    // adds 2 × framePadding to the row width.
+    readonly property int cellSize: 44
+    readonly property int framePadding: 16
+
+    // Font sizes per variant glyph type. Color-emoji fonts occupy a
+    // smaller fraction of the em-box than JetBrains Mono at the same
+    // pixelSize, so emoji bumps to 24; single ASCII letters stay at 20;
+    // multi-codepoint truncations shrink to 16 to fit "xy…" inside the
+    // 44 px cell.
+    readonly property int pixelSizeSingle: 20
+    readonly property int pixelSizeMulti: 16
+    readonly property int pixelSizeEmoji: 24
+
     // Palettes mirror addon/editor/Theme.qml. Inlined because the overlay
     // lives in its own QML module and process — sharing a singleton would
     // cost more build plumbing than the 4 small dicts are worth.
+    // `frame` stores RGB only; the panel applies frameOpacity at render
+    // time via Qt.alpha().
     readonly property var palettes: ({
         "schnelle-umlaute": {
-            frame: "#ee12101d", border: "#2a2640",
+            frame: "#12101d", border: "#2a2640",
             cellInactive: "#1a1728", cellInactiveBorder: "#2a2640",
             cellActive: "#4ade80", cellActiveBorder: "#4ade80",
             textInactive: "#f0fdf4", textActive: "#08060f"
         },
         "dark": {
-            frame: "#ee181b22", border: "#2a2f3a",
+            frame: "#181b22", border: "#2a2f3a",
             cellInactive: "#232832", cellInactiveBorder: "#2a2f3a",
             cellActive: "#60a5fa", cellActiveBorder: "#60a5fa",
             textInactive: "#e5e7eb", textActive: "#0f1115"
         },
         "light": {
-            frame: "#f2ffffff", border: "#d4d4d8",
+            frame: "#ffffff", border: "#d4d4d8",
             cellInactive: "#f4f4f5", cellInactiveBorder: "#d4d4d8",
             cellActive: "#2563eb", cellActiveBorder: "#2563eb",
             textInactive: "#0f172a", textActive: "#ffffff"
         },
         "contrast": {
-            frame: "#f0000000", border: "#ffffff",
+            frame: "#000000", border: "#ffffff",
             cellInactive: "#0a0a0a", cellInactiveBorder: "#ffffff",
             cellActive: "#ffd60a", cellActiveBorder: "#ffd60a",
             textInactive: "#ffffff", textActive: "#000000"
@@ -100,15 +130,15 @@ Window {
     Rectangle {
         id: frame
         anchors.fill: parent
-        color: win.p.frame
+        color: Qt.alpha(win.p.frame, win.frameOpacity)
         radius: 16
         border.color: win.p.border
         border.width: 1
-        implicitWidth: row.implicitWidth + 32
+        implicitWidth: row.implicitWidth + 2 * win.framePadding
         implicitHeight: 64
 
-        Behavior on color { ColorAnimation { duration: 120 } }
-        Behavior on border.color { ColorAnimation { duration: 120 } }
+        Behavior on color { ColorAnimation { duration: win.animationDuration } }
+        Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
 
         RowLayout {
             id: row
@@ -121,15 +151,15 @@ Window {
                     required property int index
                     required property string modelData
                     readonly property bool active: index === OverlayController.currentIndex
-                    width: 44
-                    height: 44
+                    width: win.cellSize
+                    height: win.cellSize
                     radius: 10
                     color: active ? win.p.cellActive : win.p.cellInactive
                     border.color: active ? win.p.cellActiveBorder : win.p.cellInactiveBorder
                     border.width: 1
 
-                    Behavior on color { ColorAnimation { duration: 120 } }
-                    Behavior on border.color { ColorAnimation { duration: 120 } }
+                    Behavior on color { ColorAnimation { duration: win.animationDuration } }
+                    Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
 
                     Text {
                         anchors.centerIn: parent
@@ -137,12 +167,12 @@ Window {
                         color: active ? win.p.textActive : win.p.textInactive
                         font.family: "JetBrains Mono"
                         font.pixelSize: {
-                            if (win.codepointCount(modelData) > 1) return 16
-                            return win.isEmoji(modelData) ? 24 : 20
+                            if (win.codepointCount(modelData) > 1) return win.pixelSizeMulti
+                            return win.isEmoji(modelData) ? win.pixelSizeEmoji : win.pixelSizeSingle
                         }
                         font.weight: Font.Medium
 
-                        Behavior on color { ColorAnimation { duration: 120 } }
+                        Behavior on color { ColorAnimation { duration: win.animationDuration } }
                     }
                 }
             }

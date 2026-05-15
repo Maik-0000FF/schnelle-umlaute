@@ -31,10 +31,14 @@ inline std::vector<RawMapping> defaultMappings() {
 // Byte length of the first UTF-8 character based on its leading byte.
 // Returns 0 for invalid lead bytes (continuation bytes or 0xFE/0xFF).
 inline size_t utf8CharLen(unsigned char lead) {
-    if (lead < 0x80) return 1;
-    if ((lead & 0xE0) == 0xC0) return 2;
-    if ((lead & 0xF0) == 0xE0) return 3;
-    if ((lead & 0xF8) == 0xF0) return 4;
+    if (lead < 0x80)
+        return 1;
+    if ((lead & 0xE0) == 0xC0)
+        return 2;
+    if ((lead & 0xF0) == 0xE0)
+        return 3;
+    if ((lead & 0xF8) == 0xF0)
+        return 4;
     return 0;
 }
 
@@ -46,11 +50,14 @@ inline size_t utf8CharLen(unsigned char lead) {
 // lead byte. No overlong-encoding check: realistic editors don't produce
 // them, and the cost outweighs the benefit for a user-owned config file.
 inline size_t utf8FirstCharBytes(const char *s, size_t len) {
-    if (len == 0) return 0;
+    if (len == 0)
+        return 0;
     size_t n = utf8CharLen(static_cast<unsigned char>(s[0]));
-    if (n == 0 || n > len) return 0;
+    if (n == 0 || n > len)
+        return 0;
     for (size_t i = 1; i < n; ++i) {
-        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) return 0;
+        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80)
+            return 0;
     }
     return n;
 }
@@ -68,32 +75,41 @@ inline size_t utf8FirstCharBytes(const char *s, size_t len) {
 inline std::vector<RawMapping> parseMappings(FILE *fp) {
     std::vector<RawMapping> entries;
     char buf[4096];
-    while (fgets(buf, sizeof(buf), fp)) {
+    bool streamEnded = false;
+    while (!streamEnded && fgets(buf, sizeof(buf), fp)) {
         std::string line(buf);
         // fgets filled the whole buffer AND did not reach a newline →
         // candidate for truncation. Still ambiguous: the line could end
         // exactly at the buffer boundary (next char is '\n' or EOF),
         // in which case it is actually complete.
-        bool mightBeTruncated = (line.size() == sizeof(buf) - 1) &&
-                                line.back() != '\n';
+        bool mightBeTruncated =
+            (line.size() == sizeof(buf) - 1) && line.back() != '\n';
         // Trim trailing newline / carriage return
-        while (!line.empty() &&
-               (line.back() == '\n' || line.back() == '\r')) {
+        while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) {
             line.pop_back();
         }
         if (mightBeTruncated) {
             int c = std::fgetc(fp);
-            if (c != EOF && c != '\n') {
+            if (c == EOF) {
+                // Stream ended on the buffer boundary. Parse this line
+                // as the final one; setting streamEnded ensures we don't
+                // re-enter fgets on a stream already in EOF state.
+                streamEnded = true;
+            } else if (c != '\n') {
                 // Truly truncated — drain the rest of the physical line
                 // and drop this entry. Parsing the prefix would store a
                 // corrupt mapping and misinterpret the tail as new lines.
-                while ((c = std::fgetc(fp)) != EOF && c != '\n') {}
+                while ((c = std::fgetc(fp)) != EOF && c != '\n') {
+                }
+                if (c == EOF)
+                    break;
                 continue;
             }
-            // c == '\n' or EOF → the line just happened to end on the
-            // buffer boundary. It is complete; proceed with normal parsing.
+            // c == '\n' → the line just happened to end on the buffer
+            // boundary. It is complete; proceed with normal parsing.
         }
-        if (line.empty() || line[0] == '#') continue;
+        if (line.empty() || line[0] == '#')
+            continue;
         size_t inputLen = utf8FirstCharBytes(line.data(), line.size());
         if (inputLen == 0 || line.size() <= inputLen || line[inputLen] != '=') {
             continue;

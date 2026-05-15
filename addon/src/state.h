@@ -5,11 +5,11 @@
 // window gets its own instance via InputContextProperty so focus switches
 // between windows cannot corrupt one another's gesture state.
 
-#include <fcitx/inputcontextproperty.h>
 #include <fcitx-utils/event.h>
+#include <fcitx/inputcontextproperty.h>
 
-#include <ctime>
 #include <cstdint>
+#include <ctime>
 #include <memory>
 #include <optional>
 #include <string>
@@ -32,9 +32,9 @@ public:
     bool inputKeyPressed_ = false;
     int waitingKeyCode_ = 0;
 
-    // Set after commit to route next Space through commitString (ordering guard).
-    // Intentionally NOT cleared in clearAllState() — apps like WezTerm and
-    // Chromium call reset() after every commit, which would destroy the
+    // Set after commit to route next Space through commitString (ordering
+    // guard). Intentionally NOT cleared in clearAllState() — apps like WezTerm
+    // and Chromium call reset() after every commit, which would destroy the
     // ordering guard before Space arrives.
     bool recentlyCommitted_ = false;
 
@@ -79,22 +79,22 @@ public:
         cyclingIndex_ = 0;
     }
 
-    void cancelTimeout() {
-        timeoutEvent_.reset();
-    }
+    void cancelTimeout() { timeoutEvent_.reset(); }
 
     bool isTimeoutExpired(int effectiveDelay) const {
-        if (!waitingKey_) return false;
+        if (!waitingKey_)
+            return false;
         uint64_t now_usec = nowUsec();
-        uint64_t elapsed_ms = (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
+        uint64_t elapsed_ms =
+            (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
         return elapsed_ms > static_cast<uint64_t>(effectiveDelay);
     }
 
     static uint64_t nowUsec() {
         timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
-        return static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond
-             + ts.tv_nsec / kNanosecondsPerMicrosecond;
+        return static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond +
+               ts.tv_nsec / kNanosecondsPerMicrosecond;
     }
 };
 

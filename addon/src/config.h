@@ -37,6 +37,7 @@ public:
         marshallOption(config["IntMax"], max_);
         marshallOption(config["IntStep"], step_);
     }
+
 private:
     int min_;
     int max_;
@@ -60,51 +61,62 @@ struct PlaceholderAnnotation {
             config.setValueByPath("Tooltip", tooltip_);
         }
     }
+
 private:
     std::string text_;
     bool compact_;
     std::string tooltip_;
 };
 
+FCITX_CONFIGURATION(DelayConfig,
+                    Option<int, IntConstrainWithStep> lowercase{
+                        this, "Lowercase", "Lowercase (ms)", 400,
+                        IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
+                    Option<int, IntConstrainWithStep> uppercase{
+                        this, "Uppercase", "Uppercase (ms)", 700,
+                        IntConstrainWithStep(kDelayMin, kDelayMax,
+                                             kDelayStep)};);
 
 FCITX_CONFIGURATION(
-    DelayConfig,
-    Option<int, IntConstrainWithStep> lowercase{this, "Lowercase", "Lowercase (ms)", 400, IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
-    Option<int, IntConstrainWithStep> uppercase{this, "Uppercase", "Uppercase (ms)", 700, IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
-);
-
-FCITX_CONFIGURATION(
-    CustomLeaderConfig,
-    Option<bool> customKeyEnabled{this, "CustomKeyEnabled",
-        "Custom Leader 1", false};
+    CustomLeaderConfig, Option<bool> customKeyEnabled{this, "CustomKeyEnabled",
+                                                      "Custom Leader 1", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey{
-        this, "CustomKey", "  \xe2\x86\xb3 Key", "",
-        {}, {}, PlaceholderAnnotation("e.g. ; or #", true,
+        this,
+        "CustomKey",
+        "  \xe2\x86\xb3 Key",
+        "",
+        {},
+        {},
+        PlaceholderAnnotation(
+            "e.g. ; or #", true,
             "Single character. Must not be a mapped input key.")};
     Option<bool> customKey2Enabled{this, "CustomKey2Enabled",
-        "Custom Leader 2 (hand-split)", false};
+                                   "Custom Leader 2 (hand-split)", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey2{
-        this, "CustomKey2", "  \xe2\x86\xb3 Key", "",
-        {}, {}, PlaceholderAnnotation("e.g. j or f", true,
-            "Single character on the opposite keyboard half of Leader 1.")};
-);
+        this,
+        "CustomKey2",
+        "  \xe2\x86\xb3 Key",
+        "",
+        {},
+        {},
+        PlaceholderAnnotation(
+            "e.g. j or f", true,
+            "Single character on the opposite keyboard half of Leader 1.")};);
 
-FCITX_CONFIGURATION(
-    LeaderConfig,
-    Option<bool> space{this, "Space", "Space", true};
-    Option<bool> left{this, "Left", "Left Arrow", false};
-    Option<bool> right{this, "Right", "Right Arrow", false};
-    Option<bool> up{this, "Up", "Up Arrow", false};
-    Option<bool> down{this, "Down", "Down Arrow", false};
-    Option<bool> alt{this, "Alt", "Alt/AltGr", false};
-    Option<CustomLeaderConfig> custom{this, "Custom", "Custom Leader Keys"};
-);
+FCITX_CONFIGURATION(LeaderConfig,
+                    Option<bool> space{this, "Space", "Space", true};
+                    Option<bool> left{this, "Left", "Left Arrow", false};
+                    Option<bool> right{this, "Right", "Right Arrow", false};
+                    Option<bool> up{this, "Up", "Up Arrow", false};
+                    Option<bool> down{this, "Down", "Down Arrow", false};
+                    Option<bool> alt{this, "Alt", "Alt/AltGr", false};
+                    Option<CustomLeaderConfig> custom{this, "Custom",
+                                                      "Custom Leader Keys"};);
 
-FCITX_CONFIGURATION(
-    MappingsConfig,
-    ExternalOption editor{this, "Editor", "Mapping Editor",
-        "fcitx://config/addon/schnelle-umlaute/mappings.txt"};
-);
+FCITX_CONFIGURATION(MappingsConfig,
+                    ExternalOption editor{
+                        this, "Editor", "Mapping Editor",
+                        "fcitx://config/addon/schnelle-umlaute/mappings.txt"};);
 
 FCITX_CONFIG_ENUM(AppFilterMode, Disabled, Blacklist, Whitelist);
 
@@ -114,8 +126,7 @@ FCITX_CONFIGURATION(
     Option<std::vector<std::string>> blacklist{
         this, "Blacklist", "Blacklist", {}};
     Option<std::vector<std::string>> whitelist{
-        this, "Whitelist", "Whitelist", {}};
-);
+        this, "Whitelist", "Whitelist", {}};);
 
 // 7-column × 3-row grid. 7 columns (odd count) keeps a true center
 // column for fullscreen use while giving three stops per half on a 4K
@@ -124,26 +135,20 @@ FCITX_CONFIGURATION(
 // daemon using the active screen width. Split into two enums because
 // FCITX_CONFIG_ENUM caps at 12 values (FCITX_FOR_EACH limit).
 FCITX_CONFIG_ENUM(OverlayRow, Top, Center, Bottom);
-FCITX_CONFIG_ENUM(OverlayColumn,
-                  Col1, Col2, Col3, Col4, Col5, Col6, Col7);
+FCITX_CONFIG_ENUM(OverlayColumn, Col1, Col2, Col3, Col4, Col5, Col6, Col7);
 
 FCITX_CONFIGURATION(
-    OverlayConfig,
-    Option<bool> enabled{this, "Enabled", "Enabled", false};
-    Option<OverlayRow> row{this, "Row", "Vertical position",
-                           OverlayRow::Top};
+    OverlayConfig, Option<bool> enabled{this, "Enabled", "Enabled", false};
+    Option<OverlayRow> row{this, "Row", "Vertical position", OverlayRow::Top};
     Option<OverlayColumn> column{this, "Column", "Horizontal position",
-                                 OverlayColumn::Col4};
-);
+                                 OverlayColumn::Col4};);
 
 FCITX_CONFIGURATION(
-    SchnelleUmlauteConfig,
-    Option<DelayConfig> delay{this, "Delay", "Delay"};
+    SchnelleUmlauteConfig, Option<DelayConfig> delay{this, "Delay", "Delay"};
     Option<LeaderConfig> leader{this, "Leader", "Leader Keys"};
     Option<MappingsConfig> mappings{this, "Mappings", "Mappings"};
     Option<AppFilterConfig> appFilter{this, "AppFilter", "App Filter"};
-    Option<OverlayConfig> overlay{this, "Overlay", "Overlay"};
-);
+    Option<OverlayConfig> overlay{this, "Overlay", "Overlay"};);
 
 // What fcitx5-config-qt and the KDE KCM render when the user clicks the
 // gear icon next to "Schnelle Umlaute". Exposing exactly one ExternalOption
@@ -156,11 +161,9 @@ FCITX_CONFIGURATION(
 // through ~/.config/fcitx5/conf/schnelle-umlaute.conf. The editor writes
 // that file and triggers a DBus ReloadAddonConfig, which re-enters our
 // reloadConfig() to repopulate config_.
-FCITX_CONFIGURATION(
-    ExternalEditorConfig,
-    ExternalOption editor{this, "Editor", "Open Editor",
-                          "schnelle-umlaute-editor"};
-);
+FCITX_CONFIGURATION(ExternalEditorConfig,
+                    ExternalOption editor{this, "Editor", "Open Editor",
+                                          "schnelle-umlaute-editor"};);
 
 } // namespace fcitx
 

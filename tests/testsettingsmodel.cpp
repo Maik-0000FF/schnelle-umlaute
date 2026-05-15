@@ -37,19 +37,30 @@ void ensureConfDir() {
 void writeConfig(const std::string &body) {
     ensureConfDir();
     std::FILE *fp = std::fopen(configPath().c_str(), "w");
-    if (!fp) { std::fprintf(stderr, "open %s failed\n", configPath().c_str()); std::abort(); }
+    if (!fp) {
+        std::fprintf(stderr, "open %s failed\n", configPath().c_str());
+        std::abort();
+    }
     std::fwrite(body.data(), 1, body.size(), fp);
     std::fclose(fp);
 }
 
 std::string readConfig() {
     std::FILE *fp = std::fopen(configPath().c_str(), "r");
-    if (!fp) return {};
+    if (!fp)
+        return {};
     std::string out;
     char buf[4096];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof(buf), fp)) > 0) {
-        out.append(buf, n);
+    // Read until a short fread tells us the stream is exhausted, then
+    // exit the loop. Re-entering fread on an EOF-stream is what the
+    // unix.Stream analyzer flags as undefined behaviour.
+    bool streamEnded = false;
+    while (!streamEnded) {
+        size_t n = std::fread(buf, 1, sizeof(buf), fp);
+        if (n > 0)
+            out.append(buf, n);
+        if (n < sizeof(buf))
+            streamEnded = true;
     }
     std::fclose(fp);
     return out;
@@ -190,10 +201,9 @@ void testBlacklistDedupAndTrim() {
 // the equivalent column on the new grid, not reset to default.
 void testLegacyPositionMigration() {
     resetTempdir();
-    writeConfig(
-        "[Overlay]\n"
-        "Enabled=True\n"
-        "Position=TopCenter\n");
+    writeConfig("[Overlay]\n"
+                "Enabled=True\n"
+                "Position=TopCenter\n");
     SettingsModel s;
     EXPECT(s.overlayEnabled() == true);
     EXPECT(s.overlayPosition() == QStringLiteral("TopCol4"));
@@ -201,9 +211,8 @@ void testLegacyPositionMigration() {
 
 void testLegacyPositionCornerMigration() {
     resetTempdir();
-    writeConfig(
-        "[Overlay]\n"
-        "Position=BottomRight\n");
+    writeConfig("[Overlay]\n"
+                "Position=BottomRight\n");
     SettingsModel s;
     EXPECT(s.overlayPosition() == QStringLiteral("BottomCol7"));
 }
@@ -213,9 +222,8 @@ void testLegacyPositionCornerMigration() {
 // silently rename. Leaving it intact surfaces the problem to the user.
 void testUnknownPositionPassesThrough() {
     resetTempdir();
-    writeConfig(
-        "[Overlay]\n"
-        "Position=TopCol2\n");
+    writeConfig("[Overlay]\n"
+                "Position=TopCol2\n");
     SettingsModel s;
     EXPECT(s.overlayPosition() == QStringLiteral("TopCol2"));
 }
@@ -224,11 +232,10 @@ void testUnknownPositionPassesThrough() {
 // the new format is authoritative on anything fcitx5 1.2+ wrote.
 void testNewRowColumnBeatsLegacyPosition() {
     resetTempdir();
-    writeConfig(
-        "[Overlay]\n"
-        "Position=TopCenter\n"
-        "Row=Bottom\n"
-        "Column=Col7\n");
+    writeConfig("[Overlay]\n"
+                "Position=TopCenter\n"
+                "Row=Bottom\n"
+                "Column=Col7\n");
     SettingsModel s;
     EXPECT(s.overlayPosition() == QStringLiteral("BottomCol7"));
 }
@@ -237,9 +244,8 @@ void testNewRowColumnBeatsLegacyPosition() {
 // Stops a malformed file from surfacing as an empty "Top" position.
 void testPartialRowColumnFillsColumnDefault() {
     resetTempdir();
-    writeConfig(
-        "[Overlay]\n"
-        "Row=Bottom\n");
+    writeConfig("[Overlay]\n"
+                "Row=Bottom\n");
     SettingsModel s;
     EXPECT(s.overlayPosition() == QStringLiteral("BottomCol4"));
 }
@@ -250,9 +256,8 @@ void testPartialRowColumnFillsColumnDefault() {
 // overwrite the in-memory default, so the UI has something valid to show.
 void testUnknownThemeIgnoredAtLoad() {
     resetTempdir();
-    writeConfig(
-        "[Theme]\n"
-        "Theme=solarized\n");
+    writeConfig("[Theme]\n"
+                "Theme=solarized\n");
     SettingsModel s;
     EXPECT(s.theme() == QStringLiteral("schnelle-umlaute"));
 }
@@ -322,26 +327,32 @@ void testOnDiskFormatHasExpectedSections() {
 // -- test runner -------------------------------------------------------------
 
 using TestFn = void (*)();
-struct TestCase { const char *name; TestFn fn; };
+struct TestCase {
+    const char *name;
+    TestFn fn;
+};
 
 const TestCase kTests[] = {
-    {"testIsValidLeaderKey",                  testIsValidLeaderKey},
-    {"testIsValidTheme",                      testIsValidTheme},
-    {"testDefaultsOnMissingFile",             testDefaultsOnMissingFile},
-    {"testScalarRoundTrip",                   testScalarRoundTrip},
-    {"testBlacklistAddAndRoundTrip",          testBlacklistAddAndRoundTrip},
-    {"testWhitelistAddAndRemove",             testWhitelistAddAndRemove},
-    {"testBlacklistDedupAndTrim",             testBlacklistDedupAndTrim},
-    {"testLegacyPositionMigration",           testLegacyPositionMigration},
-    {"testLegacyPositionCornerMigration",     testLegacyPositionCornerMigration},
-    {"testUnknownPositionPassesThrough",      testUnknownPositionPassesThrough},
-    {"testNewRowColumnBeatsLegacyPosition",   testNewRowColumnBeatsLegacyPosition},
-    {"testPartialRowColumnFillsColumnDefault",testPartialRowColumnFillsColumnDefault},
-    {"testUnknownThemeIgnoredAtLoad",         testUnknownThemeIgnoredAtLoad},
-    {"testSetThemeRejectsUnknown",            testSetThemeRejectsUnknown},
+    {"testIsValidLeaderKey", testIsValidLeaderKey},
+    {"testIsValidTheme", testIsValidTheme},
+    {"testDefaultsOnMissingFile", testDefaultsOnMissingFile},
+    {"testScalarRoundTrip", testScalarRoundTrip},
+    {"testBlacklistAddAndRoundTrip", testBlacklistAddAndRoundTrip},
+    {"testWhitelistAddAndRemove", testWhitelistAddAndRemove},
+    {"testBlacklistDedupAndTrim", testBlacklistDedupAndTrim},
+    {"testLegacyPositionMigration", testLegacyPositionMigration},
+    {"testLegacyPositionCornerMigration", testLegacyPositionCornerMigration},
+    {"testUnknownPositionPassesThrough", testUnknownPositionPassesThrough},
+    {"testNewRowColumnBeatsLegacyPosition",
+     testNewRowColumnBeatsLegacyPosition},
+    {"testPartialRowColumnFillsColumnDefault",
+     testPartialRowColumnFillsColumnDefault},
+    {"testUnknownThemeIgnoredAtLoad", testUnknownThemeIgnoredAtLoad},
+    {"testSetThemeRejectsUnknown", testSetThemeRejectsUnknown},
     {"testIsActiveLeaderKeyRespectsEnabledFlag",
-        testIsActiveLeaderKeyRespectsEnabledFlag},
-    {"testOnDiskFormatHasExpectedSections",   testOnDiskFormatHasExpectedSections},
+     testIsActiveLeaderKeyRespectsEnabledFlag},
+    {"testOnDiskFormatHasExpectedSections",
+     testOnDiskFormatHasExpectedSections},
 };
 
 int main(int argc, char **argv) {

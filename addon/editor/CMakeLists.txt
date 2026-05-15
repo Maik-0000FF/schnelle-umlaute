@@ -10,9 +10,11 @@ endif()
 
 set(EDITOR_SRCS
     main.cpp
+    EnvSetup.cpp
     MappingListModel.cpp
     OverlayDBusClient.cpp
     SettingsModel.cpp
+    SingleInstance.cpp
 )
 
 qt_add_executable(schnelle-umlaute-editor ${EDITOR_SRCS})
@@ -45,6 +47,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/AppListEditor.qml
         components/ConfirmDialog.qml
         components/PositionPicker.qml
+        components/ThemedComboBox.qml
     RESOURCES
         assets/schnelle-umlaute-icon.svg
 )
@@ -59,6 +62,16 @@ target_link_libraries(schnelle-umlaute-editor PRIVATE
 )
 
 target_compile_options(schnelle-umlaute-editor PRIVATE -Wall -Wextra -Wpedantic)
+# QT_NO_KEYWORDS forces use of Q_SIGNALS / Q_SLOTS / Q_EMIT / Q_FOREACH in
+# our own Qt code (MappingListModel / SettingsModel already use these
+# exclusively, so no source change is needed). The reason this matters is
+# interoperability with fcitx5 if the editor ever pulls in fcitx headers
+# directly: several fcitx Util headers declare methods named `emit` /
+# `foreach` as ordinary identifiers. Pulling any of them into a Qt TU
+# under the default macro set silently destroys those declarations through
+# preprocessor substitution. With QT_NO_KEYWORDS the macros stay namespaced,
+# so future editor refactors don't run into a preprocessor wall.
+target_compile_definitions(schnelle-umlaute-editor PRIVATE QT_NO_KEYWORDS)
 
 install(TARGETS schnelle-umlaute-editor
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")

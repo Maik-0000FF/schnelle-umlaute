@@ -1,28 +1,28 @@
-#include <fcitx/addonfactory.h>
-#include <fcitx/addonmanager.h>
-#include <fcitx/inputmethodengine.h>
-#include <fcitx/instance.h>
-#include <fcitx/inputcontext.h>
-#include <fcitx/inputcontextproperty.h>
-#include <fcitx/inputpanel.h>
-#include <fcitx-utils/textformatflags.h>
-#include <fcitx-utils/utf8.h>
+#include <algorithm>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <fcitx-config/iniparser.h>
 #include <fcitx-utils/event.h>
 #include <fcitx-utils/log.h>
-#include <fcitx-config/iniparser.h>
+#include <fcitx-utils/textformatflags.h>
+#include <fcitx-utils/utf8.h>
+#include <fcitx/addonfactory.h>
+#include <fcitx/addonmanager.h>
+#include <fcitx/inputcontext.h>
+#include <fcitx/inputcontextproperty.h>
+#include <fcitx/inputmethodengine.h>
+#include <fcitx/inputpanel.h>
+#include <fcitx/instance.h>
+#include <xkbcommon/xkbcommon.h>
 #include "app_filter.h"
 #include "config.h"
 #include "hand_classifier.h"
 #include "mappings_loader.h"
 #include "overlay_client.h"
 #include "state.h"
-#include <xkbcommon/xkbcommon.h>
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
-#include <memory>
-#include <algorithm>
 
 namespace fcitx {
 
@@ -37,7 +37,7 @@ constexpr uint32_t kMaxUnicodeCodepoint = 0x10FFFF;
 // - When input key is released, cycling ends
 // =============================================================================
 
-class SchnelleUmlauteEngine : public InputMethodEngineV2 {
+class SchnelleUmlauteEngine final : public InputMethodEngineV2 {
 public:
     SchnelleUmlauteEngine(Instance *instance)
         : instance_(instance),
@@ -51,8 +51,8 @@ public:
         // resolved back to '/' via the keymap).
         xkbCtx_ = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
         if (xkbCtx_) {
-            xkbKeymap_ = xkb_keymap_new_from_names(
-                xkbCtx_, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
+            xkbKeymap_ = xkb_keymap_new_from_names(xkbCtx_, nullptr,
+                                                   XKB_KEYMAP_COMPILE_NO_FLAGS);
             if (!xkbKeymap_) {
                 FCITX_WARN() << "Schnelle: XKB keymap creation failed"
                              << " — custom leader resolution disabled";
@@ -67,8 +67,10 @@ public:
     }
 
     ~SchnelleUmlauteEngine() {
-        if (xkbKeymap_) xkb_keymap_unref(xkbKeymap_);
-        if (xkbCtx_) xkb_context_unref(xkbCtx_);
+        if (xkbKeymap_)
+            xkb_keymap_unref(xkbKeymap_);
+        if (xkbCtx_)
+            xkb_context_unref(xkbCtx_);
     }
 
     // Returns a single-ExternalOption config so fcitx5-config-qt / KDE KCM
@@ -76,9 +78,7 @@ public:
     // directly. The real settings still live in config_ and are loaded
     // from disk by reloadConfig() or from a caller-supplied RawConfig by
     // setConfig() — see below.
-    const Configuration *getConfig() const override {
-        return &externalConfig_;
-    }
+    const Configuration *getConfig() const override { return &externalConfig_; }
     // Called by programmatic writers (fcitx5-remote, the testfrontend, or
     // a future tool using SetConfig on DBus). The gear-icon path never
     // arrives here any more, because configtool fast-paths on the
@@ -103,17 +103,16 @@ public:
             // If RawConfig contains mapping data, use it directly.
             // Otherwise, reload from file (normal configtool path).
             umlautMap_.clear();
-            for (int i = 0; ; ++i) {
-                auto input = config.valueByPath(
-                    std::to_string(i) + "/Input");
-                auto output = config.valueByPath(
-                    std::to_string(i) + "/Output");
-                if (!input || input->empty()) break;
+            for (int i = 0;; ++i) {
+                auto input = config.valueByPath(std::to_string(i) + "/Input");
+                auto output = config.valueByPath(std::to_string(i) + "/Output");
+                if (!input || input->empty())
+                    break;
                 if (output && !output->empty()) {
                     auto outputs = schnelle_umlaute::splitOutputs(*output);
                     if (outputs.empty()) {
-                        FCITX_WARN() << "Schnelle: Mapping '"
-                                     << *input << "' has no valid outputs"
+                        FCITX_WARN() << "Schnelle: Mapping '" << *input
+                                     << "' has no valid outputs"
                                      << " — skipped";
                         continue;
                     }
@@ -138,11 +137,13 @@ public:
         }
     }
 
-    void keyEvent(const InputMethodEntry & /*entry*/, KeyEvent &keyEvent) override {
+    void keyEvent(const InputMethodEntry & /*entry*/,
+                  KeyEvent &keyEvent) override {
         auto *ic = keyEvent.inputContext();
 
         // App filter: let keys pass through in blacklisted/non-whitelisted apps
-        if (appFilter_.isFiltered(ic)) return;
+        if (appFilter_.isFiltered(ic))
+            return;
 
         auto *state = ic->propertyFor(&factory_);
 
@@ -169,10 +170,11 @@ public:
         // Pure modifier key presses (Shift, Ctrl, Alt, Super, etc.)
         // pass through without affecting gesture state.
         // Only Modifier+Key combinations trigger the modifier check below.
-        if (isPress && key.sym() >= FcitxKey_Shift_L && key.sym() <= FcitxKey_Hyper_R) {
-            // Allow Alt_L/Alt_R through as leader when configured and gesture active.
-            // ISO_Level3_Shift (AltGr on EU layouts, 0xfe03) is outside this range
-            // and passes through naturally.
+        if (isPress && key.sym() >= FcitxKey_Shift_L &&
+            key.sym() <= FcitxKey_Hyper_R) {
+            // Allow Alt_L/Alt_R through as leader when configured and gesture
+            // active. ISO_Level3_Shift (AltGr on EU layouts, 0xfe03) is outside
+            // this range and passes through naturally.
             if (*config_.leader->alt &&
                 (key.sym() == FcitxKey_Alt_L || key.sym() == FcitxKey_Alt_R) &&
                 (state->waitingKey_ || state->cyclingInput_)) {
@@ -198,7 +200,8 @@ public:
         // =========================================
         if (state->recentlyCommitted_ && isPress) {
             state->recentlyCommitted_ = false;
-            if (key.sym() == FcitxKey_space && !state->waitingKey_ && !hasModifiers(key)) {
+            if (key.sym() == FcitxKey_space && !state->waitingKey_ &&
+                !hasModifiers(key)) {
                 ic->commitString(" ");
                 keyEvent.filterAndAccept();
                 return;
@@ -211,7 +214,8 @@ public:
         if (!isPress) {
             // Consume Alt/AltGr release when the press was consumed as leader.
             // Prevents compositor state confusion and TUI side effects.
-            if (state->consumedAltCode_ != 0 && rawCode == state->consumedAltCode_) {
+            if (state->consumedAltCode_ != 0 &&
+                rawCode == state->consumedAltCode_) {
                 // Don't clear consumedAltCode_ here. On KWin Wayland,
                 // Alt auto-repeat sends release-press pairs — clearing on
                 // release leaves a gap where input key events leak through
@@ -224,15 +228,18 @@ public:
 
             // Consume release of key that was committed via single-output.
             // The press was filterAndAccepted, so the release is an orphan.
-            if (state->committedKeyCode_ != 0 && rawCode == state->committedKeyCode_) {
+            if (state->committedKeyCode_ != 0 &&
+                rawCode == state->committedKeyCode_) {
                 state->committedKeyCode_ = 0;
                 keyEvent.filterAndAccept();
                 return;
             }
 
             // Check if releasing the cycling input key
-            // Compare physical keycode so shifted chars (!, @, #) match their base key
-            if (state->cyclingInput_ && state->inputKeyPressed_ && rawCode == state->waitingKeyCode_) {
+            // Compare physical keycode so shifted chars (!, @, #) match their
+            // base key
+            if (state->cyclingInput_ && state->inputKeyPressed_ &&
+                rawCode == state->waitingKeyCode_) {
 
                 if (state->altGestureSession_) {
                     // Alt-led gesture on KWin Wayland: defer commit.
@@ -247,7 +254,8 @@ public:
 
                 // Non-Alt leader: commit immediately
                 auto it = umlautMap_.find(*state->cyclingInput_);
-                if (it != umlautMap_.end() && state->cyclingIndex_ < it->second.size()) {
+                if (it != umlautMap_.end() &&
+                    state->cyclingIndex_ < it->second.size()) {
                     ic->inputPanel().reset();
                     ic->commitString(it->second[state->cyclingIndex_]);
                     ic->updatePreedit();
@@ -255,7 +263,8 @@ public:
                 }
 
                 state->inputKeyPressed_ = false;
-                state->resetCycling(); overlayHide();
+                state->resetCycling();
+                overlayHide();
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -264,7 +273,8 @@ public:
             // PREEDIT: Commit the preedit as the original character
             // Compare physical keycode so shifted chars (!, @, #) and uppercase
             // letters match even if Shift is released first
-            if (state->waitingKey_ && state->inputKeyPressed_ && rawCode == state->waitingKeyCode_) {
+            if (state->waitingKey_ && state->inputKeyPressed_ &&
+                rawCode == state->waitingKeyCode_) {
                 commitPendingKey(ic, state);
                 keyEvent.filterAndAccept();
                 return;
@@ -279,7 +289,8 @@ public:
         // so both travel through one XIM event — impossible to reorder.
         // Modifier combinations (Ctrl+Space) are excluded so shortcuts
         // are not swallowed — pending char is committed separately instead.
-        if (state->waitingKey_ && state->isTimeoutExpired(getEffectiveDelay(state))) {
+        if (state->waitingKey_ &&
+            state->isTimeoutExpired(getEffectiveDelay(state))) {
             std::string pending = *state->waitingKey_;
             ic->inputPanel().reset();
             ic->updatePreedit();
@@ -308,7 +319,8 @@ public:
             // When Alt is the leader key and a gesture is active, ignore
             // Alt-only modifier state — input key repeats with Alt held
             // should not commit the gesture and leak through.
-            bool altLeaderBypass = *config_.leader->alt &&
+            bool altLeaderBypass =
+                *config_.leader->alt &&
                 (state->waitingKey_ || state->cyclingInput_ ||
                  state->consumedAltCode_ != 0 || state->altGestureSession_);
             if (altLeaderBypass) {
@@ -318,11 +330,12 @@ public:
                                   !mods.test(KeyState::Super);
             }
             if (!altLeaderBypass) {
-                // Commit any pending preedit before letting the shortcut through
+                // Commit any pending preedit before letting the shortcut
+                // through
                 commitPendingKey(ic, state);
                 commitCyclingValue(ic, state);
                 state->inputKeyPressed_ = false;
-                return;  // Let the shortcut through
+                return; // Let the shortcut through
             }
             // Alt-only during gesture: resolve the physical key's base
             // character.  Some backends change the keysym when Alt is held
@@ -359,8 +372,10 @@ public:
         // not allowed for the currently active input key's keyboard half.
         if (leaderType != LeaderType::None) {
             std::string activeInput;
-            if (state->cyclingInput_) activeInput = *state->cyclingInput_;
-            else if (state->waitingKey_) activeInput = *state->waitingKey_;
+            if (state->cyclingInput_)
+                activeInput = *state->cyclingInput_;
+            else if (state->waitingKey_)
+                activeInput = *state->waitingKey_;
 
             if (!activeInput.empty() &&
                 !isDualCustomAllowed(leaderType, activeInput,
@@ -380,8 +395,9 @@ public:
                     // Wayland auto-repeat gap (release-press pair). The
                     // deferred commit timer handles the real release.
                     if (!(isAlt && state->altGestureSession_)) {
-                        state->resetCycling(); overlayHide();
-                        return;  // Let leader through
+                        state->resetCycling();
+                        overlayHide();
+                        return; // Let leader through
                     }
                 }
 
@@ -389,21 +405,26 @@ public:
                 if (it != umlautMap_.end() && !it->second.empty()) {
                     if (it->second.size() > 1) {
                         // Cycle to next variant
-                        state->cyclingIndex_ = (state->cyclingIndex_ + 1) % it->second.size();
-                        updateClientPreedit(ic, it->second[state->cyclingIndex_]);
-                        overlayShow(ic, it->second, state->cyclingIndex_);
+                        state->cyclingIndex_ =
+                            (state->cyclingIndex_ + 1) % it->second.size();
+                        updateClientPreedit(ic,
+                                            it->second[state->cyclingIndex_]);
+                        overlayShow(ic, it->second,
+                                    static_cast<int>(state->cyclingIndex_));
                     } else if (state->altGestureSession_ &&
                                !(isAlt && rawCode == state->consumedAltCode_)) {
                         // Single-output Alt cycling: a different leader (not
                         // the same Alt auto-repeat) signals the user wants to
                         // commit and continue typing.  Matches the immediate-
-                        // commit behavior of non-Alt leaders with single output.
+                        // commit behavior of non-Alt leaders with single
+                        // output.
                         ic->inputPanel().reset();
                         ic->commitString(it->second[0]);
                         ic->updatePreedit();
                         state->recentlyCommitted_ = true;
                         state->inputKeyPressed_ = false;
-                        state->resetCycling(); overlayHide();
+                        state->resetCycling();
+                        overlayHide();
                         state->altGestureSession_ = false;
                         state->consumedAltCode_ = 0;
                         // Emit the leader's character if printable so it
@@ -416,9 +437,11 @@ public:
                         keyEvent.filterAndAccept();
                         return;
                     }
-                    // Single-output same-Alt repeat: preedit unchanged, consume.
+                    // Single-output same-Alt repeat: preedit unchanged,
+                    // consume.
 
-                    if (isAlt) state->consumedAltCode_ = rawCode;
+                    if (isAlt)
+                        state->consumedAltCode_ = rawCode;
                     keyEvent.filterAndAccept();
                     return;
                 }
@@ -426,7 +449,8 @@ public:
 
             // CASE 2: First leader key press (start cycling)
             // PREEDIT: Update preedit to show first umlaut (don't commit yet!)
-            if (state->waitingKey_ && !state->isTimeoutExpired(getEffectiveDelay(state))) {
+            if (state->waitingKey_ &&
+                !state->isTimeoutExpired(getEffectiveDelay(state))) {
                 auto it = umlautMap_.find(*state->waitingKey_);
                 if (it != umlautMap_.end() && !it->second.empty()) {
 
@@ -439,7 +463,8 @@ public:
                     if (it->second.size() > 1 || isAlt) {
                         state->cyclingInput_ = *state->waitingKey_;
                         state->cyclingIndex_ = 0;
-                        if (isAlt) state->altGestureSession_ = true;
+                        if (isAlt)
+                            state->altGestureSession_ = true;
 
                         // Update preedit with first variant
                         updateClientPreedit(ic, it->second[0]);
@@ -457,7 +482,8 @@ public:
 
                     state->waitingKey_.reset();
                     state->cancelTimeout();
-                    if (isAlt) state->consumedAltCode_ = rawCode;
+                    if (isAlt)
+                        state->consumedAltCode_ = rawCode;
                     keyEvent.filterAndAccept();
                     return;
                 }
@@ -500,15 +526,17 @@ public:
             // waiting/cycling. After the gesture ends, repeats are allowed
             // to start new gestures (e.g. hold 'a'+'s', cycle 's', release
             // 's' → 'a' repeat can now start a new 'a' gesture).
-            if (!isNewKeyPress && (state->waitingKey_ || state->cyclingInput_)) {
+            if (!isNewKeyPress &&
+                (state->waitingKey_ || state->cyclingInput_)) {
                 keyEvent.filterAndAccept();
                 return;
             }
 
-            // Suppress auto-repeat of key that was just committed via single-output.
-            // After single-output commit, the input key may still be held, generating
-            // repeat events. Without this guard, repeats start new unwanted gestures
-            // (e.g. 'u' + AltGr → "ü" then repeat 'u' → "üu").
+            // Suppress auto-repeat of key that was just committed via
+            // single-output. After single-output commit, the input key may
+            // still be held, generating repeat events. Without this guard,
+            // repeats start new unwanted gestures (e.g. 'u' + AltGr → "ü" then
+            // repeat 'u' → "üu").
             if (!isNewKeyPress && state->committedKeyCode_ != 0 &&
                 rawCode == state->committedKeyCode_) {
                 keyEvent.filterAndAccept();
@@ -566,14 +594,16 @@ public:
         state->recentlyCommitted_ = false;
     }
 
-    void deactivate(const InputMethodEntry &, InputContextEvent &event) override {
+    void deactivate(const InputMethodEntry &,
+                    InputContextEvent &event) override {
         // Called on genuine focus changes (FocusOut / IC switch).
         // Clears all state so gestures don't leak across windows.
         auto *ic = event.inputContext();
         auto *state = ic->propertyFor(&factory_);
 
         // On IM switch (Ctrl+Space): commit pending preedit before clearing.
-        // The server does NOT auto-commit preedit on IM switch, only on FocusOut.
+        // The server does NOT auto-commit preedit on IM switch, only on
+        // FocusOut.
         if (event.type() == EventType::InputContextSwitchInputMethod) {
             commitPendingKey(ic, state);
             commitCyclingValue(ic, state);
@@ -588,7 +618,7 @@ public:
         // Some apps (Chromium, Neovide) call reset() after every commit.
         auto *state = event.inputContext()->propertyFor(&factory_);
         if (state->inputKeyPressed_) {
-            return;  // Keep all state intact
+            return; // Keep all state intact
         }
 
         state->clearAllState();
@@ -596,17 +626,22 @@ public:
 
 private:
     // Apply in-memory config: rebuild mappings, sanitize custom key, log.
-    // Shared by setConfig (values already loaded) and reloadConfig (read from disk).
+    // Shared by setConfig (values already loaded) and reloadConfig (read from
+    // disk).
     void applyConfig() {
         umlautMap_ = schnelle_umlaute::loadMappingsFromFile();
 
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
         // stores the original value so the UI round-trips correctly.
-        cachedCustomKey_ = *config_.leader->custom->customKeyEnabled
-            ? sanitizeCustomKey(*config_.leader->custom->customKey) : "";
-        cachedCustomKey2_ = *config_.leader->custom->customKey2Enabled
-            ? sanitizeCustomKey(*config_.leader->custom->customKey2) : "";
+        cachedCustomKey_ =
+            *config_.leader->custom->customKeyEnabled
+                ? sanitizeCustomKey(*config_.leader->custom->customKey)
+                : "";
+        cachedCustomKey2_ =
+            *config_.leader->custom->customKey2Enabled
+                ? sanitizeCustomKey(*config_.leader->custom->customKey2)
+                : "";
 
         // Warn if a custom leader key collides with a mapped input
         if (!cachedCustomKey_.empty() && umlautMap_.count(cachedCustomKey_)) {
@@ -623,34 +658,46 @@ private:
         // Warn about dual custom leader conflicts
         if (!cachedCustomKey_.empty() && !cachedCustomKey2_.empty()) {
             if (cachedCustomKey_ == cachedCustomKey2_) {
-                FCITX_WARN() << "Schnelle: CustomKey and CustomKey2 are identical"
-                             << " — dual split disabled, both trigger all mappings";
+                FCITX_WARN()
+                    << "Schnelle: CustomKey and CustomKey2 are identical"
+                    << " — dual split disabled, both trigger all mappings";
             } else if (handClassifier_.isLeftHand(cachedCustomKey_) ==
                        handClassifier_.isLeftHand(cachedCustomKey2_)) {
-                FCITX_WARN() << "Schnelle: CustomKey '" << cachedCustomKey_
-                             << "' and CustomKey2 '" << cachedCustomKey2_
-                             << "' are on the same keyboard half"
-                             << " — dual split disabled, both trigger all mappings";
+                FCITX_WARN()
+                    << "Schnelle: CustomKey '" << cachedCustomKey_
+                    << "' and CustomKey2 '" << cachedCustomKey2_
+                    << "' are on the same keyboard half"
+                    << " — dual split disabled, both trigger all mappings";
             }
         }
 
         std::string leaders;
-        if (*config_.leader->space) leaders += "Space ";
-        if (*config_.leader->left) leaders += "Left ";
-        if (*config_.leader->right) leaders += "Right ";
-        if (*config_.leader->up) leaders += "Up ";
-        if (*config_.leader->down) leaders += "Down ";
-        if (*config_.leader->alt) leaders += "Alt/AltGr ";
-        if (!cachedCustomKey_.empty()) leaders += "Custom1('" + cachedCustomKey_ + "') ";
-        if (!cachedCustomKey2_.empty()) leaders += "Custom2('" + cachedCustomKey2_ + "') ";
-        if (leaders.empty()) leaders = "None ";
+        if (*config_.leader->space)
+            leaders += "Space ";
+        if (*config_.leader->left)
+            leaders += "Left ";
+        if (*config_.leader->right)
+            leaders += "Right ";
+        if (*config_.leader->up)
+            leaders += "Up ";
+        if (*config_.leader->down)
+            leaders += "Down ";
+        if (*config_.leader->alt)
+            leaders += "Alt/AltGr ";
+        if (!cachedCustomKey_.empty())
+            leaders += "Custom1('" + cachedCustomKey_ + "') ";
+        if (!cachedCustomKey2_.empty())
+            leaders += "Custom2('" + cachedCustomKey2_ + "') ";
+        if (leaders.empty())
+            leaders = "None ";
 
         // App filter: push config values into the filter
         appFilter_.configure(*config_.appFilter->mode,
                              *config_.appFilter->blacklist,
                              *config_.appFilter->whitelist);
 
-        FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=" << *config_.delay->lowercase
+        FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase="
+                     << *config_.delay->lowercase
                      << "ms, DelayUppercase=" << *config_.delay->uppercase
                      << "ms, Leaders=" << leaders
                      << ", Mappings=" << umlautMap_.size();
@@ -660,7 +707,7 @@ private:
 
     void updateClientPreedit(InputContext *ic, const std::string &text) {
         Text preedit(text);
-        preedit.setCursor(preedit.textLength());
+        preedit.setCursor(static_cast<int>(preedit.textLength()));
         ic->inputPanel().setClientPreedit(preedit);
         ic->updatePreedit();
     }
@@ -670,13 +717,15 @@ private:
     // destroy cycling state. Instead, wait 5ms — if a re-press arrives,
     // it cancels this timer and cycling continues. If not (real release),
     // the timer fires and commits the cycling value.
-    void scheduleDeferredCyclingCommit(InputContext *ic, SchnelleUmlauteState *state) {
+    void scheduleDeferredCyclingCommit(InputContext *ic,
+                                       SchnelleUmlauteState *state) {
         state->cancelTimeout();
 
         auto savedRef = ic->watch();
         auto *eventLoop = &instance_->eventLoop();
         uint64_t now = SchnelleUmlauteState::nowUsec();
-        uint64_t target = now + kDeferredCommitDelayMs * kMicrosecondsPerMillisecond;
+        uint64_t target =
+            now + kDeferredCommitDelayMs * kMicrosecondsPerMillisecond;
 
         state->timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC, target, 0,
@@ -684,28 +733,31 @@ private:
                 // Safety: see scheduleTimeout — single-threaded event loop
                 // guarantees state outlives savedRef.get() != nullptr.
                 auto *ctx = savedRef.get();
-                if (!ctx) return false;
+                if (!ctx)
+                    return false;
 
                 if (state->cyclingInput_) {
                     auto it = umlautMap_.find(*state->cyclingInput_);
-                    if (it != umlautMap_.end() && state->cyclingIndex_ < it->second.size()) {
+                    if (it != umlautMap_.end() &&
+                        state->cyclingIndex_ < it->second.size()) {
                         ctx->inputPanel().reset();
                         ctx->commitString(it->second[state->cyclingIndex_]);
                         ctx->updatePreedit();
                         state->recentlyCommitted_ = true;
                     }
-                    state->resetCycling(); overlayHide();
+                    state->resetCycling();
+                    overlayHide();
                     state->waitingKeyCode_ = 0;
                 }
                 state->altGestureSession_ = false;
                 state->consumedAltCode_ = 0;
                 return false;
-            }
-        );
+            });
     }
 
     void commitPendingKey(InputContext *ic, SchnelleUmlauteState *state) {
-        if (!state->waitingKey_) return;
+        if (!state->waitingKey_)
+            return;
         ic->inputPanel().reset();
         ic->commitString(*state->waitingKey_);
         ic->updatePreedit();
@@ -717,10 +769,13 @@ private:
     }
 
     void commitCyclingValue(InputContext *ic, SchnelleUmlauteState *state) {
-        if (!state->cyclingInput_) return;
-        state->cancelTimeout();  // Cancel any deferred commit timer
-        auto it = umlautMap_.find(*state->cyclingInput_);
-        if (it != umlautMap_.end() && state->cyclingIndex_ < it->second.size()) {
+        if (!state->cyclingInput_)
+            return;
+        const auto cyclingInput = *state->cyclingInput_;
+        state->cancelTimeout(); // Cancel any deferred commit timer
+        auto it = umlautMap_.find(cyclingInput);
+        if (it != umlautMap_.end() &&
+            state->cyclingIndex_ < it->second.size()) {
             ic->inputPanel().reset();
             ic->commitString(it->second[state->cyclingIndex_]);
             ic->updatePreedit();
@@ -749,13 +804,18 @@ private:
     // Case-insensitive match for ASCII letters, exact match otherwise.
     // Allows Shift+f to match custom leader "f" so uppercase mappings
     // work naturally while holding Shift (e.g. Shift+O + Shift+F → Ö).
-    static bool matchCustomKey(const std::string &keyChar, const std::string &customKey) {
-        if (keyChar == customKey) return true;
+    static bool matchCustomKey(const std::string &keyChar,
+                               const std::string &customKey) {
+        if (keyChar == customKey)
+            return true;
         if (keyChar.size() == 1 && customKey.size() == 1) {
             char a = keyChar[0], b = customKey[0];
-            if (a >= 'A' && a <= 'Z') a += 32;
-            if (b >= 'A' && b <= 'Z') b += 32;
-            if (a >= 'a' && a <= 'z') return a == b;
+            if (a >= 'A' && a <= 'Z')
+                a += 32;
+            if (b >= 'A' && b <= 'Z')
+                b += 32;
+            if (a >= 'a' && a <= 'z')
+                return a == b;
         }
         return false;
     }
@@ -763,7 +823,8 @@ private:
     // Resolve the base (unshifted, Level 0) character for a physical key
     // using the XKB keymap.  Returns empty string if unavailable.
     std::string getBaseChar(int rawCode) const {
-        if (!xkbKeymap_) return "";
+        if (!xkbKeymap_)
+            return "";
         auto code = static_cast<xkb_keycode_t>(rawCode);
         const xkb_keysym_t *syms;
         int n = xkb_keymap_key_get_syms_by_level(xkbKeymap_, code, 0, 0, &syms);
@@ -781,8 +842,7 @@ private:
     // fails (Shift turned '/' into '?'), resolves the physical key's
     // base character via the XKB keymap and retries.
     bool matchCustomKeyOrBase(const std::string &keyChar,
-                              const std::string &customKey,
-                              int rawCode) const {
+                              const std::string &customKey, int rawCode) const {
         if (!keyChar.empty() && matchCustomKey(keyChar, customKey))
             return true;
         std::string base = getBaseChar(rawCode);
@@ -802,9 +862,9 @@ private:
         if (*config_.leader->alt && isAltLeaderSym(sym))
             return LeaderType::BuiltIn;
 
-        // Custom Key 1 (sanitized at config load, case-insensitive for letters).
-        // When Shift changes the character (e.g. Shift+/ → ?), fall back to
-        // the XKB keymap to resolve the physical key's base character.
+        // Custom Key 1 (sanitized at config load, case-insensitive for
+        // letters). When Shift changes the character (e.g. Shift+/ → ?), fall
+        // back to the XKB keymap to resolve the physical key's base character.
         if (!cachedCustomKey_.empty() &&
             matchCustomKeyOrBase(keyChar, cachedCustomKey_, rawCode))
             return LeaderType::Custom1;
@@ -815,11 +875,16 @@ private:
             return LeaderType::Custom2;
 
         // Built-in leader toggles
-        if (*config_.leader->space && sym == FcitxKey_space) return LeaderType::BuiltIn;
-        if (*config_.leader->left && sym == FcitxKey_Left) return LeaderType::BuiltIn;
-        if (*config_.leader->right && sym == FcitxKey_Right) return LeaderType::BuiltIn;
-        if (*config_.leader->up && sym == FcitxKey_Up) return LeaderType::BuiltIn;
-        if (*config_.leader->down && sym == FcitxKey_Down) return LeaderType::BuiltIn;
+        if (*config_.leader->space && sym == FcitxKey_space)
+            return LeaderType::BuiltIn;
+        if (*config_.leader->left && sym == FcitxKey_Left)
+            return LeaderType::BuiltIn;
+        if (*config_.leader->right && sym == FcitxKey_Right)
+            return LeaderType::BuiltIn;
+        if (*config_.leader->up && sym == FcitxKey_Up)
+            return LeaderType::BuiltIn;
+        if (*config_.leader->down && sym == FcitxKey_Down)
+            return LeaderType::BuiltIn;
 
         return LeaderType::None;
     }
@@ -849,29 +914,35 @@ private:
         bool key2Left = handClassifier_.isLeftHand(cachedCustomKey2_);
 
         // Both keys on same hand → no split possible, allow all
-        if (key1Left == key2Left) return true;
+        if (key1Left == key2Left)
+            return true;
 
-        bool inputLeft = (inputKeyCode > 0) ? HandClassifier::isLeftHandKeycode(inputKeyCode)
-                                            : handClassifier_.isLeftHand(inputKey);
+        bool inputLeft = (inputKeyCode > 0)
+                             ? HandClassifier::isLeftHandKeycode(inputKeyCode)
+                             : handClassifier_.isLeftHand(inputKey);
 
         // Left-hand leader triggers RIGHT-hand inputs (and vice versa)
         if (leader == LeaderType::Custom1)
             return key1Left ? !inputLeft : inputLeft;
-        else  // Custom2
+        else // Custom2
             return key2Left ? !inputLeft : inputLeft;
     }
 
     // ASCII-only uppercase check — sufficient because input keys are
     // physical keyboard keys which are always single ASCII bytes.
     int getEffectiveDelay(const SchnelleUmlauteState *state) const {
-        if (!state->waitingKey_) return *config_.delay->lowercase;
+        if (!state->waitingKey_)
+            return *config_.delay->lowercase;
         bool isUpper = state->waitingKey_->length() == 1 &&
-                       (*state->waitingKey_)[0] >= 'A' && (*state->waitingKey_)[0] <= 'Z';
+                       (*state->waitingKey_)[0] >= 'A' &&
+                       (*state->waitingKey_)[0] <= 'Z';
         return isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
     }
 
     void scheduleTimeout(InputContext *ic, SchnelleUmlauteState *state) {
-        if (!state->waitingKey_) return;
+        if (!state->waitingKey_)
+            return;
+        auto savedKey = *state->waitingKey_;
 
         state->cancelTimeout();
 
@@ -879,14 +950,13 @@ private:
         auto *eventLoop = &instance_->eventLoop();
 
         uint64_t now_usec = SchnelleUmlauteState::nowUsec();
-        uint64_t target_usec = now_usec + static_cast<uint64_t>(effectiveDelay) * kMicrosecondsPerMillisecond;
+        uint64_t target_usec =
+            now_usec +
+            static_cast<uint64_t>(effectiveDelay) * kMicrosecondsPerMillisecond;
 
-        auto savedKey = *state->waitingKey_;
         auto savedRef = ic->watch();
         state->timeoutEvent_ = eventLoop->addTimeEvent(
-            CLOCK_MONOTONIC,
-            target_usec,
-            0,
+            CLOCK_MONOTONIC, target_usec, 0,
             [state, savedKey, savedRef](EventSourceTime *, uint64_t) {
                 // Safety: state is owned by IC (InputContextProperty). If IC
                 // is destroyed, savedRef.get() returns nullptr and we bail
@@ -894,7 +964,8 @@ private:
                 // single-threaded, so IC can't be destroyed between the
                 // check and the access.
                 auto *ctx = savedRef.get();
-                if (!ctx) return false;
+                if (!ctx)
+                    return false;
 
                 if (state->waitingKey_ && *state->waitingKey_ == savedKey) {
                     ctx->inputPanel().reset();
@@ -910,8 +981,7 @@ private:
                 // false disables the timer; the unique_ptr is cleaned up by
                 // the next scheduleTimeout() or cancelTimeout() call.
                 return false;
-            }
-        );
+            });
     }
 
     // Shared by setConfig (values already loaded) and reloadConfig (read
@@ -919,10 +989,14 @@ private:
     // the next safeSaveAsIni emits clean entries and applyConfig finds
     // consistent cached values.
     void normalizeCustomLeaders() {
-        config_.leader.mutableValue()->custom.mutableValue()->customKey.setValue(
-            sanitizeCustomKey(*config_.leader->custom->customKey));
-        config_.leader.mutableValue()->custom.mutableValue()->customKey2.setValue(
-            sanitizeCustomKey(*config_.leader->custom->customKey2));
+        config_.leader.mutableValue()
+            ->custom.mutableValue()
+            ->customKey.setValue(
+                sanitizeCustomKey(*config_.leader->custom->customKey));
+        config_.leader.mutableValue()
+            ->custom.mutableValue()
+            ->customKey2.setValue(
+                sanitizeCustomKey(*config_.leader->custom->customKey2));
     }
 
     // Sanitize custom leader key: trim whitespace, keep only first UTF-8
@@ -931,14 +1005,16 @@ private:
     // would never match a keypress.
     static std::string sanitizeCustomKey(const std::string &raw) {
         size_t start = raw.find_first_not_of(" \t\n\r");
-        if (start == std::string::npos) return "";
+        if (start == std::string::npos)
+            return "";
         size_t end = raw.find_last_not_of(" \t\n\r");
         std::string trimmed = raw.substr(start, end - start + 1);
-        if (!utf8::validate(trimmed)) return "";
+        if (!utf8::validate(trimmed))
+            return "";
         size_t firstCharBytes = utf8::ncharByteLength(trimmed.begin(), 1);
         std::string result = trimmed.substr(0, firstCharBytes);
         if (result.size() == 1 && result[0] >= 'A' && result[0] <= 'Z')
-            result[0] = result[0] - 'A' + 'a';
+            result[0] = static_cast<char>(result[0] - 'A' + 'a');
         return result;
     }
 
@@ -973,9 +1049,10 @@ private:
     // starts or stops the daemon in response to the Enabled flag.
     OverlayClient overlayClient_;
 
-    void overlayShow(InputContext *ic,
-                     const std::vector<std::string> &variants, int index) {
-        if (!*config_.overlay->enabled) return;
+    void overlayShow(InputContext *ic, const std::vector<std::string> &variants,
+                     int index) {
+        if (!*config_.overlay->enabled)
+            return;
         (void)ic;
         // Combine the two enum halves into the single "<Row><Col>" string
         // the overlay daemon expects (e.g. "TopCol4", "CenterCol7").
@@ -984,7 +1061,8 @@ private:
         overlayClient_.show(variants, index, position);
     }
     void overlayHide() {
-        if (!*config_.overlay->enabled) return;
+        if (!*config_.overlay->enabled)
+            return;
         overlayClient_.hide();
     }
 };

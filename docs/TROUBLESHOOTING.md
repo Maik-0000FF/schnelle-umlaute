@@ -99,6 +99,21 @@ Setting the mode back to **Disabled** turns the filter off entirely. See [Config
 2. **Binary missing or in wrong location.** Verify with `which schnelle-umlaute-editor` (expect `/usr/bin/...` or `/usr/local/bin/...`). If absent, reinstall.
 3. **Run from a TTY without a Wayland/X session.** The editor needs a graphical session to draw — login to your usual session first.
 
+## Editor shows a "Setup required" dialog on every start
+
+**Symptom:** Each time you launch `schnelle-umlaute-editor`, a modal dialog appears warning that input-method environment variables are not set and offering to create `~/.config/environment.d/fcitx5.conf`.
+
+**Cause:** The dialog runs whenever `GTK_IM_MODULE`, `QT_IM_MODULE` or `XMODIFIERS` are not present (or not `fcitx`) in the running session. Without them the addon does not hook into any application and every setting changed in the editor would silently have no effect — so the editor prompts on every start, not just first run.
+
+**Fix:**
+
+- Click **Set up now** in the dialog, then log out and back in. The dialog will not return on the next start.
+- Or run the standalone helper instead — it writes the same file *and* sets up autostart:
+  ```bash
+  schnelle-umlaute-setup
+  ```
+- If you have already logged out / in and the dialog still appears, the variables are not reaching your session. Check with `echo $GTK_IM_MODULE` from a fresh terminal in your graphical session. If empty, your login flow may not read `environment.d` — see the `schnelle-umlaute-setup` section below for non-systemd-login workarounds.
+
 ## Editor changes don't take effect
 
 **Symptom:** You change settings or mappings in the editor, save, but the addon still uses the old values.

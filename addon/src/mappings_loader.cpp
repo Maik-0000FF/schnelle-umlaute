@@ -7,8 +7,8 @@
 #include <fcitx-utils/standardpaths.h>
 #define SU_HAS_NEW_STDPATHS 1
 #else
-#include <fcitx-utils/standardpath.h>
 #include <fcntl.h>
+#include <fcitx-utils/standardpath.h>
 #define SU_HAS_NEW_STDPATHS 0
 #endif
 #include <fcitx-utils/fs.h>
@@ -20,7 +20,8 @@ namespace schnelle_umlaute {
 
 std::vector<std::string> splitOutputs(const std::string &output) {
     std::vector<std::string> outputs;
-    if (output.empty()) return outputs;
+    if (output.empty())
+        return outputs;
 
     std::string current;
     for (size_t i = 0; i < output.length(); ++i) {
@@ -50,13 +51,14 @@ UmlautMap loadMappingsFromFile() {
     using namespace fcitx;
     UmlautMap map;
 #if SU_HAS_NEW_STDPATHS
-    auto file = StandardPaths::global().open(
-        StandardPathsType::PkgConfig, "schnelle-umlaute/mappings.txt");
+    auto file = StandardPaths::global().open(StandardPathsType::PkgConfig,
+                                             "schnelle-umlaute/mappings.txt");
     if (file.isValid()) {
         auto fp = fs::openFD(file, "r");
 #else
-    auto file = StandardPath::global().open(
-        StandardPath::Type::PkgConfig, "schnelle-umlaute/mappings.txt", O_RDONLY);
+    auto file =
+        StandardPath::global().open(StandardPath::Type::PkgConfig,
+                                    "schnelle-umlaute/mappings.txt", O_RDONLY);
     if (file.fd() >= 0) {
         auto fp = fs::openFD(file, "r");
 #endif
@@ -64,8 +66,8 @@ UmlautMap loadMappingsFromFile() {
             for (const auto &m : parseMappings(fp.get())) {
                 auto outputs = splitOutputs(m.output);
                 if (outputs.empty()) {
-                    FCITX_WARN() << "Schnelle: Mapping '"
-                                 << m.input << "' has no valid outputs"
+                    FCITX_WARN() << "Schnelle: Mapping '" << m.input
+                                 << "' has no valid outputs"
                                  << " — skipped";
                     continue;
                 }
