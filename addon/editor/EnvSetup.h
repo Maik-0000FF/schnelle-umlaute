@@ -38,6 +38,19 @@ public:
     // QML dialog can display it as part of the explanation instead of
     // hard-coding the path on the QML side.
     Q_INVOKABLE QString configPath() const;
+
+    // True when the config file on disk already contains the three
+    // canonical fcitx variables (GTK_IM_MODULE / QT_IM_MODULE /
+    // XMODIFIERS). This is used together with isConfigured() to
+    // distinguish two failure modes:
+    //   isConfigured() == false && hasValidConfigFile() == false
+    //     → first-run state: dialog offers "Set up now"
+    //   isConfigured() == false && hasValidConfigFile() == true
+    //     → user already ran setup but has not logged out/in yet, so
+    //       the file is correct but environment.d hasn't been re-read
+    //       in this session. Dialog explains the logout requirement
+    //       instead of offering setup again, which would be confusing.
+    Q_INVOKABLE bool hasValidConfigFile() const;
 };
 
 #endif

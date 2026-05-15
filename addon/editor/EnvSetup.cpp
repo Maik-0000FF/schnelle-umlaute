@@ -55,3 +55,20 @@ bool EnvSetup::writeConfig() {
 }
 
 QString EnvSetup::configPath() const { return envFilePath(); }
+
+bool EnvSetup::hasValidConfigFile() const {
+    QFile file(envFilePath());
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+    // Substring match (not line-strict): any of the three lines may be
+    // followed by trailing comments or extra blank lines without
+    // invalidating the file. Comment-prefixed variants ("# GTK_…") are
+    // an edge case we don't try to detect — writeConfig() always emits
+    // the four canonical uncommented lines, so a file we wrote will
+    // pass this check unambiguously.
+    const QByteArray content = file.readAll();
+    return content.contains("GTK_IM_MODULE=fcitx") &&
+           content.contains("QT_IM_MODULE=fcitx") &&
+           content.contains("XMODIFIERS=@im=fcitx");
+}

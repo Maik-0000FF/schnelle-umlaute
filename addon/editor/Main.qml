@@ -27,14 +27,20 @@ ApplicationWindow {
 
     Component.onCompleted: {
         Theme.setCurrent(settings.theme);
-        // Without the input-method environment variables set in the
-        // user's session, the addon does not hook into any application
-        // and every setting edited here would silently have no effect.
-        // Offer to write ~/.config/environment.d/fcitx5.conf so the
-        // user can complete the install (which the AUR package alone
-        // cannot do — environment.d is per-user, not per-package).
+        // Three states for the IM environment:
+        //   1) isConfigured()           → env-vars active, do nothing
+        //   2) hasValidConfigFile()     → file written but env-vars not
+        //                                 active yet (logout pending);
+        //                                 explain that without offering
+        //                                 "Set up now" again, which
+        //                                 would be confusing
+        //   3) neither                  → first-run; offer setup
         if (!envSetup.isConfigured()) {
-            envDialog.open();
+            if (envSetup.hasValidConfigFile()) {
+                logoutDialog.open();
+            } else {
+                envDialog.open();
+            }
         }
     }
 
@@ -61,6 +67,21 @@ ApplicationWindow {
                     Theme.error);
             }
         }
+    }
+
+    ConfirmDialog {
+        id: logoutDialog
+        titleText: qsTr("Logout pending")
+        messageText: qsTr(
+            "Setup is complete, but the environment variables are not " +
+            "active in this session yet — environment.d files are read " +
+            "once at login.\n\n" +
+            "Log out and back in to activate. After that, this dialog " +
+            "will stop appearing."
+        )
+        confirmText: qsTr("OK")
+        confirmStyle: "primary"
+        singleButton: true
     }
 
     ColumnLayout {
