@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 import SchnelleUmlaute
+import "components"
 
 ApplicationWindow {
     id: root
@@ -24,7 +25,43 @@ ApplicationWindow {
         onThemeChanged: Theme.setCurrent(theme)
     }
 
-    Component.onCompleted: Theme.setCurrent(settings.theme)
+    Component.onCompleted: {
+        Theme.setCurrent(settings.theme);
+        // Without the input-method environment variables set in the
+        // user's session, the addon does not hook into any application
+        // and every setting edited here would silently have no effect.
+        // Offer to write ~/.config/environment.d/fcitx5.conf so the
+        // user can complete the install (which the AUR package alone
+        // cannot do — environment.d is per-user, not per-package).
+        if (!envSetup.isConfigured()) {
+            envDialog.open();
+        }
+    }
+
+    ConfirmDialog {
+        id: envDialog
+        titleText: qsTr("Setup required")
+        messageText: qsTr(
+            "Input-method environment variables are not set. Without " +
+            "them, Schnelle Umlaute has no effect in any application.\n\n" +
+            "Create %1 and log out / in to activate."
+        ).arg(envSetup.configPath())
+        confirmText: qsTr("Set up now")
+        cancelText: qsTr("Cancel")
+        confirmStyle: "primary"
+        onConfirmed: () => {
+            if (envSetup.writeConfig()) {
+                snackbar.show(
+                    qsTr("Set up — log out and back in for the variables to take effect."),
+                    Theme.success);
+            } else {
+                snackbar.show(
+                    qsTr("Setup failed — please create %1 manually.")
+                        .arg(envSetup.configPath()),
+                    Theme.error);
+            }
+        }
+    }
 
     ColumnLayout {
         id: rootLayout
@@ -62,41 +99,45 @@ ApplicationWindow {
 
                 Repeater {
                     model: [qsTr("Settings"), qsTr("Mappings")]
-                    delegate: Rectangle {
+                    delegate: Item {
                         required property int index
                         required property string modelData
                         Layout.preferredWidth: tabLabel.implicitWidth + Theme.spacingLg * 2
                         Layout.preferredHeight: 36
-                        radius: Theme.radiusMd
                         readonly property bool active: tabRow.currentIndex === index
-                        color: active ? Theme.surface : Theme.surfaceHover
-                        border.color: active ? Theme.border : "transparent"
-                        border.width: 1
 
+                        // Underline strip — sits over the row separator's
+                        // 1 px border at the bottom of the tab strip and
+                        // breaks through it for the active tab. 2 px tall
+                        // so it remains visible on HiDPI without blooming.
+                        // Theme.accent (varies per theme: violet / blue /
+                        // blue / yellow) instead of Theme.brand (constant
+                        // green) so the marker reads as part of the theme.
                         Rectangle {
                             visible: parent.active
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left
                             anchors.right: parent.right
                             height: 2
-                            color: Theme.surface
-                            y: parent.height - 1
+                            color: Theme.accent
                         }
-
-                        Behavior on color { ColorAnimation { duration: Theme.animShort } }
 
                         Text {
                             id: tabLabel
                             anchors.centerIn: parent
                             text: modelData
-                            color: parent.active ? Theme.brand : Theme.textMuted
+                            color: parent.active
+                                ? Theme.accent
+                                : (tabMouse.containsMouse ? Theme.text
+                                                          : Theme.textMuted)
                             font.family: Theme.fontFamily
                             font.pixelSize: 13
-                            font.weight: Font.Medium
+                            font.weight: parent.active ? Font.Medium : Font.Normal
                             Behavior on color { ColorAnimation { duration: Theme.animShort } }
                         }
 
                         MouseArea {
+                            id: tabMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor

@@ -46,7 +46,7 @@ Item {
                             Layout.preferredWidth: 120
                         }
 
-                        ComboBox {
+                        ThemedComboBox {
                             id: themeBox
                             Layout.fillWidth: true
                             textRole: "label"
@@ -64,26 +64,10 @@ Item {
                                 }
                                 return 0;
                             }
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 13
                             onActivated: {
                                 if (root.settingsModel) {
                                     root.settingsModel.theme = model[currentIndex].key;
                                 }
-                            }
-                            contentItem: Text {
-                                text: themeBox.displayText
-                                color: Theme.text
-                                font: themeBox.font
-                                leftPadding: Theme.spacingMd
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                radius: Theme.radiusSm
-                                color: Theme.background
-                                border.color: Theme.border
-                                border.width: 1
-                                implicitHeight: 34
                             }
                         }
                     }
@@ -229,33 +213,17 @@ Item {
                             Layout.preferredWidth: 120
                         }
 
-                        ComboBox {
+                        ThemedComboBox {
                             id: modeBox
                             Layout.fillWidth: true
                             model: ["Disabled", "Blacklist", "Whitelist"]
                             currentIndex: root.settingsModel
                                 ? model.indexOf(root.settingsModel.appFilterMode)
                                 : 0
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 13
                             onActivated: {
                                 if (root.settingsModel) {
                                     root.settingsModel.appFilterMode = model[currentIndex];
                                 }
-                            }
-                            contentItem: Text {
-                                text: modeBox.displayText
-                                color: Theme.text
-                                font: modeBox.font
-                                leftPadding: Theme.spacingMd
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                radius: Theme.radiusSm
-                                color: Theme.background
-                                border.color: Theme.border
-                                border.width: 1
-                                implicitHeight: 34
                             }
                         }
                     }

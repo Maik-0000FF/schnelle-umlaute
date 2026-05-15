@@ -10,12 +10,26 @@ Popup {
     anchors.centerIn: Overlay.overlay
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     padding: 0
+    // Cap the dialog at a comfortable reading width so long message
+    // bodies stop at one column instead of stretching to the host
+    // window's edges. 420 px ≈ 60–70 chars of Inter at 13 px, which is
+    // inside the recommended line-length range for body copy.
+    implicitWidth: 420
 
     property string titleText: qsTr("Confirm")
     property string messageText: ""
     property string confirmText: qsTr("Delete")
     property string cancelText: qsTr("Cancel")
     property var onConfirmed: null
+
+    // "destructive" → red confirm button (delete-style, default to keep
+    // existing call-sites unchanged). "primary" → accent-coloured confirm
+    // button for constructive actions like "set up", "apply", "install".
+    property string confirmStyle: "destructive"
+    readonly property color _confirmBase: confirmStyle === "primary"
+                                          ? Theme.accent : Theme.error
+    readonly property color _confirmHover: confirmStyle === "primary"
+                                           ? Theme.accentHover : "#ef4444"
 
     background: Rectangle {
         color: Theme.surface
@@ -61,51 +75,69 @@ Popup {
 
             Item { Layout.fillWidth: true }
 
-            Button {
+            // Plain Rectangle + MouseArea instead of Button: the Quick
+            // Controls Basic Button silently substitutes a system-palette
+            // colour for the contentItem text on light desktops, even when
+            // contentItem.color and palette.buttonText are both bound to
+            // a theme colour. Same workaround pattern as PositionPicker's
+            // selection cell — Rectangle leaves the colour pipeline alone.
+            Rectangle {
                 id: cancelBtn
-                text: root.cancelText
                 implicitHeight: 34
-                contentItem: Text {
-                    text: cancelBtn.text
+                implicitWidth: cancelLabel.implicitWidth + 2 * Theme.spacingMd
+                radius: Theme.radiusSm
+                color: cancelMouse.containsMouse ? Theme.surfaceHover
+                                                 : Theme.background
+                border.color: Theme.border
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.animShort } }
+
+                Text {
+                    id: cancelLabel
+                    anchors.centerIn: parent
+                    text: root.cancelText
                     color: Theme.text
                     font.family: Theme.fontFamily
                     font.pixelSize: 13
-                    leftPadding: Theme.spacingMd
-                    rightPadding: Theme.spacingMd
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
                 }
-                background: Rectangle {
-                    radius: Theme.radiusSm
-                    color: cancelBtn.hovered ? Theme.surfaceHover : Theme.background
-                    border.color: Theme.border
-                    border.width: 1
+                MouseArea {
+                    id: cancelMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.close()
                 }
-                onClicked: root.close()
             }
 
-            Button {
+            Rectangle {
                 id: confirmBtn
-                text: root.confirmText
                 implicitHeight: 34
-                contentItem: Text {
-                    text: confirmBtn.text
-                    color: Theme.onAccent
+                implicitWidth: confirmLabel.implicitWidth + 2 * Theme.spacingMd
+                radius: Theme.radiusSm
+                color: confirmMouse.containsMouse ? root._confirmHover
+                                                  : root._confirmBase
+                Behavior on color { ColorAnimation { duration: Theme.animShort } }
+
+                Text {
+                    id: confirmLabel
+                    anchors.centerIn: parent
+                    text: root.confirmText
+                    color: Theme.switchThumb
                     font.family: Theme.fontFamily
                     font.pixelSize: 13
                     font.weight: Font.Medium
-                    leftPadding: Theme.spacingMd
-                    rightPadding: Theme.spacingMd
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
                 }
-                background: Rectangle {
-                    radius: Theme.radiusSm
-                    color: confirmBtn.hovered ? "#ef4444" : Theme.error
-                    Behavior on color { ColorAnimation { duration: Theme.animShort } }
+                MouseArea {
+                    id: confirmMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.onConfirmed) root.onConfirmed();
+                        root.close();
+                    }
                 }
-                Keys.onReturnPressed: clicked()
-                onClicked: {
+                Keys.onReturnPressed: {
                     if (root.onConfirmed) root.onConfirmed();
                     root.close();
                 }

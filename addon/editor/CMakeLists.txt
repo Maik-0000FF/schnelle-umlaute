@@ -10,6 +10,7 @@ endif()
 
 set(EDITOR_SRCS
     main.cpp
+    EnvSetup.cpp
     MappingListModel.cpp
     OverlayDBusClient.cpp
     SettingsModel.cpp
@@ -46,6 +47,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/AppListEditor.qml
         components/ConfirmDialog.qml
         components/PositionPicker.qml
+        components/ThemedComboBox.qml
     RESOURCES
         assets/schnelle-umlaute-icon.svg
 )
