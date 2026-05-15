@@ -423,6 +423,12 @@ public:
                         ic->updatePreedit();
                         state->recentlyCommitted_ = true;
                         state->inputKeyPressed_ = false;
+                        // Arm auto-repeat suppression for the held input key.
+                        // Without this, releasing Alt while the input key is
+                        // still down would let the next repeat start a fresh
+                        // gesture (üu-class duplicate).
+                        state->committedKeyCode_ = state->waitingKeyCode_;
+                        state->waitingKeyCode_ = 0;
                         state->resetCycling();
                         overlayHide();
                         state->altGestureSession_ = false;
