@@ -3,7 +3,7 @@
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
-#include <QTextStream>
+#include <QSaveFile>
 
 namespace {
 
@@ -41,17 +41,20 @@ bool EnvSetup::writeConfig() {
     if (!dir.mkpath(envDirPath())) {
         return false;
     }
-    QFile file(envFilePath());
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
-                   QIODevice::Text)) {
+    QSaveFile file(envFilePath());
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         return false;
     }
-    QTextStream out(&file);
-    out << "GTK_IM_MODULE=fcitx\n";
-    out << "QT_IM_MODULE=fcitx\n";
-    out << "XMODIFIERS=@im=fcitx\n";
-    out << "GLFW_IM_MODULE=ibus\n";
-    return true;
+    static constexpr QByteArrayView payload =
+        "GTK_IM_MODULE=fcitx\n"
+        "QT_IM_MODULE=fcitx\n"
+        "XMODIFIERS=@im=fcitx\n"
+        "GLFW_IM_MODULE=ibus\n";
+    if (file.write(payload.data(), payload.size()) != payload.size()) {
+        file.cancelWriting();
+        return false;
+    }
+    return file.commit();
 }
 
 QString EnvSetup::configPath() const { return envFilePath(); }
@@ -61,14 +64,27 @@ bool EnvSetup::hasValidConfigFile() const {
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         return false;
     }
-    // Substring match (not line-strict): any of the three lines may be
-    // followed by trailing comments or extra blank lines without
-    // invalidating the file. Comment-prefixed variants ("# GTK_…") are
-    // an edge case we don't try to detect — writeConfig() always emits
-    // the four canonical uncommented lines, so a file we wrote will
-    // pass this check unambiguously.
+    // Line-strict match: require each line to appear uncommented and
+    // not embedded in another token. A commented-out line like
+    // "# GTK_IM_MODULE=fcitx" must not satisfy the check, otherwise
+    // a user-disabled config would look "set up" and never trigger
+    // the setup dialog again.
+    bool gtk = false;
+    bool qt = false;
+    bool xmod = false;
     const QByteArray content = file.readAll();
-    return content.contains("GTK_IM_MODULE=fcitx") &&
-           content.contains("QT_IM_MODULE=fcitx") &&
-           content.contains("XMODIFIERS=@im=fcitx");
+    for (const QByteArray &raw : content.split('\n')) {
+        const QByteArray line = raw.trimmed();
+        if (line.isEmpty() || line.startsWith('#')) {
+            continue;
+        }
+        if (line == "GTK_IM_MODULE=fcitx") {
+            gtk = true;
+        } else if (line == "QT_IM_MODULE=fcitx") {
+            qt = true;
+        } else if (line == "XMODIFIERS=@im=fcitx") {
+            xmod = true;
+        }
+    }
+    return gtk && qt && xmod;
 }
