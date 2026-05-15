@@ -288,7 +288,10 @@ echo -e "${BLUE}Installing addon...${NC}"
 # Kill a running overlay daemon so the new binary replaces cleanly — the
 # DBus service name is single-owner. -u "$USER" limits the kill to the
 # invoking user so we never touch other users' sessions on shared hosts.
-pkill -u "$USER" -x schnelle-umlaute-overlay 2>/dev/null || true
+# -f matches the full command line — without it pkill compares against
+# /proc/$pid/comm, which the kernel truncates to TASK_COMM_LEN-1 = 15
+# chars ("schnelle-umlaut"), so the 24-char binary name would never match.
+pkill -u "$USER" -f schnelle-umlaute-overlay 2>/dev/null || true
 sudo cmake --install .
 echo -e "${GREEN}✓ Addon installed${NC}"
 echo
