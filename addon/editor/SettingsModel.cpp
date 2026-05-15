@@ -1,6 +1,7 @@
 #include "SettingsModel.h"
 #include "FcitxReload.h"
 #include "../src/layer_shell_capability.h"
+#include "../themes.h"
 
 #include <QDir>
 #include <QFile>
@@ -204,9 +205,7 @@ void SettingsModel::setTheme(const QString &v) {
 }
 
 bool SettingsModel::isValidTheme(const QString &name) {
-    return name == QLatin1String("schnelle-umlaute") ||
-           name == QLatin1String("dark") || name == QLatin1String("light") ||
-           name == QLatin1String("contrast");
+    return schnelle_umlaute::isValidTheme(name);
 }
 
 void SettingsModel::addBlacklistEntry(const QString &entry) {
