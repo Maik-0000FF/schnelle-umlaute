@@ -33,6 +33,8 @@ schnelle-umlaute-setup
 
 Then logout and login. The `-git` package follows the `dev` branch and ships features ahead of the latest tagged release. A stable AUR package (`fcitx5-schnelle-umlaute`) tracking tagged releases will be added later.
 
+> If you skip `schnelle-umlaute-setup` and launch `schnelle-umlaute-editor`, the editor detects the missing environment variables on startup and offers to create the same `environment.d/fcitx5.conf` file. This is a safety net — the editor does not set up autostart, so the standalone helper is still the complete path.
+
 ---
 
 ## What gets installed

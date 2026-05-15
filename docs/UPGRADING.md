@@ -1,5 +1,17 @@
 # Upgrading
 
+## Upgrading from v1.2.0 to v1.2.1
+
+No mapping or config migration required. v1.2.1 is config-compatible with v1.2.0. Pull / reinstall and log out / in if your environment variables changed.
+
+### What changed
+
+- **Editor prompts for missing environment setup.** When `schnelle-umlaute-editor` starts and detects that `GTK_IM_MODULE`, `QT_IM_MODULE` or `XMODIFIERS` are not set to `fcitx`, it shows a modal dialog offering to create `~/.config/environment.d/fcitx5.conf`. The check runs on every start, not just first run, so users who skipped `schnelle-umlaute-setup` reach a working install without consulting the docs. The dialog does *not* configure autostart — `schnelle-umlaute-setup` remains the complete path.
+- **Theme-aware dropdowns.** Both pickers in the editor's Settings tab (theme, app-filter mode) now render their popup, item delegates and indicator from the active theme palette instead of the system default. The active row uses the theme's accent colour (violet / blue / blue / yellow per theme) instead of a constant green.
+- **Underline-style main tabs.** The Settings/Mappings tab strip switches from a pill-button look to plain underline tabs. The active tab is marked by a 2 px accent-coloured underline; inactive tabs lift to full text colour on hover.
+
+No action required for either of the visual changes — they apply on first launch of the updated editor.
+
 ## Upgrading from v1.1.x to v1.2.0
 
 No mapping or config migration required. v1.2.0 is config-compatible with v1.1.x — your existing `mappings.txt` and `schnelle-umlaute.conf` continue to work unchanged. The settings file gains optional `[Overlay]` and `[AppFilter]` sections; their defaults are safe (overlay disabled, filter mode `Disabled`), so no action is needed unless you want to use those features.
