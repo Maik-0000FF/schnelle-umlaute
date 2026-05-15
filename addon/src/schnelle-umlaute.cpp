@@ -480,7 +480,12 @@ public:
 
                         // Update preedit with first variant
                         updateClientPreedit(ic, it->second[0]);
-                        overlayShow(ic, it->second, 0);
+                        // Overlay is for choosing among variants; suppress it
+                        // when there's nothing to cycle (single-output Alt
+                        // still needs the cycling state above for the deferred
+                        // commit / re-press machinery).
+                        if (it->second.size() > 1)
+                            overlayShow(ic, it->second, 0);
                     } else {
                         // Single output with non-Alt leader - commit directly
                         ic->inputPanel().reset();
