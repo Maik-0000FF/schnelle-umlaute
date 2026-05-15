@@ -69,6 +69,12 @@ bool EnvSetup::hasValidConfigFile() const {
     // "# GTK_IM_MODULE=fcitx" must not satisfy the check, otherwise
     // a user-disabled config would look "set up" and never trigger
     // the setup dialog again.
+    //
+    // GLFW_IM_MODULE is intentionally NOT validated here even though
+    // writeConfig() writes it. It is non-canonical for fcitx5 (used
+    // only by GLFW-based clients like Alacritty), and users who
+    // hand-edit the file to remove it should still see the "logout
+    // pending" hint rather than be sent back through setup.
     bool gtk = false;
     bool qt = false;
     bool xmod = false;
