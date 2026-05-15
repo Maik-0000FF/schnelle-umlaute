@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (135 tests)
+// Test Suite for Schnelle Umlaute (136 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -28,6 +28,7 @@
 // 122-128 Shifted input split  shifted symbols (! * @) with dual split, cycling, Shift-held leader, single key
 // 129-132 Focus-flap resilience FocusOut during preedit/cycling, rapid 50x flap, flap after commit (sim. MouseTiler 100ms)
 // 133-135 State invariants    recentlyCommitted_ lifecycle, getBaseChar edge keycodes, AppFilter Whitelist empty program
+// 136     Alt repeat-suppress  second leader during Alt single-output arms committedKeyCode_ (üu-duplicate pin)
 // clang-format on
 
 #include <csignal>
@@ -5387,6 +5388,63 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO() << "Test 135 PASSED";
     });
 
+    // =========================================================================
+    // TEST 136: Alt single-output cycling — second leader arms repeat suppression
+    // Regression pin for the üu-class duplicate: with Alt + Space both as
+    // leaders and a single-output mapping (u→ü), hold 'u' + Alt enters Alt
+    // cycling with "ü" in preedit (altGestureSession_=true, size==1). Pressing
+    // Space (a different leader) commits "ü" + the leader's space char, and
+    // must arm committedKeyCode_ for the still-held 'u' so the next auto-
+    // repeat is consumed instead of starting a fresh gesture. Without this
+    // arming, the user would see "ü u" / "üu" duplicates.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 136;
+        FCITX_INFO() << "=== Test 136: Alt single-output + second leader arms "
+                        "repeat suppression ===";
+        configureLeaders(instance, true, false, false, false, false, true);
+        setMappings(instance, {{"u", "\xc3\xbc"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test136");
+
+        // Hold 'u' → waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_u, KeyStates(), kCodeU), false);
+
+        // Press Alt → single-output Alt cycling: "ü" in preedit,
+        // altGestureSession_=true, no commit yet (Alt branch keeps preedit).
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+
+        // Press Space (different leader) during Alt session → commits "ü",
+        // then commits the leader's printable char " ", then arms
+        // committedKeyCode_ = kCodeU.
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xbc");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed)
+            << "Second leader during Alt single-output must be consumed";
+
+        // Auto-repeat 'u' (held, same keycode, no release) → must be
+        // consumed by committedKeyCode_ guard, not start a fresh gesture.
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_u, KeyStates(), kCodeU), false);
+        FCITX_ASSERT(consumed)
+            << "Auto-repeat after Alt single-output commit must be consumed "
+               "(üu-class duplicate guard)";
+
+        // Release 'u' → also consumed (still under committedKeyCode_).
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_u, KeyStates(), kCodeU), true);
+        FCITX_ASSERT(consumed)
+            << "Release of committed key after Alt single-output must be "
+               "consumed";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 136 PASSED";
+    });
+
     testDispatcher->schedule([instance]() {
         g_currentTest = 113;
         FCITX_INFO()
@@ -5421,7 +5479,7 @@ static void scheduleTest113(Instance *instance) {
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 113 PASSED";
 
-                FCITX_INFO() << "=== All 135 tests PASSED ===";
+                FCITX_INFO() << "=== All 136 tests PASSED ===";
                 instance->exit();
                 return false;
             });
