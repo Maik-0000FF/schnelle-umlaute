@@ -154,4 +154,4 @@ Thanks to [wengxt](https://github.com/wengxt) for creating Fcitx5 and for the gu
 
 ---
 
-**Version:** 1.2.0
+**Version:** 1.2.1
