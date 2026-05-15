@@ -100,8 +100,14 @@ public:
     void setSubConfig(const std::string &path,
                       const RawConfig &config) override {
         if (path == "mappings.txt") {
-            // Cancel active gestures on all ICs FIRST, so no deferred timer
-            // callback can read a half-replaced umlautMap_ below.
+            // Cancel active gestures on all ICs FIRST so the rebuild below
+            // starts from quiescent state. fcitx5 is single-threaded on the
+            // event loop, so no timer can fire mid-rebuild, but the foreach
+            // itself runs filter pipelines (resetIC, updatePreedit) that
+            // can hit umlautMap_ via observer paths — doing the wipe before
+            // the rebuild keeps those reads consistent. Also avoids leaving
+            // ICs in a cycling state that references a now-removed entry
+            // (e.g. mapping shortened from "ä,ae" to "ä" while held).
             instance_->inputContextManager().foreach([this](InputContext *ic) {
                 auto *s = ic->propertyFor(&factory_);
                 s->clearAllState();
