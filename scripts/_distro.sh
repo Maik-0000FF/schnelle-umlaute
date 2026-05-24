@@ -3,15 +3,20 @@
 # Source from a script that has already set "set -e" if desired.
 #
 # After calling detect_distro_info, the caller can rely on:
-#   $DISTRO        — normalized family: arch | debian | fedora | suse | unknown
-#   $FAMILY_LABEL  — human-readable label for status messages
+#   $DISTRO         — normalized family: arch | debian | fedora | suse | unknown
+#   $FAMILY_LABEL   — human-readable label for status messages
+#   $INVOKING_USER  — real invoking user, robust where $USER is empty
 #
 # Keeping the mapping in one place prevents the install/uninstall pair
 # from drifting when a new derivative needs to be supported.
 
 # shellcheck disable=SC2034
-# DISTRO and FAMILY_LABEL are read by the sourcing script, not in this file.
+# DISTRO, FAMILY_LABEL and INVOKING_USER are read by the sourcing script,
+# not in this file.
 detect_distro_info() {
+    # $USER is empty in some cron/su contexts, which would make `pkill -u ""`
+    # error out and silently no-op via `|| true`, leaving a stale daemon.
+    INVOKING_USER="$(id -un)"
     local id=""
     local id_like=""
     if [ -f /etc/os-release ]; then
