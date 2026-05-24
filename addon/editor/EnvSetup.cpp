@@ -26,6 +26,30 @@ QString envFilePath() { return envDirPath() + QStringLiteral("/fcitx5.conf"); }
 constexpr auto kFcitxValue = "fcitx";
 constexpr auto kXmodifiersValue = "@im=fcitx";
 
+// Absolute path of the detected compositor's config file, or empty when this
+// compositor has no single known config (sway/river/...). Shared by the
+// hasValidCompositorConfig() check and the writeCompositorConfig() write so
+// they always target the same file.
+QString resolveCompositorPath(const fcitx::SessionEnvInfo &info) {
+    if (info.configPath.empty() || info.snippet.empty()) {
+        return {};
+    }
+    QString path = QString::fromStdString(info.configPath);
+    if (path.startsWith(QStringLiteral("~/"))) {
+        path = QDir::homePath() + path.mid(1);
+    }
+    return path;
+}
+
+// Contents of `path`, or empty when it does not exist / is unreadable.
+QByteArray readIfExists(const QString &path) {
+    QFile in(path);
+    if (in.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return in.readAll();
+    }
+    return {};
+}
+
 } // namespace
 
 EnvSetup::EnvSetup(QObject *parent) : QObject(parent) {}
@@ -112,30 +136,33 @@ QString EnvSetup::compositorConfigPath() const {
     return QString::fromStdString(fcitx::detectSessionEnv().configPath);
 }
 
+bool EnvSetup::hasValidCompositorConfig() const {
+    const fcitx::SessionEnvInfo info = fcitx::detectSessionEnv();
+    const QString path = resolveCompositorPath(info);
+    if (path.isEmpty()) {
+        // No known config file for this compositor (sway/river/...): there is
+        // nothing we could have written, so never claim a valid config.
+        return false;
+    }
+    // "Valid" == merging would change nothing == the canonical lines are
+    // already present. Reusing mergeCompositorEnv() keeps this in lockstep
+    // with what writeCompositorConfig() considers already-written.
+    return !fcitx::mergeCompositorEnv(readIfExists(path).toStdString(),
+                                      info.snippet)
+                .changed;
+}
+
 bool EnvSetup::writeCompositorConfig() {
     const fcitx::SessionEnvInfo info = fcitx::detectSessionEnv();
-    if (info.configPath.empty() || info.snippet.empty()) {
+    const QString path = resolveCompositorPath(info);
+    if (path.isEmpty()) {
         // No single known config file for this compositor (sway/river/...):
         // the dialog shows the snippet for manual placement instead.
         return false;
     }
 
-    QString path = QString::fromStdString(info.configPath);
-    if (path.startsWith(QStringLiteral("~/"))) {
-        path = QDir::homePath() + path.mid(1);
-    }
-
-    // Read the user's current config; absence is fine — we create it.
-    QByteArray existing;
-    {
-        QFile in(path);
-        if (in.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            existing = in.readAll();
-        }
-    }
-
-    const fcitx::CompositorEnvMerge merge =
-        fcitx::mergeCompositorEnv(existing.toStdString(), info.snippet);
+    const fcitx::CompositorEnvMerge merge = fcitx::mergeCompositorEnv(
+        readIfExists(path).toStdString(), info.snippet);
     if (!merge.changed) {
         return true; // lines already present — nothing to write
     }

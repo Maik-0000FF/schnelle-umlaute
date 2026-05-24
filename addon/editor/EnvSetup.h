@@ -75,6 +75,16 @@ public:
     // and the dialog should give generic guidance.
     Q_INVOKABLE QString compositorConfigPath() const;
 
+    // True when compositorConfigPath()'s file already contains the canonical
+    // env snippet (recognised verbatim). The compositor-path counterpart to
+    // hasValidConfigFile(): lets the dialog distinguish "not set up yet"
+    // (offer the write) from "written, only a session restart is pending"
+    // (informational reminder), so the actionable button is not shown again
+    // after the lines are in place. Always false for compositors without a
+    // known config path (sway/river), and shares mergeCompositorEnv() with
+    // writeCompositorConfig() so the check and the write cannot disagree.
+    Q_INVOKABLE bool hasValidCompositorConfig() const;
+
     // Idempotently appends the detected compositor's env snippet to its
     // config file (the one compositorConfigPath() names). Preserves the
     // user's existing content verbatim and only adds a labelled block when

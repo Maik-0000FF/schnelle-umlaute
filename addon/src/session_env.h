@@ -121,15 +121,19 @@ struct CompositorEnvMerge {
     std::string content;
 };
 
-// Idempotently merge `snippet` (newline-separated config lines, e.g. the
-// Hyprland `env = KEY,VALUE` directives) into `existing` compositor-config
-// content. Never rewrites or reorders the user's hand-maintained file: if any
-// snippet line is missing, the *whole* labelled block is appended at the end;
-// if all lines are already present uncommented, returns {false, ""}.
+// Merge `snippet` (newline-separated config lines, e.g. the Hyprland
+// `env = KEY,VALUE` directives) into `existing` compositor-config content.
+// Never rewrites or reorders the user's hand-maintained file: if any snippet
+// line is missing, the *whole* labelled block is appended at the end; if all
+// lines are already present uncommented, returns {false, ""}.
 //
-// Appending the full block even when only some lines are missing can leave a
-// duplicate `env =` line, which every target compositor tolerates (last value
-// wins) — preferred over trying to surgically edit the user's file.
+// "Present" is a verbatim, whitespace-trimmed line comparison — it recognises
+// the canonical spelling we emit, so writing our own block is idempotent, but
+// a hand-written variant with different inner spacing (e.g.
+// `env=GTK_IM_MODULE,fcitx`) is not recognised and the canonical block is
+// appended once alongside it. The resulting duplicate `env =` line is tolerated
+// by every target compositor (last value wins) and is preferred over trying to
+// surgically edit the user's file.
 inline CompositorEnvMerge mergeCompositorEnv(const std::string &existing,
                                              const std::string &snippet) {
     using session_env_detail::splitLines;

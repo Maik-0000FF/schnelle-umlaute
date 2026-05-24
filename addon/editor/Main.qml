@@ -32,17 +32,24 @@ ApplicationWindow {
         //   1) env.d not imported          → TTY-launched compositor
         //                                    (e.g. Hyprland): relogin never
         //                                    reads environment.d, so the
-        //                                    env.d first-run/logout advice
-        //                                    is useless here. Go straight to
-        //                                    the compositor-config dialog
-        //                                    regardless of whether the env.d
-        //                                    file happens to exist.
+        //                                    env.d first-run/logout advice is
+        //                                    useless here. Split like the
+        //                                    env.d path: if the compositor
+        //                                    config already has the lines,
+        //                                    only a session restart is
+        //                                    pending (informational); else
+        //                                    offer to add them.
         //   2) env.d imported, no file     → first-run; offer setup
         //   3) env.d imported, file valid  → logout pending; relogin
         //                                    activates the variables
         if (!envSetup.isConfigured()) {
             if (!envSetup.honorsEnvironmentD()) {
-                compositorDialog.open();
+                if (envSetup.compositorConfigPath().length > 0
+                        && envSetup.hasValidCompositorConfig()) {
+                    compositorRestartDialog.open();
+                } else {
+                    compositorDialog.open();
+                }
             } else if (!envSetup.hasValidConfigFile()) {
                 envDialog.open();
             } else {
@@ -136,6 +143,26 @@ ApplicationWindow {
                     Theme.error);
             }
         }
+    }
+
+    // Compositor counterpart to logoutDialog: the lines are already in the
+    // config file (hasValidCompositorConfig()), so the only thing left is a
+    // session restart. Informational, no write button — that avoids
+    // re-running the now no-op write and falsely reporting "Added".
+    ConfirmDialog {
+        id: compositorRestartDialog
+        titleText: qsTr("Restart pending — %1").arg(envSetup.sessionName())
+        messageText: qsTr(
+            "The input-method variables are set in %1 but are not active " +
+            "in this session yet — your compositor exports them only at " +
+            "startup.\n\n" +
+            "Restart your session (log out and back into the compositor, " +
+            "not just reload the config) to activate them. After that, " +
+            "this dialog will stop appearing."
+        ).arg(envSetup.compositorConfigPath())
+        confirmText: qsTr("OK")
+        confirmStyle: "primary"
+        singleButton: true
     }
 
     ColumnLayout {
