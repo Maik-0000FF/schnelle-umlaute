@@ -91,16 +91,19 @@ ApplicationWindow {
 
     ConfirmDialog {
         id: compositorDialog
+        // Non-empty only for compositors with a known config file and
+        // syntax (Hyprland). When set, the dialog can write the lines
+        // itself; otherwise it falls back to showing them for manual use.
+        readonly property string compPath: envSetup.compositorConfigPath()
         titleText: qsTr("Activation pending — %1").arg(envSetup.sessionName())
         messageText: {
             const intro = qsTr(
                 "The variables were written to %1, but your session does " +
                 "not import environment.d files — logging out will not " +
                 "activate them.").arg(envSetup.configPath());
-            const path = envSetup.compositorConfigPath();
-            const where = path.length > 0
-                ? qsTr("Add these lines to %1 and restart your session:")
-                    .arg(path)
+            const where = compPath.length > 0
+                ? qsTr("These lines belong in %1. Add them below, then " +
+                       "restart your session:").arg(compPath)
                 : qsTr("Export these variables before your compositor " +
                        "starts (or launch it via uwsm) and restart your " +
                        "session:");
@@ -110,9 +113,26 @@ ApplicationWindow {
             return intro + "\n\n" + where + "\n\n"
                 + envSetup.compositorEnvSnippet() + "\n\n" + tail;
         }
-        confirmText: qsTr("OK")
+        confirmText: compPath.length > 0 ? qsTr("Add to config") : qsTr("OK")
+        cancelText: qsTr("Cancel")
         confirmStyle: "primary"
-        singleButton: true
+        // No config to write for sway/river/etc. → informational OK only.
+        singleButton: compPath.length === 0
+        onConfirmed: () => {
+            if (compPath.length === 0)
+                return;
+            if (envSetup.writeCompositorConfig()) {
+                snackbar.show(
+                    qsTr("Added to %1 — restart your session to activate.")
+                        .arg(compPath),
+                    Theme.success);
+            } else {
+                snackbar.show(
+                    qsTr("Could not write %1 — please add the lines manually.")
+                        .arg(compPath),
+                    Theme.error);
+            }
+        }
     }
 
     ColumnLayout {

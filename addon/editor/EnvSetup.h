@@ -74,6 +74,18 @@ public:
     // "~/.config/hypr/hyprland.conf"), or empty when not known precisely
     // and the dialog should give generic guidance.
     Q_INVOKABLE QString compositorConfigPath() const;
+
+    // Idempotently appends the detected compositor's env snippet to its
+    // config file (the one compositorConfigPath() names). Preserves the
+    // user's existing content verbatim and only adds a labelled block when
+    // the lines are not already present. Creates the file and parent
+    // directory if missing. A session restart is still required afterwards
+    // for the compositor to export the variables — the caller must say so.
+    //
+    // Returns true on success (including the no-op case where the lines were
+    // already present), false when there is no known config path for this
+    // compositor (e.g. sway/river) or on filesystem error.
+    Q_INVOKABLE bool writeCompositorConfig();
 };
 
 #endif

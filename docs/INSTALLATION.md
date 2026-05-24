@@ -35,6 +35,8 @@ Then logout and login. The `-git` package follows the `dev` branch and ships fea
 
 > If you skip `schnelle-umlaute-setup` and launch `schnelle-umlaute-editor`, the editor detects the missing environment variables on startup and offers to create the same `environment.d/fcitx5.conf` file. This is a safety net — the editor does not set up autostart, so the standalone helper is still the complete path.
 
+> **wlroots compositors (Hyprland, sway, …):** A compositor started straight from a TTY (`exec Hyprland`) does not import `environment.d`, so the steps above won't activate the variables on their own. Either launch your session through a display manager or [uwsm](https://github.com/Vladimir-csp/uwsm) (then `environment.d` is honored normally), or put the variables in the compositor config — on Hyprland the editor offers an **Add to config** button for `~/.config/hypr/hyprland.conf`. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#editor-shows-an-activation-pending-dialog-hyprland--sway--other-wlroots).
+
 ---
 
 ## What gets installed

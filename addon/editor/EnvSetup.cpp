@@ -5,6 +5,7 @@
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QSaveFile>
 
 namespace {
@@ -112,4 +113,48 @@ QString EnvSetup::compositorEnvSnippet() const {
 
 QString EnvSetup::compositorConfigPath() const {
     return QString::fromStdString(fcitx::detectSessionEnv().configPath);
+}
+
+bool EnvSetup::writeCompositorConfig() {
+    const fcitx::SessionEnvInfo info = fcitx::detectSessionEnv();
+    if (info.configPath.empty() || info.snippet.empty()) {
+        // No single known config file for this compositor (sway/river/...):
+        // the dialog shows the snippet for manual placement instead.
+        return false;
+    }
+
+    QString path = QString::fromStdString(info.configPath);
+    if (path.startsWith(QStringLiteral("~/"))) {
+        path = QDir::homePath() + path.mid(1);
+    }
+
+    // Read the user's current config; absence is fine — we create it.
+    QByteArray existing;
+    {
+        QFile in(path);
+        if (in.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            existing = in.readAll();
+        }
+    }
+
+    const fcitx::CompositorEnvMerge merge =
+        fcitx::mergeCompositorEnv(existing.toStdString(), info.snippet);
+    if (!merge.changed) {
+        return true; // lines already present — nothing to write
+    }
+
+    QDir dir;
+    if (!dir.mkpath(QFileInfo(path).absolutePath())) {
+        return false;
+    }
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return false;
+    }
+    const QByteArray payload = QByteArray::fromStdString(merge.content);
+    if (file.write(payload) != payload.size()) {
+        file.cancelWriting();
+        return false;
+    }
+    return file.commit();
 }

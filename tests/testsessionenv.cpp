@@ -12,6 +12,7 @@
 
 using fcitx::classifySessionEnv;
 using fcitx::EnvMechanism;
+using fcitx::mergeCompositorEnv;
 
 #define EXPECT(cond)                                                           \
     do {                                                                       \
@@ -87,6 +88,64 @@ void testSessionTypeOnlyLabels() {
     EXPECT(classifySessionEnv(nullptr, "KDE").session == "KDE");
 }
 
+// The Hyprland snippet (env = KEY,VALUE lines), reused by the merge tests.
+static const std::string kHyprSnippet =
+    classifySessionEnv("wayland", "Hyprland").snippet;
+
+// Empty config → the labelled block becomes the whole file, no leading blank
+// line, snippet preserved verbatim.
+void testMergeIntoEmptyFile() {
+    auto r = mergeCompositorEnv("", kHyprSnippet);
+    EXPECT(r.changed);
+    EXPECT(r.content ==
+           "# schnelle-umlaute: fcitx5 input-method environment\n" +
+               kHyprSnippet + "\n");
+}
+
+// All three lines already present uncommented → no-op, nothing to write.
+void testMergeAllPresentIsNoOp() {
+    const std::string existing =
+        "monitor=,preferred,auto,1\n" + kHyprSnippet + "\nexec-once = waybar\n";
+    auto r = mergeCompositorEnv(existing, kHyprSnippet);
+    EXPECT(!r.changed);
+    EXPECT(r.content.empty());
+}
+
+// Commented-out lines do not count as present — the block is still appended.
+void testMergeIgnoresCommentedLines() {
+    const std::string existing = "# env = GTK_IM_MODULE,fcitx\n"
+                                 "# env = QT_IM_MODULE,fcitx\n"
+                                 "# env = XMODIFIERS,@im=fcitx\n";
+    auto r = mergeCompositorEnv(existing, kHyprSnippet);
+    EXPECT(r.changed);
+    // Existing (commented) content kept verbatim, our block appended after.
+    EXPECT(r.content.find(existing) == 0);
+    EXPECT(
+        r.content.find("# schnelle-umlaute: fcitx5 input-method environment") !=
+        std::string::npos);
+}
+
+// Partial presence still appends the full block (idempotency favours not
+// surgically editing the user's file; duplicate env lines are harmless).
+void testMergePartialAppendsFullBlock() {
+    const std::string existing = "env = GTK_IM_MODULE,fcitx\n";
+    auto r = mergeCompositorEnv(existing, kHyprSnippet);
+    EXPECT(r.changed);
+    EXPECT(r.content.find("env = QT_IM_MODULE,fcitx") != std::string::npos);
+    EXPECT(r.content.find("env = XMODIFIERS,@im=fcitx") != std::string::npos);
+}
+
+// User content is preserved exactly and separated from our block by a blank
+// line; a file without a trailing newline still gets clean separation.
+void testMergePreservesContentAndSeparates() {
+    const std::string existing = "exec-once = foo"; // no trailing newline
+    auto r = mergeCompositorEnv(existing, kHyprSnippet);
+    EXPECT(r.changed);
+    EXPECT(r.content.find("exec-once = foo\n\n"
+                          "# schnelle-umlaute: fcitx5 "
+                          "input-method environment\n") == 0);
+}
+
 int main() {
     testHyprlandIsCompositorConf();
     testSwayIsCompositorConfWithGenericSnippet();
@@ -96,6 +155,11 @@ int main() {
     testGnomeIsEnvironmentD();
     testUnsetDesktopDefaultsToEnvironmentD();
     testSessionTypeOnlyLabels();
+    testMergeIntoEmptyFile();
+    testMergeAllPresentIsNoOp();
+    testMergeIgnoresCommentedLines();
+    testMergePartialAppendsFullBlock();
+    testMergePreservesContentAndSeparates();
     std::puts("testsessionenv: all passed");
     return 0;
 }

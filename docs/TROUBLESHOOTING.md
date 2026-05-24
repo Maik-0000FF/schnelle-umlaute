@@ -112,7 +112,23 @@ Setting the mode back to **Disabled** turns the filter off entirely. See [Config
   ```bash
   schnelle-umlaute-setup
   ```
-- If you have already logged out / in and the dialog still appears, the variables are not reaching your session. Check with `echo $GTK_IM_MODULE` from a fresh terminal in your graphical session. If empty, your login flow may not read `environment.d` — see the `schnelle-umlaute-setup` section below for non-systemd-login workarounds.
+- If you have already logged out / in and the dialog still appears, the variables are not reaching your session. Check with `echo $GTK_IM_MODULE` from a fresh terminal in your graphical session. If empty, your login flow may not read `environment.d` — see the **"Activation pending" dialog** section below for compositor-launched sessions, or the `schnelle-umlaute-setup` section for other non-systemd-login workarounds.
+
+## Editor shows an "Activation pending" dialog (Hyprland / sway / other wlroots)
+
+**Symptom:** The dialog is titled *"Activation pending — Hyprland (Wayland)"* (or your compositor), says the variables were written but logging out will not activate them, and shows three `env =` lines.
+
+**Cause:** A compositor started straight from a TTY (e.g. `exec Hyprland` from a login shell, or a `~/.config/hypr/hyprland.conf` that does `exec-once = fcitx5`) is **not** part of the systemd graphical session, so it never imports `~/.config/environment.d/`. The setup file is written correctly, but the variables never become active — which is also why apps like Spotify/Discord (Electron → `GTK_IM_MODULE`) and Telegram (Qt → `QT_IM_MODULE`) get no input method while the browser and terminal work.
+
+**Fix (Hyprland):** Click **Add to config** in the dialog — the editor appends the lines to `~/.config/hypr/hyprland.conf` (idempotently; it never rewrites your existing config). Then fully restart your Hyprland session — log out and back into the compositor, **not** `hyprctl reload`, which does not re-export environment variables. Verify afterwards:
+
+```bash
+echo "$GTK_IM_MODULE | $QT_IM_MODULE | $XMODIFIERS"   # → fcitx | fcitx | @im=fcitx
+```
+
+**Fix (sway / river / niri / other wlroots):** There is no single config syntax, so the dialog shows the variables for you to place yourself — export them before the compositor starts (in the script that launches it) and restart the session.
+
+**Universal alternative:** Launch your compositor through a display manager or [uwsm](https://github.com/Vladimir-csp/uwsm) instead of `exec`-ing it from a TTY. Then the session imports `environment.d` like KDE/GNOME do, the standard `schnelle-umlaute-setup` path works, and this dialog never appears.
 
 ## Editor changes don't take effect
 
