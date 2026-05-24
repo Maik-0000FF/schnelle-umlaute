@@ -21,9 +21,7 @@ QString envDirPath() {
     return QDir::homePath() + QStringLiteral("/.config/environment.d");
 }
 
-QString envFilePath() {
-    return envDirPath() + QStringLiteral("/fcitx5.conf");
-}
+QString envFilePath() { return envDirPath() + QStringLiteral("/fcitx5.conf"); }
 
 constexpr auto kFcitxValue = "fcitx";
 constexpr auto kXmodifiersValue = "@im=fcitx";
@@ -48,11 +46,10 @@ bool EnvSetup::writeConfig() {
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         return false;
     }
-    static constexpr QByteArrayView payload =
-        "GTK_IM_MODULE=fcitx\n"
-        "QT_IM_MODULE=fcitx\n"
-        "XMODIFIERS=@im=fcitx\n"
-        "GLFW_IM_MODULE=ibus\n";
+    static constexpr QByteArrayView payload = "GTK_IM_MODULE=fcitx\n"
+                                              "QT_IM_MODULE=fcitx\n"
+                                              "XMODIFIERS=@im=fcitx\n"
+                                              "GLFW_IM_MODULE=ibus\n";
     if (file.write(payload.data(), payload.size()) != payload.size()) {
         file.cancelWriting();
         return false;

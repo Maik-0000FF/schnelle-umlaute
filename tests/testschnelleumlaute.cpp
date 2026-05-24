@@ -31,11 +31,11 @@
 // 136     Alt repeat-suppress  second leader during Alt single-output arms committedKeyCode_ (üu-duplicate pin)
 // clang-format on
 
+#include <unistd.h>
 #include <csignal>
 #include <cstdio>
 #include <ctime>
 #include <memory>
-#include <unistd.h>
 #include <unordered_map>
 #include <vector>
 #include <fcitx-config/rawconfig.h>
@@ -78,9 +78,9 @@ static void crashHandler(int signo) {
     // signal-safe in practice for trivial formats, but write+manual format
     // is portable.
     char buf[80];
-    int len = std::snprintf(buf, sizeof(buf),
-                            "\n[CRASH] signal %d during test %d\n", signo,
-                            static_cast<int>(g_currentTest));
+    int len =
+        std::snprintf(buf, sizeof(buf), "\n[CRASH] signal %d during test %d\n",
+                      signo, static_cast<int>(g_currentTest));
     if (len > 0 && static_cast<size_t>(len) < sizeof(buf)) {
         ssize_t ignored = ::write(STDERR_FILENO, buf, static_cast<size_t>(len));
         (void)ignored;
@@ -721,7 +721,8 @@ void scheduleTests(Instance *instance) {
     // TEST 1: Press 'a' + release → commits normal 'a'
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 1; FCITX_INFO() << "=== Test 1: Press a + release -> commits a ===";
+        g_currentTest = 1;
+        FCITX_INFO() << "=== Test 1: Press a + release -> commits a ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test1");
 
@@ -743,7 +744,8 @@ void scheduleTests(Instance *instance) {
     // TEST 2: Hold 'a' + Space → commits 'ä'
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 2; FCITX_INFO() << "=== Test 2: Hold a + Space -> commits ä ===";
+        g_currentTest = 2;
+        FCITX_INFO() << "=== Test 2: Hold a + Space -> commits ä ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test2");
 
@@ -766,7 +768,8 @@ void scheduleTests(Instance *instance) {
     // TEST 3: Unmapped key 'b' → passes through
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 3; FCITX_INFO() << "=== Test 3: Unmapped key b passes through ===";
+        g_currentTest = 3;
+        FCITX_INFO() << "=== Test 3: Unmapped key b passes through ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test3");
 
@@ -786,7 +789,8 @@ void scheduleTests(Instance *instance) {
     // TEST 4: Modifier passthrough — Ctrl+a, Alt+a not consumed
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 4; FCITX_INFO() << "=== Test 4: Modifier passthrough ===";
+        g_currentTest = 4;
+        FCITX_INFO() << "=== Test 4: Modifier passthrough ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test4");
 
@@ -806,7 +810,8 @@ void scheduleTests(Instance *instance) {
     // TEST 5: Pure modifier keys (Shift, Ctrl alone) → not consumed
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 5; FCITX_INFO() << "=== Test 5: Pure modifier keys pass through ===";
+        g_currentTest = 5;
+        FCITX_INFO() << "=== Test 5: Pure modifier keys pass through ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test5");
 
@@ -832,7 +837,8 @@ void scheduleTests(Instance *instance) {
     // TEST 6: Sequence "as" — press a + release, press s + release
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 6; FCITX_INFO() << "=== Test 6: Sequence as -> a then s ===";
+        g_currentTest = 6;
+        FCITX_INFO() << "=== Test 6: Sequence as -> a then s ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test6");
 
@@ -858,7 +864,8 @@ void scheduleTests(Instance *instance) {
     // TEST 7: Sequence "aß" — hold a + Space, hold s + Space
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 7; FCITX_INFO() << "=== Test 7: Sequence a+Space s+Space -> ä ß ===";
+        g_currentTest = 7;
+        FCITX_INFO() << "=== Test 7: Sequence a+Space s+Space -> ä ß ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test7");
 
@@ -888,7 +895,8 @@ void scheduleTests(Instance *instance) {
     // TEST 8: Sequence "sa" — press s + release, press a + release
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 8; FCITX_INFO() << "=== Test 8: Sequence sa -> s then a ===";
+        g_currentTest = 8;
+        FCITX_INFO() << "=== Test 8: Sequence sa -> s then a ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test8");
 
@@ -912,7 +920,8 @@ void scheduleTests(Instance *instance) {
     // TEST 9: Sequence "sä" — hold s + Space, hold a + Space
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 9; FCITX_INFO() << "=== Test 9: Sequence s+Space a+Space -> ß ä ===";
+        g_currentTest = 9;
+        FCITX_INFO() << "=== Test 9: Sequence s+Space a+Space -> ß ä ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test9");
 
@@ -940,7 +949,8 @@ void scheduleTests(Instance *instance) {
     // TEST 10: Shift+A + Space → commits 'Ä'
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 10; FCITX_INFO() << "=== Test 10: Shift+A + Space -> Ä ===";
+        g_currentTest = 10;
+        FCITX_INFO() << "=== Test 10: Shift+A + Space -> Ä ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test10");
 
@@ -969,7 +979,8 @@ void scheduleTests(Instance *instance) {
     // TEST 11: Ordering guard — Space after commit routed through commitString
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 11; FCITX_INFO() << "=== Test 11: Ordering guard ===";
+        g_currentTest = 11;
+        FCITX_INFO() << "=== Test 11: Ordering guard ===";
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test11");
 
@@ -1003,7 +1014,8 @@ void scheduleTests(Instance *instance) {
     // Uses dual-split config (z + /) with default mappings (A→Ä, U→Ü).
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 12; FCITX_INFO() << "=== Test 12: Shift+A + Shift+/ → Ä ===";
+        g_currentTest = 12;
+        FCITX_INFO() << "=== Test 12: Shift+A + Shift+/ → Ä ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "z", "/");
 
@@ -1040,7 +1052,8 @@ void scheduleTests(Instance *instance) {
     // Verifies existing letter matching still works in dual-split context.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 13; FCITX_INFO() << "=== Test 13: Shift+U + Shift+Z → Ü ===";
+        g_currentTest = 13;
+        FCITX_INFO() << "=== Test 13: Shift+U + Shift+Z → Ü ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "z", "/");
 
@@ -1076,7 +1089,8 @@ void scheduleTests(Instance *instance) {
     // Must run before configureLeaders tests to avoid inotify interference.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 14; FCITX_INFO() << "=== Test 14: Double-comma escape in output ===";
+        g_currentTest = 14;
+        FCITX_INFO() << "=== Test 14: Double-comma escape in output ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "a,,b"}});
 
@@ -1100,7 +1114,8 @@ void scheduleTests(Instance *instance) {
     // TEST 31: Double-comma with cycling — "x,,y,z" → ["x,y", "z"]
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 15; FCITX_INFO() << "=== Test 15: Double-comma with cycling ===";
+        g_currentTest = 15;
+        FCITX_INFO() << "=== Test 15: Double-comma with cycling ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "x,,y,z"}});
 
@@ -1130,7 +1145,8 @@ void scheduleTests(Instance *instance) {
     // TEST 32: Triple comma ",,," → [","] (escaped comma + separator)
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 16; FCITX_INFO() << "=== Test 16: Triple comma output ===";
+        g_currentTest = 16;
+        FCITX_INFO() << "=== Test 16: Triple comma output ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", ",,,"}});
 
@@ -1154,7 +1170,8 @@ void scheduleTests(Instance *instance) {
     // TEST 13: Left Arrow as leader
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 17; FCITX_INFO() << "=== Test 17: Left Arrow as leader ===";
+        g_currentTest = 17;
+        FCITX_INFO() << "=== Test 17: Left Arrow as leader ===";
         configureLeaders(instance, false, true, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test17");
@@ -1179,7 +1196,8 @@ void scheduleTests(Instance *instance) {
     // TEST 14: Right Arrow as leader
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 18; FCITX_INFO() << "=== Test 18: Right Arrow as leader ===";
+        g_currentTest = 18;
+        FCITX_INFO() << "=== Test 18: Right Arrow as leader ===";
         configureLeaders(instance, false, false, true, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test18");
@@ -1204,7 +1222,8 @@ void scheduleTests(Instance *instance) {
     // TEST 15: Up Arrow as leader
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 19; FCITX_INFO() << "=== Test 19: Up Arrow as leader ===";
+        g_currentTest = 19;
+        FCITX_INFO() << "=== Test 19: Up Arrow as leader ===";
         configureLeaders(instance, false, false, false, true, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test19");
@@ -1228,7 +1247,8 @@ void scheduleTests(Instance *instance) {
     // TEST 16: Down Arrow as leader
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 20; FCITX_INFO() << "=== Test 20: Down Arrow as leader ===";
+        g_currentTest = 20;
+        FCITX_INFO() << "=== Test 20: Down Arrow as leader ===";
         configureLeaders(instance, false, false, false, false, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test20");
@@ -1265,7 +1285,8 @@ void scheduleTests(Instance *instance) {
     // verified before any subsequent test starts.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 21; FCITX_INFO() << "=== Test 21: Alt_L as leader ===";
+        g_currentTest = 21;
+        FCITX_INFO() << "=== Test 21: Alt_L as leader ===";
         configureLeaders(instance, false, false, false, false, false, true);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test21");
@@ -1328,7 +1349,8 @@ void scheduleTests(Instance *instance) {
                         FCITX_INFO() << "Test 22 PASSED";
 
                         // --- Test 23: Alt release consumed, commits "ä" ---
-                        g_currentTest = 23; FCITX_INFO() << "=== Test 23: Alt release consumed "
+                        g_currentTest = 23;
+                        FCITX_INFO() << "=== Test 23: Alt release consumed "
                                         "after leader use ===";
                         configureLeaders(instance, false, false, false, false,
                                          false, true);
@@ -1384,7 +1406,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // TEST 20: committedKeyCode_ — auto-repeat suppression after commit
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 24; FCITX_INFO() << "=== Test 24: Auto-repeat suppression after commit ===";
+        g_currentTest = 24;
+        FCITX_INFO() << "=== Test 24: Auto-repeat suppression after commit ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test24");
@@ -1414,7 +1437,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // TEST 21: Custom leader key
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 25; FCITX_INFO() << "=== Test 25: Custom leader key '#' ===";
+        g_currentTest = 25;
+        FCITX_INFO() << "=== Test 25: Custom leader key '#' ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "#");
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -1446,7 +1470,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Validates utf8::validate/ncharByteLength sanitization path.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 26; FCITX_INFO() << "=== Test 26: Custom leader with UTF-8 char § ===";
+        g_currentTest = 26;
+        FCITX_INFO() << "=== Test 26: Custom leader with UTF-8 char § ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "\xc2\xa7"); // § in UTF-8
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -1473,7 +1498,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Config "#x" should sanitize to "#" and work as leader.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 27; FCITX_INFO() << "=== Test 27: Custom leader multi-char sanitized ===";
+        g_currentTest = 27;
+        FCITX_INFO() << "=== Test 27: Custom leader multi-char sanitized ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "#x");
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -1500,7 +1526,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Config "  #  " should sanitize to "#" and work as leader.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 28; FCITX_INFO() << "=== Test 28: Custom leader whitespace trimmed ===";
+        g_currentTest = 28;
+        FCITX_INFO() << "=== Test 28: Custom leader whitespace trimmed ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "  #  ");
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -1530,7 +1557,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // longer Config "§xyz" should sanitize to "§" (2 bytes kept, rest dropped).
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 29; FCITX_INFO() << "=== Test 29: Multi-byte UTF-8 trimmed from longer ===";
+        g_currentTest = 29;
+        FCITX_INFO() << "=== Test 29: Multi-byte UTF-8 trimmed from longer ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "\xc2\xa7xyz"); // "§xyz"
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -1559,7 +1587,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Release 'a' after second Space → commits "ae" (index 1).
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 30; FCITX_INFO() << "=== Test 30: Cycling through multiple outputs ===";
+        g_currentTest = 30;
+        FCITX_INFO() << "=== Test 30: Cycling through multiple outputs ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae,@"}});
 
@@ -1591,7 +1620,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Release 'a' → commits "ä" (index 0 after wrap).
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 31; FCITX_INFO() << "=== Test 31: Cycling wraps around ===";
+        g_currentTest = 31;
+        FCITX_INFO() << "=== Test 31: Cycling wraps around ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}});
 
@@ -1625,7 +1655,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Pressing a second mapped key should commit 'a' and start 's' gesture.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 32; FCITX_INFO() << "=== Test 32: Overlapping gestures ===";
+        g_currentTest = 32;
+        FCITX_INFO() << "=== Test 32: Overlapping gestures ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test32");
@@ -1656,7 +1687,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Space alone (no key held) should pass through unconsumed.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 33; FCITX_INFO() << "=== Test 33: Space passthrough without gesture ===";
+        g_currentTest = 33;
+        FCITX_INFO() << "=== Test 33: Space passthrough without gesture ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test33");
@@ -1680,7 +1712,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // it without consuming. A subsequent Space then also passes through.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 34; FCITX_INFO() << "=== Test 34: Ordering guard clears on non-Space ===";
+        g_currentTest = 34;
+        FCITX_INFO() << "=== Test 34: Ordering guard clears on non-Space ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test34");
@@ -1718,7 +1751,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // so a new gesture can start without interference.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 35; FCITX_INFO() << "=== Test 35: New gesture after cycling commit ===";
+        g_currentTest = 35;
+        FCITX_INFO() << "=== Test 35: New gesture after cycling commit ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}, {"s", "\xc3\x9f"}});
 
@@ -1758,7 +1792,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Without this, Space could arrive before the committed text in terminals.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 36; FCITX_INFO() << "=== Test 36: Ordering guard after cycling release ===";
+        g_currentTest = 36;
+        FCITX_INFO() << "=== Test 36: Ordering guard after cycling release ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}});
 
@@ -1794,7 +1829,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Mapped chars: a,e,i,o,u,s,c,n,y (multilingual cycling)
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 37; FCITX_INFO() << "=== Test 37: Space leader — German 1000 chars ===";
+        g_currentTest = 37;
+        FCITX_INFO() << "=== Test 37: Space leader — German 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test37");
@@ -1815,7 +1851,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // TEST 48: Writing flow — Space leader, English 1000 chars
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 38; FCITX_INFO() << "=== Test 38: Space leader — English 1000 chars ===";
+        g_currentTest = 38;
+        FCITX_INFO() << "=== Test 38: Space leader — English 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test38");
@@ -1836,7 +1873,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // TEST 49: Writing flow — Space leader, French 1000 chars
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 39; FCITX_INFO() << "=== Test 39: Space leader — French 1000 chars ===";
+        g_currentTest = 39;
+        FCITX_INFO() << "=== Test 39: Space leader — French 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test39");
@@ -1857,7 +1895,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // TEST 50: Writing flow — Space leader, Portuguese 1000 chars
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 40; FCITX_INFO() << "=== Test 40: Space leader — Portuguese 1000 chars ===";
+        g_currentTest = 40;
+        FCITX_INFO() << "=== Test 40: Space leader — Portuguese 1000 chars ===";
         configureMultilingualCycling(instance, true, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test40");
@@ -1880,7 +1919,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // This proves Alt is superior to Space for fast typing.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 41; FCITX_INFO() << "=== Test 41: Alt leader — German 1000 chars ===";
+        g_currentTest = 41;
+        FCITX_INFO() << "=== Test 41: Alt leader — German 1000 chars ===";
         configureMultilingualCycling(instance, false, true);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test41");
@@ -1926,7 +1966,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // presses Space → 'u' converts to 'ü'. Output: "anbaü" not "anbau ".
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 43; FCITX_INFO() << "=== Test 43: anbau overlap collision demo ===";
+        g_currentTest = 43;
+        FCITX_INFO() << "=== Test 43: anbau overlap collision demo ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test43");
@@ -1986,7 +2027,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // ';' leader never appears in normal text → 0 collisions.
     // =========================================================================
     testDispatcher->schedule([]() {
-        g_currentTest = 44; FCITX_INFO() << "=== Test 44: Dual leader collision analysis ===";
+        g_currentTest = 44;
+        FCITX_INFO() << "=== Test 44: Dual leader collision analysis ===";
 
         struct LangResult {
             const char *name;
@@ -2063,7 +2105,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // CustomKey2="#", hold 'a' + '#' → ä
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 45; FCITX_INFO() << "=== Test 45: CustomKey2 basic ===";
+        g_currentTest = 45;
+        FCITX_INFO() << "=== Test 45: CustomKey2 basic ===";
         configureLeaders(instance, false, false, false, false, false, false, "",
                          "#");
         setMappings(instance, {{"a", "\xc3\xa4"}});
@@ -2091,7 +2134,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Hold 'u' (right-hand input) + press 'z' (left-hand leader) → ü
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 46; FCITX_INFO() << "=== Test 46: Dual split — allowed ===";
+        g_currentTest = 46;
+        FCITX_INFO() << "=== Test 46: Dual split — allowed ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "z", "/");
         setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
@@ -2121,7 +2165,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // passes through.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 47; FCITX_INFO() << "=== Test 47: Dual split — blocked ===";
+        g_currentTest = 47;
+        FCITX_INFO() << "=== Test 47: Dual split — blocked ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "z", "/");
         setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
@@ -2149,7 +2194,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Hold 'a' (left) + press '/' (right leader) → ä (allowed: opposite hands)
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 48; FCITX_INFO() << "=== Test 48: Dual split — reverse ===";
+        g_currentTest = 48;
+        FCITX_INFO() << "=== Test 48: Dual split — reverse ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "z", "/");
         setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
@@ -2176,7 +2222,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Only CustomKey="z" set (no CustomKey2) → 'z' triggers ALL inputs.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 49; FCITX_INFO() << "=== Test 49: Single custom key — no split ===";
+        g_currentTest = 49;
+        FCITX_INFO() << "=== Test 49: Single custom key — no split ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "z");
         setMappings(instance, {{"a", "\xc3\xa4"}});
@@ -2206,7 +2253,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Space is BuiltIn → ignores hand split, triggers all mappings.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 50; FCITX_INFO() << "=== Test 50: Built-in leader ignores split ===";
+        g_currentTest = 50;
+        FCITX_INFO() << "=== Test 50: Built-in leader ignores split ===";
         configureLeaders(instance, true, false, false, false, false, false, "z",
                          "/");
         setMappings(instance, {{"a", "\xc3\xa4"}});
@@ -2235,7 +2283,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Uses Super (not Ctrl+Space which is the IM toggle in tests).
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 51; FCITX_INFO() << "=== Test 51: Ordering guard skips Super+Space ===";
+        g_currentTest = 51;
+        FCITX_INFO() << "=== Test 51: Ordering guard skips Super+Space ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test51");
@@ -2264,7 +2313,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Alt+Space is a common window manager shortcut — must pass through.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 52; FCITX_INFO() << "=== Test 52: Ordering guard skips Alt+Space ===";
+        g_currentTest = 52;
+        FCITX_INFO() << "=== Test 52: Ordering guard skips Alt+Space ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test52");
@@ -2292,7 +2342,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Both leaders trigger all mappings regardless of input hand.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 53; FCITX_INFO() << "=== Test 53: Same-hand dual leaders — no split ===";
+        g_currentTest = 53;
+        FCITX_INFO() << "=== Test 53: Same-hand dual leaders — no split ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "z", "x");
         setMappings(instance, {{"a", "\xc3\xa4"}, {"u", "\xc3\xbc"}});
@@ -2321,7 +2372,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // the waiting state. Space should still trigger conversion.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 54; FCITX_INFO() << "=== Test 54: Accent key repeat during waiting ===";
+        g_currentTest = 54;
+        FCITX_INFO() << "=== Test 54: Accent key repeat during waiting ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test54");
@@ -2384,7 +2436,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // The Alt modifier must not leak through as a shortcut.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 56; FCITX_INFO() << "=== Test 56: Alt leader — new key during cycling ===";
+        g_currentTest = 56;
+        FCITX_INFO() << "=== Test 56: Alt leader — new key during cycling ===";
         configureLeaders(instance, false, false, false, false, false, true);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test56");
@@ -2614,7 +2667,8 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // Timer-based: exits after deferred commit verification.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 58; FCITX_INFO() << "=== Test 58: Alt deferred re-press ===";
+        g_currentTest = 58;
+        FCITX_INFO() << "=== Test 58: Alt deferred re-press ===";
         configureLeaders(instance, false, false, false, false, false, true);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}});
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -2717,7 +2771,8 @@ static void scheduleTimeoutTests(Instance *instance) {
 // =========================================================================
 static void scheduleTest60(Instance *instance) {
     testDispatcher->schedule([instance]() {
-        g_currentTest = 60; FCITX_INFO() << "=== Test 60: Non-mapped key after timeout ===";
+        g_currentTest = 60;
+        FCITX_INFO() << "=== Test 60: Non-mapped key after timeout ===";
         configureWithDelay(instance, 50, 200);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test60");
@@ -2802,7 +2857,8 @@ static void scheduleTest61(Instance *instance) {
 // =========================================================================
 static void scheduleTest62(Instance *instance) {
     testDispatcher->schedule([instance]() {
-        g_currentTest = 62; FCITX_INFO() << "=== Test 62: Uppercase uses longer delay ===";
+        g_currentTest = 62;
+        FCITX_INFO() << "=== Test 62: Uppercase uses longer delay ===";
         configureWithDelay(instance, 50, 2000);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test62");
@@ -2841,7 +2897,8 @@ static void scheduleTest62(Instance *instance) {
 // =========================================================================
 static void scheduleTest63(Instance *instance) {
     testDispatcher->schedule([instance]() {
-        g_currentTest = 63; FCITX_INFO() << "=== Test 63: Lowercase shorter delay confirmed ===";
+        g_currentTest = 63;
+        FCITX_INFO() << "=== Test 63: Lowercase shorter delay confirmed ===";
         configureWithDelay(instance, 50, 2000);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test63");
@@ -2881,7 +2938,8 @@ static void scheduleTest63(Instance *instance) {
 // =========================================================================
 static void scheduleTest64(Instance *instance) {
     testDispatcher->schedule([instance]() {
-        g_currentTest = 64; FCITX_INFO() << "=== Test 64: Ordering guard after timeout ===";
+        g_currentTest = 64;
+        FCITX_INFO() << "=== Test 64: Ordering guard after timeout ===";
         configureWithDelay(instance, 50, 200);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test64");
@@ -2927,7 +2985,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // Switching back to schnelle-umlaute via Ctrl+Space resets state.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 65; FCITX_INFO() << "=== Test 65: activate() clears all state ===";
+        g_currentTest = 65;
+        FCITX_INFO() << "=== Test 65: activate() clears all state ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test65");
@@ -3048,7 +3107,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // Gesture in IC1 must not affect IC2.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 69; FCITX_INFO() << "=== Test 69: Two ICs — independent state ===";
+        g_currentTest = 69;
+        FCITX_INFO() << "=== Test 69: Two ICs — independent state ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid1 = createAndActivate(instance, tf, "test69_ic1");
@@ -3079,7 +3139,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 70: Multiple ICs — gesture only in focused IC
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 70; FCITX_INFO() << "=== Test 70: Multi-IC — gesture only in focused ===";
+        g_currentTest = 70;
+        FCITX_INFO() << "=== Test 70: Multi-IC — gesture only in focused ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid1 = createAndActivate(instance, tf, "test70_a");
@@ -3168,7 +3229,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 73: Preedit updates on each cycle
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 73; FCITX_INFO() << "=== Test 73: Preedit updates on each cycle ===";
+        g_currentTest = 73;
+        FCITX_INFO() << "=== Test 73: Preedit updates on each cycle ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae,@"}});
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -3205,7 +3267,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 74: Preedit cleared after commit
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 74; FCITX_INFO() << "=== Test 74: Preedit cleared after commit ===";
+        g_currentTest = 74;
+        FCITX_INFO() << "=== Test 74: Preedit cleared after commit ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test74");
@@ -3235,7 +3298,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 75: Preedit shows uppercase input correctly
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 75; FCITX_INFO() << "=== Test 75: Preedit shows uppercase input ===";
+        g_currentTest = 75;
+        FCITX_INFO() << "=== Test 75: Preedit shows uppercase input ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test75");
@@ -3317,7 +3381,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 78: Backspace during waiting → commits pending + Backspace passes
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 78; FCITX_INFO() << "=== Test 78: Backspace during waiting ===";
+        g_currentTest = 78;
+        FCITX_INFO() << "=== Test 78: Backspace during waiting ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test78");
@@ -3339,7 +3404,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 79: Enter during waiting → commits pending + Enter passes
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 79; FCITX_INFO() << "=== Test 79: Enter during waiting ===";
+        g_currentTest = 79;
+        FCITX_INFO() << "=== Test 79: Enter during waiting ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test79");
@@ -3360,7 +3426,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 80: Tab during waiting → commits pending + Tab passes
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 80; FCITX_INFO() << "=== Test 80: Tab during waiting ===";
+        g_currentTest = 80;
+        FCITX_INFO() << "=== Test 80: Tab during waiting ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test80");
@@ -3381,7 +3448,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 81: Backspace during cycling → commits cycling value + passes
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 81; FCITX_INFO() << "=== Test 81: Backspace during cycling ===";
+        g_currentTest = 81;
+        FCITX_INFO() << "=== Test 81: Backspace during cycling ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}});
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -3408,7 +3476,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // setSubConfig("mappings.txt") calls clearAllState() on all ICs.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 82; FCITX_INFO() << "=== Test 82: Config reload clears active gestures ===";
+        g_currentTest = 82;
+        FCITX_INFO() << "=== Test 82: Config reload clears active gestures ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test82");
@@ -3440,7 +3509,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 83: Empty mappings → default fallback
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 83; FCITX_INFO() << "=== Test 83: Empty mappings fall back to defaults ===";
+        g_currentTest = 83;
+        FCITX_INFO() << "=== Test 83: Empty mappings fall back to defaults ===";
         configureLeaders(instance, true, false, false, false, false, false);
         // Set empty mappings (no entries) → triggers loadMappingsFromFile
         // fallback
@@ -3523,7 +3593,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // is sent via commitString to avoid triggering Alt+key shortcuts.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 85; FCITX_INFO() << "=== Test 85: Alt bypass — non-mapped key commits via "
+        g_currentTest = 85;
+        FCITX_INFO() << "=== Test 85: Alt bypass — non-mapped key commits via "
                         "commitString ===";
         configureWithDelay(instance, 400, 700, false, true);
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -3612,7 +3683,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // Mapping ",ä" → ["ä"] (leading empty segment skipped)
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 88; FCITX_INFO() << "=== Test 88: splitOutputs — leading comma ignored ===";
+        g_currentTest = 88;
+        FCITX_INFO() << "=== Test 88: splitOutputs — leading comma ignored ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", ",\xc3\xa4"}});
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -3672,7 +3744,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 90: splitOutputs — ",,," → [","] (double-comma + trailing)
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 90; FCITX_INFO() << "=== Test 90: splitOutputs — only commas ===";
+        g_currentTest = 90;
+        FCITX_INFO() << "=== Test 90: splitOutputs — only commas ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", ",,,"}});
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -3773,7 +3846,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 93: sanitizeCustomKey — empty string → no leader
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 93; FCITX_INFO() << "=== Test 93: Empty custom key — no leader ===";
+        g_currentTest = 93;
+        FCITX_INFO() << "=== Test 93: Empty custom key — no leader ===";
         auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
         RawConfig config;
         config.setValueByPath("Delay/Lowercase", "400");
@@ -3811,7 +3885,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // CustomKey = "F" → stored as "f", Shift+F still matches (case-insensitive)
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 94; FCITX_INFO() << "=== Test 94: Uppercase custom key normalized ===";
+        g_currentTest = 94;
+        FCITX_INFO() << "=== Test 94: Uppercase custom key normalized ===";
         auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
         RawConfig config;
         config.setValueByPath("Delay/Lowercase", "400");
@@ -3867,7 +3942,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 95: Multiple consecutive commits — ordering guard each time
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 95; FCITX_INFO() << "=== Test 95: Consecutive commits — ordering guard "
+        g_currentTest = 95;
+        FCITX_INFO() << "=== Test 95: Consecutive commits — ordering guard "
                         "each time ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -3911,7 +3987,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // be caught by ordering guard.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 96; FCITX_INFO() << "=== Test 96: Ordering guard with Shift+Space ===";
+        g_currentTest = 96;
+        FCITX_INFO() << "=== Test 96: Ordering guard with Shift+Space ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test96");
@@ -4019,7 +4096,8 @@ static void scheduleRemainingTests(Instance *instance) {
     // TEST 99: All leaders enabled simultaneously
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 99; FCITX_INFO() << "=== Test 99: All leaders enabled ===";
+        g_currentTest = 99;
+        FCITX_INFO() << "=== Test 99: All leaders enabled ===";
         configureLeaders(instance, true, true, true, true, true, true, "#");
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test99");
@@ -4097,7 +4175,8 @@ static void scheduleEmptyOutputTests(Instance *instance) {
     // The mapping should be silently skipped; 't' falls through as normal key.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 101; FCITX_INFO() << "=== Test 101: Single-comma output skipped — key falls "
+        g_currentTest = 101;
+        FCITX_INFO() << "=== Test 101: Single-comma output skipped — key falls "
                         "through ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {
@@ -4156,7 +4235,8 @@ static void scheduleEmptyOutputTests(Instance *instance) {
     // fallback to built-in defaults kicks in.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 103; FCITX_INFO() << "=== Test 103: All empty outputs — defaults loaded ===";
+        g_currentTest = 103;
+        FCITX_INFO() << "=== Test 103: All empty outputs — defaults loaded ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {
                                   {"a", ","},
@@ -4193,7 +4273,8 @@ static void scheduleEmptyOutputTests(Instance *instance) {
 // =========================================================================
 static void scheduleAdvancedEdgeCaseTests(Instance *instance) {
     testDispatcher->schedule([instance]() {
-        g_currentTest = 104; FCITX_INFO() << "=== Test 104: Config reload during active cycling ===";
+        g_currentTest = 104;
+        FCITX_INFO() << "=== Test 104: Config reload during active cycling ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {
                                   {"a", "\xc3\xa4,\xc3\x84"},
@@ -4243,7 +4324,8 @@ static void scheduleAdvancedEdgeCaseTests(Instance *instance) {
     // IC2 has clean state and IC1's gesture was committed on deactivate.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 105; FCITX_INFO() << "=== Test 105: IC state pollution — focus switch "
+        g_currentTest = 105;
+        FCITX_INFO() << "=== Test 105: IC state pollution — focus switch "
                         "during gesture ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -4277,7 +4359,8 @@ static void scheduleAdvancedEdgeCaseTests(Instance *instance) {
     // Fast typing a,o,u without completing any gesture → each aborts previous.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 108; FCITX_INFO() << "=== Test 108: Rapid successive mapped keys ===";
+        g_currentTest = 108;
+        FCITX_INFO() << "=== Test 108: Rapid successive mapped keys ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test108");
@@ -4461,7 +4544,8 @@ static void scheduleTest107(Instance *instance) {
 // =========================================================================
 static void scheduleDelayBoundaryTests(Instance *instance) {
     testDispatcher->schedule([instance]() {
-        g_currentTest = 110; FCITX_INFO() << "=== Test 110: Default lowercase delay (400ms) — timer "
+        g_currentTest = 110;
+        FCITX_INFO() << "=== Test 110: Default lowercase delay (400ms) — timer "
                         "fires ===";
         configureWithDelay(instance, 400, 700);
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -4494,7 +4578,8 @@ static void scheduleDelayBoundaryTests(Instance *instance) {
 // =========================================================================
 static void scheduleTest111(Instance *instance) {
     testDispatcher->schedule([instance]() {
-        g_currentTest = 111; FCITX_INFO() << "=== Test 111: Default uppercase delay (700ms) — timer "
+        g_currentTest = 111;
+        FCITX_INFO() << "=== Test 111: Default uppercase delay (700ms) — timer "
                         "fires ===";
         configureWithDelay(instance, 400, 700);
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -4574,7 +4659,8 @@ static void scheduleTest113(Instance *instance) {
     // Empty inputs are stop markers, empty outputs are skipped.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 119; FCITX_INFO() << "=== Test 119: Mixed valid/invalid mappings ===";
+        g_currentTest = 119;
+        FCITX_INFO() << "=== Test 119: Mixed valid/invalid mappings ===";
         configureLeaders(instance, true, false, false, false, false, false);
 
         // Override with mixed entries: valid 'a' mapping, 'o' with empty output
@@ -4626,7 +4712,8 @@ static void scheduleTest113(Instance *instance) {
     // Verify gesture still works after invalid config.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 120; FCITX_INFO() << "=== Test 120: Out-of-range delay config ===";
+        g_currentTest = 120;
+        FCITX_INFO() << "=== Test 120: Out-of-range delay config ===";
         auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
         RawConfig config;
         config.setValueByPath("Delay/Lowercase", "0");    // below min (50)
@@ -4723,7 +4810,8 @@ static void scheduleTest113(Instance *instance) {
     // TEST 114: App Filter Disabled — gesture works in any app
     // =========================================================================
     testDispatcher->schedule([instance, configureAppFilter]() {
-        g_currentTest = 114; FCITX_INFO() << "=== Test 114: App Filter Disabled ===";
+        g_currentTest = 114;
+        FCITX_INFO() << "=== Test 114: App Filter Disabled ===";
         configureAppFilter(instance, "Disabled", {}, {});
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "firefox");
@@ -4746,7 +4834,8 @@ static void scheduleTest113(Instance *instance) {
     // TEST 115: Blacklist — blocked app is passthrough
     // =========================================================================
     testDispatcher->schedule([instance, configureAppFilter]() {
-        g_currentTest = 115; FCITX_INFO() << "=== Test 115: Blacklist blocks processing ===";
+        g_currentTest = 115;
+        FCITX_INFO() << "=== Test 115: Blacklist blocks processing ===";
         configureAppFilter(instance, "Blacklist", {"nvim", "steam"}, {});
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "nvim");
@@ -4767,7 +4856,8 @@ static void scheduleTest113(Instance *instance) {
     // TEST 116: Blacklist — non-blocked app still processes
     // =========================================================================
     testDispatcher->schedule([instance, configureAppFilter]() {
-        g_currentTest = 116; FCITX_INFO() << "=== Test 116: Blacklist allows non-blocked app ===";
+        g_currentTest = 116;
+        FCITX_INFO() << "=== Test 116: Blacklist allows non-blocked app ===";
         configureAppFilter(instance, "Blacklist", {"nvim", "steam"}, {});
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "firefox");
@@ -4789,7 +4879,8 @@ static void scheduleTest113(Instance *instance) {
     // TEST 117: Whitelist — listed app is processed
     // =========================================================================
     testDispatcher->schedule([instance, configureAppFilter]() {
-        g_currentTest = 117; FCITX_INFO() << "=== Test 117: Whitelist allows listed app ===";
+        g_currentTest = 117;
+        FCITX_INFO() << "=== Test 117: Whitelist allows listed app ===";
         configureAppFilter(instance, "Whitelist", {}, {"libreoffice", "gedit"});
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "libreoffice-writer");
@@ -4811,7 +4902,8 @@ static void scheduleTest113(Instance *instance) {
     // TEST 118: Whitelist — non-listed app is passthrough
     // =========================================================================
     testDispatcher->schedule([instance, configureAppFilter]() {
-        g_currentTest = 118; FCITX_INFO() << "=== Test 118: Whitelist blocks non-listed app ===";
+        g_currentTest = 118;
+        FCITX_INFO() << "=== Test 118: Whitelist blocks non-listed app ===";
         configureAppFilter(instance, "Whitelist", {}, {"libreoffice", "gedit"});
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "firefox");
@@ -4907,7 +4999,8 @@ static void scheduleTest113(Instance *instance) {
     // matchCustomKey case-insensitive match + keycode-based split → works.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 124; FCITX_INFO() << "=== Test 124: Shift held through leader — Shift+1 + "
+        g_currentTest = 124;
+        FCITX_INFO() << "=== Test 124: Shift held through leader — Shift+1 + "
                         "Shift+J ===";
         configureLeaders(instance, false, false, false, false, false, false,
                          "f", "j");
@@ -5096,7 +5189,8 @@ static void scheduleTest113(Instance *instance) {
     // flap, a fresh gesture must work normally again.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 129; FCITX_INFO() << "=== Test 129: FocusOut during pending preedit ===";
+        g_currentTest = 129;
+        FCITX_INFO() << "=== Test 129: FocusOut during pending preedit ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test129");
@@ -5138,7 +5232,8 @@ static void scheduleTest113(Instance *instance) {
     // cycling value (server handles commit). Fresh gesture after flap works.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 130; FCITX_INFO() << "=== Test 130: FocusOut during cycling ===";
+        g_currentTest = 130;
+        FCITX_INFO() << "=== Test 130: FocusOut during cycling ===";
         configureLeaders(instance, true, false, false, false, false, false);
         setMappings(instance, {{"a", "\xc3\xa4,ae"}});
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -5184,7 +5279,8 @@ static void scheduleTest113(Instance *instance) {
     // After the loop, IC must still be responsive and state clean.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 131; FCITX_INFO() << "=== Test 131: Rapid focus-flap loop (50x) ===";
+        g_currentTest = 131;
+        FCITX_INFO() << "=== Test 131: Rapid focus-flap loop (50x) ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test131");
@@ -5222,7 +5318,8 @@ static void scheduleTest113(Instance *instance) {
     // leader (not through the ordering guard).
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 132; FCITX_INFO() << "=== Test 132: Focus-flap after commit ===";
+        g_currentTest = 132;
+        FCITX_INFO() << "=== Test 132: Focus-flap after commit ===";
         configureLeaders(instance, true, false, false, false, false, false);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test132");
@@ -5325,7 +5422,8 @@ static void scheduleTest113(Instance *instance) {
     // or synthetic input with high keycodes.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 134; FCITX_INFO() << "=== Test 134: getBaseChar() extreme keycodes ===";
+        g_currentTest = 134;
+        FCITX_INFO() << "=== Test 134: getBaseChar() extreme keycodes ===";
         configureLeaders(instance, false, false, false, false, false, true);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test134");
@@ -5364,7 +5462,8 @@ static void scheduleTest113(Instance *instance) {
     // mode rather than accidentally allowed through.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 135; FCITX_INFO() << "=== Test 135: AppFilter Whitelist + empty program ===";
+        g_currentTest = 135;
+        FCITX_INFO() << "=== Test 135: AppFilter Whitelist + empty program ===";
         auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
         RawConfig config;
         config.setValueByPath("Leader/Space", "True");
@@ -5389,14 +5488,14 @@ static void scheduleTest113(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 136: Alt single-output cycling — second leader arms repeat suppression
-    // Regression pin for the üu-class duplicate: with Alt + Space both as
-    // leaders and a single-output mapping (u→ü), hold 'u' + Alt enters Alt
-    // cycling with "ü" in preedit (altGestureSession_=true, size==1). Pressing
-    // Space (a different leader) commits "ü" + the leader's space char, and
-    // must arm committedKeyCode_ for the still-held 'u' so the next auto-
-    // repeat is consumed instead of starting a fresh gesture. Without this
-    // arming, the user would see "ü u" / "üu" duplicates.
+    // TEST 136: Alt single-output cycling — second leader arms repeat
+    // suppression Regression pin for the üu-class duplicate: with Alt + Space
+    // both as leaders and a single-output mapping (u→ü), hold 'u' + Alt enters
+    // Alt cycling with "ü" in preedit (altGestureSession_=true, size==1).
+    // Pressing Space (a different leader) commits "ü" + the leader's space
+    // char, and must arm committedKeyCode_ for the still-held 'u' so the next
+    // auto- repeat is consumed instead of starting a fresh gesture. Without
+    // this arming, the user would see "ü u" / "üu" duplicates.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 136;

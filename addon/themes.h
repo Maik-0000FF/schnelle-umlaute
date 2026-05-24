@@ -12,8 +12,7 @@ namespace schnelle_umlaute {
 // lets the name pass isValidTheme() but renders with the fallback.
 inline bool isValidTheme(const QString &name) {
     return name == QLatin1String("schnelle-umlaute") ||
-           name == QLatin1String("dark") ||
-           name == QLatin1String("light") ||
+           name == QLatin1String("dark") || name == QLatin1String("light") ||
            name == QLatin1String("contrast");
 }
 
