@@ -10,3 +10,9 @@
 # .clang-format config. Two format passes converged in this commit;
 # no functional change.
 f4ee1c75fd630dd90ce0b1b7ddf45ea7572a8330
+
+# clang-format drift fixup after Arch advanced the tool past the f4ee1c7
+# version: re-ran the pinned .clang-format style over the three files it
+# newly flagged (heavy churn in testschnelleumlaute.cpp). Whitespace only;
+# no functional change.
+c00873253635166d447bfea0d14aeb4fd395c723
