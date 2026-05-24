@@ -27,19 +27,24 @@ ApplicationWindow {
 
     Component.onCompleted: {
         Theme.setCurrent(settings.theme);
-        // Three states for the IM environment:
-        //   1) isConfigured()           → env-vars active, do nothing
-        //   2) hasValidConfigFile()     → file written but env-vars not
-        //                                 active yet (logout pending);
-        //                                 explain that without offering
-        //                                 "Set up now" again, which
-        //                                 would be confusing
-        //   3) neither                  → first-run; offer setup
+        // States for the IM environment:
+        //   1) isConfigured()              → env-vars active, do nothing
+        //   2) no valid file               → first-run; offer setup
+        //   3) file valid, env.d honored   → logout pending; relogin
+        //                                    activates the variables
+        //   4) file valid, env.d ignored   → TTY-launched compositor
+        //                                    (e.g. Hyprland): relogin
+        //                                    never reads environment.d,
+        //                                    so point at the compositor
+        //                                    config instead of repeating
+        //                                    a logout that won't help
         if (!envSetup.isConfigured()) {
-            if (envSetup.hasValidConfigFile()) {
+            if (!envSetup.hasValidConfigFile()) {
+                envDialog.open();
+            } else if (envSetup.honorsEnvironmentD()) {
                 logoutDialog.open();
             } else {
-                envDialog.open();
+                compositorDialog.open();
             }
         }
     }
@@ -79,6 +84,32 @@ ApplicationWindow {
             "Log out and back in to activate. After that, this dialog " +
             "will stop appearing."
         )
+        confirmText: qsTr("OK")
+        confirmStyle: "primary"
+        singleButton: true
+    }
+
+    ConfirmDialog {
+        id: compositorDialog
+        titleText: qsTr("Activation pending — %1").arg(envSetup.sessionName())
+        messageText: {
+            const intro = qsTr(
+                "The variables were written to %1, but your session does " +
+                "not import environment.d files — logging out will not " +
+                "activate them.").arg(envSetup.configPath());
+            const path = envSetup.compositorConfigPath();
+            const where = path.length > 0
+                ? qsTr("Add these lines to %1 and restart your session:")
+                    .arg(path)
+                : qsTr("Export these variables before your compositor " +
+                       "starts (or launch it via uwsm) and restart your " +
+                       "session:");
+            const tail = qsTr(
+                "If you start your session through a display manager or " +
+                "uwsm, logging out and back in is enough instead.");
+            return intro + "\n\n" + where + "\n\n"
+                + envSetup.compositorEnvSnippet() + "\n\n" + tail;
+        }
         confirmText: qsTr("OK")
         confirmStyle: "primary"
         singleButton: true

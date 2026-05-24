@@ -1,5 +1,7 @@
 #include "EnvSetup.h"
 
+#include "../src/session_env.h"
+
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
@@ -93,4 +95,21 @@ bool EnvSetup::hasValidConfigFile() const {
         }
     }
     return gtk && qt && xmod;
+}
+
+bool EnvSetup::honorsEnvironmentD() const {
+    return fcitx::detectSessionEnv().mechanism ==
+           fcitx::EnvMechanism::EnvironmentD;
+}
+
+QString EnvSetup::sessionName() const {
+    return QString::fromStdString(fcitx::detectSessionEnv().session);
+}
+
+QString EnvSetup::compositorEnvSnippet() const {
+    return QString::fromStdString(fcitx::detectSessionEnv().snippet);
+}
+
+QString EnvSetup::compositorConfigPath() const {
+    return QString::fromStdString(fcitx::detectSessionEnv().configPath);
 }
