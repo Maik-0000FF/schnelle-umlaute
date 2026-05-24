@@ -27,24 +27,26 @@ ApplicationWindow {
 
     Component.onCompleted: {
         Theme.setCurrent(settings.theme);
-        // States for the IM environment:
-        //   1) isConfigured()              → env-vars active, do nothing
-        //   2) no valid file               → first-run; offer setup
-        //   3) file valid, env.d honored   → logout pending; relogin
+        // States for the IM environment (checked only when the variables
+        // are not already active):
+        //   1) env.d not imported          → TTY-launched compositor
+        //                                    (e.g. Hyprland): relogin never
+        //                                    reads environment.d, so the
+        //                                    env.d first-run/logout advice
+        //                                    is useless here. Go straight to
+        //                                    the compositor-config dialog
+        //                                    regardless of whether the env.d
+        //                                    file happens to exist.
+        //   2) env.d imported, no file     → first-run; offer setup
+        //   3) env.d imported, file valid  → logout pending; relogin
         //                                    activates the variables
-        //   4) file valid, env.d ignored   → TTY-launched compositor
-        //                                    (e.g. Hyprland): relogin
-        //                                    never reads environment.d,
-        //                                    so point at the compositor
-        //                                    config instead of repeating
-        //                                    a logout that won't help
         if (!envSetup.isConfigured()) {
-            if (!envSetup.hasValidConfigFile()) {
-                envDialog.open();
-            } else if (envSetup.honorsEnvironmentD()) {
-                logoutDialog.open();
-            } else {
+            if (!envSetup.honorsEnvironmentD()) {
                 compositorDialog.open();
+            } else if (!envSetup.hasValidConfigFile()) {
+                envDialog.open();
+            } else {
+                logoutDialog.open();
             }
         }
     }
@@ -98,9 +100,10 @@ ApplicationWindow {
         titleText: qsTr("Activation pending — %1").arg(envSetup.sessionName())
         messageText: {
             const intro = qsTr(
-                "The variables were written to %1, but your session does " +
-                "not import environment.d files — logging out will not " +
-                "activate them.").arg(envSetup.configPath());
+                "Input-method variables are not active and your session " +
+                "does not import environment.d files — logging out will " +
+                "not activate them, so they belong in your compositor " +
+                "configuration instead.");
             const where = compPath.length > 0
                 ? qsTr("These lines belong in %1. Add them below, then " +
                        "restart your session:").arg(compPath)
