@@ -199,6 +199,14 @@ void SettingsModel::setOverlayEnabled(bool v) {
     Q_EMIT overlayEnabledChanged();
     save();
 }
+void SettingsModel::setOverlayShowOnTrigger(bool v) {
+    if (overlayShowOnTrigger_ == v)
+        return;
+    overlayShowOnTrigger_ = v;
+    Q_EMIT overlayShowOnTriggerChanged();
+    save();
+}
+
 void SettingsModel::setOverlayPosition(const QString &v) {
     if (overlayPosition_ == v)
         return;
@@ -351,6 +359,8 @@ void SettingsModel::load() {
         } else if (section == QLatin1String("Overlay")) {
             if (key == "Enabled")
                 overlayEnabled_ = fromBool(val);
+            else if (key == "ShowOnTrigger")
+                overlayShowOnTrigger_ = fromBool(val);
             // Pre-1.2 wrote a combined "Position=TopCenter" key. 1.2 splits
             // it into Row + Column because FCITX_CONFIG_ENUM caps at 12
             // values and we need 21 cells. Accept both formats on read so
@@ -396,6 +406,7 @@ void SettingsModel::load() {
     Q_EMIT blacklistChanged();
     Q_EMIT whitelistChanged();
     Q_EMIT overlayEnabledChanged();
+    Q_EMIT overlayShowOnTriggerChanged();
     Q_EMIT overlayPositionChanged();
     Q_EMIT themeChanged();
 }
@@ -464,6 +475,8 @@ void SettingsModel::save() {
     out << "\n[Overlay]\n";
     out << "# Show overlay while cycling\n"
         << "Enabled=" << toBool(overlayEnabled_) << "\n";
+    out << "# Preview in the trigger window (all mapped keys)\n"
+        << "ShowOnTrigger=" << toBool(overlayShowOnTrigger_) << "\n";
     // Split "TopCol4" into Row=Top + Column=Col4 for the fcitx5 config
     // schema, which represents each as a small enum (capped at 12 values).
     const int splitAt =

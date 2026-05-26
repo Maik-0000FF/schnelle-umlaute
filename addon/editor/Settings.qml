@@ -193,6 +193,29 @@ Item {
                         onToggled: (v) => root.settingsModel.overlayEnabled = v
                     }
 
+                    LabeledSwitch {
+                        labelText: qsTr("Preview in the trigger window")
+                        // Sub-option of the overlay: only meaningful once the
+                        // overlay itself is enabled.
+                        enabled: root.settingsModel
+                            && root.settingsModel.layerShellAvailable
+                            && root.settingsModel.overlayEnabled
+                        checked: root.settingsModel ? root.settingsModel.overlayShowOnTrigger : false
+                        onToggled: (v) => root.settingsModel.overlayShowOnTrigger = v
+                    }
+
+                    Text {
+                        visible: root.settingsModel
+                            && root.settingsModel.layerShellAvailable
+                            && root.settingsModel.overlayEnabled
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        text: qsTr("Shows the available accents as soon as you hold a mapped key, before pressing a leader, even for keys with a single accent.")
+                    }
+
                     Text {
                         visible: root.settingsModel && !root.settingsModel.layerShellAvailable
                         Layout.fillWidth: true
