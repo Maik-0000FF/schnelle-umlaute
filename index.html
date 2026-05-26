@@ -1214,6 +1214,149 @@
         .map-arr  { color: var(--muted); }
         .map-val  { color: var(--green); }
 
+        /* ─── HERO TIMING TIMELINE ─── */
+        .hero-stack {
+            position: relative; z-index: 1;
+            width: 100%; max-width: 1200px; margin: 0 auto;
+            display: flex; flex-direction: column; gap: 60px;
+        }
+        .hero-timeline {
+            position: relative; z-index: 2; width: 100%;
+            opacity: 0; animation: fadeUp 0.7s ease 1.25s both;
+        }
+        .ht-head { text-align: left; margin-bottom: 34px; }
+        .ht-eyebrow {
+            display: inline-block;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase;
+            color: var(--green);
+            padding: 5px 14px; border-radius: 100px;
+            border: 1px solid rgba(74,222,128,0.2);
+            background: rgba(74,222,128,0.05);
+            margin-bottom: 14px;
+        }
+        .ht-lead {
+            font-size: 1.02rem; color: var(--muted); line-height: 1.7;
+            max-width: 620px; margin: 0; letter-spacing: -0.01em;
+        }
+        .ht-lead strong { color: var(--text); font-weight: 600; }
+        .ht-lead em { color: var(--green); font-style: normal; font-weight: 600; }
+
+        .ht-stage { display: flex; align-items: center; gap: 26px; }
+        .ht-side {
+            display: flex; flex-direction: column; align-items: center; gap: 9px;
+            flex-shrink: 0; min-width: 64px;
+        }
+        .ht-sublabel { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.04em; }
+        .ht-arrow { color: var(--muted); font-size: 1.4em; flex-shrink: 0; font-weight: 300; }
+        .ht-out {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.6em; font-weight: 700; color: var(--muted);
+            width: 56px; text-align: center; flex-shrink: 0;
+            transition: color 0.18s ease, text-shadow 0.18s ease, transform 0.18s ease;
+        }
+        .ht-out.hit {
+            color: var(--green);
+            text-shadow: 0 0 32px rgba(74,222,128,0.5);
+            transform: scale(1.08);
+        }
+
+        .ht-axis { flex: 1; min-width: 0; position: relative; padding: 34px 12px 30px; }
+        .ht-track {
+            position: relative; height: 8px; border-radius: 100px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .ht-leadzone {
+            position: absolute; top: 50%; height: 13px;
+            transform: translateY(-50%);
+            border-radius: 5px;
+            background: repeating-linear-gradient(45deg,
+                rgba(168,85,247,0.12) 0 5px, transparent 5px 10px);
+            border: 1px dashed rgba(168,85,247,0.4);
+            pointer-events: none;
+        }
+        .ht-leadzone-cap {
+            position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+            margin-bottom: 9px; white-space: nowrap;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.66rem; color: var(--purple);
+            opacity: 0.85; pointer-events: none;
+        }
+        .ht-window {
+            position: absolute; top: 50%; height: 18px;
+            transform: translateY(-50%);
+            border-radius: 7px;
+            background: rgba(74,222,128,0.16);
+            border: 1px solid rgba(74,222,128,0.4);
+            box-shadow: inset 0 0 16px rgba(74,222,128,0.15);
+            cursor: grab;
+            transition: background 0.18s ease, box-shadow 0.18s ease;
+        }
+        .ht-window:active { cursor: grabbing; }
+        .ht-window.active {
+            background: rgba(74,222,128,0.3);
+            box-shadow: inset 0 0 18px rgba(74,222,128,0.3), 0 0 24px rgba(74,222,128,0.35);
+        }
+        .ht-handle {
+            position: absolute; top: 50%; width: 14px; height: 32px;
+            transform: translate(-50%, -50%);
+            border-radius: 6px;
+            background: var(--green);
+            border: 2px solid var(--bg);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5), 0 0 12px rgba(74,222,128,0.45);
+            cursor: ew-resize; touch-action: none; z-index: 4;
+        }
+        .ht-handle::after {
+            content: ''; position: absolute; left: 50%; top: 50%;
+            width: 2px; height: 13px; background: rgba(8,6,15,0.55);
+            transform: translate(-50%, -50%); border-radius: 2px;
+        }
+        .ht-cap {
+            position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+            margin-bottom: 9px; white-space: nowrap;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.72rem; color: var(--green);
+            padding: 3px 10px; border-radius: 7px;
+            background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.25);
+            pointer-events: none;
+        }
+        .ht-playhead {
+            position: absolute; top: -11px; height: 30px; width: 2px;
+            background: var(--purple); box-shadow: 0 0 10px var(--purple);
+            transform: translateX(-50%); z-index: 3; pointer-events: none;
+        }
+        .ht-playhead::before {
+            content: ''; position: absolute; top: -6px; left: 50%;
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--purple); box-shadow: 0 0 12px var(--purple);
+            transform: translateX(-50%);
+        }
+        .ht-ticks { position: absolute; left: 12px; right: 12px; top: 100%; margin-top: 12px; height: 1em; }
+        .ht-tick {
+            position: absolute; transform: translateX(-50%);
+            font-size: 0.66rem; color: var(--muted);
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .ht-tick::before {
+            content: ''; position: absolute; left: 50%; top: -15px;
+            width: 1px; height: 6px; background: rgba(255,255,255,0.15);
+            transform: translateX(-50%);
+        }
+        .ht-readout {
+            text-align: center; margin-top: 40px;
+            font-size: 0.86rem; color: var(--muted);
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .ht-readout b { color: var(--green); font-size: 1.1rem; font-weight: 700; }
+
+        @media (max-width: 760px) {
+            .hero-stack { gap: 44px; }
+            .ht-stage { flex-wrap: wrap; gap: 14px 18px; justify-content: center; }
+            .ht-axis { flex-basis: 100%; order: 3; padding-top: 40px; }
+            .ht-out { font-size: 2.1em; }
+        }
+
         /* ─── RESPONSIVE ─── */
         @media (max-width: 960px) {
             .hero-inner { grid-template-columns: 1fr; gap: 40px; height: auto; min-height: 0; }
@@ -1285,6 +1428,7 @@
         <div class="orb orb-3"></div>
     </div>
 
+    <div class="hero-stack">
     <div class="hero-inner">
         <!-- Text column -->
         <div class="hero-text">
@@ -1360,6 +1504,54 @@
             </div>
         </div>
     </div>
+
+        <!-- Timing window timeline (full-width, on hero background) -->
+        <div class="hero-timeline" aria-label="Accent timing window demonstration">
+            <div class="ht-head">
+                <span class="ht-eyebrow">How the timing works</span>
+                <p class="ht-lead">
+                    Hold a key, then press <strong>Space</strong> (or your configured leader key)
+                    while the window is open to get the accent. The <em>width of the window</em> is
+                    exactly how long you have. Drag the handles to resize it.
+                </p>
+            </div>
+
+            <div class="ht-stage">
+                <div class="ht-side">
+                    <div class="key" id="ht-key">o</div>
+                    <span class="ht-sublabel">hold</span>
+                </div>
+
+                <div class="ht-axis">
+                    <div class="ht-track" id="ht-track">
+                        <div class="ht-leadzone" id="ht-leadzone">
+                            <span class="ht-leadzone-cap">before press</span>
+                        </div>
+                        <div class="ht-window" id="ht-window">
+                            <span class="ht-cap">Space → ö</span>
+                        </div>
+                        <div class="ht-handle" id="ht-handle-l" role="slider"
+                             tabindex="0" aria-label="Window start"
+                             aria-valuemin="0" aria-valuemax="2000" aria-valuenow="200"></div>
+                        <div class="ht-handle" id="ht-handle-r" role="slider"
+                             tabindex="0" aria-label="Window end"
+                             aria-valuemin="0" aria-valuemax="2000" aria-valuenow="800"></div>
+                        <div class="ht-playhead" id="ht-playhead"></div>
+                        <div class="ht-ticks" id="ht-ticks"></div>
+                    </div>
+                </div>
+
+                <span class="ht-arrow" aria-hidden="true">→</span>
+                <div class="ht-side">
+                    <div class="ht-out" id="ht-out">o</div>
+                    <span class="ht-sublabel" id="ht-out-label">misses</span>
+                </div>
+            </div>
+
+            <div class="ht-readout">accent window: <b id="ht-ms">600</b> ms</div>
+        </div>
+
+    </div><!-- /hero-stack -->
 </section>
 
 <!-- Features -->
@@ -1974,6 +2166,132 @@
         }
         lastY = y;
     }, { passive: true });
+
+    /* ── Timing-window timeline (hero) ── */
+    (function () {
+        var track    = document.getElementById('ht-track');
+        if (!track) { return; }
+        var win      = document.getElementById('ht-window');
+        var hL       = document.getElementById('ht-handle-l');
+        var hR       = document.getElementById('ht-handle-r');
+        var playhead = document.getElementById('ht-playhead');
+        var ticksBox = document.getElementById('ht-ticks');
+        var msOut    = document.getElementById('ht-ms');
+        var out      = document.getElementById('ht-out');
+        var outLabel = document.getElementById('ht-out-label');
+        var gKey     = document.getElementById('ht-key');
+        var leadEl   = document.getElementById('ht-leadzone');
+
+        var MAX = 2000, MIN_WIN = 50, STEP = 25, LEAD = 100;
+        var SPAN = MAX + LEAD;                 /* domain = [-LEAD .. MAX] */
+        var start = 200, end = 800;
+
+        function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+        function snap(ms) { return Math.round(ms / STEP) * STEP; }
+        function pct(ms) { return ((ms + LEAD) / SPAN * 100) + '%'; }
+
+        /* Build ms ticks: 0, 500, 1000, 1500, 2000 */
+        [0, 500, 1000, 1500, 2000].forEach(function (t) {
+            var el = document.createElement('span');
+            el.className = 'ht-tick';
+            el.style.left = pct(t);
+            el.textContent = t === 0 ? '0' : (t + (t === 2000 ? ' ms' : ''));
+            ticksBox.appendChild(el);
+        });
+
+        function render() {
+            win.style.left  = pct(start);
+            win.style.width = ((end - start) / SPAN * 100) + '%';
+            hL.style.left = pct(start);
+            hR.style.left = pct(end);
+            msOut.textContent = (end - start);
+            hL.setAttribute('aria-valuenow', start);
+            hR.setAttribute('aria-valuenow', end);
+        }
+
+        function msFromClientX(clientX) {
+            var r = track.getBoundingClientRect();
+            return clamp(snap((clientX - r.left) / r.width * SPAN - LEAD), 0, MAX);
+        }
+
+        /* Drag handles + the window band itself */
+        function bindDrag(el, onMove) {
+            el.addEventListener('pointerdown', function (e) {
+                e.preventDefault();
+                el.setPointerCapture(e.pointerId);
+                var move = function (ev) { onMove(msFromClientX(ev.clientX), ev); render(); };
+                var up = function () {
+                    el.removeEventListener('pointermove', move);
+                    el.removeEventListener('pointerup', up);
+                };
+                el.addEventListener('pointermove', move);
+                el.addEventListener('pointerup', up);
+            });
+        }
+
+        bindDrag(hL, function (ms) { start = clamp(ms, 0, end - MIN_WIN); });
+        bindDrag(hR, function (ms) { end = clamp(ms, start + MIN_WIN, MAX); });
+
+        var grabOffset = 0, grabWidth = 0;
+        win.addEventListener('pointerdown', function (e) {
+            grabOffset = msFromClientX(e.clientX) - start;
+            grabWidth = end - start;
+        });
+        bindDrag(win, function (ms) {
+            var ns = clamp(snap(ms - grabOffset), 0, MAX - grabWidth);
+            start = ns; end = ns + grabWidth;
+        });
+
+        /* Keyboard a11y on handles */
+        function bindKeys(el, get, set) {
+            el.addEventListener('keydown', function (e) {
+                var d = (e.key === 'ArrowRight' || e.key === 'ArrowUp') ? STEP
+                      : (e.key === 'ArrowLeft' || e.key === 'ArrowDown') ? -STEP : 0;
+                if (!d) { return; }
+                e.preventDefault(); set(get() + d); render();
+            });
+        }
+        bindKeys(hL, function () { return start; },
+                     function (v) { start = clamp(v, 0, end - MIN_WIN); });
+        bindKeys(hR, function () { return end; },
+                     function (v) { end = clamp(v, start + MIN_WIN, MAX); });
+
+        /* Static lead-in zone: the minus region from -LEAD to 0. */
+        leadEl.style.left  = pct(-LEAD);
+        leadEl.style.width = (LEAD / SPAN * 100) + '%';
+
+        render();
+
+        /* Playhead sweep: time passing after key-down. Inside the window a
+           Space/leader press would land the accent (o → ö); past it, misses. */
+        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function paint(playMs) {
+            playhead.style.left = pct(playMs);
+            /* Playhead leads in from -LEAD; the o key is pressed at t=0. */
+            gKey.classList.toggle('pressed', playMs >= 0);
+            var inside = playMs >= start && playMs <= end;
+            win.classList.toggle('active', inside);
+            out.classList.toggle('hit', inside);
+            out.textContent = inside ? 'ö' : 'o';
+            outLabel.textContent = inside ? 'gets ö' : 'misses';
+        }
+
+        if (reduce) {
+            paint((start + end) / 2);
+            return;
+        }
+
+        var SWEEP = 5200, HOLD = 1100, t0 = null;
+        function frame(ts) {
+            if (t0 === null) { t0 = ts; }
+            var dt = (ts - t0) % (SWEEP + HOLD);
+            var playMs = dt < SWEEP ? (-LEAD + dt / SWEEP * SPAN) : MAX;
+            paint(playMs);
+            requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+    }());
 
 }());
 </script>
