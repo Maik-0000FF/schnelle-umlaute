@@ -1195,7 +1195,6 @@ private:
             return;
         }
 
-        auto savedKey = keyChar;
         auto variants = it->second;
         auto savedRef = ic->watch();
         auto *eventLoop = &instance_->eventLoop();
@@ -1203,10 +1202,12 @@ private:
             SchnelleUmlauteState::nowUsec() +
             static_cast<uint64_t>(minHold) * kMicrosecondsPerMillisecond;
 
+        // keyChar is captured by value so the copy outlives this call; the
+        // deferred lambda compares it against the still-held waiting key.
         state->overlayShowEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC, target, 0,
-            [this, state, savedKey, variants, savedRef](EventSourceTime *,
-                                                        uint64_t) {
+            [this, state, keyChar, variants, savedRef](EventSourceTime *,
+                                                       uint64_t) {
                 // Safety mirrors scheduleTimeout: the single-threaded event
                 // loop guarantees state outlives a non-null savedRef.get().
                 auto *ctx = savedRef.get();
@@ -1214,7 +1215,7 @@ private:
                     return false;
                 // Only preview if still holding the same key and a leader has
                 // not started cycling in the meantime.
-                if (state->waitingKey_ && *state->waitingKey_ == savedKey &&
+                if (state->waitingKey_ && *state->waitingKey_ == keyChar &&
                     !state->cyclingInput_)
                     overlayShow(ctx, variants, kPreviewNoHighlight);
                 return false;
