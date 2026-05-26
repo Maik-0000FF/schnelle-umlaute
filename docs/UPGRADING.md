@@ -1,5 +1,14 @@
 # Upgrading
 
+## Upgrading from v1.2.1 to v1.2.2
+
+No mapping or config migration required. v1.2.2 is config-compatible with v1.2.1. Pull / reinstall and restart fcitx5.
+
+### What changed
+
+- **Minimum-hold lower bound for the accent window.** Each delay is now a window `[min, max]` instead of a single timeout. The lower handle is a minimum hold time: a leader (e.g. Space) arriving before it yields the plain character, so fast typists no longer trigger accents by accident. The editor's two delay sliders become range sliders (drag the line between the handles to move the whole window) with a 10 ms step. The lower bound defaults to 0, so existing configs and behaviour are unchanged until you raise it.
+- **TTY-launched compositors get the right environment guidance.** When `schnelle-umlaute-editor` detects a session started straight from a TTY (e.g. Hyprland via `exec-once`), where `~/.config/environment.d/` is never read, it now writes the input-method variables into the compositor config and shows compositor-specific instructions instead of the unhelpful "log out and back in" dialog.
+
 ## Upgrading from v1.2.0 to v1.2.1
 
 No mapping or config migration required. v1.2.1 is config-compatible with v1.2.0. Pull / reinstall and log out / in if your environment variables changed.
