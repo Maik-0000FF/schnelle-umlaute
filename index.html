@@ -7,7 +7,7 @@
     <title>Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux</title>
     <meta name="title" content="Schnelle Umlaute | PowerToys Quick Accent Alternative for Linux">
     <meta name="description" content="PowerToys Quick Accent Alternative for Linux - Type German umlauts (ä, ö, ü, ß), French accents (é, è, ê, ç), Spanish characters (ñ, á, í), Portuguese accents (ã, õ, ç), Braille Unicode characters (⠁⠃⠉⠙⠑) with hold + space gesture. Native Fcitx5 addon with accent cycling, snippets, emoji mappings. No clipboard interference, works on X11 and Wayland.">
-    <meta name="keywords" content="PowerToys, Quick Accent, Linux, German umlauts, Fcitx5, keyboard, input method, umlaut, ä, ö, ü, ß, Arch Linux, Ubuntu, Fedora, openSUSE, Wayland, X11, accent cycling, snippets, text expansion, emoji, special characters, diacritics, accented characters, Linux input method, keyboard layout, Umlaute tippen Linux, deutsche Sonderzeichen, Umlaute ohne Nummernblock, accents français Linux, caractères accentués, accent aigu grave circonflexe, é è ê ë à ç, clavier français, acentos español Linux, tilde eñe, á é í ó ú ñ, teclado español, caracteres especiales, acentos português Linux, caracteres acentuados, teclado português, ã õ á é í ó ú â ê ô à ç, cedilha, til, digitar acentos Linux, Sonderzeichen Linux, diakritische Zeichen, Braille Unicode, ⠁⠃⠉⠙⠑, Braille input Linux">
+    <meta name="keywords" content="PowerToys, Quick Accent, Linux, German umlauts, Fcitx5, keyboard, input method, umlaut, ä, ö, ü, ß, Arch Linux, Ubuntu, Debian, Linux Mint, Fedora, openSUSE, Wayland, X11, accent cycling, snippets, text expansion, emoji, special characters, diacritics, accented characters, Linux input method, keyboard layout, Umlaute tippen Linux, deutsche Sonderzeichen, Umlaute ohne Nummernblock, accents français Linux, caractères accentués, accent aigu grave circonflexe, é è ê ë à ç, clavier français, acentos español Linux, tilde eñe, á é í ó ú ñ, teclado español, caracteres especiales, acentos português Linux, caracteres acentuados, teclado português, ã õ á é í ó ú â ê ô à ç, cedilha, til, digitar acentos Linux, Sonderzeichen Linux, diakritische Zeichen, Braille Unicode, ⠁⠃⠉⠙⠑, Braille input Linux">
     <meta name="author" content="Maik-0000FF">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="googlebot" content="index, follow">
@@ -77,6 +77,9 @@
         "applicationSubCategory": "Input Method",
         "operatingSystem": "Linux",
         "softwareRequirements": "Fcitx5",
+        "softwareVersion": "1.1.1",
+        "datePublished": "2025-10-25",
+        "dateModified": "2026-05-02",
         "programmingLanguage": "C++20",
         "license": "https://spdx.org/licenses/GPL-3.0-or-later.html",
         "isAccessibleForFree": true,
@@ -99,7 +102,7 @@
         "aggregateRating": {
             "@type": "AggregateRating",
             "ratingValue": "5",
-            "ratingCount": "3",
+            "ratingCount": "4",
             "bestRating": "5",
             "worstRating": "1"
         },
@@ -121,6 +124,12 @@
                 "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
                 "author": { "@type": "Person", "name": "RandomAndroidDev", "url": "https://github.com/RandomAndroidDev" },
                 "reviewBody": "Congratulations on this excellent add-on!"
+            },
+            {
+                "@type": "Review",
+                "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+                "author": { "@type": "Person", "name": "Gamesnic", "url": "https://github.com/Gamesnic" },
+                "reviewBody": "I can be happy as well to have perfectly equivalent Quick Accent on Linux thanks to you."
             }
         ]
     }
@@ -187,10 +196,11 @@
             { "@type": "Question", "name": "Does it work on Wayland?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Natively on both X11 and Wayland, no extra configuration. It integrates directly with Fcitx5." } },
             { "@type": "Question", "name": "Does it touch the clipboard?", "acceptedAnswer": { "@type": "Answer", "text": "Never. Unlike xdotool-based workarounds, Schnelle Umlaute uses Fcitx5's commitString() API — direct insertion, clipboard untouched." } },
             { "@type": "Question", "name": "What characters can I type?", "acceptedAnswer": { "@type": "Answer", "text": "German umlauts by default (ä ö ü ß Ä Ö Ü). With unlimited configurable mappings: French accents, Spanish, Portuguese, Braille Unicode, emojis, math symbols, full text snippets." } },
-            { "@type": "Question", "name": "Which distros are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Supported on Arch Linux, Ubuntu/Debian, Fedora, and openSUSE. Works on any distro with Fcitx5." } },
+            { "@type": "Question", "name": "Which distros are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Supported on Arch Linux, Ubuntu/Debian, Linux Mint, Fedora, and openSUSE. Works on any distro with Fcitx5." } },
             { "@type": "Question", "name": "Can I adjust the timing?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, via fcitx5-config-qt. Default: 400ms lowercase, 700ms uppercase. Adjustable from 50ms to 2000ms to match your typing speed." } },
             { "@type": "Question", "name": "Can I use it for text snippets?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Map any key to a full phrase — e.g. hold m + Space to insert your email address, g for a Vim command like ggVGy (select all + yank), or u for sudo apt update. Works with any length of text." } },
-            { "@type": "Question", "name": "What leader keys are available?", "acceptedAnswer": { "@type": "Answer", "text": "Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing." } }
+            { "@type": "Question", "name": "What leader keys are available?", "acceptedAnswer": { "@type": "Answer", "text": "Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing." } },
+            { "@type": "Question", "name": "Can I disable it in specific apps?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The App Filter lets you set a blacklist (disable in listed apps) or a whitelist (enable only in listed apps). Useful for games, password managers, IP/number-only fields, or apps with conflicting shortcuts." } }
         ]
     }
     </script>
@@ -878,6 +888,9 @@
         .testi-card:nth-child(1) { align-self: flex-start; margin-left: 0; }
         .testi-card:nth-child(2) { align-self: flex-end; }
         .testi-card:nth-child(3) { align-self: flex-start; margin-left: 14%; }
+        /* Screenshot card spans the full content width so the wide shot is
+           legible; stays fluid (width:100% img) and full-width on mobile. */
+        .testi-card:nth-child(4) { align-self: stretch; margin: 0; max-width: 100%; }
 
         .testi-card {
             max-width: 68%;
@@ -920,6 +933,12 @@
             font-size: 1.15em; line-height: 1.85;
             color: var(--text); margin-bottom: 28px;
             font-style: italic;
+        }
+
+        .testi-shot {
+            display: block; width: 100%; height: auto;
+            margin: 0 0 28px; border-radius: 12px;
+            border: 1px solid rgba(124,58,237,0.2);
         }
 
         .testi-author { color: var(--muted); font-size: 0.85em; }
@@ -1421,6 +1440,7 @@
                 <span class="tag">Arch Linux</span>
                 <span class="tag">Ubuntu</span>
                 <span class="tag">Debian</span>
+                <span class="tag">Linux Mint</span>
                 <span class="tag">Fedora</span>
                 <span class="tag">openSUSE</span>
             </div>
@@ -1519,6 +1539,16 @@
                 <strong><a href="https://github.com/RandomAndroidDev" rel="noopener" target="_blank">@RandomAndroidDev</a></strong><br><span style="padding-left:0.1em">GitHub User</span>
             </p>
         </div>
+        <div class="testi-card reveal d3">
+            <span class="testi-q" aria-hidden="true">"</span>
+            <img class="testi-shot" src="docs/assets/screenshot-monkeytype-gamesnic.png" alt="MonkeyType typing test typed at speed with Schnelle Umlaute accents" loading="lazy" width="1791" height="704">
+            <p class="testi-text">
+                I can be happy as well to have perfectly equivalent Quick Accent on Linux thanks to you."
+            </p>
+            <p class="testi-author">
+                <strong><a href="https://github.com/Gamesnic" rel="noopener" target="_blank">@Gamesnic</a></strong><br><span style="padding-left:0.1em">GitHub User</span>
+            </p>
+        </div>
     </div>
 </section>
 
@@ -1546,7 +1576,7 @@
         </details>
         <details class="q">
             <summary>Which distros are supported?</summary>
-            <p class="q-body">Supported on Arch Linux, Ubuntu/Debian, Fedora, and openSUSE. Works on any distro with Fcitx5.</p>
+            <p class="q-body">Supported on Arch Linux, Ubuntu/Debian, Linux Mint, Fedora, and openSUSE. Works on any distro with Fcitx5.</p>
         </details>
         <details class="q">
             <summary>Can I adjust the timing?</summary>
@@ -1559,6 +1589,10 @@
         <details class="q">
             <summary>What leader keys are available?</summary>
             <p class="q-body">Space (default), Arrow keys, Alt/AltGr, or up to two custom keys of your choice. Multiple leader keys can be active at the same time. Custom leaders support dual hand-split mode for ergonomic typing.</p>
+        </details>
+        <details class="q">
+            <summary>Can I disable it in specific apps?</summary>
+            <p class="q-body">Yes. The App Filter lets you set a blacklist (disable in listed apps) or a whitelist (enable only in listed apps). Useful for games, password managers, IP/number-only fields, or apps with conflicting shortcuts.</p>
         </details>
     </div>
 </section>
