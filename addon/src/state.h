@@ -90,6 +90,19 @@ public:
         return elapsed_ms > static_cast<uint64_t>(effectiveDelay);
     }
 
+    // Lower bound of the accent window: true while the input key has been
+    // held for less than minHoldMs, i.e. a leader arriving now is too early
+    // to trigger the accent. minHoldMs <= 0 disables the lower bound, which
+    // is the historic default.
+    bool isBeforeMinHold(int minHoldMs) const {
+        if (!waitingKey_ || minHoldMs <= 0)
+            return false;
+        uint64_t now_usec = nowUsec();
+        uint64_t elapsed_ms =
+            (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
+        return elapsed_ms < static_cast<uint64_t>(minHoldMs);
+    }
+
     static uint64_t nowUsec() {
         timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);

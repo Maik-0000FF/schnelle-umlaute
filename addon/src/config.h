@@ -20,12 +20,18 @@ namespace fcitx {
 // keeps the pair ordered through XIM on terminals like WezTerm.
 constexpr int kDelayMin = 50;
 constexpr int kDelayMax = 2000;
-constexpr int kDelayStep = 25;
+constexpr int kDelayStep = 10;
 constexpr int kDeferredCommitDelayMs = 5;
+
+// Minimum-hold lower bound (ms). The accent window is [min, max]: a leader
+// that arrives before min has elapsed yields the plain character instead of
+// the accent. 0 reproduces the historic behavior (no lower bound), so it is
+// the default and the floor of the slider.
+constexpr int kMinHoldMin = 0;
 
 // Custom Option constraint: integer slider with min/max/step exposed to
 // the config UI via dumpDescription. Fcitx5's built-in IntConstrain has
-// no step support, so this is needed for snap-to-25 delay sliders.
+// no step support, so this is needed for snap-to-10 delay sliders.
 class IntConstrainWithStep {
 public:
     using Type = int;
@@ -68,14 +74,28 @@ private:
     std::string tooltip_;
 };
 
-FCITX_CONFIGURATION(DelayConfig,
-                    Option<int, IntConstrainWithStep> lowercase{
-                        this, "Lowercase", "Lowercase (ms)", 400,
-                        IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
-                    Option<int, IntConstrainWithStep> uppercase{
-                        this, "Uppercase", "Uppercase (ms)", 700,
-                        IntConstrainWithStep(kDelayMin, kDelayMax,
-                                             kDelayStep)};);
+// Each case defines an accent window [min, max] in milliseconds. "Lowercase"
+// and "Uppercase" are the upper bound (max), i.e. the latest moment a leader
+// can still trigger the accent, and keep their historic key names so existing
+// config files round-trip unchanged. "LowercaseMin"/"UppercaseMin" are the
+// lower bound (minimum hold time); they default to 0, i.e. no lower bound.
+// min is meant to stay below max. The editor clamps the handles; a hand-edited
+// config with min >= max is degenerate and would make the accent unreachable,
+// so the engine ignores such a lower bound (see getEffectiveMinHold).
+FCITX_CONFIGURATION(
+    DelayConfig,
+    Option<int, IntConstrainWithStep> lowercase{
+        this, "Lowercase", "Lowercase (ms)", 400,
+        IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
+    Option<int, IntConstrainWithStep> uppercase{
+        this, "Uppercase", "Uppercase (ms)", 700,
+        IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
+    Option<int, IntConstrainWithStep> lowercaseMin{
+        this, "LowercaseMin", "Lowercase minimum hold (ms)", 0,
+        IntConstrainWithStep(kMinHoldMin, kDelayMax, kDelayStep)};
+    Option<int, IntConstrainWithStep> uppercaseMin{
+        this, "UppercaseMin", "Uppercase minimum hold (ms)", 0,
+        IntConstrainWithStep(kMinHoldMin, kDelayMax, kDelayStep)};);
 
 FCITX_CONFIGURATION(
     CustomLeaderConfig, Option<bool> customKeyEnabled{this, "CustomKeyEnabled",

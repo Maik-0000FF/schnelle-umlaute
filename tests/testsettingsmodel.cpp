@@ -108,6 +108,8 @@ void testDefaultsOnMissingFile() {
     SettingsModel s;
     EXPECT(s.delayLowercase() == 400);
     EXPECT(s.delayUppercase() == 700);
+    EXPECT(s.delayLowercaseMin() == 0);
+    EXPECT(s.delayUppercaseMin() == 0);
     EXPECT(s.leaderSpace() == true);
     EXPECT(s.leaderLeft() == false);
     EXPECT(s.leaderRight() == false);
@@ -133,6 +135,8 @@ void testScalarRoundTrip() {
         SettingsModel s;
         s.setDelayLowercase(525);
         s.setDelayUppercase(800);
+        s.setDelayLowercaseMin(150);
+        s.setDelayUppercaseMin(225);
         s.setLeaderSpace(false);
         s.setLeaderLeft(true);
         s.setLeaderAlt(true);
@@ -145,6 +149,8 @@ void testScalarRoundTrip() {
     SettingsModel s2;
     EXPECT(s2.delayLowercase() == 525);
     EXPECT(s2.delayUppercase() == 800);
+    EXPECT(s2.delayLowercaseMin() == 150);
+    EXPECT(s2.delayUppercaseMin() == 225);
     EXPECT(s2.leaderSpace() == false);
     EXPECT(s2.leaderLeft() == true);
     EXPECT(s2.leaderAlt() == true);

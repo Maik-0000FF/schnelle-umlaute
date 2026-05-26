@@ -393,6 +393,45 @@ public:
         if (leaderType != LeaderType::None) {
             bool isAlt = isAltLeaderSym(key.sym());
 
+            // MIN-HOLD GUARD (lower bound of the accent window)
+            // Before cycling has started, a leader that arrives before the
+            // minimum hold time has elapsed is not an accent trigger. Commit
+            // the plain pending char now (plus a space for the Space leader,
+            // in the same commitString so the order can't flip), then let the
+            // leader act as a normal key. With min == 0 this never fires, so
+            // the historic behavior is unchanged.
+            if (!state->cyclingInput_ && state->waitingKey_ &&
+                state->isBeforeMinHold(getEffectiveMinHold(state))) {
+                std::string pending = *state->waitingKey_;
+                ic->inputPanel().reset();
+                ic->updatePreedit();
+                state->waitingKey_.reset();
+                // Arm auto-repeat suppression for the still-held input key.
+                // Without this, the next auto-repeat of the held key would
+                // start a fresh gesture and duplicate the character (the
+                // "üu"-class bug guarded at the committedKeyCode_ check).
+                state->committedKeyCode_ = state->waitingKeyCode_;
+                state->waitingKeyCode_ = 0;
+                state->cancelTimeout();
+                state->inputKeyPressed_ = false;
+                if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
+                    ic->commitString(pending + " ");
+                    state->recentlyCommitted_ = true;
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+                // Non-Space leader (arrow): commit the plain char and let the
+                // leader through as a normal key. This mirrors the post-timeout
+                // ordering guard above; the committed char and the raw leader
+                // travel on separate XIM channels, so in theory they could
+                // reorder in terminals like WezTerm (the #6 pattern), but only
+                // for arrow leaders combined with a minimum hold, which is
+                // rare.
+                ic->commitString(pending);
+                state->recentlyCommitted_ = true;
+                return;
+            }
+
             // CASE 1: Currently in cycling mode
             if (state->cyclingInput_) {
                 // Check if input key is still pressed
@@ -713,10 +752,11 @@ private:
                              *config_.appFilter->blacklist,
                              *config_.appFilter->whitelist);
 
-        FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase="
-                     << *config_.delay->lowercase
-                     << "ms, DelayUppercase=" << *config_.delay->uppercase
-                     << "ms, Leaders=" << leaders
+        FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=["
+                     << *config_.delay->lowercaseMin << ","
+                     << *config_.delay->lowercase << "]ms, DelayUppercase=["
+                     << *config_.delay->uppercaseMin << ","
+                     << *config_.delay->uppercase << "]ms, Leaders=" << leaders
                      << ", Mappings=" << umlautMap_.size();
 
         overlayClient_.applyEnabledTransition(*config_.overlay->enabled);
@@ -954,6 +994,25 @@ private:
                        (*state->waitingKey_)[0] >= 'A' &&
                        (*state->waitingKey_)[0] <= 'Z';
         return isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
+    }
+
+    // Lower bound (minimum hold) of the accent window for the waiting key.
+    // Mirrors getEffectiveDelay's lowercase/uppercase split. The editor clamps
+    // min < max, but a hand-edited config could set min >= max, which would
+    // make the window unreachable and silently kill every accent. Guard against
+    // that by ignoring a degenerate lower bound, so the window falls back to
+    // [0, max] instead of going dead.
+    int getEffectiveMinHold(const SchnelleUmlauteState *state) const {
+        bool isUpper =
+            state->waitingKey_ && state->waitingKey_->length() == 1 &&
+            (*state->waitingKey_)[0] >= 'A' && (*state->waitingKey_)[0] <= 'Z';
+        int minHold = isUpper ? *config_.delay->uppercaseMin
+                              : *config_.delay->lowercaseMin;
+        int maxDelay =
+            isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
+        if (minHold >= maxDelay)
+            return 0;
+        return minHold;
     }
 
     void scheduleTimeout(InputContext *ic, SchnelleUmlauteState *state) {
