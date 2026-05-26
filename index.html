@@ -102,7 +102,7 @@
         "aggregateRating": {
             "@type": "AggregateRating",
             "ratingValue": "5",
-            "ratingCount": "3",
+            "ratingCount": "4",
             "bestRating": "5",
             "worstRating": "1"
         },
@@ -124,6 +124,12 @@
                 "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
                 "author": { "@type": "Person", "name": "RandomAndroidDev", "url": "https://github.com/RandomAndroidDev" },
                 "reviewBody": "Congratulations on this excellent add-on!"
+            },
+            {
+                "@type": "Review",
+                "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+                "author": { "@type": "Person", "name": "Gamesnic", "url": "https://github.com/Gamesnic" },
+                "reviewBody": "I can be happy as well to have perfectly equivalent Quick Accent on Linux thanks to you."
             }
         ]
     }
@@ -882,6 +888,9 @@
         .testi-card:nth-child(1) { align-self: flex-start; margin-left: 0; }
         .testi-card:nth-child(2) { align-self: flex-end; }
         .testi-card:nth-child(3) { align-self: flex-start; margin-left: 14%; }
+        /* Screenshot card spans the full content width so the wide shot is
+           legible; stays fluid (width:100% img) and full-width on mobile. */
+        .testi-card:nth-child(4) { align-self: stretch; margin: 0; max-width: 100%; }
 
         .testi-card {
             max-width: 68%;
@@ -924,6 +933,12 @@
             font-size: 1.15em; line-height: 1.85;
             color: var(--text); margin-bottom: 28px;
             font-style: italic;
+        }
+
+        .testi-shot {
+            display: block; width: 100%; height: auto;
+            margin: 0 0 28px; border-radius: 12px;
+            border: 1px solid rgba(124,58,237,0.2);
         }
 
         .testi-author { color: var(--muted); font-size: 0.85em; }
@@ -1522,6 +1537,16 @@
             </p>
             <p class="testi-author">
                 <strong><a href="https://github.com/RandomAndroidDev" rel="noopener" target="_blank">@RandomAndroidDev</a></strong><br><span style="padding-left:0.1em">GitHub User</span>
+            </p>
+        </div>
+        <div class="testi-card reveal d3">
+            <span class="testi-q" aria-hidden="true">"</span>
+            <img class="testi-shot" src="docs/assets/screenshot-monkeytype-gamesnic.png" alt="MonkeyType typing test typed at speed with Schnelle Umlaute accents" loading="lazy" width="1791" height="704">
+            <p class="testi-text">
+                I can be happy as well to have perfectly equivalent Quick Accent on Linux thanks to you."
+            </p>
+            <p class="testi-author">
+                <strong><a href="https://github.com/Gamesnic" rel="noopener" target="_blank">@Gamesnic</a></strong><br><span style="padding-left:0.1em">GitHub User</span>
             </p>
         </div>
     </div>
