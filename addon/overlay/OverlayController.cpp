@@ -1,4 +1,5 @@
 #include "OverlayController.h"
+#include "../themes.h"
 
 #include <QCoreApplication>
 
@@ -43,9 +44,7 @@ void OverlayController::setTheme(const QString &theme) {
 }
 
 bool OverlayController::isValidTheme(const QString &name) {
-    return name == QLatin1String("schnelle-umlaute") ||
-           name == QLatin1String("dark") || name == QLatin1String("light") ||
-           name == QLatin1String("contrast");
+    return schnelle_umlaute::isValidTheme(name);
 }
 
 OverlayDBusAdaptor::OverlayDBusAdaptor(OverlayController *ctrl)

@@ -61,8 +61,10 @@ target_compile_definitions(schnelle-umlaute-overlay PRIVATE QT_NO_KEYWORDS)
 if(LayerShellQt_VERSION VERSION_GREATER_EQUAL 6.6)
     target_compile_definitions(schnelle-umlaute-overlay
         PRIVATE SCHNELLE_LAYERSHELLQT_HAS_ACTIVE_SCREEN)
-endif()
-if(LayerShellQt_VERSION VERSION_GREATER_EQUAL 6.0)
+elseif(LayerShellQt_VERSION VERSION_GREATER_EQUAL 6.0)
+    # Mutually exclusive with the 6.6 branch: 6.6+ uses the new API and
+    # must not advertise the deprecated SCREEN_CONFIG path. Matches the
+    # #if/#elif structure in main.cpp 1:1 so exactly one tier is active.
     target_compile_definitions(schnelle-umlaute-overlay
         PRIVATE SCHNELLE_LAYERSHELLQT_HAS_SCREEN_CONFIG)
 endif()

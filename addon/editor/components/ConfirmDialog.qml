@@ -31,6 +31,11 @@ Popup {
     readonly property color _confirmHover: confirmStyle === "primary"
                                            ? Theme.accentHover : "#ef4444"
 
+    // When true, the cancel button is hidden and only the confirm button
+    // is shown. Use for informational dialogs where there is no
+    // destructive option to opt out of — e.g. "Logout pending" reminders.
+    property bool singleButton: false
+
     background: Rectangle {
         color: Theme.surface
         radius: Theme.radiusLg
@@ -83,6 +88,7 @@ Popup {
             // selection cell — Rectangle leaves the colour pipeline alone.
             Rectangle {
                 id: cancelBtn
+                visible: !root.singleButton
                 implicitHeight: 34
                 implicitWidth: cancelLabel.implicitWidth + 2 * Theme.spacingMd
                 radius: Theme.radiusSm

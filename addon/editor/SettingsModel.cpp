@@ -1,6 +1,7 @@
 #include "SettingsModel.h"
 #include "FcitxReload.h"
 #include "../src/layer_shell_capability.h"
+#include "../themes.h"
 
 #include <QDir>
 #include <QFile>
@@ -96,6 +97,20 @@ void SettingsModel::setDelayUppercase(int v) {
         return;
     delayUppercase_ = v;
     Q_EMIT delayUppercaseChanged();
+    save();
+}
+void SettingsModel::setDelayLowercaseMin(int v) {
+    if (delayLowercaseMin_ == v)
+        return;
+    delayLowercaseMin_ = v;
+    Q_EMIT delayLowercaseMinChanged();
+    save();
+}
+void SettingsModel::setDelayUppercaseMin(int v) {
+    if (delayUppercaseMin_ == v)
+        return;
+    delayUppercaseMin_ = v;
+    Q_EMIT delayUppercaseMinChanged();
     save();
 }
 void SettingsModel::setLeaderSpace(bool v) {
@@ -204,9 +219,7 @@ void SettingsModel::setTheme(const QString &v) {
 }
 
 bool SettingsModel::isValidTheme(const QString &name) {
-    return name == QLatin1String("schnelle-umlaute") ||
-           name == QLatin1String("dark") || name == QLatin1String("light") ||
-           name == QLatin1String("contrast");
+    return schnelle_umlaute::isValidTheme(name);
 }
 
 void SettingsModel::addBlacklistEntry(const QString &entry) {
@@ -290,6 +303,10 @@ void SettingsModel::load() {
                 delayLowercase_ = val.toInt();
             else if (key == "Uppercase")
                 delayUppercase_ = val.toInt();
+            else if (key == "LowercaseMin")
+                delayLowercaseMin_ = val.toInt();
+            else if (key == "UppercaseMin")
+                delayUppercaseMin_ = val.toInt();
         } else if (section == QLatin1String("Leader")) {
             if (key == "Space")
                 leaderSpace_ = fromBool(val);
@@ -363,6 +380,8 @@ void SettingsModel::load() {
 
     Q_EMIT delayLowercaseChanged();
     Q_EMIT delayUppercaseChanged();
+    Q_EMIT delayLowercaseMinChanged();
+    Q_EMIT delayUppercaseMinChanged();
     Q_EMIT leaderSpaceChanged();
     Q_EMIT leaderLeftChanged();
     Q_EMIT leaderRightChanged();
@@ -399,6 +418,10 @@ void SettingsModel::save() {
     out << "Lowercase=" << delayLowercase_ << "\n";
     out << "# Uppercase (ms)\n";
     out << "Uppercase=" << delayUppercase_ << "\n";
+    out << "# Lowercase minimum hold (ms)\n";
+    out << "LowercaseMin=" << delayLowercaseMin_ << "\n";
+    out << "# Uppercase minimum hold (ms)\n";
+    out << "UppercaseMin=" << delayUppercaseMin_ << "\n";
     out << "\n";
     out << "[Leader]\n";
     out << "# Space\n" << "Space=" << toBool(leaderSpace_) << "\n";

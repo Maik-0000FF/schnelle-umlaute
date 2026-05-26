@@ -47,6 +47,16 @@ target_compile_options(testlayershellcapability PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testlayershellcapability COMMAND testlayershellcapability)
 set_tests_properties(testlayershellcapability PROPERTIES TIMEOUT 10)
 
+# Unit test for classifySessionEnv(). Pure header-only logic — guards the
+# rule table that decides between the "logout pending" and "compositor
+# config" setup dialogs (environment.d sessions vs TTY-launched
+# compositors like Hyprland).
+add_executable(testsessionenv testsessionenv.cpp)
+target_include_directories(testsessionenv PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testsessionenv PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testsessionenv COMMAND testsessionenv)
+set_tests_properties(testsessionenv PROPERTIES TIMEOUT 10)
+
 # Unit test for OverlayController state machine. Compiles OverlayController.cpp
 # directly (no LayerShellQt, no QML). Uses QSignalSpy to verify stateChanged
 # emissions and a short exec() loop to confirm quit() reaches QCoreApplication.
