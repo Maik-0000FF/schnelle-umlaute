@@ -706,7 +706,20 @@ public:
             return; // Keep all state intact
         }
 
+        // A running commit-flash must survive the post-commit reset that
+        // Chromium and Neovide fire, otherwise the confirmation overlay would
+        // vanish in the same frame as the commit (single-output commits set
+        // inputKeyPressed_ = false, so the early return above doesn't catch
+        // them). Pull the timer out so clearAllState()'s cancelOverlayHide()
+        // becomes a no-op, then restore it and leave the overlay up. The
+        // overlayVisible_ check distinguishes a live flash from a spent timer
+        // (overlayHideEvent_ stays non-null after firing, like overlayShowEvent_).
+        auto flash = std::move(state->overlayHideEvent_);
         state->clearAllState();
+        if (flash && overlayVisible_) {
+            state->overlayHideEvent_ = std::move(flash);
+            return;
+        }
         // Route through hideTriggerOverlay (not a bare overlayHide) so the
         // DBus Hide is suppressed when ShowOnTrigger is off. Apps like Chromium
         // and Neovide call reset() after every commit; cycling holds
@@ -1277,9 +1290,11 @@ private:
         state->overlayHideEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC, target, 0,
             [this, savedRef](EventSourceTime *, uint64_t) {
-                // Hide unconditionally once the flash elapses; the
-                // overlayVisible_ guard in overlayHide() makes it a no-op if a
-                // newer show already replaced or cleared this overlay.
+                // Hide once the flash elapses. An orphaned timer can't blank a
+                // newer overlay: every fresh gesture cancels it first via
+                // scheduleTriggerOverlay's cancelOverlayHide(). The
+                // overlayVisible_ guard in overlayHide() is just a backstop for
+                // the case where an unrelated hide already ran (then it no-ops).
                 if (savedRef.get())
                     overlayHide();
                 return false;
