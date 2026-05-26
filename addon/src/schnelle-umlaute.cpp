@@ -1163,13 +1163,19 @@ private:
         overlayClient_.hide();
     }
 
+    // Index sent to the overlay for the trigger-window preview. No cell
+    // matches it, so the picker shows the variants without a green highlight —
+    // the active cell only lights up once a leader press starts cycling.
+    static constexpr int kPreviewNoHighlight = -1;
+
     // Trigger-window preview ([Overlay]/ShowOnTrigger). Show the mapping's
     // variants as soon as the accent window opens — for EVERY mapped key,
     // including single-variant ones that never enter the cycling picker. The
     // preview waits for the minimum hold to elapse (shows immediately when
-    // min == 0) and highlights the first variant. Once a leader is pressed the
-    // cycling logic takes over: it keeps the overlay for multi-variant keys and
-    // hides it for single-output keys, so cycling behaves exactly as before.
+    // min == 0) and shows the variants with no cell highlighted. Once a leader
+    // is pressed the cycling logic takes over: it keeps the overlay (now
+    // highlighting the active variant) for multi-variant keys and hides it for
+    // single-output keys, so cycling behaves exactly as before.
     void scheduleTriggerOverlay(InputContext *ic, SchnelleUmlauteState *state,
                                 const std::string &keyChar) {
         if (!*config_.overlay->enabled || !*config_.overlay->showOnTrigger)
@@ -1180,7 +1186,7 @@ private:
 
         int minHold = getEffectiveMinHold(state);
         if (minHold <= 0) {
-            overlayShow(ic, it->second, 0);
+            overlayShow(ic, it->second, kPreviewNoHighlight);
             return;
         }
 
@@ -1205,7 +1211,7 @@ private:
                 // not started cycling in the meantime.
                 if (state->waitingKey_ && *state->waitingKey_ == savedKey &&
                     !state->cyclingInput_)
-                    overlayShow(ctx, variants, 0);
+                    overlayShow(ctx, variants, kPreviewNoHighlight);
                 return false;
             });
     }
