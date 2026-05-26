@@ -159,6 +159,9 @@ FCITX_CONFIG_ENUM(OverlayColumn, Col1, Col2, Col3, Col4, Col5, Col6, Col7);
 
 FCITX_CONFIGURATION(
     OverlayConfig, Option<bool> enabled{this, "Enabled", "Enabled", false};
+    Option<bool> showOnTrigger{this, "ShowOnTrigger",
+                               "Preview in the trigger window (all mapped keys)",
+                               false};
     Option<OverlayRow> row{this, "Row", "Vertical position", OverlayRow::Top};
     Option<OverlayColumn> column{this, "Column", "Horizontal position",
                                  OverlayColumn::Col4};);

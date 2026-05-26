@@ -393,6 +393,12 @@ public:
         if (leaderType != LeaderType::None) {
             bool isAlt = isAltLeaderSym(key.sym());
 
+            // A leader press ends the trigger-preview phase: cancel any pending
+            // preview timer. If the preview is already visible, the cycling
+            // logic below decides whether to keep it (multi-variant picker) or
+            // hide it (single output).
+            state->cancelOverlayShow();
+
             // MIN-HOLD GUARD (lower bound of the accent window)
             // Before cycling has started, a leader that arrives before the
             // minimum hold time has elapsed is not an accent trigger. Commit
@@ -525,8 +531,13 @@ public:
                         // commit / re-press machinery).
                         if (it->second.size() > 1)
                             overlayShow(ic, it->second, 0);
+                        else
+                            // Single-output Alt: no picker, so clear any
+                            // trigger-window preview that was showing.
+                            hideTriggerOverlay(state);
                     } else {
                         // Single output with non-Alt leader - commit directly
+                        hideTriggerOverlay(state);
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
@@ -610,6 +621,9 @@ public:
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
             scheduleTimeout(ic, state);
+            // Preview the variants in the overlay during the accent window
+            // (opt-in via [Overlay]/ShowOnTrigger). No-op otherwise.
+            scheduleTriggerOverlay(ic, state, keyChar);
 
             // Set preedit text
             updateClientPreedit(ic, keyChar);
@@ -667,6 +681,9 @@ public:
 
         state->clearAllState();
         state->recentlyCommitted_ = false;
+        // Focus left this context: drop any visible overlay (cycling picker or
+        // trigger preview) so it doesn't linger over another window.
+        overlayHide();
     }
 
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
@@ -678,6 +695,7 @@ public:
         }
 
         state->clearAllState();
+        overlayHide();
     }
 
 private:
@@ -815,6 +833,7 @@ private:
     void commitPendingKey(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->waitingKey_)
             return;
+        hideTriggerOverlay(state);
         ic->inputPanel().reset();
         ic->commitString(*state->waitingKey_);
         ic->updatePreedit();
@@ -1033,7 +1052,7 @@ private:
         auto savedRef = ic->watch();
         state->timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC, target_usec, 0,
-            [state, savedKey, savedRef](EventSourceTime *, uint64_t) {
+            [this, state, savedKey, savedRef](EventSourceTime *, uint64_t) {
                 // Safety: state is owned by IC (InputContextProperty). If IC
                 // is destroyed, savedRef.get() returns nullptr and we bail
                 // before touching state. No race: fcitx5's event loop is
@@ -1051,6 +1070,8 @@ private:
                     state->waitingKey_.reset();
                     state->waitingKeyCode_ = 0;
                     state->inputKeyPressed_ = false;
+                    // Window elapsed without a leader: clear the preview.
+                    hideTriggerOverlay(state);
                 }
                 // Don't reset timeoutEvent_ here — destroying the EventSource
                 // inside its own callback is a use-after-free risk. Returning
@@ -1140,6 +1161,62 @@ private:
         if (!*config_.overlay->enabled)
             return;
         overlayClient_.hide();
+    }
+
+    // Trigger-window preview ([Overlay]/ShowOnTrigger). Show the mapping's
+    // variants as soon as the accent window opens — for EVERY mapped key,
+    // including single-variant ones that never enter the cycling picker. The
+    // preview waits for the minimum hold to elapse (shows immediately when
+    // min == 0) and highlights the first variant. Once a leader is pressed the
+    // cycling logic takes over: it keeps the overlay for multi-variant keys and
+    // hides it for single-output keys, so cycling behaves exactly as before.
+    void scheduleTriggerOverlay(InputContext *ic, SchnelleUmlauteState *state,
+                                const std::string &keyChar) {
+        if (!*config_.overlay->enabled || !*config_.overlay->showOnTrigger)
+            return;
+        auto it = umlautMap_.find(keyChar);
+        if (it == umlautMap_.end() || it->second.empty())
+            return;
+
+        int minHold = getEffectiveMinHold(state);
+        if (minHold <= 0) {
+            overlayShow(ic, it->second, 0);
+            return;
+        }
+
+        auto savedKey = keyChar;
+        auto variants = it->second;
+        auto savedRef = ic->watch();
+        auto *eventLoop = &instance_->eventLoop();
+        uint64_t target =
+            SchnelleUmlauteState::nowUsec() +
+            static_cast<uint64_t>(minHold) * kMicrosecondsPerMillisecond;
+
+        state->overlayShowEvent_ = eventLoop->addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [this, state, savedKey, variants, savedRef](EventSourceTime *,
+                                                        uint64_t) {
+                // Safety mirrors scheduleTimeout: the single-threaded event
+                // loop guarantees state outlives a non-null savedRef.get().
+                auto *ctx = savedRef.get();
+                if (!ctx)
+                    return false;
+                // Only preview if still holding the same key and a leader has
+                // not started cycling in the meantime.
+                if (state->waitingKey_ && *state->waitingKey_ == savedKey &&
+                    !state->cyclingInput_)
+                    overlayShow(ctx, variants, 0);
+                return false;
+            });
+    }
+
+    // Tear down the trigger-window preview: cancel a pending show timer and
+    // hide the overlay. The DBus hide is suppressed unless the preview feature
+    // is on, so plain commits don't emit a Hide on every keystroke.
+    void hideTriggerOverlay(SchnelleUmlauteState *state) {
+        state->cancelOverlayShow();
+        if (*config_.overlay->enabled && *config_.overlay->showOnTrigger)
+            overlayHide();
     }
 };
 

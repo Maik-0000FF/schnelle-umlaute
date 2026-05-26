@@ -28,6 +28,12 @@ public:
     uint64_t startTimeUsec_ = 0;
     std::unique_ptr<EventSourceTime> timeoutEvent_;
 
+    // Separate timer for the trigger-window preview overlay. Runs concurrently
+    // with timeoutEvent_ (the accent window's upper bound), so it cannot share
+    // that single slot — it fires once the minimum hold elapses to preview the
+    // mapping's variants before any leader is pressed.
+    std::unique_ptr<EventSourceTime> overlayShowEvent_;
+
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
     int waitingKeyCode_ = 0;
@@ -67,6 +73,7 @@ public:
         waitingKeyCode_ = 0;
         // Note: recentlyCommitted_ is intentionally NOT cleared here.
         cancelTimeout();
+        cancelOverlayShow();
         resetCycling();
         heldRawCodes_.clear();
         committedKeyCode_ = 0;
@@ -80,6 +87,8 @@ public:
     }
 
     void cancelTimeout() { timeoutEvent_.reset(); }
+
+    void cancelOverlayShow() { overlayShowEvent_.reset(); }
 
     bool isTimeoutExpired(int effectiveDelay) const {
         if (!waitingKey_)
