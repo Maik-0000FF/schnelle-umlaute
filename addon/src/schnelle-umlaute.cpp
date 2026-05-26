@@ -1154,6 +1154,12 @@ private:
     // lifecycle — calling applyEnabledTransition() on every config reload
     // starts or stops the daemon in response to the Enabled flag.
     OverlayClient overlayClient_;
+    // Best-effort mirror of the daemon's visibility so overlayHide() can skip
+    // a redundant DBus Hide when nothing is showing. Plain typing with
+    // ShowOnTrigger on otherwise emits two spurious Hides per mapped keystroke
+    // (commitPendingKey + the app's follow-up reset). A daemon restart can
+    // briefly desync this, but the next real show() corrects it.
+    bool overlayVisible_ = false;
 
     void overlayShow(InputContext *ic, const std::vector<std::string> &variants,
                      int index) {
@@ -1165,11 +1171,13 @@ private:
         std::string position = OverlayRowToString(*config_.overlay->row);
         position += OverlayColumnToString(*config_.overlay->column);
         overlayClient_.show(variants, index, position);
+        overlayVisible_ = true;
     }
     void overlayHide() {
-        if (!*config_.overlay->enabled)
+        if (!*config_.overlay->enabled || !overlayVisible_)
             return;
         overlayClient_.hide();
+        overlayVisible_ = false;
     }
 
     // Index sent to the overlay for the trigger-window preview. No cell
