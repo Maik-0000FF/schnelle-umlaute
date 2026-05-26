@@ -304,6 +304,10 @@ public:
             state->waitingKeyCode_ = 0;
             state->cancelTimeout();
             state->inputKeyPressed_ = false;
+            // Window elapsed (a key arrived right at expiry, before the
+            // timeout timer fired): clear the trigger preview, mirroring the
+            // timeout callback's teardown.
+            hideTriggerOverlay(state);
 
             if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
                 ic->commitString(pending + " ");
