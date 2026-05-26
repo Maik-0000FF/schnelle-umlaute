@@ -5651,6 +5651,39 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO() << "Test 139 PASSED";
     });
 
+    // =========================================================================
+    // TEST 140: Degenerate window (min >= max) does not go dead. A hand-edited
+    // config could set min above max; the engine ignores such a lower bound and
+    // falls back to [0, max], so an immediate Space still converts.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 140;
+        FCITX_INFO() << "=== Test 140: Degenerate window (min >= max) ignores "
+                        "the lower bound ===";
+        // Lowercase min 2000 >= max 400: degenerate. Lower bound must be
+        // ignored, leaving the window [0, 400].
+        configureWithDelay(instance, 400, 700, true, false, 2000, 0);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test140");
+
+        // Hold 'a' → waiting.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Immediate Space (~0ms). If the bogus min (2000) were enforced this
+        // would be plain "a "; with the degenerate bound ignored it converts.
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed)
+            << "Degenerate min >= max must be ignored, so Space converts";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 140 PASSED";
+    });
+
     testDispatcher->schedule([instance]() {
         g_currentTest = 113;
         FCITX_INFO() << "=== Test 113: Inside window [300, 2000] with min > 0, "
@@ -5690,7 +5723,7 @@ static void scheduleTest113(Instance *instance) {
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 113 PASSED";
 
-                FCITX_INFO() << "=== All 139 tests PASSED ===";
+                FCITX_INFO() << "=== All 140 tests PASSED ===";
                 instance->exit();
                 return false;
             });

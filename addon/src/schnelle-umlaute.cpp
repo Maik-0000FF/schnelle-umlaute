@@ -997,15 +997,22 @@ private:
     }
 
     // Lower bound (minimum hold) of the accent window for the waiting key.
-    // Mirrors getEffectiveDelay's lowercase/uppercase split.
+    // Mirrors getEffectiveDelay's lowercase/uppercase split. The editor clamps
+    // min < max, but a hand-edited config could set min >= max, which would
+    // make the window unreachable and silently kill every accent. Guard against
+    // that by ignoring a degenerate lower bound, so the window falls back to
+    // [0, max] instead of going dead.
     int getEffectiveMinHold(const SchnelleUmlauteState *state) const {
-        if (!state->waitingKey_)
-            return *config_.delay->lowercaseMin;
-        bool isUpper = state->waitingKey_->length() == 1 &&
-                       (*state->waitingKey_)[0] >= 'A' &&
-                       (*state->waitingKey_)[0] <= 'Z';
-        return isUpper ? *config_.delay->uppercaseMin
-                       : *config_.delay->lowercaseMin;
+        bool isUpper =
+            state->waitingKey_ && state->waitingKey_->length() == 1 &&
+            (*state->waitingKey_)[0] >= 'A' && (*state->waitingKey_)[0] <= 'Z';
+        int minHold = isUpper ? *config_.delay->uppercaseMin
+                              : *config_.delay->lowercaseMin;
+        int maxDelay =
+            isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
+        if (minHold >= maxDelay)
+            return 0;
+        return minHold;
     }
 
     void scheduleTimeout(InputContext *ic, SchnelleUmlauteState *state) {
