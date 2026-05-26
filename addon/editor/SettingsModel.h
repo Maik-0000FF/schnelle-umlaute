@@ -12,10 +12,17 @@ class SettingsModel : public QObject {
     Q_OBJECT
     QML_ELEMENT
 
+    // delayLowercase / delayUppercase are the accent window's UPPER bound
+    // (max). delayLowercaseMin / delayUppercaseMin are the lower bound
+    // (minimum hold, default 0). Together each case forms a [min, max] window.
     Q_PROPERTY(int delayLowercase READ delayLowercase WRITE setDelayLowercase
                    NOTIFY delayLowercaseChanged)
     Q_PROPERTY(int delayUppercase READ delayUppercase WRITE setDelayUppercase
                    NOTIFY delayUppercaseChanged)
+    Q_PROPERTY(int delayLowercaseMin READ delayLowercaseMin WRITE
+                   setDelayLowercaseMin NOTIFY delayLowercaseMinChanged)
+    Q_PROPERTY(int delayUppercaseMin READ delayUppercaseMin WRITE
+                   setDelayUppercaseMin NOTIFY delayUppercaseMinChanged)
 
     Q_PROPERTY(bool leaderSpace READ leaderSpace WRITE setLeaderSpace NOTIFY
                    leaderSpaceChanged)
@@ -63,6 +70,8 @@ public:
 
     int delayLowercase() const { return delayLowercase_; }
     int delayUppercase() const { return delayUppercase_; }
+    int delayLowercaseMin() const { return delayLowercaseMin_; }
+    int delayUppercaseMin() const { return delayUppercaseMin_; }
     bool leaderSpace() const { return leaderSpace_; }
     bool leaderLeft() const { return leaderLeft_; }
     bool leaderRight() const { return leaderRight_; }
@@ -85,6 +94,8 @@ public:
 
     void setDelayLowercase(int v);
     void setDelayUppercase(int v);
+    void setDelayLowercaseMin(int v);
+    void setDelayUppercaseMin(int v);
     void setLeaderSpace(bool v);
     void setLeaderLeft(bool v);
     void setLeaderRight(bool v);
@@ -113,6 +124,8 @@ public:
 Q_SIGNALS:
     void delayLowercaseChanged();
     void delayUppercaseChanged();
+    void delayLowercaseMinChanged();
+    void delayUppercaseMinChanged();
     void leaderSpaceChanged();
     void leaderLeftChanged();
     void leaderRightChanged();
@@ -138,6 +151,8 @@ private:
 
     int delayLowercase_ = 400;
     int delayUppercase_ = 700;
+    int delayLowercaseMin_ = 0;
+    int delayUppercaseMin_ = 0;
     bool leaderSpace_ = true;
     bool leaderLeft_ = false;
     bool leaderRight_ = false;

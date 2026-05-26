@@ -86,21 +86,35 @@ Item {
                 SettingsCard {
                     titleText: qsTr("Delay")
 
-                    LabeledSlider {
+                    LabeledRangeSlider {
                         labelText: qsTr("Lowercase")
-                        minValue: 50
-                        maxValue: 2000
-                        stepSize: 25
-                        value: root.settingsModel ? root.settingsModel.delayLowercase : 400
-                        onValueEdited: (v) => root.settingsModel.delayLowercase = v
+                        from: 0
+                        to: 2000
+                        step: 25
+                        lowerValue: root.settingsModel ? root.settingsModel.delayLowercaseMin : 0
+                        upperValue: root.settingsModel ? root.settingsModel.delayLowercase : 400
+                        onLowerEdited: (v) => root.settingsModel.delayLowercaseMin = v
+                        onUpperEdited: (v) => root.settingsModel.delayLowercase = v
                     }
-                    LabeledSlider {
+                    LabeledRangeSlider {
                         labelText: qsTr("Uppercase")
-                        minValue: 50
-                        maxValue: 2000
-                        stepSize: 25
-                        value: root.settingsModel ? root.settingsModel.delayUppercase : 700
-                        onValueEdited: (v) => root.settingsModel.delayUppercase = v
+                        from: 0
+                        to: 2000
+                        step: 25
+                        lowerValue: root.settingsModel ? root.settingsModel.delayUppercaseMin : 0
+                        upperValue: root.settingsModel ? root.settingsModel.delayUppercase : 700
+                        onLowerEdited: (v) => root.settingsModel.delayUppercaseMin = v
+                        onUpperEdited: (v) => root.settingsModel.delayUppercase = v
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.spacingXs
+                        text: qsTr("The accent fires only while the mapped key is held and the leader (e.g. Space) arrives inside the window. Raise the minimum to avoid accidental accents when typing fast; lower it to 0 for the classic timeout-only behavior.")
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
                     }
                 }
 

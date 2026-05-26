@@ -360,14 +360,19 @@ static void configureMultilingualCycling(Instance *instance, bool space,
                 });
 }
 
-// Configure with custom delay values (Space leader only, default mappings)
+// Configure with custom delay values (Space leader only, default mappings).
+// delayLower/delayUpper are the window upper bound (max) for lowercase/
+// uppercase; minLower/minUpper are the lower bound (minimum hold), default 0.
 static void configureWithDelay(Instance *instance, int delayLower,
                                int delayUpper, bool space = true,
-                               bool alt = false) {
+                               bool alt = false, int minLower = 0,
+                               int minUpper = 0) {
     auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
     RawConfig config;
     config.setValueByPath("Delay/Lowercase", std::to_string(delayLower));
     config.setValueByPath("Delay/Uppercase", std::to_string(delayUpper));
+    config.setValueByPath("Delay/LowercaseMin", std::to_string(minLower));
+    config.setValueByPath("Delay/UppercaseMin", std::to_string(minUpper));
     config.setValueByPath("Leader/Space", space ? "True" : "False");
     config.setValueByPath("Leader/Left", "False");
     config.setValueByPath("Leader/Right", "False");
@@ -5544,6 +5549,66 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO() << "Test 136 PASSED";
     });
 
+    // =========================================================================
+    // TEST 137: Min-hold lower bound. Space before the minimum hold yields a
+    // plain space, not the accent. Synchronous: the leader arrives ~0ms after
+    // the key, well below the 200ms minimum, so it is too early to convert.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 137;
+        FCITX_INFO()
+            << "=== Test 137: Space before min hold yields plain space "
+               "===";
+        // Window [200, 2000]: lowercase minimum hold 200ms, max 2000ms.
+        configureWithDelay(instance, 2000, 2000, true, false, 200, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test137");
+
+        // Press 'a' → waiting.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Immediately press Space (~0ms < 200ms min) → plain "a ", no accent.
+        tf->call<ITestFrontend::pushCommitExpectation>("a ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed)
+            << "Space before min hold must be consumed as plain char + space";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 137 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 138: Min-hold uses the uppercase lower bound for uppercase keys.
+    // Shift+A with uppercase min 200ms, then an immediate Space → plain "A ".
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 138;
+        FCITX_INFO() << "=== Test 138: Uppercase min hold yields plain space "
+                        "===";
+        // Lowercase min 0, uppercase min 200: the uppercase bound must apply.
+        configureWithDelay(instance, 2000, 2000, true, false, 0, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test138");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
+
+        tf->call<ITestFrontend::pushCommitExpectation>("A ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Space before uppercase min hold must be "
+                                  "consumed as plain char + space";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 138 PASSED";
+    });
+
     testDispatcher->schedule([instance]() {
         g_currentTest = 113;
         FCITX_INFO()
@@ -5578,7 +5643,7 @@ static void scheduleTest113(Instance *instance) {
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 113 PASSED";
 
-                FCITX_INFO() << "=== All 136 tests PASSED ===";
+                FCITX_INFO() << "=== All 138 tests PASSED ===";
                 instance->exit();
                 return false;
             });
