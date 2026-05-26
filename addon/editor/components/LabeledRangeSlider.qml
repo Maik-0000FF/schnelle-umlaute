@@ -22,7 +22,7 @@ RowLayout {
     property string labelText: ""
     property int from: 0
     property int to: 2000
-    property int step: 25
+    property int step: 10
     property int lowerValue: 0
     property int upperValue: 400
     property string suffix: "ms"
@@ -53,8 +53,10 @@ RowLayout {
         Layout.fillWidth: true
         implicitHeight: 36
 
-        readonly property int handleW: 16
-        readonly property int hit: 10
+        readonly property int handleW: 18
+        // Generous grab radius so either handle is easy to hit, including the
+        // lower one when it sits at the far-left edge (value at "from").
+        readonly property int hit: 22
         // Top band holds the duration label, the lower band the track + handles.
         readonly property int rowY: 16
         readonly property int rowH: implicitHeight - rowY

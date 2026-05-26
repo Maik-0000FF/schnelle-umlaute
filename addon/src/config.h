@@ -20,7 +20,7 @@ namespace fcitx {
 // keeps the pair ordered through XIM on terminals like WezTerm.
 constexpr int kDelayMin = 50;
 constexpr int kDelayMax = 2000;
-constexpr int kDelayStep = 25;
+constexpr int kDelayStep = 10;
 constexpr int kDeferredCommitDelayMs = 5;
 
 // Minimum-hold lower bound (ms). The accent window is [min, max]: a leader
@@ -31,7 +31,7 @@ constexpr int kMinHoldMin = 0;
 
 // Custom Option constraint: integer slider with min/max/step exposed to
 // the config UI via dumpDescription. Fcitx5's built-in IntConstrain has
-// no step support, so this is needed for snap-to-25 delay sliders.
+// no step support, so this is needed for snap-to-10 delay sliders.
 class IntConstrainWithStep {
 public:
     using Type = int;

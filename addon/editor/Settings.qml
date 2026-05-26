@@ -90,7 +90,7 @@ Item {
                         labelText: qsTr("Lowercase")
                         from: 0
                         to: 2000
-                        step: 25
+                        step: 10
                         lowerValue: root.settingsModel ? root.settingsModel.delayLowercaseMin : 0
                         upperValue: root.settingsModel ? root.settingsModel.delayLowercase : 400
                         onLowerEdited: (v) => root.settingsModel.delayLowercaseMin = v
@@ -100,7 +100,7 @@ Item {
                         labelText: qsTr("Uppercase")
                         from: 0
                         to: 2000
-                        step: 25
+                        step: 10
                         lowerValue: root.settingsModel ? root.settingsModel.delayUppercaseMin : 0
                         upperValue: root.settingsModel ? root.settingsModel.delayUppercase : 700
                         onLowerEdited: (v) => root.settingsModel.delayUppercaseMin = v
