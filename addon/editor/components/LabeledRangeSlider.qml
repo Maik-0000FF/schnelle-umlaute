@@ -23,6 +23,10 @@ RowLayout {
     property int from: 0
     property int to: 2000
     property int step: 10
+    // Floor for the upper handle (max). The lower handle may go down to
+    // "from" (no minimum hold), but the engine constrains the window's upper
+    // bound to kDelayMin, so the max handle must not drop below upperMin.
+    property int upperMin: from
     property int lowerValue: 0
     property int upperValue: 400
     property string suffix: "ms"
@@ -174,18 +178,22 @@ RowLayout {
                 if (track.dragMode === 1)
                     root.lowerEdited(Math.min(track.valueForX(mouse.x), root.upperValue));
                 else if (track.dragMode === 2)
-                    root.upperEdited(Math.max(track.valueForX(mouse.x), root.lowerValue));
+                    root.upperEdited(Math.max(track.valueForX(mouse.x), root.lowerValue, root.upperMin));
             }
 
             onPositionChanged: (mouse) => {
                 if (track.dragMode === 1) {
                     root.lowerEdited(track.clamp(track.valueForX(mouse.x), root.from, root.upperValue));
                 } else if (track.dragMode === 2) {
-                    root.upperEdited(track.clamp(track.valueForX(mouse.x), root.lowerValue, root.to));
+                    root.upperEdited(track.clamp(track.valueForX(mouse.x), Math.max(root.lowerValue, root.upperMin), root.to));
                 } else if (track.dragMode === 3) {
                     var valDelta = (mouse.x - moveStartX) / track.spanW * (root.to - root.from);
                     var gap = startUpper - startLower;
-                    var nl = track.clamp(track.snap(startLower + valDelta), root.from, root.to - gap);
+                    // Keep the lower handle within range and the upper handle
+                    // at or above its floor (upperMin) while shifting both.
+                    var nl = track.clamp(track.snap(startLower + valDelta),
+                                         Math.max(root.from, root.upperMin - gap),
+                                         root.to - gap);
                     root.lowerEdited(nl);
                     root.upperEdited(nl + gap);
                 }

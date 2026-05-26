@@ -79,6 +79,8 @@ private:
 // can still trigger the accent, and keep their historic key names so existing
 // config files round-trip unchanged. "LowercaseMin"/"UppercaseMin" are the
 // lower bound (minimum hold time); they default to 0, i.e. no lower bound.
+// Keep min below max: the editor clamps the handles, but a hand-edited config
+// with min >= max yields a dead window where the accent can never fire.
 FCITX_CONFIGURATION(
     DelayConfig,
     Option<int, IntConstrainWithStep> lowercase{

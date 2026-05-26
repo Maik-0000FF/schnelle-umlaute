@@ -5609,19 +5609,65 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO() << "Test 138 PASSED";
     });
 
+    // =========================================================================
+    // TEST 139: Min-hold guard arms auto-repeat suppression. Hold 'a', press
+    // Space before the minimum hold → plain "a ". The 'a' key is still held;
+    // its auto-repeat must be consumed (committedKeyCode_ guard), not start a
+    // fresh gesture, otherwise a duplicate character leaks (üu-class bug).
+    // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 113;
-        FCITX_INFO()
-            << "=== Test 113: Max delay (2000ms) — Space within window ===";
-        configureWithDelay(instance, 2000, 2000);
+        g_currentTest = 139;
+        FCITX_INFO() << "=== Test 139: Auto-repeat after early-Space min-hold "
+                        "guard is suppressed ===";
+        // Lowercase minimum hold 300ms; the synchronous Space below is at ~0ms.
+        configureWithDelay(instance, 2000, 2000, true, false, 300, 0);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test113");
+        auto uuid = createAndActivate(instance, tf, "test139");
 
-        // Press 'a' → waiting with 2000ms delay
+        // Hold 'a' → waiting.
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Wait 1500ms — still within 2000ms window
+        // Early Space (~0ms < 300ms) → guard commits plain "a ", consumes.
+        tf->call<ITestFrontend::pushCommitExpectation>("a ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Early Space must be consumed as plain char";
+
+        // Auto-repeat of the still-held 'a' (same rawCode, no release) must be
+        // consumed by the committedKeyCode_ guard, with no new commit.
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(consumed) << "Auto-repeat after min-hold guard must be "
+                                  "consumed (no duplicate)";
+
+        // Release 'a' → also consumed under committedKeyCode_.
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        FCITX_ASSERT(consumed)
+            << "Release of the committed key after the guard must be consumed";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 139 PASSED";
+    });
+
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 113;
+        FCITX_INFO() << "=== Test 113: Inside window [300, 2000] with min > 0, "
+                        "Space converts ===";
+        // Window [300, 2000]: lowercase minimum hold 300ms, max 2000ms. This
+        // is the positive counterpart to tests 137-139: a leader that arrives
+        // inside the window (after min, before max) must still convert even
+        // though a non-zero minimum hold is configured.
+        configureWithDelay(instance, 2000, 2000, true, false, 300, 300);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test113");
+
+        // Press 'a' → waiting
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Wait 1500ms, past the 300ms min, still inside the 2000ms max
         struct TH {
             std::unique_ptr<EventSourceTime> t;
         };
@@ -5631,19 +5677,20 @@ static void scheduleTest113(Instance *instance) {
             [instance, uuid, h](EventSourceTime *, uint64_t) {
                 auto *tf = instance->addonManager().addon("testfrontend");
 
-                // At 1500ms, 2000ms timeout hasn't expired → Space converts
+                // At 1500ms: elapsed > 300 (min) and < 2000 (max) → Space
+                // converts to "ä" despite the non-zero minimum hold.
                 tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
                 bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
                     uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
                 FCITX_ASSERT(consumed)
-                    << "Space should convert within 2000ms window";
+                    << "Space at 1500ms must convert (inside [300, 2000])";
 
                 tf->call<ITestFrontend::keyEvent>(
                     uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 113 PASSED";
 
-                FCITX_INFO() << "=== All 138 tests PASSED ===";
+                FCITX_INFO() << "=== All 139 tests PASSED ===";
                 instance->exit();
                 return false;
             });

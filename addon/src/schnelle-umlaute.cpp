@@ -406,6 +406,11 @@ public:
                 ic->inputPanel().reset();
                 ic->updatePreedit();
                 state->waitingKey_.reset();
+                // Arm auto-repeat suppression for the still-held input key.
+                // Without this, the next auto-repeat of the held key would
+                // start a fresh gesture and duplicate the character (the
+                // "üu"-class bug guarded at the committedKeyCode_ check).
+                state->committedKeyCode_ = state->waitingKeyCode_;
                 state->waitingKeyCode_ = 0;
                 state->cancelTimeout();
                 state->inputKeyPressed_ = false;
@@ -415,9 +420,16 @@ public:
                     keyEvent.filterAndAccept();
                     return;
                 }
+                // Non-Space leader (arrow): commit the plain char and let the
+                // leader through as a normal key. This mirrors the post-timeout
+                // ordering guard above; the committed char and the raw leader
+                // travel on separate XIM channels, so in theory they could
+                // reorder in terminals like WezTerm (the #6 pattern), but only
+                // for arrow leaders combined with a minimum hold, which is
+                // rare.
                 ic->commitString(pending);
                 state->recentlyCommitted_ = true;
-                return; // let the leader through as a normal key
+                return;
             }
 
             // CASE 1: Currently in cycling mode

@@ -91,6 +91,8 @@ Item {
                         from: 0
                         to: 2000
                         step: 10
+                        // Mirrors kDelayMin: the engine floors the window's max at 50ms.
+                        upperMin: 50
                         lowerValue: root.settingsModel ? root.settingsModel.delayLowercaseMin : 0
                         upperValue: root.settingsModel ? root.settingsModel.delayLowercase : 400
                         onLowerEdited: (v) => root.settingsModel.delayLowercaseMin = v
@@ -101,6 +103,8 @@ Item {
                         from: 0
                         to: 2000
                         step: 10
+                        // Mirrors kDelayMin: the engine floors the window's max at 50ms.
+                        upperMin: 50
                         lowerValue: root.settingsModel ? root.settingsModel.delayUppercaseMin : 0
                         upperValue: root.settingsModel ? root.settingsModel.delayUppercase : 700
                         onLowerEdited: (v) => root.settingsModel.delayUppercaseMin = v
