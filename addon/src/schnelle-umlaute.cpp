@@ -540,8 +540,16 @@ public:
                             // trigger-window preview that was showing.
                             hideTriggerOverlay(state);
                     } else {
-                        // Single output with non-Alt leader - commit directly
-                        hideTriggerOverlay(state);
+                        // Single output with non-Alt leader - commit directly.
+                        // If a trigger preview is already showing, flash the
+                        // cell in the accent color to confirm the commit, then
+                        // auto-hide. Otherwise (fast typing below min-hold,
+                        // nothing on screen) just tear down so we don't pop a
+                        // 150 ms blip out of nowhere.
+                        if (overlayVisible_)
+                            flashCommitOverlay(ic, state, it->second);
+                        else
+                            hideTriggerOverlay(state);
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
@@ -1201,6 +1209,11 @@ private:
         if (it == umlautMap_.end() || it->second.empty())
             return;
 
+        // A fresh preview supersedes a pending commit-flash hide from a
+        // previous single-mapping commit, so that stale timer can't blank
+        // this overlay mid-flash.
+        state->cancelOverlayHide();
+
         int minHold = getEffectiveMinHold(state);
         if (minHold <= 0) {
             overlayShow(ic, it->second, kPreviewNoHighlight);
@@ -1241,6 +1254,36 @@ private:
         state->cancelOverlayShow();
         if (*config_.overlay->enabled && *config_.overlay->showOnTrigger)
             overlayHide();
+    }
+
+    // How long the single cell stays highlighted after a single-mapping
+    // commit before the overlay fades. Long enough for the 120 ms cell color
+    // animation to land, short enough to feel like a confirmation blip.
+    static constexpr int kCommitFlashMs = 150;
+
+    // Confirm a single-mapping commit visually: highlight the (only) cell so
+    // it lights up in the accent color, then hide after a short flash. Only
+    // meaningful when a preview is already on screen — callers gate on
+    // overlayVisible_ so fast typing below the min-hold doesn't pop a blip.
+    void flashCommitOverlay(InputContext *ic, SchnelleUmlauteState *state,
+                            const std::vector<std::string> &variants) {
+        state->cancelOverlayShow();
+        overlayShow(ic, variants, 0);
+        auto savedRef = ic->watch();
+        auto *eventLoop = &instance_->eventLoop();
+        uint64_t target = SchnelleUmlauteState::nowUsec() +
+                          static_cast<uint64_t>(kCommitFlashMs) *
+                              kMicrosecondsPerMillisecond;
+        state->overlayHideEvent_ = eventLoop->addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [this, savedRef](EventSourceTime *, uint64_t) {
+                // Hide unconditionally once the flash elapses; the
+                // overlayVisible_ guard in overlayHide() makes it a no-op if a
+                // newer show already replaced or cleared this overlay.
+                if (savedRef.get())
+                    overlayHide();
+                return false;
+            });
     }
 };
 

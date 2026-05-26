@@ -34,6 +34,12 @@ public:
     // mapping's variants before any leader is pressed.
     std::unique_ptr<EventSourceTime> overlayShowEvent_;
 
+    // One-shot timer that hides the overlay a short moment after a single-
+    // mapping commit, so the accent cell can flash to confirm the commit
+    // instead of vanishing in the same frame. Lives in its own slot because
+    // it can be pending while a fresh preview is being scheduled.
+    std::unique_ptr<EventSourceTime> overlayHideEvent_;
+
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
     int waitingKeyCode_ = 0;
@@ -74,6 +80,7 @@ public:
         // Note: recentlyCommitted_ is intentionally NOT cleared here.
         cancelTimeout();
         cancelOverlayShow();
+        cancelOverlayHide();
         resetCycling();
         heldRawCodes_.clear();
         committedKeyCode_ = 0;
@@ -89,6 +96,8 @@ public:
     void cancelTimeout() { timeoutEvent_.reset(); }
 
     void cancelOverlayShow() { overlayShowEvent_.reset(); }
+
+    void cancelOverlayHide() { overlayHideEvent_.reset(); }
 
     bool isTimeoutExpired(int effectiveDelay) const {
         if (!waitingKey_)
