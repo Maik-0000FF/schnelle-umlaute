@@ -695,7 +695,12 @@ public:
         }
 
         state->clearAllState();
-        overlayHide();
+        // Route through hideTriggerOverlay (not a bare overlayHide) so the
+        // DBus Hide is suppressed when ShowOnTrigger is off. Apps like Chromium
+        // and Neovide call reset() after every commit; cycling holds
+        // inputKeyPressed_ and returned above, so only a trigger preview can
+        // still be showing here.
+        hideTriggerOverlay(state);
     }
 
 private:
