@@ -535,9 +535,17 @@ public:
                         // commit / re-press machinery).
                         if (it->second.size() > 1)
                             overlayShow(ic, it->second, 0);
+                        else if (overlayVisible_)
+                            // Single-output Alt: no picker, but flash the cell
+                            // to confirm the trigger. The commit is deferred
+                            // via the alt-gesture machinery (release / re-press),
+                            // so the flash fires on the Alt press itself,
+                            // mirroring the non-Alt single-output branch below.
+                            flashCommitOverlay(ic, state, it->second);
                         else
-                            // Single-output Alt: no picker, so clear any
-                            // trigger-window preview that was showing.
+                            // No preview on screen (fast typing below min-hold):
+                            // just tear down so we don't pop a blip out of
+                            // nowhere.
                             hideTriggerOverlay(state);
                     } else {
                         // Single output with non-Alt leader - commit directly.
