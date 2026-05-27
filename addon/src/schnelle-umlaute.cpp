@@ -304,6 +304,10 @@ public:
             state->waitingKeyCode_ = 0;
             state->cancelTimeout();
             state->inputKeyPressed_ = false;
+            // Window elapsed (a key arrived right at expiry, before the
+            // timeout timer fired): clear the trigger preview, mirroring the
+            // timeout callback's teardown.
+            hideTriggerOverlay(state);
 
             if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
                 ic->commitString(pending + " ");
@@ -392,6 +396,12 @@ public:
 
         if (leaderType != LeaderType::None) {
             bool isAlt = isAltLeaderSym(key.sym());
+
+            // A leader press ends the trigger-preview phase: cancel any pending
+            // preview timer. If the preview is already visible, the cycling
+            // logic below decides whether to keep it (multi-variant picker) or
+            // hide it (single output).
+            state->cancelOverlayShow();
 
             // MIN-HOLD GUARD (lower bound of the accent window)
             // Before cycling has started, a leader that arrives before the
@@ -525,8 +535,29 @@ public:
                         // commit / re-press machinery).
                         if (it->second.size() > 1)
                             overlayShow(ic, it->second, 0);
+                        else if (overlayVisible_)
+                            // Single-output Alt: no picker, but flash the cell
+                            // to confirm the trigger. The commit is deferred
+                            // via the alt-gesture machinery (release / re-press),
+                            // so the flash fires on the Alt press itself,
+                            // mirroring the non-Alt single-output branch below.
+                            flashCommitOverlay(ic, state, it->second);
+                        else
+                            // No preview on screen (fast typing below min-hold):
+                            // just tear down so we don't pop a blip out of
+                            // nowhere.
+                            hideTriggerOverlay(state);
                     } else {
-                        // Single output with non-Alt leader - commit directly
+                        // Single output with non-Alt leader - commit directly.
+                        // If a trigger preview is already showing, flash the
+                        // cell in the accent color to confirm the commit, then
+                        // auto-hide. Otherwise (fast typing below min-hold,
+                        // nothing on screen) just tear down so we don't pop a
+                        // 150 ms blip out of nowhere.
+                        if (overlayVisible_)
+                            flashCommitOverlay(ic, state, it->second);
+                        else
+                            hideTriggerOverlay(state);
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
@@ -610,6 +641,9 @@ public:
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
             scheduleTimeout(ic, state);
+            // Preview the variants in the overlay during the accent window
+            // (opt-in via [Overlay]/ShowOnTrigger). No-op otherwise.
+            scheduleTriggerOverlay(ic, state, keyChar);
 
             // Set preedit text
             updateClientPreedit(ic, keyChar);
@@ -667,6 +701,9 @@ public:
 
         state->clearAllState();
         state->recentlyCommitted_ = false;
+        // Focus left this context: drop any visible overlay (cycling picker or
+        // trigger preview) so it doesn't linger over another window.
+        overlayHide();
     }
 
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
@@ -677,7 +714,26 @@ public:
             return; // Keep all state intact
         }
 
+        // A running commit-flash must survive the post-commit reset that
+        // Chromium and Neovide fire, otherwise the confirmation overlay would
+        // vanish in the same frame as the commit (single-output commits set
+        // inputKeyPressed_ = false, so the early return above doesn't catch
+        // them). Pull the timer out so clearAllState()'s cancelOverlayHide()
+        // becomes a no-op, then restore it and leave the overlay up. The
+        // overlayVisible_ check distinguishes a live flash from a spent timer
+        // (overlayHideEvent_ stays non-null after firing, like overlayShowEvent_).
+        auto flash = std::move(state->overlayHideEvent_);
         state->clearAllState();
+        if (flash && overlayVisible_) {
+            state->overlayHideEvent_ = std::move(flash);
+            return;
+        }
+        // Route through hideTriggerOverlay (not a bare overlayHide) so the
+        // DBus Hide is suppressed when ShowOnTrigger is off. Apps like Chromium
+        // and Neovide call reset() after every commit; cycling holds
+        // inputKeyPressed_ and returned above, so only a trigger preview can
+        // still be showing here.
+        hideTriggerOverlay(state);
     }
 
 private:
@@ -815,6 +871,7 @@ private:
     void commitPendingKey(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->waitingKey_)
             return;
+        hideTriggerOverlay(state);
         ic->inputPanel().reset();
         ic->commitString(*state->waitingKey_);
         ic->updatePreedit();
@@ -1033,7 +1090,7 @@ private:
         auto savedRef = ic->watch();
         state->timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC, target_usec, 0,
-            [state, savedKey, savedRef](EventSourceTime *, uint64_t) {
+            [this, state, savedKey, savedRef](EventSourceTime *, uint64_t) {
                 // Safety: state is owned by IC (InputContextProperty). If IC
                 // is destroyed, savedRef.get() returns nullptr and we bail
                 // before touching state. No race: fcitx5's event loop is
@@ -1051,6 +1108,8 @@ private:
                     state->waitingKey_.reset();
                     state->waitingKeyCode_ = 0;
                     state->inputKeyPressed_ = false;
+                    // Window elapsed without a leader: clear the preview.
+                    hideTriggerOverlay(state);
                 }
                 // Don't reset timeoutEvent_ here — destroying the EventSource
                 // inside its own callback is a use-after-free risk. Returning
@@ -1124,6 +1183,12 @@ private:
     // lifecycle — calling applyEnabledTransition() on every config reload
     // starts or stops the daemon in response to the Enabled flag.
     OverlayClient overlayClient_;
+    // Best-effort mirror of the daemon's visibility so overlayHide() can skip
+    // a redundant DBus Hide when nothing is showing. Plain typing with
+    // ShowOnTrigger on otherwise emits two spurious Hides per mapped keystroke
+    // (commitPendingKey + the app's follow-up reset). A daemon restart can
+    // briefly desync this, but the next real show() corrects it.
+    bool overlayVisible_ = false;
 
     void overlayShow(InputContext *ic, const std::vector<std::string> &variants,
                      int index) {
@@ -1135,11 +1200,113 @@ private:
         std::string position = OverlayRowToString(*config_.overlay->row);
         position += OverlayColumnToString(*config_.overlay->column);
         overlayClient_.show(variants, index, position);
+        overlayVisible_ = true;
     }
     void overlayHide() {
-        if (!*config_.overlay->enabled)
+        if (!*config_.overlay->enabled || !overlayVisible_)
             return;
         overlayClient_.hide();
+        overlayVisible_ = false;
+    }
+
+    // Index sent to the overlay for the trigger-window preview. No cell
+    // matches it, so the picker shows the variants without a green highlight —
+    // the active cell only lights up once a leader press starts cycling.
+    static constexpr int kPreviewNoHighlight = -1;
+
+    // Trigger-window preview ([Overlay]/ShowOnTrigger). Show the mapping's
+    // variants as soon as the accent window opens — for EVERY mapped key,
+    // including single-variant ones that never enter the cycling picker. The
+    // preview waits for the minimum hold to elapse (shows immediately when
+    // min == 0) and shows the variants with no cell highlighted. Once a leader
+    // is pressed the cycling logic takes over: it keeps the overlay (now
+    // highlighting the active variant) for multi-variant keys and hides it for
+    // single-output keys, so cycling behaves exactly as before.
+    void scheduleTriggerOverlay(InputContext *ic, SchnelleUmlauteState *state,
+                                const std::string &keyChar) {
+        if (!*config_.overlay->enabled || !*config_.overlay->showOnTrigger)
+            return;
+        auto it = umlautMap_.find(keyChar);
+        if (it == umlautMap_.end() || it->second.empty())
+            return;
+
+        // A fresh preview supersedes a pending commit-flash hide from a
+        // previous single-mapping commit, so that stale timer can't blank
+        // this overlay mid-flash.
+        state->cancelOverlayHide();
+
+        int minHold = getEffectiveMinHold(state);
+        if (minHold <= 0) {
+            overlayShow(ic, it->second, kPreviewNoHighlight);
+            return;
+        }
+
+        auto variants = it->second;
+        auto savedRef = ic->watch();
+        auto *eventLoop = &instance_->eventLoop();
+        uint64_t target =
+            SchnelleUmlauteState::nowUsec() +
+            static_cast<uint64_t>(minHold) * kMicrosecondsPerMillisecond;
+
+        // keyChar is captured by value so the copy outlives this call; the
+        // deferred lambda compares it against the still-held waiting key.
+        state->overlayShowEvent_ = eventLoop->addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [this, state, keyChar, variants, savedRef](EventSourceTime *,
+                                                       uint64_t) {
+                // Safety mirrors scheduleTimeout: the single-threaded event
+                // loop guarantees state outlives a non-null savedRef.get().
+                auto *ctx = savedRef.get();
+                if (!ctx)
+                    return false;
+                // Only preview if still holding the same key and a leader has
+                // not started cycling in the meantime.
+                if (state->waitingKey_ && *state->waitingKey_ == keyChar &&
+                    !state->cyclingInput_)
+                    overlayShow(ctx, variants, kPreviewNoHighlight);
+                return false;
+            });
+    }
+
+    // Tear down the trigger-window preview: cancel a pending show timer and
+    // hide the overlay. The DBus hide is suppressed unless the preview feature
+    // is on, so plain commits don't emit a Hide on every keystroke.
+    void hideTriggerOverlay(SchnelleUmlauteState *state) {
+        state->cancelOverlayShow();
+        if (*config_.overlay->enabled && *config_.overlay->showOnTrigger)
+            overlayHide();
+    }
+
+    // How long the single cell stays highlighted after a single-mapping
+    // commit before the overlay fades. Long enough for the 120 ms cell color
+    // animation to land, short enough to feel like a confirmation blip.
+    static constexpr int kCommitFlashMs = 150;
+
+    // Confirm a single-mapping commit visually: highlight the (only) cell so
+    // it lights up in the accent color, then hide after a short flash. Only
+    // meaningful when a preview is already on screen — callers gate on
+    // overlayVisible_ so fast typing below the min-hold doesn't pop a blip.
+    void flashCommitOverlay(InputContext *ic, SchnelleUmlauteState *state,
+                            const std::vector<std::string> &variants) {
+        state->cancelOverlayShow();
+        overlayShow(ic, variants, 0);
+        auto savedRef = ic->watch();
+        auto *eventLoop = &instance_->eventLoop();
+        uint64_t target = SchnelleUmlauteState::nowUsec() +
+                          static_cast<uint64_t>(kCommitFlashMs) *
+                              kMicrosecondsPerMillisecond;
+        state->overlayHideEvent_ = eventLoop->addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [this, savedRef](EventSourceTime *, uint64_t) {
+                // Hide once the flash elapses. An orphaned timer can't blank a
+                // newer overlay: every fresh gesture cancels it first via
+                // scheduleTriggerOverlay's cancelOverlayHide(). The
+                // overlayVisible_ guard in overlayHide() is just a backstop for
+                // the case where an unrelated hide already ran (then it no-ops).
+                if (savedRef.get())
+                    overlayHide();
+                return false;
+            });
     }
 };
 

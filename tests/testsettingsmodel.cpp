@@ -122,6 +122,7 @@ void testDefaultsOnMissingFile() {
     EXPECT(s.blacklist().isEmpty());
     EXPECT(s.whitelist().isEmpty());
     EXPECT(s.overlayEnabled() == false);
+    EXPECT(s.overlayShowOnTrigger() == false);
     EXPECT(s.overlayPosition() == QStringLiteral("TopCol4"));
     EXPECT(s.theme() == QStringLiteral("schnelle-umlaute"));
 }
@@ -144,6 +145,7 @@ void testScalarRoundTrip() {
         s.setCustomKey1(QStringLiteral(";"));
         s.setAppFilterMode(QStringLiteral("Blacklist"));
         s.setOverlayEnabled(true);
+        s.setOverlayShowOnTrigger(true);
         s.setTheme(QStringLiteral("dark"));
     }
     SettingsModel s2;
@@ -158,6 +160,7 @@ void testScalarRoundTrip() {
     EXPECT(s2.customKey1() == QStringLiteral(";"));
     EXPECT(s2.appFilterMode() == QStringLiteral("Blacklist"));
     EXPECT(s2.overlayEnabled() == true);
+    EXPECT(s2.overlayShowOnTrigger() == true);
     EXPECT(s2.theme() == QStringLiteral("dark"));
 }
 

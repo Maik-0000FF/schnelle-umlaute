@@ -53,6 +53,8 @@ class SettingsModel : public QObject {
 
     Q_PROPERTY(bool overlayEnabled READ overlayEnabled WRITE setOverlayEnabled
                    NOTIFY overlayEnabledChanged)
+    Q_PROPERTY(bool overlayShowOnTrigger READ overlayShowOnTrigger WRITE
+                   setOverlayShowOnTrigger NOTIFY overlayShowOnTriggerChanged)
     Q_PROPERTY(QString overlayPosition READ overlayPosition WRITE
                    setOverlayPosition NOTIFY overlayPositionChanged)
 
@@ -86,6 +88,7 @@ public:
     QStringList blacklist() const { return blacklist_; }
     QStringList whitelist() const { return whitelist_; }
     bool overlayEnabled() const { return overlayEnabled_; }
+    bool overlayShowOnTrigger() const { return overlayShowOnTrigger_; }
     QString overlayPosition() const { return overlayPosition_; }
     QString theme() const { return theme_; }
     bool layerShellAvailable() const { return layerShellAvailable_; }
@@ -108,6 +111,7 @@ public:
     void setCustomKey2(const QString &v);
     void setAppFilterMode(const QString &v);
     void setOverlayEnabled(bool v);
+    void setOverlayShowOnTrigger(bool v);
     void setOverlayPosition(const QString &v);
     void setTheme(const QString &v);
 
@@ -141,6 +145,7 @@ Q_SIGNALS:
     void blacklistChanged();
     void whitelistChanged();
     void overlayEnabledChanged();
+    void overlayShowOnTriggerChanged();
     void overlayPositionChanged();
     void themeChanged();
 
@@ -167,6 +172,7 @@ private:
     QStringList blacklist_;
     QStringList whitelist_;
     bool overlayEnabled_ = false;
+    bool overlayShowOnTrigger_ = false;
     QString overlayPosition_ = "TopCol4";
     QString theme_ = "schnelle-umlaute";
     bool layerShellAvailable_ = false;
