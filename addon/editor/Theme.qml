@@ -110,8 +110,25 @@ QtObject {
     readonly property color switchThumb:  p.switchThumb
     readonly property color scrim:        p.scrim
 
-    readonly property string fontFamily:     "Inter"
-    readonly property string fontFamilyMono: "JetBrains Mono"
+    // Resolve to the first installed family from a preference list rather than
+    // hard-coding one. Inter and JetBrains Mono are preferred (the branded
+    // look) but neither ships on a default install; when absent, fontconfig
+    // would substitute an arbitrary face whose metrics break the layout (e.g.
+    // on Linux Mint). Picking a known system UI/mono font ourselves keeps it
+    // predictable. The trailing generic alias is always resolvable. (font.family
+    // takes a single string; font.families plural is not assignable in Qt 6.4,
+    // which the editor still targets, so we resolve to one name here.)
+    function pickFamily(candidates) {
+        const avail = Qt.fontFamilies()
+        for (let i = 0; i < candidates.length; i++)
+            if (avail.indexOf(candidates[i]) >= 0)
+                return candidates[i]
+        return candidates[candidates.length - 1]
+    }
+    readonly property string fontFamily: pickFamily(
+        ["Inter", "Cantarell", "Noto Sans", "Ubuntu", "DejaVu Sans", "sans-serif"])
+    readonly property string fontFamilyMono: pickFamily(
+        ["JetBrains Mono", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "monospace"])
 
     readonly property int radiusSm: 6
     readonly property int radiusMd: 10

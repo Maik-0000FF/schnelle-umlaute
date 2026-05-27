@@ -43,6 +43,23 @@ Window {
     readonly property int pixelSizeMulti: 16
     readonly property int pixelSizeEmoji: 24
 
+    // Resolve the mono family to the first installed candidate. JetBrains Mono
+    // is preferred (the metrics the cell sizing and truncateDisplay budget are
+    // tuned to), but it does not ship by default, so fall back to the common
+    // system monos and finally the generic alias fontconfig always resolves. A
+    // wider fallback face can't overflow the fixed cell because the cell Text
+    // uses Text.HorizontalFit (pixelSize becomes a max, the glyph shrinks to
+    // fit). font.family takes a single string, so we resolve to one name here.
+    readonly property string fontFamilyMono: {
+        const cands = ["JetBrains Mono", "Noto Sans Mono", "DejaVu Sans Mono",
+                       "Liberation Mono", "monospace"]
+        const avail = Qt.fontFamilies()
+        for (let i = 0; i < cands.length; i++)
+            if (avail.indexOf(cands[i]) >= 0)
+                return cands[i]
+        return cands[cands.length - 1]
+    }
+
     // Palettes mirror addon/editor/Theme.qml. Inlined because the overlay
     // lives in its own QML module and process — sharing a singleton would
     // cost more build plumbing than the 4 small dicts are worth.
@@ -163,9 +180,18 @@ Window {
 
                     Text {
                         anchors.centerIn: parent
+                        // Bound the text to the cell (minus a small inset) and
+                        // let it shrink to fit. With JetBrains Mono present the
+                        // glyph already fits, so pixelSize stays as set and the
+                        // look is unchanged; with a wider fallback mono the fit
+                        // mode scales it down instead of spilling out of the cell.
+                        width: win.cellSize - 8
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        fontSizeMode: Text.HorizontalFit
                         text: win.truncateDisplay(modelData)
                         color: active ? win.p.textActive : win.p.textInactive
-                        font.family: "JetBrains Mono"
+                        font.family: win.fontFamilyMono
                         font.pixelSize: {
                             if (win.codepointCount(modelData) > 1) return win.pixelSizeMulti
                             return win.isEmoji(modelData) ? win.pixelSizeEmoji : win.pixelSizeSingle
