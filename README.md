@@ -74,6 +74,26 @@ cd schnelle-umlaute
 
 After installation: **Logout and login**, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods. See [Configuration](docs/CONFIGURATION.md) for details and screenshots.
 
+### Try the `dev` branch (overlay & editor)
+
+This stable release covers the core hold + space input. The **`dev` branch** ships several extras that are still being polished and are not yet part of a tagged release:
+
+- **On-screen cycle overlay** showing the accent variants as you cycle through them, including an optional preview the moment you press the leader key
+- **Standalone QML editor** (`schnelle-umlaute-editor`) for managing mappings, leader keys, the app filter, and the overlay from a graphical UI
+- **Per-user setup script** (`schnelle-umlaute-setup`) that writes your fcitx5 environment variables and autostart in one step
+
+> **The overlay does not work everywhere.** It relies on the Wayland `wlr-layer-shell` protocol, so it shows up on compositors that support it (KDE Plasma, sway, Hyprland, and similar). It is **not** available on GNOME/Mutter or on X11, where it stays disabled. The accent input itself works the same on all of them, only the on-screen overlay is gated.
+
+To try these features, install from the `dev` branch instead of the stable source:
+
+```bash
+git clone -b dev https://github.com/Maik-0000FF/schnelle-umlaute.git
+cd schnelle-umlaute
+./install.sh
+```
+
+After installing, run `schnelle-umlaute-setup` once, then **logout and login**. Arch users can get the same set of features from the AUR package [`fcitx5-schnelle-umlaute-git`](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaute-git), which also tracks `dev`.
+
 ## Usage
 
 1. **Switch to Schnelle Umlaute** input method (<kbd>Ctrl</kbd> + <kbd>Space</kbd>) — tray icon shows **"Ää"**
@@ -99,8 +119,15 @@ All mappings are fully customizable — add French, Spanish, Emoji, Braille, or 
 ## Requirements
 
 - **Linux** with Fcitx5 (Arch, Ubuntu/Debian, Linux Mint, Fedora, openSUSE)
-- **CMake** and **extra-cmake-modules**
+- **CMake** ≥ 3.16 and **extra-cmake-modules**
 - **GCC with C++20 support**
+- **Fcitx5 development libraries** (Fcitx5Core) and **Fcitx5 Qt6 widgets addons**
+- **Qt6** (Core, Widgets) for the configuration widget
+- **gettext** and **pkg-config**
+
+The `dev` branch additionally needs **Qt6** (Qml, Quick, Quick Controls 2) and **LayerShellQt** for the standalone editor and the cycle overlay.
+
+`./install.sh` installs all of these automatically on supported distributions.
 
 ## Uninstallation
 
@@ -142,12 +169,14 @@ Inspired by [PowerAccent](https://github.com/damienleroy/PowerAccent) by Damien 
 
 Built with:
 - **Fcitx5** - Input Method Framework
-- **C++20** - Modern C++ with chrono and optional
+- **C++20** - Modern C++ with `std::optional` and POSIX `clock_gettime` timing
 - **CMake** - Build system
 - **Extra CMake Modules (ECM)** - KDE build tools
+- **Qt6 / QML (Quick Controls 2)** - Standalone editor UI *(dev-only feature)*
+- **LayerShellQt** - On-screen cycle overlay on Wayland *(dev-only feature)*
 
 Thanks to [wengxt](https://github.com/wengxt) for creating Fcitx5 and for the guidance on building custom config widgets.
 
 ---
 
-**Version:** 1.1.1
+**Version:** 1.1.1 (stable) · 1.2.2 (`dev`, includes the cycle overlay, the QML editor, and more)
