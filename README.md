@@ -119,8 +119,15 @@ All mappings are fully customizable — add French, Spanish, Emoji, Braille, or 
 ## Requirements
 
 - **Linux** with Fcitx5 (Arch, Ubuntu/Debian, Linux Mint, Fedora, openSUSE)
-- **CMake** and **extra-cmake-modules**
+- **CMake** ≥ 3.16 and **extra-cmake-modules**
 - **GCC with C++20 support**
+- **Fcitx5 development libraries** (Fcitx5Core) and **Fcitx5 Qt6 widgets addons**
+- **Qt6** (Core, Widgets) for the configuration widget
+- **gettext** and **pkg-config**
+
+The `dev` branch additionally needs **Qt6** (Qml, Quick, Quick Controls 2) and **LayerShellQt** for the standalone editor and the cycle overlay.
+
+`./install.sh` installs all of these automatically on supported distributions.
 
 ## Uninstallation
 
