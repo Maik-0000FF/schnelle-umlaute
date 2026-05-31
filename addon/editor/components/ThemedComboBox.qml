@@ -17,6 +17,13 @@ ComboBox {
     font.family: Theme.fontFamily
     font.pixelSize: 13
 
+    // The custom contentItem/indicator handle their own insets, so drop the
+    // control's style-supplied padding/spacing. Without this the box height
+    // and content offset vary with the active Quick Controls style / Qt
+    // version, which shifts the surrounding row layout.
+    padding: 0
+    spacing: 0
+
     contentItem: Text {
         text: combo.displayText
         color: Theme.text
@@ -65,6 +72,9 @@ ComboBox {
         required property int index
         required property var modelData
         width: combo.width
+        // Custom contentItem supplies its own padding; clear the style's so
+        // row height is fixed at 32 regardless of style / Qt version.
+        padding: 0
         implicitHeight: 32
         readonly property bool current: combo.currentIndex === index
         readonly property string itemLabel:

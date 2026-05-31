@@ -27,6 +27,15 @@ RowLayout {
         id: sw
         checked: root.checked
 
+        // Pin geometry to the indicator so the row height does not depend on
+        // the active Quick Controls style. Different styles (and Qt versions)
+        // give Switch different default padding/implicitSize, which otherwise
+        // grows the row, the card, and shifts every label inside it.
+        padding: 0
+        spacing: 0
+        implicitWidth: 40
+        implicitHeight: 22
+
         indicator: Rectangle {
             implicitWidth: 40
             implicitHeight: 22

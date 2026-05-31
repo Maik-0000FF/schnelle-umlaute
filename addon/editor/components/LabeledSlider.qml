@@ -33,6 +33,12 @@ RowLayout {
         value: root.value
         snapMode: Slider.SnapAlways
 
+        // Pin geometry to the handle so the control height is independent of
+        // the active Quick Controls style / Qt version (whose default Slider
+        // padding differs and otherwise shifts the whole row).
+        padding: 0
+        implicitHeight: 16
+
         background: Rectangle {
             x: slider.leftPadding
             y: slider.topPadding + slider.availableHeight / 2 - height / 2
