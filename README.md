@@ -14,6 +14,19 @@
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/Maik-0000FF)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20me-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/maik0000ff)
 
+> [!NOTE]
+> **Upcoming change: the overlay and editor are moving into the main version**
+>
+> In an upcoming release, the `main` branch will be updated to the version that currently lives on the `dev` branch. This brings two previously dev-only features into the main version: the on-screen **cycle overlay** and the standalone **QML editor** (`schnelle-umlaute-editor`).
+>
+> - **The core accent input will not change.** Hold + space keeps working exactly as before, on every system.
+> - The overlay relies on the Wayland `wlr-layer-shell` protocol: it appears on compositors that support it (KDE Plasma, sway, Hyprland, and similar) and stays **disabled on GNOME/Mutter and on X11**. That is expected, not a bug; the accent input keeps working there regardless.
+> - Building the editor/overlay will additionally require **Qt6** (Qml, Quick, Quick Controls 2) and **LayerShellQt**.
+> - The current version **without** the overlay and editor will be preserved on a new **`legacy`** branch.
+> - **AUR `-git` users:** the package will switch to building from `main` instead of `dev`. Same code, only the source branch changes.
+>
+> No action is needed right now. This notice is just so the change does not come as a surprise.
+
 **Linux Alternative to Windows PowerToys Quick Accent** - Fast accent and special character input using hold+space gestures.
 
 Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets you type accents, umlauts, emojis, symbols, and text snippets using intuitive hold + space keyboard gestures. Supports accent cycling (é → è → ê → ë) for German, French, Spanish and other languages. Clipboard-free operation on X11 and Wayland.
