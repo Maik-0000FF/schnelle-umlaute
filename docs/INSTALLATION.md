@@ -8,7 +8,7 @@ cd schnelle-umlaute
 ./install.sh
 ```
 
-The installer automatically detects your distribution (Arch, Debian, Ubuntu, Fedora, openSUSE) and will:
+The installer automatically detects your distribution (Arch, Debian, Ubuntu, Linux Mint, Fedora, openSUSE) and will:
 - Check and install dependencies via the appropriate package manager
 - Build and install the addon, the standalone editor, the cycle overlay daemon, and the per-user setup helper
 - Configure environment variables automatically
@@ -99,7 +99,7 @@ fcitx5-remote   # Should print "1" (inactive) or "2" (active)
 
 ---
 
-## Manual Installation (Ubuntu / Debian)
+## Manual Installation (Ubuntu / Debian / Linux Mint)
 
 **1. Install Dependencies**
 
@@ -268,7 +268,7 @@ Otherwise, remove files manually. The addon library path depends on your distrib
 # Arch Linux
 sudo rm /usr/lib/fcitx5/schnelle-umlaute.so
 
-# Ubuntu/Debian (x86_64)
+# Ubuntu/Debian/Linux Mint (x86_64)
 sudo rm /usr/lib/x86_64-linux-gnu/fcitx5/schnelle-umlaute.so
 
 # Fedora / openSUSE (x86_64)
