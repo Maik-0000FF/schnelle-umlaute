@@ -30,13 +30,14 @@ set_source_files_properties(Theme.qml PROPERTIES
 qt_add_qml_module(schnelle-umlaute-editor
     URI SchnelleUmlaute
     VERSION 1.0
-    # Disable ahead-of-time qmlcachegen and run the QML interpreted instead.
-    # qmlcachegen on Qt 6.4 (Ubuntu 24.04 / Linux Mint 22) miscompiles some
-    # Layout bindings, collapsing every control onto the same position while
-    # the same QML runs correctly interpreted (and on newer Qt). The editor
-    # is a small config UI, so the marginal startup cost is irrelevant, and
-    # running interpreted everywhere keeps behaviour identical across distros.
-    NO_CACHEGEN
+    # Pin the QML resource prefix to /qt/qml on every Qt version. This is the
+    # Qt 6.5+ default (via QTP0001), but on Qt 6.4 (Ubuntu 24.04 / Linux Mint
+    # 22) the default is /<URI>/, so the module files land at a different path
+    # than where `import SchnelleUmlaute` and the hard-coded asset URLs look
+    # for them. That mismatch left the Theme singleton unresolved on 6.4: every
+    # Theme.* binding was undefined and the controls collapsed onto one
+    # position. Forcing the prefix keeps the layout identical across distros.
+    RESOURCE_PREFIX "/qt/qml"
     QML_FILES
         Main.qml
         Mappings.qml

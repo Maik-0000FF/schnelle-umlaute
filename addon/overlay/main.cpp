@@ -179,7 +179,7 @@ private:
         engine_->loadFromModule("SchnelleUmlauteOverlay", "Overlay");
 #else
         engine_->load(
-            QUrl(QStringLiteral("qrc:/SchnelleUmlauteOverlay/Overlay.qml")));
+            QUrl(QStringLiteral("qrc:/qt/qml/SchnelleUmlauteOverlay/Overlay.qml")));
 #endif
         if (engine_->rootObjects().isEmpty()) {
             engine_.reset();
