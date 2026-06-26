@@ -16,8 +16,23 @@
   libxkbcommon,
   qt6,
   src,
-  version,
 }:
+
+let
+  # Single source of truth for the version: parse it from the CMake project()
+  # line in addon/CMakeLists.txt instead of duplicating it here. Per-line
+  # matching avoids builtins.match's newline limitation.
+  cmakeLines = lib.splitString "\n" (builtins.readFile (src + "/addon/CMakeLists.txt"));
+  projectLine = lib.findFirst (
+    l: lib.hasInfix "project(" l && lib.hasInfix "VERSION" l
+  ) null cmakeLines;
+  versionMatch = if projectLine == null then null else builtins.match ".*VERSION ([0-9.]+).*" projectLine;
+  version =
+    if versionMatch == null then
+      throw "fcitx5-schnelle-umlaute: could not parse VERSION from addon/CMakeLists.txt"
+    else
+      builtins.head versionMatch;
+in
 
 stdenv.mkDerivation {
   pname = "fcitx5-schnelle-umlaute";
@@ -52,7 +67,9 @@ stdenv.mkDerivation {
     qt6.qtbase # also provides QtDBus (editor + overlay)
     qt6.qtdeclarative # Qml/Quick/QuickControls2
     qt6.qtwayland # Wayland platform plugin (editor + overlay)
-    qt6.qtsvg # likely removable now the in-app icon is PNG; verify before dropping
+    # qtsvg is intentionally absent: the in-app icon is a PNG and the hicolor
+    # desktop icon is rendered by the desktop, not Qt, so no SVG image plugin
+    # is needed at runtime.
   ];
 
   cmakeFlags = [
