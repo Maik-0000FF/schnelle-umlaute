@@ -127,6 +127,8 @@ QtObject {
     }
     readonly property string fontFamily: pickFamily(
         ["Inter", "Cantarell", "Noto Sans", "Ubuntu", "DejaVu Sans", "sans-serif"])
+    // The mono candidate list is mirrored in addon/overlay/Overlay.qml's
+    // pickFamily (separate module/process); keep both in sync.
     readonly property string fontFamilyMono: pickFamily(
         ["JetBrains Mono", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "monospace"])
 
