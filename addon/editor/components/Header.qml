@@ -18,10 +18,10 @@ Rectangle {
 
         Image {
             source: "qrc:/qt/qml/SchnelleUmlaute/assets/schnelle-umlaute-icon.png"
-            sourceSize.width: 64
-            sourceSize.height: 64
-            width: 32
-            height: 32
+            sourceSize.width: 48
+            sourceSize.height: 48
+            width: 24
+            height: 24
             fillMode: Image.PreserveAspectFit
             smooth: true
         }
