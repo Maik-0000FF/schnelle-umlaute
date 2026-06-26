@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://maik-0000ff.github.io/schnelle-umlaute/sitemap.xml
