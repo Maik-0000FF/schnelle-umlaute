@@ -6,6 +6,7 @@
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![CI](https://github.com/Maik-0000FF/schnelle-umlaute/actions/workflows/ci.yml/badge.svg)](https://github.com/Maik-0000FF/schnelle-umlaute/actions/workflows/ci.yml)
 [![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793D1?logo=arch-linux&logoColor=white)](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaute-git)
+[![NixOS](https://img.shields.io/badge/NixOS-Flake-5277C3?logo=nixos&logoColor=white)](#nixos)
 ![Ubuntu/Debian](https://img.shields.io/badge/Ubuntu%2FDebian-E95420?logo=ubuntu&logoColor=white)
 ![Linux Mint](https://img.shields.io/badge/Linux%20Mint-87CF3E?logo=linuxmint&logoColor=white)
 ![Fedora](https://img.shields.io/badge/Fedora-294172?logo=fedora&logoColor=white)
@@ -30,6 +31,12 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Optional cycle overlay daemon (Wayland with wlr-layer-shell) showing accent variants on-screen
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
+
+> [!NOTE]
+> The on-screen **cycle overlay** needs the Wayland `wlr-layer-shell` protocol,
+> so it is unavailable on **GNOME/Mutter** and on **X11**. Every other feature
+> (the core accent input, cycling, snippets, the app filter and the editor)
+> works everywhere, GNOME and X11 included.
 
 ### Documentation
 
@@ -64,6 +71,31 @@ yay -S fcitx5-schnelle-umlaute-git
 
 > **About `-git`:** This package builds from the `dev` branch and ships features ahead of the latest tagged release — the standalone QML editor (`schnelle-umlaute-editor`), the cycle overlay daemon, and the per-user setup script (`schnelle-umlaute-setup`). Run `schnelle-umlaute-setup` once after install to write your fcitx5 environment variables and set up autostart. As a safety net, the editor also detects missing input-method variables on startup and offers to write them — but it does not configure autostart, so running `schnelle-umlaute-setup` is still the complete path.
 
+### NixOS
+
+Run it straight from the flake:
+
+```bash
+nix run github:Maik-0000FF/schnelle-umlaute
+```
+
+On NixOS, add the flake as an input and import the all-in-one module (it enables fcitx5 with the addon and sets the input-method environment variables):
+
+```nix
+# flake inputs
+schnelle-umlaute.url = "github:Maik-0000FF/schnelle-umlaute";
+
+# in your configuration
+imports = [ inputs.schnelle-umlaute.nixosModules.default ];
+programs.schnelle-umlaute.enable = true;
+```
+
+Already configure fcitx5 yourself? Skip the module and add just the package:
+
+```nix
+i18n.inputMethod.fcitx5.addons = [ inputs.schnelle-umlaute.packages.${system}.default ];
+```
+
 ### Install from source (Arch Linux · Ubuntu/Debian · Linux Mint · Fedora · openSUSE)
 
 ```bash
@@ -73,6 +105,10 @@ cd schnelle-umlaute
 ```
 
 After installation: **Logout and login**, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods. See [Configuration](docs/CONFIGURATION.md) for details and screenshots.
+
+### Previous version (without the overlay and editor)
+
+The version from before the cycle overlay and the standalone editor is kept on the [`legacy`](https://github.com/Maik-0000FF/schnelle-umlaute/tree/legacy) branch. Build it from source the same way as the main branch.
 
 ## Usage
 
