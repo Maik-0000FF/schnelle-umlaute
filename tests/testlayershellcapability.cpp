@@ -74,12 +74,23 @@ void testWayfireIsSupported() {
     EXPECT(cap.supported);
 }
 
-// Unknown Wayland compositor: conservative default — report unsupported
-// so users aren't left wondering why cycling is broken.
-void testUnknownWaylandIsUnsupported() {
+// Unknown Wayland compositor: the blocklist default assumes wlr-layer-shell
+// support (the overwhelming majority do). Only the known holdouts handled
+// above (GNOME/Mutter, X11) are excluded.
+void testUnknownWaylandIsSupported() {
     auto cap = checkLayerShellCapability("wayland", "MysteryWM");
-    EXPECT(!cap.supported);
-    EXPECT(!cap.reason.empty());
+    EXPECT(cap.supported);
+    EXPECT(cap.reason.empty());
+}
+
+// mango (dwl/wlroots + scenefx) is the motivating case for the blocklist.
+// Its XDG_CURRENT_DESKTOP is sometimes plain "mango", sometimes
+// "mango:wlroots"; both must enable the overlay.
+void testMangoIsSupported() {
+    auto cap1 = checkLayerShellCapability("wayland", "mango");
+    EXPECT(cap1.supported);
+    auto cap2 = checkLayerShellCapability("wayland", "mango:wlroots");
+    EXPECT(cap2.supported);
 }
 
 // Env vars missing entirely (e.g. headless CI, detached shell).
@@ -121,7 +132,8 @@ int main() {
     testHyprlandIsSupported();
     testRiverIsSupported();
     testWayfireIsSupported();
-    testUnknownWaylandIsUnsupported();
+    testUnknownWaylandIsSupported();
+    testMangoIsSupported();
     testNullEnvIsUnsupported();
     testEmptyEnvIsUnsupported();
     testLowercaseKdeIsSupported();

@@ -59,9 +59,10 @@ inline bool containsCI(const char *haystack, const char *needle) {
 // `currentDesktop` — content of XDG_CURRENT_DESKTOP ("KDE", "ubuntu:GNOME",
 // ...)
 //
-// Both may be nullptr or empty (env var not set). The check is
-// conservative: an unknown Wayland compositor is reported as
-// unsupported rather than guessing.
+// Both may be nullptr or empty (env var not set). The check uses a
+// blocklist: a Wayland session is assumed to support wlr-layer-shell
+// unless it is a known holdout (GNOME/Mutter or Unity). X11 and a
+// missing or empty session type are reported as unsupported.
 inline LayerShellCapability
 checkLayerShellCapability(const char *sessionType, const char *currentDesktop) {
     using detail::containsCI;
@@ -96,23 +97,16 @@ checkLayerShellCapability(const char *sessionType, const char *currentDesktop) {
         return cap;
     }
 
-    // Compositors with known wlr-layer-shell support.
-    const char *supportedDesktops[] = {
-        "KDE", // KWin
-        "sway", "Hyprland", "river", "wayfire", "niri", "Miracle-WM", "LabWC",
-    };
-    for (const auto *d : supportedDesktops) {
-        if (containsCI(currentDesktop, d)) {
-            cap.supported = true;
-            return cap;
-        }
-    }
-
-    // Unknown compositor on Wayland — be conservative. The overlay may
-    // actually work (wlroots-based compositors often do), but we'd
-    // rather let the user know than fail silently.
-    cap.reason = "Compositor is not known to implement wlr-layer-shell. "
-                 "Tested: KDE Plasma, sway, Hyprland, river, wayfire.";
+    // Any other Wayland compositor is assumed to support wlr-layer-shell.
+    // The overwhelming majority do: every wlroots-based compositor (sway,
+    // Hyprland, river, wayfire, niri, mango, dwl, COSMIC, ...) plus KWin.
+    // GNOME/Mutter (and Unity), handled above, are the notable holdouts. This
+    // replaces an earlier allowlist that silently disabled any compositor not
+    // explicitly named, e.g. mango (whose XDG_CURRENT_DESKTOP is sometimes
+    // plain "mango", sometimes "mango:wlroots"). A rare non-wlroots compositor
+    // that lacks the protocol (e.g. Weston) would be reported as supported
+    // here, but the overlay daemon fails gracefully at startup in that case.
+    cap.supported = true;
     return cap;
 }
 
