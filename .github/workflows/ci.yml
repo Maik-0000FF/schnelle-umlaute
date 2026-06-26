@@ -194,7 +194,12 @@ jobs:
             0|124|143) ;;
             *) echo "editor crashed (exit $ec)"; exit 1 ;;
           esac
-          if grep -qiE "segmentation fault|sanitizer|assertion failed|qml.*error.*file:" \
+          # Match QML component errors on both file: and qrc: URLs, plus the
+          # JS error classes (ReferenceError/TypeError) directly: an undefined
+          # singleton or binding spams "qrc:...: ReferenceError" without a
+          # crash, so the layout silently collapses while the process still
+          # exits cleanly. Catching the error class makes that loud here.
+          if grep -qiE "segmentation fault|sanitizer|assertion failed|qml.*error.*(file:|qrc:)|ReferenceError|TypeError" \
              /tmp/editor.log; then
             echo "editor produced errors"; exit 1
           fi
@@ -465,7 +470,12 @@ jobs:
             0|124|143) ;;
             *) echo "editor crashed (exit $ec)"; exit 1 ;;
           esac
-          if grep -qiE "segmentation fault|sanitizer|assertion failed|qml.*error.*file:" \
+          # Match QML component errors on both file: and qrc: URLs, plus the
+          # JS error classes (ReferenceError/TypeError) directly: an undefined
+          # singleton or binding spams "qrc:...: ReferenceError" without a
+          # crash, so the layout silently collapses while the process still
+          # exits cleanly. Catching the error class makes that loud here.
+          if grep -qiE "segmentation fault|sanitizer|assertion failed|qml.*error.*(file:|qrc:)|ReferenceError|TypeError" \
              /tmp/editor.log; then
             echo "editor produced errors"; exit 1
           fi
