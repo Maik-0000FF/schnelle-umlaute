@@ -100,7 +100,8 @@ checkLayerShellCapability(const char *sessionType, const char *currentDesktop) {
     // Any other Wayland compositor is assumed to support wlr-layer-shell.
     // The overwhelming majority do: every wlroots-based compositor (sway,
     // Hyprland, river, wayfire, niri, mango, dwl, COSMIC, ...) plus KWin.
-    // GNOME/Mutter, handled above, is the notable holdout. This replaces an
+    // GNOME/Mutter (and Unity), handled above, is the notable holdout. This
+    // replaces an
     // earlier allowlist that silently disabled any compositor not explicitly
     // named, e.g. mango (whose XDG_CURRENT_DESKTOP is sometimes plain "mango",
     // sometimes "mango:wlroots"). A rare non-wlroots compositor that lacks the
