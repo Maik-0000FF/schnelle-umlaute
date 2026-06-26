@@ -545,3 +545,42 @@ jobs:
           shellcheck -S warning uninstall.sh
           shellcheck -S warning scripts/_distro.sh
           shellcheck -S warning addon/scripts/schnelle-umlaute-setup
+
+  nix:
+    runs-on: ubuntu-24.04
+    name: Nix flake
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Detect flake
+        id: flake
+        # flake.nix only exists on branches that ship it; skip the Nix steps
+        # cleanly elsewhere (e.g. main before the dev->main swap) so this job
+        # stays green there instead of failing on a missing flake.
+        shell: bash
+        run: |
+          if [ -f flake.nix ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no flake.nix on this branch, skipping Nix build"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Nix
+        if: steps.flake.outputs.present == 'true'
+        shell: bash
+        # Determinate Systems installer: non-interactive and enables nix-command
+        # + flakes by default. Used as a script, not a pinned action, so no
+        # third-party action SHA is introduced.
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix \
+            | sh -s -- install --no-confirm
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+
+      - name: Flake check and build
+        if: steps.flake.outputs.present == 'true'
+        shell: bash
+        run: |
+          nix flake check -L
+          nix build .#default -L
