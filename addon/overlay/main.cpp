@@ -178,6 +178,11 @@ private:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
         engine_->loadFromModule("SchnelleUmlauteOverlay", "Overlay");
 #else
+        // See addon/editor/main.cpp: on Qt 6.4 a URL-loaded root is not tied
+        // to its module, so `import SchnelleUmlauteOverlay` needs the embedded
+        // qmldir on an import path. Overlay.qml has no singleton today, but
+        // keep this symmetric with the editor so it cannot regress the same way.
+        engine_->addImportPath(QStringLiteral("qrc:/qt/qml"));
         engine_->load(
             QUrl(QStringLiteral("qrc:/qt/qml/SchnelleUmlauteOverlay/Overlay.qml")));
 #endif
