@@ -30,9 +30,12 @@ Window {
     // truncateDisplay comment below ("Three codepoints fit in JetBrains
     // Mono at pixelSize 16 (≈9.6 px each)" against a 44 px cell).
     // `framePadding` is per-side: the panel rectangle's implicitWidth
-    // adds 2 × framePadding to the row width.
+    // adds 2 × framePadding to the row width. `cellTextInset` is the
+    // total horizontal slack the glyph Text leaves inside the cell (half
+    // per side); it bounds the Text width that Text.HorizontalFit fits to.
     readonly property int cellSize: 44
     readonly property int framePadding: 16
+    readonly property int cellTextInset: 8
 
     // Font sizes per variant glyph type. Color-emoji fonts occupy a
     // smaller fraction of the em-box than JetBrains Mono at the same
@@ -50,15 +53,21 @@ Window {
     // wider fallback face can't overflow the fixed cell because the cell Text
     // uses Text.HorizontalFit (pixelSize becomes a max, the glyph shrinks to
     // fit). font.family takes a single string, so we resolve to one name here.
-    readonly property string fontFamilyMono: {
-        const cands = ["JetBrains Mono", "Noto Sans Mono", "DejaVu Sans Mono",
-                       "Liberation Mono", "monospace"]
+    //
+    // pickFamily mirrors addon/editor/Theme.qml's resolver; the overlay is a
+    // separate QML module and process (the same reason the palettes below are
+    // inlined), so the logic is duplicated rather than shared. Keep the
+    // candidate list in sync with Theme.qml's fontFamilyMono, both are tuned
+    // to JetBrains Mono metrics.
+    function pickFamily(candidates) {
         const avail = Qt.fontFamilies()
-        for (let i = 0; i < cands.length; i++)
-            if (avail.indexOf(cands[i]) >= 0)
-                return cands[i]
-        return cands[cands.length - 1]
+        for (let i = 0; i < candidates.length; i++)
+            if (avail.indexOf(candidates[i]) >= 0)
+                return candidates[i]
+        return candidates[candidates.length - 1]
     }
+    readonly property string fontFamilyMono: pickFamily(
+        ["JetBrains Mono", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "monospace"])
 
     // Palettes mirror addon/editor/Theme.qml. Inlined because the overlay
     // lives in its own QML module and process — sharing a singleton would
@@ -185,7 +194,7 @@ Window {
                         // glyph already fits, so pixelSize stays as set and the
                         // look is unchanged; with a wider fallback mono the fit
                         // mode scales it down instead of spilling out of the cell.
-                        width: win.cellSize - 8
+                        width: win.cellSize - win.cellTextInset
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         fontSizeMode: Text.HorizontalFit
