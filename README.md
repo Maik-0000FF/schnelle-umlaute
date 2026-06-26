@@ -14,19 +14,6 @@
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/Maik-0000FF)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20me-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/maik0000ff)
 
-> [!NOTE]
-> **Upcoming change: the overlay and editor are moving into the main version**
->
-> In an upcoming release, the `main` branch will be updated to the version that currently lives on the `dev` branch. This brings two previously dev-only features into the main version: the on-screen **cycle overlay** and the standalone **QML editor** (`schnelle-umlaute-editor`).
->
-> - **The core accent input will not change.** Hold + space keeps working exactly as before, on every system.
-> - The overlay relies on the Wayland `wlr-layer-shell` protocol: it appears on compositors that support it (KDE Plasma, sway, Hyprland, and similar) and stays **disabled on GNOME/Mutter and on X11**. That is expected, not a bug; the accent input keeps working there regardless.
-> - Building the editor/overlay will additionally require **Qt6** (Qml, Quick, Quick Controls 2) and **LayerShellQt**.
-> - The current version **without** the overlay and editor will be preserved on a new **`legacy`** branch.
-> - **AUR `-git` users:** the package will switch to building from `main` instead of `dev`. Same code, only the source branch changes.
->
-> No action is needed right now. This notice is just so the change does not come as a surprise.
-
 **Linux Alternative to Windows PowerToys Quick Accent** - Fast accent and special character input using hold+space gestures.
 
 Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets you type accents, umlauts, emojis, symbols, and text snippets using intuitive hold + space keyboard gestures. Supports accent cycling (é → è → ê → ë) for German, French, Spanish and other languages. Clipboard-free operation on X11 and Wayland.
@@ -39,6 +26,8 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Configurable leader keys (Space, Arrow ←→↑↓, Alt/AltGr, or custom keys with hand-split) — keep Space free for normal typing
 - Unlimited mapping slots
 - App blacklist/whitelist — disable in games, password managers, or apps with conflicting shortcuts
+- Standalone QML editor (`schnelle-umlaute-editor`) for managing mappings, leader keys, app filter, and the cycle overlay
+- Optional cycle overlay daemon (Wayland with wlr-layer-shell) showing accent variants on-screen
 - No clipboard interference, no root permissions
 - Works system-wide on X11 and Wayland
 
@@ -73,7 +62,7 @@ Available on the [AUR](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaut
 yay -S fcitx5-schnelle-umlaute-git
 ```
 
-> **About `-git`:** This package builds from the `dev` branch and includes features ahead of the current stable v1.1.0 — a standalone QML editor (`schnelle-umlaute-editor`), a cycle overlay daemon for Wayland, and a per-user setup script (`schnelle-umlaute-setup`). For users who prefer the latest tagged release without dev-only changes, use the manual install below.
+> **About `-git`:** This package builds from the `dev` branch and ships features ahead of the latest tagged release — the standalone QML editor (`schnelle-umlaute-editor`), the cycle overlay daemon, and the per-user setup script (`schnelle-umlaute-setup`). Run `schnelle-umlaute-setup` once after install to write your fcitx5 environment variables and set up autostart. As a safety net, the editor also detects missing input-method variables on startup and offers to write them — but it does not configure autostart, so running `schnelle-umlaute-setup` is still the complete path.
 >
 > A stable AUR package (`fcitx5-schnelle-umlaute`) tracking tagged releases will be added in a future update.
 
@@ -86,26 +75,6 @@ cd schnelle-umlaute
 ```
 
 After installation: **Logout and login**, then run `fcitx5-config-qt` to add "Schnelle Umlaute" to your input methods. See [Configuration](docs/CONFIGURATION.md) for details and screenshots.
-
-### Try the `dev` branch (overlay & editor)
-
-This stable release covers the core hold + space input. The **`dev` branch** ships several extras that are still being polished and are not yet part of a tagged release:
-
-- **On-screen cycle overlay** showing the accent variants as you cycle through them, including an optional preview the moment you press the leader key
-- **Standalone QML editor** (`schnelle-umlaute-editor`) for managing mappings, leader keys, the app filter, and the overlay from a graphical UI
-- **Per-user setup script** (`schnelle-umlaute-setup`) that writes your fcitx5 environment variables and autostart in one step
-
-> **The overlay does not work everywhere.** It relies on the Wayland `wlr-layer-shell` protocol, so it shows up on compositors that support it (KDE Plasma, sway, Hyprland, and similar). It is **not** available on GNOME/Mutter or on X11, where it stays disabled. The accent input itself works the same on all of them, only the on-screen overlay is gated.
-
-To try these features, install from the `dev` branch instead of the stable source:
-
-```bash
-git clone -b dev https://github.com/Maik-0000FF/schnelle-umlaute.git
-cd schnelle-umlaute
-./install.sh
-```
-
-After installing, run `schnelle-umlaute-setup` once, then **logout and login**. Arch users can get the same set of features from the AUR package [`fcitx5-schnelle-umlaute-git`](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaute-git), which also tracks `dev`.
 
 ## Usage
 
@@ -129,18 +98,13 @@ All mappings are fully customizable — add French, Spanish, Emoji, Braille, or 
 
 > **Tip:** When typing fast, Space as leader key can cause accidental accents at word boundaries — e.g. "une pomme chaque" becomes "une pomméchaque" (the `e` is still held when Space is pressed, so Space gets consumed as the leader and the word separator is lost). Switch to an arrow key, Alt, or a custom leader (e.g. `f`, `j`) to keep Space free for normal typing. See [Configuration → Leader Key](docs/CONFIGURATION.md#leader-key) and [Troubleshooting](docs/TROUBLESHOOTING.md#accidental-accents-when-typing-fast).
 
+> **Optional:** An on-screen cycling indicator is available on Wayland compositors with wlr-layer-shell support (KDE Plasma, sway, Hyprland, …). See [Configuration → Cycle Overlay](docs/CONFIGURATION.md#cycle-overlay).
+
 ## Requirements
 
 - **Linux** with Fcitx5 (Arch, Ubuntu/Debian, Linux Mint, Fedora, openSUSE)
-- **CMake** ≥ 3.16 and **extra-cmake-modules**
+- **CMake** and **extra-cmake-modules**
 - **GCC with C++20 support**
-- **Fcitx5 development libraries** (Fcitx5Core) and **Fcitx5 Qt6 widgets addons**
-- **Qt6** (Core, Widgets) for the configuration widget
-- **gettext** and **pkg-config**
-
-The `dev` branch additionally needs **Qt6** (Qml, Quick, Quick Controls 2) and **LayerShellQt** for the standalone editor and the cycle overlay.
-
-`./install.sh` installs all of these automatically on supported distributions.
 
 ## Uninstallation
 
@@ -182,14 +146,12 @@ Inspired by [PowerAccent](https://github.com/damienleroy/PowerAccent) by Damien 
 
 Built with:
 - **Fcitx5** - Input Method Framework
-- **C++20** - Modern C++ with `std::optional` and POSIX `clock_gettime` timing
+- **C++20** - Modern C++ with chrono and optional
 - **CMake** - Build system
 - **Extra CMake Modules (ECM)** - KDE build tools
-- **Qt6 / QML (Quick Controls 2)** - Standalone editor UI *(dev-only feature)*
-- **LayerShellQt** - On-screen cycle overlay on Wayland *(dev-only feature)*
 
 Thanks to [wengxt](https://github.com/wengxt) for creating Fcitx5 and for the guidance on building custom config widgets.
 
 ---
 
-**Version:** 1.1.1 (stable) · 1.2.2 (`dev`, includes the cycle overlay, the QML editor, and more)
+**Version:** 1.2.2

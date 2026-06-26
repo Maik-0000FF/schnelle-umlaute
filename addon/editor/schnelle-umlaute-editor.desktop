@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Schnelle Umlaute
+Comment=Configure schnelle-umlaute mappings, delays, and leader keys
+Exec=schnelle-umlaute-editor
+Icon=schnelle-umlaute-editor
+Terminal=false
+Categories=Utility;Qt;
+Keywords=umlaut;fcitx5;mapping;keyboard;input;
+StartupNotify=true

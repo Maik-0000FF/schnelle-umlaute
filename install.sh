@@ -15,89 +15,22 @@ echo
 
 # --- Distribution Detection ---
 
-detect_distro() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        case "$ID" in
-            arch|manjaro|endeavouros|garuda|artix|cachyos)
-                echo "arch" ;;
-            debian|ubuntu|linuxmint|pop|kali|elementary|zorin|mx|neon)
-                echo "debian" ;;
-            fedora|nobara)
-                echo "fedora" ;;
-            opensuse*|suse)
-                echo "suse" ;;
-            *)
-                # Fallback to ID_LIKE
-                case "${ID_LIKE:-}" in
-                    *arch*)                 echo "arch" ;;
-                    *debian*|*ubuntu*)      echo "debian" ;;
-                    *fedora*)               echo "fedora" ;;
-                    *suse*)                 echo "suse" ;;
-                    *)                      echo "unknown" ;;
-                esac ;;
-        esac
-    elif command -v pacman >/dev/null 2>&1; then
-        echo "arch"
-    elif command -v apt >/dev/null 2>&1; then
-        echo "debian"
-    elif command -v dnf >/dev/null 2>&1; then
-        echo "fedora"
-    elif command -v zypper >/dev/null 2>&1; then
-        echo "suse"
-    else
-        echo "unknown"
-    fi
-}
-
-DISTRO=$(detect_distro)
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/_distro.sh
+. "$PROJECT_ROOT/scripts/_distro.sh"
+detect_distro_info
 
-# Show detected distro
+# Show detected distro using the PRETTY_NAME line if available; falls
+# back to the family label we just derived.
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     DISTRO_NAME="${PRETTY_NAME:-$ID}"
 else
-    DISTRO_NAME="Unknown"
+    DISTRO_NAME="$FAMILY_LABEL"
 fi
 
 echo -e "${BLUE}Distribution:${NC} $DISTRO_NAME"
 echo
-
-# Map os-release ID to a user-facing label per derivative. The DISTRO
-# family below still drives the package-manager paths; this only affects
-# the displayed "X installer" line so e.g. a Mint user sees "Linux Mint
-# installer" instead of the generic "Debian/Ubuntu installer".
-case "${ID:-}" in
-    arch)                 FAMILY_LABEL="Arch Linux" ;;
-    manjaro)              FAMILY_LABEL="Manjaro" ;;
-    endeavouros)          FAMILY_LABEL="EndeavourOS" ;;
-    garuda)               FAMILY_LABEL="Garuda" ;;
-    artix)                FAMILY_LABEL="Artix" ;;
-    cachyos)              FAMILY_LABEL="CachyOS" ;;
-    debian)               FAMILY_LABEL="Debian" ;;
-    ubuntu)               FAMILY_LABEL="Ubuntu" ;;
-    linuxmint)            FAMILY_LABEL="Linux Mint" ;;
-    pop)                  FAMILY_LABEL="Pop!_OS" ;;
-    kali)                 FAMILY_LABEL="Kali Linux" ;;
-    elementary)           FAMILY_LABEL="elementary OS" ;;
-    zorin)                FAMILY_LABEL="Zorin OS" ;;
-    mx)                   FAMILY_LABEL="MX Linux" ;;
-    neon)                 FAMILY_LABEL="KDE neon" ;;
-    fedora)               FAMILY_LABEL="Fedora" ;;
-    nobara)               FAMILY_LABEL="Nobara" ;;
-    opensuse-tumbleweed)  FAMILY_LABEL="openSUSE Tumbleweed" ;;
-    opensuse-leap)        FAMILY_LABEL="openSUSE Leap" ;;
-    opensuse*)            FAMILY_LABEL="openSUSE" ;;
-    *)
-        case "$DISTRO" in
-            arch)    FAMILY_LABEL="Arch Linux derivative" ;;
-            debian)  FAMILY_LABEL="Debian/Ubuntu derivative" ;;
-            fedora)  FAMILY_LABEL="Fedora derivative" ;;
-            suse)    FAMILY_LABEL="openSUSE derivative" ;;
-        esac
-        ;;
-esac
 
 case "$DISTRO" in
     arch)
@@ -177,23 +110,30 @@ install_deps() {
 
 case "$DISTRO" in
     arch)
-        DEPS=(fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc pkgconf)
+        DEPS=(fcitx5 fcitx5-configtool fcitx5-qt fcitx5-gtk cmake extra-cmake-modules gcc pkgconf
+              qt6-declarative layer-shell-qt)
         ;;
     debian)
         DEPS=(fcitx5 fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4
               fcitx5-frontend-qt5 libfcitx5core-dev fcitx5-modules-dev qt6-base-dev
               libfcitx5-qt6-dev cmake extra-cmake-modules g++ gettext pkg-config
-              libxkbcommon-dev)
+              libxkbcommon-dev
+              qt6-declarative-dev
+              qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts
+              qml6-module-qtquick-templates qml6-module-qtquick-window qml6-module-qtqml-workerscript
+              liblayershellqtinterface-dev)
         ;;
     fedora)
         DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt6
               fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel
-              cmake extra-cmake-modules gcc-c++ gettext)
+              cmake extra-cmake-modules gcc-c++ gettext
+              qt6-qtdeclarative-devel layer-shell-qt-devel)
         ;;
     suse)
         DEPS=(fcitx5 fcitx5-configtool fcitx5-gtk3 fcitx5-gtk4 fcitx5-qt6
               fcitx5-devel fcitx5-qt-devel qt6-base-devel libxkbcommon-devel
-              cmake extra-cmake-modules gcc-c++ gettext)
+              cmake extra-cmake-modules gcc-c++ gettext
+              qt6-declarative-devel qt6-quickcontrols2-devel layer-shell-qt6-devel)
         ;;
 esac
 
@@ -250,6 +190,10 @@ echo
 
 # Check ALL possible paths regardless of detected distro.
 # Searching paths that don't exist is harmless; missing paths is not.
+# libschnelle-umlaute-config-editor.so is the legacy fcitx5-configtool
+# Qt plugin (removed in v1.2.0 — the gear icon now launches
+# schnelle-umlaute-editor directly). Kept in this list so upgraders get
+# the stale .so removed on next install.
 STALE_CANDIDATES=(
     /usr/lib/fcitx5/schnelle-umlaute.so
     /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so
@@ -275,6 +219,26 @@ STALE_CANDIDATES=(
     /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in
     /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
     /usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf
+    # Standalone editor + overlay daemon (installed from addon/editor and
+    # addon/overlay). Both binaries land under the CMake prefix.
+    /usr/bin/schnelle-umlaute-editor
+    /usr/local/bin/schnelle-umlaute-editor
+    /usr/bin/schnelle-umlaute-overlay
+    /usr/local/bin/schnelle-umlaute-overlay
+    /usr/share/applications/schnelle-umlaute-editor.desktop
+    /usr/local/share/applications/schnelle-umlaute-editor.desktop
+    /usr/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
+    /usr/local/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
+    # Autostart + DBus activation for the overlay daemon. These live at
+    # absolute paths (not CMAKE_INSTALL_SYSCONFDIR) because XDG and DBus
+    # only scan /etc/xdg and /usr/share/dbus-1 by default.
+    /etc/xdg/autostart/schnelle-umlaute-overlay.desktop
+    /usr/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
+    # Legacy paths from a bug in an earlier build that honored
+    # CMAKE_INSTALL_PREFIX for the XDG/DBus drops — clean these up too so
+    # the old files don't shadow the new ones.
+    /usr/local/etc/xdg/autostart/schnelle-umlaute-overlay.desktop
+    /usr/local/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
 )
 
 STALE_FILES=()
@@ -321,6 +285,13 @@ fi
 # --- Install ---
 
 echo -e "${BLUE}Installing addon...${NC}"
+# Kill a running overlay daemon so the new binary replaces cleanly — the
+# DBus service name is single-owner. -u "$INVOKING_USER" limits the kill to
+# the invoking user so we never touch other users' sessions on shared hosts.
+# -f matches the full command line — without it pkill compares against
+# /proc/$pid/comm, which the kernel truncates to TASK_COMM_LEN-1 = 15
+# chars ("schnelle-umlaut"), so the 24-char binary name would never match.
+pkill -u "$INVOKING_USER" -f schnelle-umlaute-overlay 2>/dev/null || true
 sudo cmake --install .
 echo -e "${GREEN}✓ Addon installed${NC}"
 echo
@@ -403,11 +374,19 @@ if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_C
     read -p "Replace trigger key with Ctrl+Space? [Y/n] " -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-        if sed '/\[Hotkey\/TriggerKeys\]/,/^\[/{/^[0-9]\+=/d}' "$FCITX_CONFIG" > "$FCITX_CONFIG.tmp" \
-           && sed -i '/\[Hotkey\/TriggerKeys\]/a 0=Control+space' "$FCITX_CONFIG.tmp" \
-           && mv "$FCITX_CONFIG.tmp" "$FCITX_CONFIG"; then
+        # Atomic replace via rename(2): write into a mktemp file in the
+        # same directory, then mv. Same-filesystem rename is kernel-
+        # guaranteed atomic, so the config is never half-written. The
+        # tmp file is cleaned up on any failure path so we never leak
+        # config.XXXXXX leftovers next to the real config.
+        FCITX_CONFIG_TMP="$(mktemp -p "$(dirname "$FCITX_CONFIG")" "$(basename "$FCITX_CONFIG").XXXXXX")"
+        if sed '/\[Hotkey\/TriggerKeys\]/,/^\[/{/^[0-9]\+=/d}' "$FCITX_CONFIG" > "$FCITX_CONFIG_TMP" \
+           && sed -i '/\[Hotkey\/TriggerKeys\]/a 0=Control+space' "$FCITX_CONFIG_TMP" \
+           && chmod --reference="$FCITX_CONFIG" "$FCITX_CONFIG_TMP" \
+           && mv "$FCITX_CONFIG_TMP" "$FCITX_CONFIG"; then
             echo -e "${GREEN}✓ Trigger key replaced with Ctrl+Space${NC}"
         else
+            rm -f "$FCITX_CONFIG_TMP"
             echo -e "${RED}✗ Could not update trigger key config${NC}"
         fi
     else
@@ -482,6 +461,25 @@ else
 fi
 echo
 
+# --- Overlay Daemon ---
+
+# No explicit start here. The overlay daemon's lifecycle is driven by the
+# addon: enabling the overlay in the editor starts it via DBus activation,
+# disabling it sends a Quit. Starting it here unconditionally would leave
+# an idle process behind for users who have the overlay disabled (the
+# default).
+if command -v schnelle-umlaute-overlay >/dev/null 2>&1; then
+    # Make sure any daemon left running from a previous install exits so
+    # the new binary takes over on next activation.
+    if pgrep -u "$INVOKING_USER" -f "schnelle-umlaute-overlay" >/dev/null 2>&1; then
+        echo -e "${BLUE}Stopping previous overlay daemon instance...${NC}"
+        pkill -u "$INVOKING_USER" -f "schnelle-umlaute-overlay" 2>/dev/null || true
+        sleep 0.5
+    fi
+    echo -e "${BLUE}Overlay daemon: starts on demand when enabled in the editor${NC}"
+    echo
+fi
+
 # --- Final Instructions ---
 
 echo -e "${GREEN}========================================${NC}"
@@ -508,6 +506,17 @@ echo "   - Hold 'a' and press Space → ä"
 echo "   - Hold 'o' and press Space → ö"
 echo "   - Hold 'u' and press Space → ü"
 echo "   - Hold 's' and press Space → ß"
+echo
+echo -e "${BLUE}Standalone editor:${NC}"
+echo -e "   ${BLUE}schnelle-umlaute-editor${NC}"
+echo "   Edit mappings + settings (delay, leader keys, app filter, overlay)"
+echo "   Changes sync live to fcitx5, no restart needed"
+echo
+echo -e "${BLUE}Cycle overlay:${NC}"
+echo "   Shows the current variant at the configured screen corner while"
+echo "   you hold the input key. Enable in: schnelle-umlaute-editor →"
+echo "   Settings → Overlay. The daemon starts on demand when enabled"
+echo "   and stops automatically when disabled."
 echo
 echo -e "${YELLOW}Troubleshooting:${NC}"
 echo "  - Run 'fcitx5-diagnose' to check setup"

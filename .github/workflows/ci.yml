@@ -4,7 +4,7 @@ on:
   push:
     branches: ['**']
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   schedule:
     # Weekly canary against the four supported distros' rolling/latest
     # images. Catches drift the user can't see while not actively
@@ -15,7 +15,7 @@ on:
     # GitHub cron is UTC-only — '0 8 * * 1' fires Mondays 08:00 UTC,
     # which is 10:00 Europe/Berlin in CEST and 09:00 in CET. Switch
     # to '0 9 * * 1' to keep 10:00 wall-clock through winter.
-    # Schedule triggers run only against the default branch (main).
+    # Schedule triggers run only against the default branch (dev).
     - cron: '0 8 * * 1'
 
 permissions:
@@ -31,7 +31,7 @@ jobs:
         include:
           - distro: Arch Linux
             image: archlinux:base-devel
-            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext
+            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext qt6-declarative layer-shell-qt
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: Arch Linux (Clang)
@@ -42,12 +42,12 @@ jobs:
             # suite under Clang also doubles test-binary coverage across
             # the two toolchains.
             image: archlinux:base-devel
-            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext clang
+            install: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext qt6-declarative layer-shell-qt clang
             cmake_extra: -DBUILD_TESTING=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
             run_tests: true
           - distro: Ubuntu 24.04
             image: ubuntu:24.04
-            install: apt-get update && apt-get install -y --no-install-recommends ca-certificates build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
+            install: apt-get update && apt-get install -y --no-install-recommends ca-certificates build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev qt6-declarative-dev libxkbcommon-dev liblayershellqtinterface-dev qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: Linux Mint 22
@@ -57,17 +57,17 @@ jobs:
             # im-config drift, /etc/os-release parsing) — the Ubuntu
             # entry above already verifies the toolchain itself.
             image: linuxmintd/mint22-amd64
-            install: apt-get update && apt-get install -y --no-install-recommends ca-certificates build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev libxkbcommon-dev
+            install: apt-get update && apt-get install -y --no-install-recommends ca-certificates build-essential cmake extra-cmake-modules git pkg-config gettext libfcitx5core-dev fcitx5-modules-dev libfcitx5-qt6-dev qt6-base-dev qt6-declarative-dev libxkbcommon-dev liblayershellqtinterface-dev qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: Fedora
             image: fedora:42
-            install: dnf install -y gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel libxkbcommon-devel
+            install: dnf install -y gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtquickcontrols2-devel libxkbcommon-devel layer-shell-qt-devel
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
           - distro: openSUSE
             image: opensuse/tumbleweed
-            install: zypper --non-interactive install gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-base-devel libxkbcommon-devel
+            install: zypper --non-interactive install gcc-c++ make cmake extra-cmake-modules git gettext fcitx5 fcitx5-devel fcitx5-qt-devel qt6-base-devel qt6-declarative-devel qt6-quickcontrols2-devel libxkbcommon-devel layer-shell-qt6-devel
             cmake_extra: -DBUILD_TESTING=ON
             run_tests: true
 
@@ -130,16 +130,17 @@ jobs:
         working-directory: addon
 
       - name: Verify artifacts
-        # v1.0.0 ships two shared libraries — the fcitx5 addon itself and
-        # the Qt widget plugin that fcitx5-configtool loads for the
-        # mapping editor. If either is missing the install appears green
-        # but the addon is unconfigurable. The addon .so has PREFIX ""
-        # (no "lib"), the config-editor plugin keeps CMake's default
-        # "lib" prefix — reflected in the STALE_CANDIDATES in install.sh.
+        # v1.2.0 ships the fcitx5 addon .so plus two standalone Qt6
+        # binaries: the QML editor (replaces the old config-editor Qt
+        # plugin) and the overlay daemon. Fail the job if any of the
+        # three is missing — the overlay in particular can silently
+        # skip when LayerShellQt isn't packaged, which would otherwise
+        # produce a green-but-broken CI.
         run: |
           missing=0
           for f in build/schnelle-umlaute.so \
-                   build/config-editor/libschnelle-umlaute-config-editor.so; do
+                   build/editor/schnelle-umlaute-editor \
+                   build/overlay/schnelle-umlaute-overlay; do
             if [ -f "$f" ]; then
               echo "ok: $f"
             else
@@ -151,12 +152,14 @@ jobs:
         working-directory: addon
 
       - name: Verify shared-library resolution
-        # Both .so files are dlopen()ed by fcitx5 at runtime. An unresolved
-        # dependency here means fcitx5 will silently skip the addon on the
-        # user's machine — no error, just missing functionality.
+        # The addon .so is dlopen()ed by fcitx5 at runtime; the editor
+        # and overlay are linked executables. An unresolved dependency
+        # here means fcitx5 will silently skip the addon, or the user
+        # will see an immediate exec failure on launch. "not found" in
+        # ldd output is the signal for a missing .so.
         run: |
-          for f in build/schnelle-umlaute.so \
-                   build/config-editor/libschnelle-umlaute-config-editor.so; do
+          for f in build/editor/schnelle-umlaute-editor \
+                   build/overlay/schnelle-umlaute-overlay; do
             echo "=== ldd $f ==="
             ldd "$f"
             if ldd "$f" | grep -q "not found"; then
@@ -164,6 +167,43 @@ jobs:
               exit 1
             fi
           done
+        working-directory: addon
+
+      - name: Smoke test editor (headless)
+        # QT_QPA_PLATFORM=offscreen lets Qt create the window without an
+        # X/Wayland display. The editor starts, parses all QML, then we
+        # kill it after a moment. Any segfault or QML parse error fails
+        # the job. The overlay daemon can't run this way — it requires a
+        # real Wayland compositor for layer-shell — so we rely on ldd for
+        # it above and catch QML errors via the editor run.
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_LOGGING_RULES: "*.debug=false;qt.qpa.*=false"
+        run: |
+          set +e
+          # Redirect stderr to a log; ignore exit code from timeout.
+          timeout --preserve-status --signal=TERM 3 \
+            build/editor/schnelle-umlaute-editor > /tmp/editor.log 2>&1
+          ec=$?
+          echo "editor exit code: $ec"
+          cat /tmp/editor.log
+          # 124 = timeout killed it (expected, it runs until we stop it).
+          # 143 = SIGTERM from --preserve-status. 0 is also fine if it
+          # exits cleanly. SIGSEGV=139 / SIGABRT=134 are always bad.
+          case $ec in
+            0|124|143) ;;
+            *) echo "editor crashed (exit $ec)"; exit 1 ;;
+          esac
+          # Match QML component errors on both file: and qrc: URLs, plus the
+          # JS error classes (ReferenceError/TypeError) directly: an undefined
+          # singleton or binding spams "qrc:...: ReferenceError" without a
+          # crash, so the layout silently collapses while the process still
+          # exits cleanly. Catching the error class makes that loud here.
+          if grep -qiE "segmentation fault|sanitizer|assertion failed|qml.*error.*(file:|qrc:)|ReferenceError|TypeError" \
+             /tmp/editor.log; then
+            echo "editor produced errors"; exit 1
+          fi
+          echo "smoke test passed"
         working-directory: addon
 
   sanitizers:
@@ -183,7 +223,7 @@ jobs:
       image: archlinux:base-devel
     steps:
       - name: Install dependencies
-        run: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext
+        run: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext qt6-declarative layer-shell-qt
 
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -219,8 +259,8 @@ jobs:
         working-directory: addon
 
   clang-tidy:
-    # Static analysis on production C++ sources. Check selection lives in
-    # .clang-tidy at the repo root: bugprone-* (real bug patterns),
+    # Static analysis on production and test C++ sources. Check selection
+    # lives in .clang-tidy at the repo root: bugprone-* (real bug patterns),
     # clang-analyzer-* (LLVM's built-in static analyzer), and performance-*
     # excluding enum-size (covered by fcitx5's FCITX_CONFIG_ENUM macro).
     # WarningsAsErrors='*' fails the job on any new finding.
@@ -233,7 +273,8 @@ jobs:
       image: archlinux:base-devel
     steps:
       - name: Install dependencies
-        run: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext clang
+        # Same package list as the build matrix's Arch lane plus clang.
+        run: pacman -Syu --noconfirm && pacman -S --noconfirm git fcitx5 fcitx5-qt cmake extra-cmake-modules libxkbcommon gettext qt6-declarative layer-shell-qt clang
 
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -258,9 +299,9 @@ jobs:
         working-directory: ${{ github.workspace }}
 
       - name: Build
-        # AUTOUIC generates ui_editor.h from editor.ui, AUTOMOC generates
-        # moc_*.cpp for Q_OBJECT classes. clang-tidy parses these in turn
-        # via #include, so they have to exist before the lint step runs.
+        # AUTOMOC generates moc_*.cpp for Q_OBJECT classes (editor models,
+        # OverlayController). clang-tidy parses these via #include, so the
+        # full build has to run before the lint step.
         run: cmake --build build -j$(nproc)
         working-directory: addon
 
@@ -270,21 +311,28 @@ jobs:
         # regressions or silently weaken coverage. mappings-io.h is checked
         # via inclusion from both production and test TUs.
         #
+        # File list comes from `git ls-files` so newly added .cpp files
+        # under addon/ or tests/ are picked up automatically — a hardcoded
+        # list silently grew out of date as the editor / overlay code
+        # expanded.
+        #
         # run-clang-tidy parallelises across TUs (one process per source
-        # file). At 8 TUs today this halves the job's wallclock; the
-        # difference grows linearly as more sources are added (editor,
-        # overlay refactors). Arguments are matched as regex against the
-        # `file` field in compile_commands.json — full paths work.
+        # file). Arguments are matched as regex against the `file` field
+        # in compile_commands.json; the relative paths from `git ls-files`
+        # match as substrings of the absolute paths CMake stores there.
+        # Build-tree autogen sources (moc_*.cpp, ui_*.h) are not tracked
+        # by git, so they are excluded automatically.
         run: |
-          run-clang-tidy -p build -j $(nproc) -quiet \
-            src/schnelle-umlaute.cpp \
-            config-editor/editor.cpp \
-            config-editor/main.cpp \
-            config-editor/model.cpp \
-            ../tests/testschnelleumlaute.cpp \
-            ../tests/testmappingsio.cpp \
-            ../tests/testmappingmodel.cpp \
-            ../tests/testmappingmodelio.cpp
+          # safe.directory: the Arch container's git refuses to read the
+          # workspace .git/ because the checkout was performed by a
+          # different effective user. The actions/checkout autoconfig
+          # only applies when the step's working-directory points
+          # directly at the repo root (see the format-check step above);
+          # this step runs from addon/ for run-clang-tidy's -p, so add
+          # the safe entry ourselves.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          files=$(cd .. && git ls-files 'addon/*.cpp' 'tests/*.cpp')
+          run-clang-tidy -p build -j $(nproc) -quiet $files
         working-directory: addon
 
   install-uninstall:
@@ -355,26 +403,83 @@ jobs:
         run: sudo -u tester bash -c "export DEBIAN_FRONTEND=noninteractive && cd '$GITHUB_WORKSPACE' && yes | ./install.sh"
 
       - name: Verify installed files
-        # Install-paths differ per distro (/usr/lib vs /usr/lib64 vs
-        # /usr/lib/x86_64-linux-gnu), so search rather than hard-code.
-        # The addon .so is the required artifact — if it's not there,
-        # fcitx5 can't load the addon at all.
+        # v1.2.0 ships the fcitx5 addon plus two standalone Qt6 binaries
+        # (editor, overlay daemon) and their XDG/DBus integration files.
+        # libschnelle-umlaute-config-editor.so is NOT shipped anymore —
+        # it only appears in STALE_CANDIDATES so upgraders from v1.0/1.1
+        # get the obsolete plugin removed.
         run: |
           echo "=== addon .so ==="
           find /usr /usr/local -name 'schnelle-umlaute.so' 2>/dev/null
-          echo "=== config-editor plugin ==="
-          find /usr /usr/local -name 'libschnelle-umlaute-config-editor.so' 2>/dev/null
+          echo "=== editor binary ==="
+          find /usr /usr/local -name 'schnelle-umlaute-editor' -type f 2>/dev/null
+          echo "=== overlay binary ==="
+          find /usr /usr/local -name 'schnelle-umlaute-overlay' -type f 2>/dev/null
+          echo "=== desktop + icon ==="
+          find /usr /usr/local -name 'schnelle-umlaute-editor.desktop' 2>/dev/null
+          find /usr /usr/local -name 'schnelle-umlaute-editor.svg' 2>/dev/null
+          echo "=== DBus service + autostart ==="
+          find /usr /usr/local /etc -name 'de.schnelle_umlaute.Overlay.service' 2>/dev/null
+          find /usr /usr/local /etc -name 'schnelle-umlaute-overlay.desktop' 2>/dev/null
           echo "=== addon metadata ==="
           find /usr /usr/local -name 'schnelle-umlaute.conf*' 2>/dev/null
 
-          if ! find /usr /usr/local -name 'schnelle-umlaute.so' 2>/dev/null | grep -q .; then
-            echo "FAIL: addon .so was not installed"
+          fail=0
+          check() {
+            local label="$1"
+            shift
+            if ! "$@" | grep -q .; then
+              echo "FAIL: $label was not installed"
+              fail=1
+            fi
+          }
+          check "addon .so"       find /usr /usr/local -name 'schnelle-umlaute.so' 2>/dev/null
+          check "editor binary"   find /usr /usr/local -name 'schnelle-umlaute-editor' -type f 2>/dev/null
+          check "overlay binary"  find /usr /usr/local -name 'schnelle-umlaute-overlay' -type f 2>/dev/null
+          check "editor .desktop" find /usr /usr/local -name 'schnelle-umlaute-editor.desktop' 2>/dev/null
+          check "DBus .service"   find /usr /usr/local /etc -name 'de.schnelle_umlaute.Overlay.service' 2>/dev/null
+          exit $fail
+
+      - name: Smoke test installed editor (headless)
+        # Validates the install.sh package list at runtime, not just at
+        # build time. A crash here means an end user would see the editor
+        # crash on first launch — usually a missing QML module that the
+        # build job didn't catch because that job uses ci.yml's richer
+        # package list while end users get install.sh's leaner one.
+        # Same offscreen-platform trick as the build job; the editor
+        # doesn't exit on its own, so timeout kills it after a moment.
+        # Locate via find rather than PATH because install prefixes
+        # differ across distros (/usr/bin on Fedora/openSUSE,
+        # /usr/local/bin on Arch/Debian via cmake default).
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_LOGGING_RULES: "*.debug=false;qt.qpa.*=false"
+        run: |
+          set +e
+          EDITOR=$(find /usr /usr/local -name 'schnelle-umlaute-editor' -type f 2>/dev/null | head -1)
+          if [ -z "$EDITOR" ]; then
+            echo "FAIL: schnelle-umlaute-editor not found"
             exit 1
           fi
-          if ! find /usr /usr/local -name 'libschnelle-umlaute-config-editor.so' 2>/dev/null | grep -q .; then
-            echo "FAIL: config-editor plugin was not installed"
-            exit 1
+          echo "running $EDITOR"
+          timeout --preserve-status --signal=TERM 3 "$EDITOR" > /tmp/editor.log 2>&1
+          ec=$?
+          echo "editor exit code: $ec"
+          cat /tmp/editor.log
+          case $ec in
+            0|124|143) ;;
+            *) echo "editor crashed (exit $ec)"; exit 1 ;;
+          esac
+          # Match QML component errors on both file: and qrc: URLs, plus the
+          # JS error classes (ReferenceError/TypeError) directly: an undefined
+          # singleton or binding spams "qrc:...: ReferenceError" without a
+          # crash, so the layout silently collapses while the process still
+          # exits cleanly. Catching the error class makes that loud here.
+          if grep -qiE "segmentation fault|sanitizer|assertion failed|qml.*error.*(file:|qrc:)|ReferenceError|TypeError" \
+             /tmp/editor.log; then
+            echo "editor produced errors"; exit 1
           fi
+          echo "smoke test passed"
 
       - name: Run uninstall.sh
         # uninstall.sh uses [y/N] prompts (default N), so `yes` feeds "y"
@@ -386,18 +491,24 @@ jobs:
         run: sudo -u tester bash -c "cd '$GITHUB_WORKSPACE' && yes | ./uninstall.sh"
 
       - name: Verify files removed
-        # Inverse of the install verification. A hit here means
-        # uninstall.sh missed a path — the STALE_CANDIDATES list in
-        # install.sh and the LIB_PATHS list in uninstall.sh have to
-        # stay in sync, this check enforces that.
+        # Inverse of the install verification for every v1.2.0 artifact.
+        # A hit here means uninstall.sh's LIB_PATHS / DATA_FILES drifted
+        # from install.sh's install targets — the cycle then leaves
+        # files on the user's system after uninstall.
         run: |
           remaining=0
           for pattern in 'schnelle-umlaute.so' \
                          'libschnelle-umlaute-config-editor.so' \
+                         'schnelle-umlaute-editor' \
+                         'schnelle-umlaute-overlay' \
+                         'schnelle-umlaute-editor.desktop' \
+                         'schnelle-umlaute-editor.svg' \
+                         'schnelle-umlaute-overlay.desktop' \
+                         'de.schnelle_umlaute.Overlay.service' \
                          'schnelle-umlaute.conf' \
                          'schnelle-umlaute.conf.in' \
                          'org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml'; do
-            hits=$(find /usr /usr/local -name "$pattern" 2>/dev/null || true)
+            hits=$(find /usr /usr/local /etc -name "$pattern" 2>/dev/null || true)
             if [ -n "$hits" ]; then
               echo "FAIL: $pattern still present after uninstall:"
               echo "$hits"
@@ -423,7 +534,8 @@ jobs:
         run: |
           bash -n install.sh
           bash -n uninstall.sh
-          bash -n addon/build.sh
+          bash -n scripts/_distro.sh
+          bash -n addon/scripts/schnelle-umlaute-setup
 
       - name: Shellcheck (warnings and above)
         # -S warning filters out info/style notes so only real issues fail
@@ -431,4 +543,44 @@ jobs:
         run: |
           shellcheck -S warning install.sh
           shellcheck -S warning uninstall.sh
-          shellcheck -S warning addon/build.sh
+          shellcheck -S warning scripts/_distro.sh
+          shellcheck -S warning addon/scripts/schnelle-umlaute-setup
+
+  nix:
+    runs-on: ubuntu-24.04
+    name: Nix flake
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Detect flake
+        id: flake
+        # flake.nix only exists on branches that ship it; skip the Nix steps
+        # cleanly elsewhere (e.g. main before the dev->main swap) so this job
+        # stays green there instead of failing on a missing flake.
+        shell: bash
+        run: |
+          if [ -f flake.nix ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no flake.nix on this branch, skipping Nix build"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Nix
+        if: steps.flake.outputs.present == 'true'
+        shell: bash
+        # Determinate Systems installer: non-interactive and enables nix-command
+        # + flakes by default. Used as a script, not a pinned action, so no
+        # third-party action SHA is introduced.
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix \
+            | sh -s -- install --no-confirm
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+
+      - name: Flake check and build
+        if: steps.flake.outputs.present == 'true'
+        shell: bash
+        run: |
+          nix flake check -L
+          nix build .#default -L

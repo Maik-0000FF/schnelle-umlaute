@@ -1,3 +1,10 @@
+#include <algorithm>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <fcitx-config/iniparser.h>
 #include <fcitx-utils/event.h>
 #include <fcitx-utils/log.h>
 #include <fcitx-utils/textformatflags.h>
@@ -9,252 +16,17 @@
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
-#if __has_include(<fcitx-utils/standardpaths.h>)
-#include <fcitx-utils/standardpaths.h>
-#define SU_HAS_NEW_STDPATHS 1
-#else
-#include <fcntl.h>
-#include <fcitx-utils/standardpath.h>
-#define SU_HAS_NEW_STDPATHS 0
-#endif
-#include <algorithm>
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
-#include <fcitx-config/configuration.h>
-#include <fcitx-config/enum.h>
-#include <fcitx-config/iniparser.h>
-#include <fcitx-utils/fs.h>
 #include <xkbcommon/xkbcommon.h>
-#include "mappings-io.h"
+#include "app_filter.h"
+#include "config.h"
+#include "hand_classifier.h"
+#include "mappings_loader.h"
+#include "overlay_client.h"
+#include "state.h"
 
 namespace fcitx {
 
 constexpr uint32_t kMaxUnicodeCodepoint = 0x10FFFF;
-constexpr uint64_t kMicrosecondsPerSecond = 1'000'000;
-constexpr uint64_t kNanosecondsPerMicrosecond = 1'000;
-constexpr uint64_t kMicrosecondsPerMillisecond = 1'000;
-
-constexpr int kDelayMin = 50;
-constexpr int kDelayMax = 2000;
-constexpr int kDelayStep = 25;
-constexpr int kDeferredCommitDelayMs = 5;
-
-class IntConstrainWithStep {
-public:
-    using Type = int;
-    IntConstrainWithStep(int min, int max, int step)
-        : min_(min), max_(max), step_(step) {}
-    bool check(int value) const { return value >= min_ && value <= max_; }
-    void dumpDescription(RawConfig &config) const {
-        marshallOption(config["IntMin"], min_);
-        marshallOption(config["IntMax"], max_);
-        marshallOption(config["IntStep"], step_);
-    }
-
-private:
-    int min_;
-    int max_;
-    int step_;
-};
-
-/// Annotation that sets placeholder text, optional compact mode, and tooltip.
-struct PlaceholderAnnotation {
-    PlaceholderAnnotation(std::string text, bool compact = false,
-                          std::string tooltip = "")
-        : text_(std::move(text)), compact_(compact),
-          tooltip_(std::move(tooltip)) {}
-    bool skipDescription() const { return false; }
-    bool skipSave() const { return false; }
-    void dumpDescription(RawConfig &config) const {
-        config.setValueByPath("Placeholder", text_);
-        if (compact_) {
-            config.setValueByPath("Compact", "True");
-        }
-        if (!tooltip_.empty()) {
-            config.setValueByPath("Tooltip", tooltip_);
-        }
-    }
-
-private:
-    std::string text_;
-    bool compact_;
-    std::string tooltip_;
-};
-
-/// Annotation that sets only a tooltip (for fields without a placeholder,
-/// e.g. list types). Note: fcitx5-config-qt 5.1.13 sets the tooltip on the
-/// outer ListOptionWidget but its children cover the parent's hover area,
-/// so the tooltip is unreachable there. The KCM/QML variant renders it
-/// correctly.
-struct TooltipAnnotation {
-    TooltipAnnotation(std::string tooltip) : tooltip_(std::move(tooltip)) {}
-    bool skipDescription() const { return false; }
-    bool skipSave() const { return false; }
-    void dumpDescription(RawConfig &config) const {
-        config.setValueByPath("Tooltip", tooltip_);
-    }
-
-private:
-    std::string tooltip_;
-};
-
-FCITX_CONFIGURATION(DelayConfig,
-                    Option<int, IntConstrainWithStep> lowercase{
-                        this, "Lowercase", "Lowercase (ms)", 400,
-                        IntConstrainWithStep(kDelayMin, kDelayMax, kDelayStep)};
-                    Option<int, IntConstrainWithStep> uppercase{
-                        this, "Uppercase", "Uppercase (ms)", 700,
-                        IntConstrainWithStep(kDelayMin, kDelayMax,
-                                             kDelayStep)};);
-
-FCITX_CONFIGURATION(
-    CustomLeaderConfig, Option<bool> customKeyEnabled{this, "CustomKeyEnabled",
-                                                      "Custom Leader 1", false};
-    OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey{
-        this,
-        "CustomKey",
-        "  \xe2\x86\xb3 Key",
-        "",
-        {},
-        {},
-        PlaceholderAnnotation(
-            "e.g. ; or #", true,
-            "Single character. Must not be a mapped input key.")};
-    Option<bool> customKey2Enabled{this, "CustomKey2Enabled",
-                                   "Custom Leader 2 (hand-split)", false};
-    OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey2{
-        this,
-        "CustomKey2",
-        "  \xe2\x86\xb3 Key",
-        "",
-        {},
-        {},
-        PlaceholderAnnotation(
-            "e.g. j or f", true,
-            "Single character on the opposite keyboard half of Leader 1.")};);
-
-FCITX_CONFIGURATION(LeaderConfig,
-                    Option<bool> space{this, "Space", "Space", true};
-                    Option<bool> left{this, "Left", "Left Arrow", false};
-                    Option<bool> right{this, "Right", "Right Arrow", false};
-                    Option<bool> up{this, "Up", "Up Arrow", false};
-                    Option<bool> down{this, "Down", "Down Arrow", false};
-                    Option<bool> alt{this, "Alt", "Alt/AltGr", false};
-                    Option<CustomLeaderConfig> custom{this, "Custom",
-                                                      "Custom Leader Keys"};);
-
-FCITX_CONFIGURATION(MappingsConfig,
-                    ExternalOption editor{
-                        this, "Editor", "Mapping Editor",
-                        "fcitx://config/addon/schnelle-umlaute/mappings.txt"};);
-
-FCITX_CONFIG_ENUM(AppFilterMode, Disabled, Blacklist, Whitelist);
-
-static constexpr const char *kAppFilterListTooltip =
-    "Case-sensitive substring match against the program identifier "
-    "fcitx5 reports. Some apps report their GUI library instead of their "
-    "name (e.g. Kitty \xe2\x86\x92 GLFW_Application).";
-
-FCITX_CONFIGURATION(
-    AppFilterConfig,
-    Option<AppFilterMode> mode{this, "Mode", "Mode", AppFilterMode::Disabled};
-    OptionWithAnnotation<std::vector<std::string>, TooltipAnnotation> blacklist{
-        this,        "Blacklist", "Blacklist", {}, {}, {},
-        TooltipAnnotation(kAppFilterListTooltip)};
-    OptionWithAnnotation<std::vector<std::string>, TooltipAnnotation> whitelist{
-        this,        "Whitelist", "Whitelist", {}, {}, {},
-        TooltipAnnotation(kAppFilterListTooltip)};);
-
-FCITX_CONFIGURATION(
-    SchnelleUmlauteConfig, Option<DelayConfig> delay{this, "Delay", "Delay"};
-    Option<LeaderConfig> leader{this, "Leader", "Leader Keys"};
-    Option<MappingsConfig> mappings{this, "Mappings", "Mappings"};
-    Option<AppFilterConfig> appFilter{this, "AppFilter", "App Filter"};);
-
-// =============================================================================
-// Per-IC State: Each InputContext (application window) gets its own state.
-// This prevents focus switches from corrupting gesture state across windows.
-// =============================================================================
-
-class SchnelleUmlauteState : public InputContextProperty {
-public:
-    // Waiting state (before first Space)
-    std::optional<std::string> waitingKey_;
-    uint64_t startTimeUsec_ = 0;
-    std::unique_ptr<EventSourceTime> timeoutEvent_;
-
-    // Track if input key is physically pressed
-    bool inputKeyPressed_ = false;
-    int waitingKeyCode_ = 0;
-
-    // Set after commit to route next Space through commitString (ordering
-    // guard). Intentionally NOT cleared in clearAllState() — apps like WezTerm
-    // and Chromium call reset() after every commit, which would destroy the
-    // ordering guard before Space arrives.
-    bool recentlyCommitted_ = false;
-
-    // Cycling state (after first Space, while input key held)
-    std::optional<std::string> cyclingInput_;
-    size_t cyclingIndex_ = 0;
-
-    // Track physically held keys to distinguish fresh presses from repeats
-    std::unordered_set<int> heldRawCodes_;
-
-    // Suppress auto-repeat after single-output commit until key is released.
-    // Without this, held accent keys generate repeat events that start new
-    // unwanted gestures after the conversion is already committed (e.g. "üu").
-    int committedKeyCode_ = 0;
-
-    // Track consumed Alt/AltGr leader press to also consume the release.
-    // Prevents compositor state confusion from an orphan modifier release
-    // and TUI side effects from stray Alt release events.
-    int consumedAltCode_ = 0;
-
-    // Active Alt-led cycling session. Set when Alt starts cycling,
-    // cleared only by deferred commit timer or clearAllState().
-    // Survives auto-repeat release-press gaps on KWin Wayland where
-    // cycling is temporarily reset between pairs.
-    bool altGestureSession_ = false;
-
-    void clearAllState() {
-        waitingKey_.reset();
-        inputKeyPressed_ = false;
-        waitingKeyCode_ = 0;
-        // Note: recentlyCommitted_ is intentionally NOT cleared here.
-        cancelTimeout();
-        resetCycling();
-        heldRawCodes_.clear();
-        committedKeyCode_ = 0;
-        consumedAltCode_ = 0;
-        altGestureSession_ = false;
-    }
-
-    void resetCycling() {
-        cyclingInput_.reset();
-        cyclingIndex_ = 0;
-    }
-
-    void cancelTimeout() { timeoutEvent_.reset(); }
-
-    bool isTimeoutExpired(int effectiveDelay) const {
-        if (!waitingKey_)
-            return false;
-        uint64_t now_usec = nowUsec();
-        uint64_t elapsed_ms =
-            (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
-        return elapsed_ms > static_cast<uint64_t>(effectiveDelay);
-    }
-
-    static uint64_t nowUsec() {
-        timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return static_cast<uint64_t>(ts.tv_sec) * kMicrosecondsPerSecond +
-               ts.tv_nsec / kNanosecondsPerMicrosecond;
-    }
-};
 
 // =============================================================================
 // VelocityAccents-Style Implementation
@@ -265,7 +37,7 @@ public:
 // - When input key is released, cycling ends
 // =============================================================================
 
-class SchnelleUmlauteEngine : public InputMethodEngineV2 {
+class SchnelleUmlauteEngine final : public InputMethodEngineV2 {
 public:
     SchnelleUmlauteEngine(Instance *instance)
         : instance_(instance),
@@ -289,11 +61,9 @@ public:
             FCITX_WARN() << "Schnelle: XKB context creation failed"
                          << " — custom leader resolution disabled";
         }
-        buildCharToKeycode();
+        handClassifier_.build(xkbKeymap_);
 
-        // Qualified call: virtual dispatch is inert in constructors,
-        // being explicit silences clang-analyzer-optin.cplusplus.VirtualCall.
-        SchnelleUmlauteEngine::reloadConfig();
+        reloadConfig();
     }
 
     ~SchnelleUmlauteEngine() {
@@ -303,32 +73,49 @@ public:
             xkb_context_unref(xkbCtx_);
     }
 
-    const Configuration *getConfig() const override { return &config_; }
+    // Returns a single-ExternalOption config so fcitx5-config-qt / KDE KCM
+    // hit the "only external" fast path and launch schnelle-umlaute-editor
+    // directly. The real settings still live in config_ and are loaded
+    // from disk by reloadConfig() or from a caller-supplied RawConfig by
+    // setConfig() — see below.
+    const Configuration *getConfig() const override { return &externalConfig_; }
+    // Called by programmatic writers (fcitx5-remote, the testfrontend, or
+    // a future tool using SetConfig on DBus). The gear-icon path never
+    // arrives here any more, because configtool fast-paths on the
+    // single-ExternalOption shape exposed by getConfig(). Keep the full
+    // load/sanitize/save pipeline so RawConfig-based callers still work.
     void setConfig(const RawConfig &config) override {
         config_.load(config);
-        // IntConstrainWithStep rejects out-of-range delay values (uses
-        // default). Normalize custom leader keys to a single character before
-        // saving, so the config file always reflects what is actually used.
-        config_.leader.mutableValue()
-            ->custom.mutableValue()
-            ->customKey.setValue(
-                sanitizeCustomKey(*config_.leader->custom->customKey));
-        config_.leader.mutableValue()
-            ->custom.mutableValue()
-            ->customKey2.setValue(
-                sanitizeCustomKey(*config_.leader->custom->customKey2));
+        normalizeCustomLeaders();
         safeSaveAsIni(config_, "conf/schnelle-umlaute.conf");
         applyConfig();
     }
 
     void reloadConfig() override {
         readAsIni(config_, "conf/schnelle-umlaute.conf");
+        normalizeCustomLeaders();
         applyConfig();
     }
 
     void setSubConfig(const std::string &path,
                       const RawConfig &config) override {
         if (path == "mappings.txt") {
+            // Cancel active gestures on all ICs FIRST so the rebuild below
+            // starts from quiescent state. fcitx5 is single-threaded on the
+            // event loop, so no timer can fire mid-rebuild, but the foreach
+            // itself runs filter pipelines (resetIC, updatePreedit) that
+            // can hit umlautMap_ via observer paths — doing the wipe before
+            // the rebuild keeps those reads consistent. Also avoids leaving
+            // ICs in a cycling state that references a now-removed entry
+            // (e.g. mapping shortened from "ä,ae" to "ä" while held).
+            instance_->inputContextManager().foreach([this](InputContext *ic) {
+                auto *s = ic->propertyFor(&factory_);
+                s->clearAllState();
+                s->recentlyCommitted_ = false;
+                ic->inputPanel().reset();
+                ic->updatePreedit();
+                return true;
+            });
             // If RawConfig contains mapping data, use it directly.
             // Otherwise, reload from file (normal configtool path).
             umlautMap_.clear();
@@ -338,7 +125,7 @@ public:
                 if (!input || input->empty())
                     break;
                 if (output && !output->empty()) {
-                    auto outputs = splitOutputs(*output);
+                    auto outputs = schnelle_umlaute::splitOutputs(*output);
                     if (outputs.empty()) {
                         FCITX_WARN() << "Schnelle: Mapping '" << *input
                                      << "' has no valid outputs"
@@ -349,18 +136,8 @@ public:
                 }
             }
             if (umlautMap_.empty()) {
-                loadMappingsFromFile();
+                umlautMap_ = schnelle_umlaute::loadMappingsFromFile();
             }
-            // Cancel active gestures on all ICs so no cycling state
-            // references stale mappings (e.g. a removed or shortened entry).
-            instance_->inputContextManager().foreach([this](InputContext *ic) {
-                auto *s = ic->propertyFor(&factory_);
-                s->clearAllState();
-                s->recentlyCommitted_ = false;
-                ic->inputPanel().reset();
-                ic->updatePreedit();
-                return true;
-            });
             FCITX_INFO() << "Schnelle: Mappings reloaded, count="
                          << umlautMap_.size();
         }
@@ -371,7 +148,7 @@ public:
         auto *ic = keyEvent.inputContext();
 
         // App filter: let keys pass through in blacklisted/non-whitelisted apps
-        if (isFiltered(ic))
+        if (appFilter_.isFiltered(ic))
             return;
 
         auto *state = ic->propertyFor(&factory_);
@@ -493,6 +270,7 @@ public:
 
                 state->inputKeyPressed_ = false;
                 state->resetCycling();
+                overlayHide();
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -526,6 +304,10 @@ public:
             state->waitingKeyCode_ = 0;
             state->cancelTimeout();
             state->inputKeyPressed_ = false;
+            // Window elapsed (a key arrived right at expiry, before the
+            // timeout timer fired): clear the trigger preview, mirroring the
+            // timeout callback's teardown.
+            hideTriggerOverlay(state);
 
             if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
                 ic->commitString(pending + " ");
@@ -615,6 +397,51 @@ public:
         if (leaderType != LeaderType::None) {
             bool isAlt = isAltLeaderSym(key.sym());
 
+            // A leader press ends the trigger-preview phase: cancel any pending
+            // preview timer. If the preview is already visible, the cycling
+            // logic below decides whether to keep it (multi-variant picker) or
+            // hide it (single output).
+            state->cancelOverlayShow();
+
+            // MIN-HOLD GUARD (lower bound of the accent window)
+            // Before cycling has started, a leader that arrives before the
+            // minimum hold time has elapsed is not an accent trigger. Commit
+            // the plain pending char now (plus a space for the Space leader,
+            // in the same commitString so the order can't flip), then let the
+            // leader act as a normal key. With min == 0 this never fires, so
+            // the historic behavior is unchanged.
+            if (!state->cyclingInput_ && state->waitingKey_ &&
+                state->isBeforeMinHold(getEffectiveMinHold(state))) {
+                std::string pending = *state->waitingKey_;
+                ic->inputPanel().reset();
+                ic->updatePreedit();
+                state->waitingKey_.reset();
+                // Arm auto-repeat suppression for the still-held input key.
+                // Without this, the next auto-repeat of the held key would
+                // start a fresh gesture and duplicate the character (the
+                // "üu"-class bug guarded at the committedKeyCode_ check).
+                state->committedKeyCode_ = state->waitingKeyCode_;
+                state->waitingKeyCode_ = 0;
+                state->cancelTimeout();
+                state->inputKeyPressed_ = false;
+                if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
+                    ic->commitString(pending + " ");
+                    state->recentlyCommitted_ = true;
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+                // Non-Space leader (arrow): commit the plain char and let the
+                // leader through as a normal key. This mirrors the post-timeout
+                // ordering guard above; the committed char and the raw leader
+                // travel on separate XIM channels, so in theory they could
+                // reorder in terminals like WezTerm (the #6 pattern), but only
+                // for arrow leaders combined with a minimum hold, which is
+                // rare.
+                ic->commitString(pending);
+                state->recentlyCommitted_ = true;
+                return;
+            }
+
             // CASE 1: Currently in cycling mode
             if (state->cyclingInput_) {
                 // Check if input key is still pressed
@@ -624,6 +451,7 @@ public:
                     // deferred commit timer handles the real release.
                     if (!(isAlt && state->altGestureSession_)) {
                         state->resetCycling();
+                        overlayHide();
                         return; // Let leader through
                     }
                 }
@@ -636,6 +464,8 @@ public:
                             (state->cyclingIndex_ + 1) % it->second.size();
                         updateClientPreedit(ic,
                                             it->second[state->cyclingIndex_]);
+                        overlayShow(ic, it->second,
+                                    static_cast<int>(state->cyclingIndex_));
                     } else if (state->altGestureSession_ &&
                                !(isAlt && rawCode == state->consumedAltCode_)) {
                         // Single-output Alt cycling: a different leader (not
@@ -648,7 +478,14 @@ public:
                         ic->updatePreedit();
                         state->recentlyCommitted_ = true;
                         state->inputKeyPressed_ = false;
+                        // Arm auto-repeat suppression for the held input key.
+                        // Without this, releasing Alt while the input key is
+                        // still down would let the next repeat start a fresh
+                        // gesture (üu-class duplicate).
+                        state->committedKeyCode_ = state->waitingKeyCode_;
+                        state->waitingKeyCode_ = 0;
                         state->resetCycling();
+                        overlayHide();
                         state->altGestureSession_ = false;
                         state->consumedAltCode_ = 0;
                         // Emit the leader's character if printable so it
@@ -692,8 +529,35 @@ public:
 
                         // Update preedit with first variant
                         updateClientPreedit(ic, it->second[0]);
+                        // Overlay is for choosing among variants; suppress it
+                        // when there's nothing to cycle (single-output Alt
+                        // still needs the cycling state above for the deferred
+                        // commit / re-press machinery).
+                        if (it->second.size() > 1)
+                            overlayShow(ic, it->second, 0);
+                        else if (overlayVisible_)
+                            // Single-output Alt: no picker, but flash the cell
+                            // to confirm the trigger. The commit is deferred
+                            // via the alt-gesture machinery (release / re-press),
+                            // so the flash fires on the Alt press itself,
+                            // mirroring the non-Alt single-output branch below.
+                            flashCommitOverlay(ic, state, it->second);
+                        else
+                            // No preview on screen (fast typing below min-hold):
+                            // just tear down so we don't pop a blip out of
+                            // nowhere.
+                            hideTriggerOverlay(state);
                     } else {
-                        // Single output with non-Alt leader - commit directly
+                        // Single output with non-Alt leader - commit directly.
+                        // If a trigger preview is already showing, flash the
+                        // cell in the accent color to confirm the commit, then
+                        // auto-hide. Otherwise (fast typing below min-hold,
+                        // nothing on screen) just tear down so we don't pop a
+                        // 150 ms blip out of nowhere.
+                        if (overlayVisible_)
+                            flashCommitOverlay(ic, state, it->second);
+                        else
+                            hideTriggerOverlay(state);
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
@@ -777,6 +641,9 @@ public:
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
             scheduleTimeout(ic, state);
+            // Preview the variants in the overlay during the accent window
+            // (opt-in via [Overlay]/ShowOnTrigger). No-op otherwise.
+            scheduleTriggerOverlay(ic, state, keyChar);
 
             // Set preedit text
             updateClientPreedit(ic, keyChar);
@@ -834,6 +701,9 @@ public:
 
         state->clearAllState();
         state->recentlyCommitted_ = false;
+        // Focus left this context: drop any visible overlay (cycling picker or
+        // trigger preview) so it doesn't linger over another window.
+        overlayHide();
     }
 
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
@@ -844,7 +714,26 @@ public:
             return; // Keep all state intact
         }
 
+        // A running commit-flash must survive the post-commit reset that
+        // Chromium and Neovide fire, otherwise the confirmation overlay would
+        // vanish in the same frame as the commit (single-output commits set
+        // inputKeyPressed_ = false, so the early return above doesn't catch
+        // them). Pull the timer out so clearAllState()'s cancelOverlayHide()
+        // becomes a no-op, then restore it and leave the overlay up. The
+        // overlayVisible_ check distinguishes a live flash from a spent timer
+        // (overlayHideEvent_ stays non-null after firing, like overlayShowEvent_).
+        auto flash = std::move(state->overlayHideEvent_);
         state->clearAllState();
+        if (flash && overlayVisible_) {
+            state->overlayHideEvent_ = std::move(flash);
+            return;
+        }
+        // Route through hideTriggerOverlay (not a bare overlayHide) so the
+        // DBus Hide is suppressed when ShowOnTrigger is off. Apps like Chromium
+        // and Neovide call reset() after every commit; cycling holds
+        // inputKeyPressed_ and returned above, so only a trigger preview can
+        // still be showing here.
+        hideTriggerOverlay(state);
     }
 
 private:
@@ -852,7 +741,7 @@ private:
     // Shared by setConfig (values already loaded) and reloadConfig (read from
     // disk).
     void applyConfig() {
-        loadMappingsFromFile();
+        umlautMap_ = schnelle_umlaute::loadMappingsFromFile();
 
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
@@ -884,8 +773,8 @@ private:
                 FCITX_WARN()
                     << "Schnelle: CustomKey and CustomKey2 are identical"
                     << " — dual split disabled, both trigger all mappings";
-            } else if (isLeftHand(cachedCustomKey_) ==
-                       isLeftHand(cachedCustomKey2_)) {
+            } else if (handClassifier_.isLeftHand(cachedCustomKey_) ==
+                       handClassifier_.isLeftHand(cachedCustomKey2_)) {
                 FCITX_WARN()
                     << "Schnelle: CustomKey '" << cachedCustomKey_
                     << "' and CustomKey2 '" << cachedCustomKey2_
@@ -914,48 +803,19 @@ private:
         if (leaders.empty())
             leaders = "None ";
 
-        // App filter: cache values from config
-        filterMode_ = *config_.appFilter->mode;
-        blacklist_ = *config_.appFilter->blacklist;
-        whitelist_ = *config_.appFilter->whitelist;
+        // App filter: push config values into the filter
+        appFilter_.configure(*config_.appFilter->mode,
+                             *config_.appFilter->blacklist,
+                             *config_.appFilter->whitelist);
 
-        FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase="
-                     << *config_.delay->lowercase
-                     << "ms, DelayUppercase=" << *config_.delay->uppercase
-                     << "ms, Leaders=" << leaders
+        FCITX_INFO() << "Schnelle: Config loaded - DelayLowercase=["
+                     << *config_.delay->lowercaseMin << ","
+                     << *config_.delay->lowercase << "]ms, DelayUppercase=["
+                     << *config_.delay->uppercaseMin << ","
+                     << *config_.delay->uppercase << "]ms, Leaders=" << leaders
                      << ", Mappings=" << umlautMap_.size();
-    }
 
-    // App filter: check if processing should be skipped for this IC's app.
-    bool isFiltered(InputContext *ic) const {
-        if (filterMode_ == AppFilterMode::Disabled)
-            return false;
-
-        const std::string &program = ic->program();
-        if (program.empty())
-            return filterMode_ == AppFilterMode::Whitelist;
-
-        // Empty list entries are skipped: find("") returns 0 (matches
-        // anything), which would make a stray blank line in the blacklist
-        // disable the addon entirely, or a blank line in the whitelist
-        // bypass the filter entirely.
-        if (filterMode_ == AppFilterMode::Blacklist) {
-            for (const auto &app : blacklist_) {
-                if (app.empty())
-                    continue;
-                if (program.find(app) != std::string::npos)
-                    return true;
-            }
-            return false;
-        }
-        // Whitelist: only active in listed apps
-        for (const auto &app : whitelist_) {
-            if (app.empty())
-                continue;
-            if (program.find(app) != std::string::npos)
-                return false;
-        }
-        return true;
+        overlayClient_.applyEnabledTransition(*config_.overlay->enabled);
     }
 
     void updateClientPreedit(InputContext *ic, const std::string &text) {
@@ -999,6 +859,7 @@ private:
                         state->recentlyCommitted_ = true;
                     }
                     state->resetCycling();
+                    overlayHide();
                     state->waitingKeyCode_ = 0;
                 }
                 state->altGestureSession_ = false;
@@ -1010,6 +871,7 @@ private:
     void commitPendingKey(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->waitingKey_)
             return;
+        hideTriggerOverlay(state);
         ic->inputPanel().reset();
         ic->commitString(*state->waitingKey_);
         ic->updatePreedit();
@@ -1035,77 +897,11 @@ private:
         }
         state->inputKeyPressed_ = false;
         state->resetCycling();
+        overlayHide();
     }
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs
     // are valid (e.g. mapping a key to " " so terminal commands skip history).
-    // Comma is the separator between cycling variants: "a,b" → ["a", "b"].
-    // Double comma escapes a literal comma: "a,,b" → ["a,b"].
-    // Empty segments are skipped: "a,,,b" → ["a,", "b"] (greedy from left).
-    std::vector<std::string> splitOutputs(const std::string &output) {
-        std::vector<std::string> outputs;
-        if (output.empty())
-            return outputs;
-
-        std::string current;
-        for (size_t i = 0; i < output.length(); ++i) {
-            if (output[i] == ',') {
-                if (i + 1 < output.length() && output[i + 1] == ',') {
-                    current += ',';
-                    ++i;
-                } else {
-                    if (!current.empty()) {
-                        outputs.push_back(std::move(current));
-                        current.clear();
-                    }
-                }
-            } else {
-                current += output[i];
-            }
-        }
-        // Trailing comma produces an empty segment which is intentionally
-        // skipped — an empty cycling variant would be useless.
-        if (!current.empty()) {
-            outputs.push_back(std::move(current));
-        }
-        return outputs;
-    }
-
-    void loadMappingsFromFile() {
-        umlautMap_.clear();
-#if SU_HAS_NEW_STDPATHS
-        auto file = StandardPaths::global().open(
-            StandardPathsType::PkgConfig, "schnelle-umlaute/mappings.txt");
-        if (file.isValid()) {
-            auto fp = fs::openFD(file, "r");
-#else
-        auto file = StandardPath::global().open(StandardPath::Type::PkgConfig,
-                                                "schnelle-umlaute/mappings.txt",
-                                                O_RDONLY);
-        if (file.fd() >= 0) {
-            auto fp = fs::openFD(file, "r");
-#endif
-            if (fp) {
-                for (const auto &m :
-                     schnelle_umlaute::parseMappings(fp.get())) {
-                    auto outputs = splitOutputs(m.output);
-                    if (outputs.empty()) {
-                        FCITX_WARN() << "Schnelle: Mapping '" << m.input
-                                     << "' has no valid outputs"
-                                     << " — skipped";
-                        continue;
-                    }
-                    umlautMap_[m.input] = std::move(outputs);
-                }
-            }
-        }
-        if (umlautMap_.empty()) {
-            for (const auto &m : schnelle_umlaute::defaultMappings()) {
-                umlautMap_[m.input] = splitOutputs(m.output);
-            }
-        }
-    }
-
     // Check for Ctrl/Alt/Super in key state. Shift is intentionally
     // excluded — it is needed for uppercase accent mappings (Shift+A → Ä).
     static bool hasModifiers(const Key &key) {
@@ -1207,61 +1003,6 @@ private:
         return LeaderType::None;
     }
 
-    // Physical keycode-based left-hand classification — layout-independent.
-    // Uses standard PC keyboard evdev codes: the physical key position
-    // determines the hand, not the character printed on the keycap.
-    // Works correctly for QWERTY, QWERTZ, AZERTY, Dvorak, Colemak, etc.
-    static bool isLeftHandKeycode(int keycode) {
-        return (keycode >= 24 && keycode <= 28) || // Q W E R T row
-               (keycode >= 38 && keycode <= 42) || // A S D F G row
-               (keycode >= 52 && keycode <= 56) || // Z X C V B row
-               keycode == 49 ||                    // ` ~
-               (keycode >= 10 && keycode <= 14);   // 1 2 3 4 5
-    }
-
-    // Check if a character is on the left hand of the keyboard.
-    // Uses reverse XKB keymap lookup (char → keycode → physical position).
-    // Falls back to right hand (false) for unknown chars or missing keymap,
-    // which disables dual split (both leaders seen as same hand).
-    bool isLeftHand(const std::string &key) const {
-        std::string lookup = key;
-        if (lookup.size() == 1 && lookup[0] >= 'A' && lookup[0] <= 'Z')
-            lookup[0] = static_cast<char>(lookup[0] - 'A' + 'a');
-        auto it = charToKeycode_.find(lookup);
-        if (it == charToKeycode_.end())
-            return false;
-        return isLeftHandKeycode(it->second);
-    }
-
-    // Build reverse mapping (character → physical keycode) from the XKB
-    // keymap.  Intentionally level 0 (unshifted) only — shifted symbols
-    // like @ (Shift+2) or ? (Shift+/) are not mapped.  Unknown chars
-    // fall back to right hand in isLeftHand(), which means two shifted-
-    // symbol leaders disable the split rather than enforce a wrong one.
-    // This is the safer default: custom keyboards may place higher-level
-    // characters on arbitrary physical positions (e.g. thumb clusters),
-    // so assuming the base key's position would be incorrect.
-    void buildCharToKeycode() {
-        charToKeycode_.clear();
-        if (!xkbKeymap_)
-            return;
-        xkb_keycode_t min = xkb_keymap_min_keycode(xkbKeymap_);
-        xkb_keycode_t max = xkb_keymap_max_keycode(xkbKeymap_);
-        for (xkb_keycode_t code = min; code <= max; ++code) {
-            const xkb_keysym_t *syms;
-            int n =
-                xkb_keymap_key_get_syms_by_level(xkbKeymap_, code, 0, 0, &syms);
-            if (n > 0) {
-                uint32_t uc = xkb_keysym_to_utf32(syms[0]);
-                if (uc > 0 && uc <= kMaxUnicodeCodepoint) {
-                    std::string ch = utf8::UCS4ToUTF8(uc);
-                    charToKeycode_.emplace(std::move(ch),
-                                           static_cast<int>(code));
-                }
-            }
-        }
-    }
-
     // Dual custom leader split: when BOTH custom keys are set and on
     // opposite hands, each only triggers inputs on the OTHER hand.
     // Single custom key or same-hand keys → no restriction.
@@ -1283,15 +1024,16 @@ private:
         if (cachedCustomKey_ == cachedCustomKey2_)
             return true;
 
-        bool key1Left = isLeftHand(cachedCustomKey_);
-        bool key2Left = isLeftHand(cachedCustomKey2_);
+        bool key1Left = handClassifier_.isLeftHand(cachedCustomKey_);
+        bool key2Left = handClassifier_.isLeftHand(cachedCustomKey2_);
 
         // Both keys on same hand → no split possible, allow all
         if (key1Left == key2Left)
             return true;
 
-        bool inputLeft = (inputKeyCode > 0) ? isLeftHandKeycode(inputKeyCode)
-                                            : isLeftHand(inputKey);
+        bool inputLeft = (inputKeyCode > 0)
+                             ? HandClassifier::isLeftHandKeycode(inputKeyCode)
+                             : handClassifier_.isLeftHand(inputKey);
 
         // Left-hand leader triggers RIGHT-hand inputs (and vice versa)
         if (leader == LeaderType::Custom1)
@@ -1311,6 +1053,25 @@ private:
         return isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
     }
 
+    // Lower bound (minimum hold) of the accent window for the waiting key.
+    // Mirrors getEffectiveDelay's lowercase/uppercase split. The editor clamps
+    // min < max, but a hand-edited config could set min >= max, which would
+    // make the window unreachable and silently kill every accent. Guard against
+    // that by ignoring a degenerate lower bound, so the window falls back to
+    // [0, max] instead of going dead.
+    int getEffectiveMinHold(const SchnelleUmlauteState *state) const {
+        bool isUpper =
+            state->waitingKey_ && state->waitingKey_->length() == 1 &&
+            (*state->waitingKey_)[0] >= 'A' && (*state->waitingKey_)[0] <= 'Z';
+        int minHold = isUpper ? *config_.delay->uppercaseMin
+                              : *config_.delay->lowercaseMin;
+        int maxDelay =
+            isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
+        if (minHold >= maxDelay)
+            return 0;
+        return minHold;
+    }
+
     void scheduleTimeout(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->waitingKey_)
             return;
@@ -1325,10 +1086,11 @@ private:
         uint64_t target_usec =
             now_usec +
             static_cast<uint64_t>(effectiveDelay) * kMicrosecondsPerMillisecond;
+
         auto savedRef = ic->watch();
         state->timeoutEvent_ = eventLoop->addTimeEvent(
             CLOCK_MONOTONIC, target_usec, 0,
-            [state, savedKey, savedRef](EventSourceTime *, uint64_t) {
+            [this, state, savedKey, savedRef](EventSourceTime *, uint64_t) {
                 // Safety: state is owned by IC (InputContextProperty). If IC
                 // is destroyed, savedRef.get() returns nullptr and we bail
                 // before touching state. No race: fcitx5's event loop is
@@ -1346,6 +1108,8 @@ private:
                     state->waitingKey_.reset();
                     state->waitingKeyCode_ = 0;
                     state->inputKeyPressed_ = false;
+                    // Window elapsed without a leader: clear the preview.
+                    hideTriggerOverlay(state);
                 }
                 // Don't reset timeoutEvent_ here — destroying the EventSource
                 // inside its own callback is a use-after-free risk. Returning
@@ -1353,6 +1117,21 @@ private:
                 // the next scheduleTimeout() or cancelTimeout() call.
                 return false;
             });
+    }
+
+    // Shared by setConfig (values already loaded) and reloadConfig (read
+    // from disk). Writes the normalized values back into config_ so that
+    // the next safeSaveAsIni emits clean entries and applyConfig finds
+    // consistent cached values.
+    void normalizeCustomLeaders() {
+        config_.leader.mutableValue()
+            ->custom.mutableValue()
+            ->customKey.setValue(
+                sanitizeCustomKey(*config_.leader->custom->customKey));
+        config_.leader.mutableValue()
+            ->custom.mutableValue()
+            ->customKey2.setValue(
+                sanitizeCustomKey(*config_.leader->custom->customKey2));
     }
 
     // Sanitize custom leader key: trim whitespace, keep only first UTF-8
@@ -1376,6 +1155,11 @@ private:
 
     Instance *instance_;
     SchnelleUmlauteConfig config_;
+    // What getConfig() returns to fcitx5-config-qt / KDE KCM. Holds a
+    // single ExternalOption so the configtool fast-paths past the dialog
+    // and launches schnelle-umlaute-editor. The real settings live in
+    // config_ and are written by the editor directly.
+    ExternalEditorConfig externalConfig_;
     FactoryFor<SchnelleUmlauteState> factory_;
 
     // Mappings (shared across all InputContexts, read-only after config load)
@@ -1388,14 +1172,142 @@ private:
     // resolved back to '/' so the leader still matches).
     struct xkb_context *xkbCtx_ = nullptr;
     struct xkb_keymap *xkbKeymap_ = nullptr;
-    // Reverse mapping: character → physical evdev keycode.
-    // Built from the XKB keymap for layout-independent hand classification.
-    std::unordered_map<std::string, int> charToKeycode_;
+    // Layout-independent hand classifier. Built from xkbKeymap_ after the
+    // keymap is ready; used by isDualCustomAllowed() for the dual
+    // custom-leader split feature.
+    HandClassifier handClassifier_;
     // App filter (cached from config). When set to Blacklist/Whitelist,
     // processing is skipped for matching apps based on ic->program().
-    AppFilterMode filterMode_ = AppFilterMode::Disabled;
-    std::vector<std::string> blacklist_;
-    std::vector<std::string> whitelist_;
+    AppFilter appFilter_;
+    // DBus client for the standalone overlay daemon. Tracks its own
+    // lifecycle — calling applyEnabledTransition() on every config reload
+    // starts or stops the daemon in response to the Enabled flag.
+    OverlayClient overlayClient_;
+    // Best-effort mirror of the daemon's visibility so overlayHide() can skip
+    // a redundant DBus Hide when nothing is showing. Plain typing with
+    // ShowOnTrigger on otherwise emits two spurious Hides per mapped keystroke
+    // (commitPendingKey + the app's follow-up reset). A daemon restart can
+    // briefly desync this, but the next real show() corrects it.
+    bool overlayVisible_ = false;
+
+    void overlayShow(InputContext *ic, const std::vector<std::string> &variants,
+                     int index) {
+        if (!*config_.overlay->enabled)
+            return;
+        (void)ic;
+        // Combine the two enum halves into the single "<Row><Col>" string
+        // the overlay daemon expects (e.g. "TopCol4", "CenterCol7").
+        std::string position = OverlayRowToString(*config_.overlay->row);
+        position += OverlayColumnToString(*config_.overlay->column);
+        overlayClient_.show(variants, index, position);
+        overlayVisible_ = true;
+    }
+    void overlayHide() {
+        if (!*config_.overlay->enabled || !overlayVisible_)
+            return;
+        overlayClient_.hide();
+        overlayVisible_ = false;
+    }
+
+    // Index sent to the overlay for the trigger-window preview. No cell
+    // matches it, so the picker shows the variants without a green highlight —
+    // the active cell only lights up once a leader press starts cycling.
+    static constexpr int kPreviewNoHighlight = -1;
+
+    // Trigger-window preview ([Overlay]/ShowOnTrigger). Show the mapping's
+    // variants as soon as the accent window opens — for EVERY mapped key,
+    // including single-variant ones that never enter the cycling picker. The
+    // preview waits for the minimum hold to elapse (shows immediately when
+    // min == 0) and shows the variants with no cell highlighted. Once a leader
+    // is pressed the cycling logic takes over: it keeps the overlay (now
+    // highlighting the active variant) for multi-variant keys and hides it for
+    // single-output keys, so cycling behaves exactly as before.
+    void scheduleTriggerOverlay(InputContext *ic, SchnelleUmlauteState *state,
+                                const std::string &keyChar) {
+        if (!*config_.overlay->enabled || !*config_.overlay->showOnTrigger)
+            return;
+        auto it = umlautMap_.find(keyChar);
+        if (it == umlautMap_.end() || it->second.empty())
+            return;
+
+        // A fresh preview supersedes a pending commit-flash hide from a
+        // previous single-mapping commit, so that stale timer can't blank
+        // this overlay mid-flash.
+        state->cancelOverlayHide();
+
+        int minHold = getEffectiveMinHold(state);
+        if (minHold <= 0) {
+            overlayShow(ic, it->second, kPreviewNoHighlight);
+            return;
+        }
+
+        auto variants = it->second;
+        auto savedRef = ic->watch();
+        auto *eventLoop = &instance_->eventLoop();
+        uint64_t target =
+            SchnelleUmlauteState::nowUsec() +
+            static_cast<uint64_t>(minHold) * kMicrosecondsPerMillisecond;
+
+        // keyChar is captured by value so the copy outlives this call; the
+        // deferred lambda compares it against the still-held waiting key.
+        state->overlayShowEvent_ = eventLoop->addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [this, state, keyChar, variants, savedRef](EventSourceTime *,
+                                                       uint64_t) {
+                // Safety mirrors scheduleTimeout: the single-threaded event
+                // loop guarantees state outlives a non-null savedRef.get().
+                auto *ctx = savedRef.get();
+                if (!ctx)
+                    return false;
+                // Only preview if still holding the same key and a leader has
+                // not started cycling in the meantime.
+                if (state->waitingKey_ && *state->waitingKey_ == keyChar &&
+                    !state->cyclingInput_)
+                    overlayShow(ctx, variants, kPreviewNoHighlight);
+                return false;
+            });
+    }
+
+    // Tear down the trigger-window preview: cancel a pending show timer and
+    // hide the overlay. The DBus hide is suppressed unless the preview feature
+    // is on, so plain commits don't emit a Hide on every keystroke.
+    void hideTriggerOverlay(SchnelleUmlauteState *state) {
+        state->cancelOverlayShow();
+        if (*config_.overlay->enabled && *config_.overlay->showOnTrigger)
+            overlayHide();
+    }
+
+    // How long the single cell stays highlighted after a single-mapping
+    // commit before the overlay fades. Long enough for the 120 ms cell color
+    // animation to land, short enough to feel like a confirmation blip.
+    static constexpr int kCommitFlashMs = 150;
+
+    // Confirm a single-mapping commit visually: highlight the (only) cell so
+    // it lights up in the accent color, then hide after a short flash. Only
+    // meaningful when a preview is already on screen — callers gate on
+    // overlayVisible_ so fast typing below the min-hold doesn't pop a blip.
+    void flashCommitOverlay(InputContext *ic, SchnelleUmlauteState *state,
+                            const std::vector<std::string> &variants) {
+        state->cancelOverlayShow();
+        overlayShow(ic, variants, 0);
+        auto savedRef = ic->watch();
+        auto *eventLoop = &instance_->eventLoop();
+        uint64_t target = SchnelleUmlauteState::nowUsec() +
+                          static_cast<uint64_t>(kCommitFlashMs) *
+                              kMicrosecondsPerMillisecond;
+        state->overlayHideEvent_ = eventLoop->addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [this, savedRef](EventSourceTime *, uint64_t) {
+                // Hide once the flash elapses. An orphaned timer can't blank a
+                // newer overlay: every fresh gesture cancels it first via
+                // scheduleTriggerOverlay's cancelOverlayHide(). The
+                // overlayVisible_ guard in overlayHide() is just a backstop for
+                // the case where an unrelated hide already ran (then it no-ops).
+                if (savedRef.get())
+                    overlayHide();
+                return false;
+            });
+    }
 };
 
 class SchnelleUmlauteEngineFactory : public AddonFactory {

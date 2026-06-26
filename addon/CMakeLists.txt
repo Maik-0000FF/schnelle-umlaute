@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(fcitx5-schnelle-umlaute VERSION 1.1.1)
+project(fcitx5-schnelle-umlaute VERSION 1.2.2)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,14 +20,17 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(XKBCommon REQUIRED IMPORTED_TARGET xkbcommon)
 
 set(QT_MAJOR_VERSION 6)
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
-find_package(Fcitx5Qt${QT_MAJOR_VERSION}WidgetsAddons REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Core Qml Quick QuickControls2)
 
 include(GNUInstallDirs)
 
 # Sources
 set(SCHNELLE_UMLAUTE_SOURCES
     src/schnelle-umlaute.cpp
+    src/hand_classifier.cpp
+    src/app_filter.cpp
+    src/mappings_loader.cpp
+    src/overlay_client.cpp
 )
 
 # Shared headers (mappings-io.h) available to both addon and config editor
@@ -60,8 +63,17 @@ install(FILES data/schnelle-umlaute-inputmethod.conf
         DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod"
         RENAME schnelle-umlaute.conf)
 
-# Config editor Qt plugin
-add_subdirectory(config-editor)
+# Standalone QML editor (launched directly from fcitx5-configtool's gear
+# icon via the ExternalOption returned by SchnelleUmlauteEngine::getConfig())
+add_subdirectory(editor)
+
+# Standalone QML overlay daemon
+add_subdirectory(overlay)
+
+# Per-user setup helper (env-vars + autostart). Run once after install
+# from a normal terminal as the regular user — never as root.
+install(PROGRAMS scripts/schnelle-umlaute-setup
+        DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 # Tests (off by default — install scripts and end users don't need them)
 option(BUILD_TESTING "Build tests" OFF)

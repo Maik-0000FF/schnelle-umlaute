@@ -5,19 +5,14 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>Schnelle Umlaute</name>
-  <summary>Quick accent and special-character input via hold-and-leader gesture</summary>
+  <summary>Quick German umlaut input</summary>
   <description>
     <p>
-      Input accented characters by holding the base letter and pressing a leader key
-      (Space by default; Arrow, Alt/AltGr, or custom keys also supported).
+      Input German umlauts (ä, ö, ü, ß) by holding the base letter and pressing Space.
       Hold 'a' + Space → ä
       Hold 'o' + Space → ö
       Hold 'u' + Space → ü
       Hold 's' + Space → ß
-
-      Configure unlimited custom mappings — German, French, Spanish, Portuguese,
-      Braille, emoji, Unicode, or text snippets. Optional per-app blacklist or
-      whitelist (App Filter) disables the addon in selected applications.
 
       Works in X11 and Wayland without clipboard or root permissions.
     </p>
@@ -27,8 +22,9 @@
   <developer_name>Maik-0000FF</developer_name>
   <update_contact>https://github.com/Maik-0000FF</update_contact>
   <releases>
-    <release version="1.1.1" date="2026-05-13"/>
-    <release version="1.1.0" date="2026-05-02"/>
+    <release version="1.2.2" date="2026-05-26"/>
+    <release version="1.2.1" date="2026-05-15"/>
+    <release version="1.2.0" date="2026-05-05"/>
     <release version="1.0.0" date="2026-04-02"/>
     <release version="0.1.5" date="2026-03-21"/>
     <release version="0.1.4" date="2026-03-19"/>

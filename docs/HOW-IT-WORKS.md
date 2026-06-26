@@ -27,7 +27,7 @@ stateDiagram-v2
     Normal --> [*]: a
 ```
 
-**Note:** Leader key is <kbd>Space</kbd> by default. You can configure it to Arrow keys (<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>), <kbd>Alt</kbd>/<kbd>AltGr</kbd>, or custom keys in `fcitx5-config-qt`.
+**Note:** Leader key is <kbd>Space</kbd> by default. You can configure it to Arrow keys (<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>), <kbd>Alt</kbd>/<kbd>AltGr</kbd>, or custom keys in the standalone editor (`schnelle-umlaute-editor`, also reachable via the gear button next to the addon in `fcitx5-config-qt`).
 
 **App Filter:** The gestures described below only fire in apps that are not excluded by the App Filter. By default the addon is active everywhere; you can blacklist specific apps (or whitelist only selected apps) — see [Configuration → App Filter](CONFIGURATION.md#app-filter).
 

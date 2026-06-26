@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=de.schnelle_umlaute.Overlay
+Exec=@CMAKE_INSTALL_FULL_BINDIR@/schnelle-umlaute-overlay

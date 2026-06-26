@@ -15,47 +15,16 @@ echo
 
 # --- Distribution Detection ---
 
-detect_distro() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        case "$ID" in
-            arch|manjaro|endeavouros|garuda|artix|cachyos)
-                echo "arch" ;;
-            debian|ubuntu|linuxmint|pop|kali|elementary|zorin|mx|neon)
-                echo "debian" ;;
-            fedora|nobara)
-                echo "fedora" ;;
-            opensuse*|suse)
-                echo "suse" ;;
-            *)
-                case "${ID_LIKE:-}" in
-                    *arch*)                 echo "arch" ;;
-                    *debian*|*ubuntu*)      echo "debian" ;;
-                    *fedora*)               echo "fedora" ;;
-                    *suse*)                 echo "suse" ;;
-                    *)                      echo "unknown" ;;
-                esac ;;
-        esac
-    elif command -v pacman >/dev/null 2>&1; then
-        echo "arch"
-    elif command -v apt >/dev/null 2>&1; then
-        echo "debian"
-    elif command -v dnf >/dev/null 2>&1; then
-        echo "fedora"
-    elif command -v zypper >/dev/null 2>&1; then
-        echo "suse"
-    else
-        echo "unknown"
-    fi
-}
-
-DISTRO=$(detect_distro)
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/_distro.sh
+. "$PROJECT_ROOT/scripts/_distro.sh"
+detect_distro_info
 
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     DISTRO_NAME="${PRETTY_NAME:-$ID}"
 else
-    DISTRO_NAME="Unknown"
+    DISTRO_NAME="$FAMILY_LABEL"
 fi
 
 echo -e "${BLUE}Distribution:${NC} $DISTRO_NAME"
@@ -88,6 +57,8 @@ FOUND_FILES=()
 for lib_path in "${LIB_PATHS[@]}"; do
     [ -f "$lib_path/schnelle-umlaute.so" ] && \
         FOUND_FILES+=("$lib_path/schnelle-umlaute.so")
+    # Legacy fcitx5-configtool Qt plugin (removed in v1.2.0). Kept so
+    # uninstall still cleans up stale .so files from older installs.
     [ -f "$lib_path/qt6/libschnelle-umlaute-config-editor.so" ] && \
         FOUND_FILES+=("$lib_path/qt6/libschnelle-umlaute-config-editor.so")
 done
@@ -101,6 +72,23 @@ DATA_FILES=(
     /usr/local/share/fcitx5/addon/schnelle-umlaute.conf.in
     /usr/local/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
     /usr/local/share/fcitx5/inputmethod/schnelle-umlaute.conf
+    # Standalone editor + overlay daemon
+    /usr/bin/schnelle-umlaute-editor
+    /usr/local/bin/schnelle-umlaute-editor
+    /usr/bin/schnelle-umlaute-overlay
+    /usr/local/bin/schnelle-umlaute-overlay
+    /usr/share/applications/schnelle-umlaute-editor.desktop
+    /usr/local/share/applications/schnelle-umlaute-editor.desktop
+    /usr/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
+    /usr/local/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
+    # DBus activation (current) — daemon starts on demand when enabled.
+    /usr/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
+    /usr/local/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
+    # XDG autostart files from older installs. We no longer ship these
+    # (daemon lifecycle follows the enabled flag now) but keep them in the
+    # cleanup list so upgrades remove the stale entries.
+    /etc/xdg/autostart/schnelle-umlaute-overlay.desktop
+    /usr/local/etc/xdg/autostart/schnelle-umlaute-overlay.desktop
 )
 
 for file in "${DATA_FILES[@]}"; do
@@ -144,6 +132,17 @@ fi
 
 # --- Remove Files ---
 
+# Kill the overlay daemon before deleting its binary so the old process
+# doesn't keep running with a stale file descriptor. pkill -f matches the
+# full command line — killall/pkill without -f truncate to 15 chars
+# (TASK_COMM_LEN) and miss our 24-char name. -u "$INVOKING_USER" scopes the
+# kill to the invoking user on shared hosts.
+if pgrep -u "$INVOKING_USER" -f "schnelle-umlaute-overlay" >/dev/null; then
+    echo -e "${BLUE}Stopping overlay daemon...${NC}"
+    pkill -u "$INVOKING_USER" -f "schnelle-umlaute-overlay" 2>/dev/null || true
+    sleep 1
+fi
+
 echo -e "${BLUE}Removing files (requires sudo)...${NC}"
 sudo rm -f "${FOUND_FILES[@]}"
 for file in "${FOUND_FILES[@]}"; do
@@ -155,16 +154,19 @@ echo
 
 USER_CONFIG="$HOME/.config/fcitx5/conf/schnelle-umlaute.conf"
 MAPPINGS_DIR="$HOME/.config/fcitx5/schnelle-umlaute"
+USER_AUTOSTART="$HOME/.config/autostart/schnelle-umlaute-overlay.desktop"
 
-if [ -f "$USER_CONFIG" ] || [ -d "$MAPPINGS_DIR" ]; then
+if [ -f "$USER_CONFIG" ] || [ -d "$MAPPINGS_DIR" ] || [ -f "$USER_AUTOSTART" ]; then
     echo -e "${YELLOW}User configuration found:${NC}"
     [ -f "$USER_CONFIG" ] && echo "  - $USER_CONFIG (settings)"
     [ -d "$MAPPINGS_DIR" ] && echo "  - $MAPPINGS_DIR/ (mappings)"
+    [ -f "$USER_AUTOSTART" ] && echo "  - $USER_AUTOSTART (overlay autostart override)"
     read -p "Remove user configuration? [y/N] " -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         [ -f "$USER_CONFIG" ] && rm -f "$USER_CONFIG"
         [ -d "$MAPPINGS_DIR" ] && rm -rf "$MAPPINGS_DIR"
+        [ -f "$USER_AUTOSTART" ] && rm -f "$USER_AUTOSTART"
         echo -e "${GREEN}✓ User configuration removed${NC}"
     else
         echo -e "${YELLOW}Keeping user configuration${NC}"
