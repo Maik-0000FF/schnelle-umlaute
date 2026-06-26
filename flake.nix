@@ -48,7 +48,7 @@
         let
           cfg = config.programs.schnelle-umlaute;
           # Built against the consumer's nixpkgs (same fcitx5/Qt as the system).
-          addon = pkgs.callPackage ./nix/package.nix { src = self; };
+          addon = mkPkg pkgs;
         in
         {
           options.programs.schnelle-umlaute.enable = lib.mkEnableOption "the schnelle-umlaute fcitx5 addon (accent input, Wayland overlay, QML editor)";
