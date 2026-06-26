@@ -63,8 +63,6 @@ yay -S fcitx5-schnelle-umlaute-git
 ```
 
 > **About `-git`:** This package builds from the `dev` branch and ships features ahead of the latest tagged release — the standalone QML editor (`schnelle-umlaute-editor`), the cycle overlay daemon, and the per-user setup script (`schnelle-umlaute-setup`). Run `schnelle-umlaute-setup` once after install to write your fcitx5 environment variables and set up autostart. As a safety net, the editor also detects missing input-method variables on startup and offers to write them — but it does not configure autostart, so running `schnelle-umlaute-setup` is still the complete path.
->
-> A stable AUR package (`fcitx5-schnelle-umlaute`) tracking tagged releases will be added in a future update.
 
 ### Install from source (Arch Linux · Ubuntu/Debian · Linux Mint · Fedora · openSUSE)
 
