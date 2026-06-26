@@ -17,9 +17,9 @@ Rectangle {
         spacing: Theme.spacingMd
 
         Image {
-            source: "qrc:/qt/qml/SchnelleUmlaute/assets/schnelle-umlaute-icon.svg"
-            sourceSize.width: 32
-            sourceSize.height: 32
+            source: "qrc:/qt/qml/SchnelleUmlaute/assets/schnelle-umlaute-icon.png"
+            sourceSize.width: 64
+            sourceSize.height: 64
             width: 32
             height: 32
             fillMode: Image.PreserveAspectFit
