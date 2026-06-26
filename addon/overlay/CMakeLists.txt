@@ -32,6 +32,12 @@ set_target_properties(schnelle-umlaute-overlay PROPERTIES
 qt_add_qml_module(schnelle-umlaute-overlay
     URI SchnelleUmlauteOverlay
     VERSION 1.0
+    # Unlike the editor module, qmlcachegen stays ON here. The Qt 6.4 bug
+    # that miscompiles Layout bindings (see addon/editor/CMakeLists.txt) needs
+    # Layout.* attached-property bindings to trigger, and this module has none:
+    # Overlay.qml positions its single RowLayout's cells by fixed width/height.
+    # Verified by static check, not yet rendered on Qt 6.4; revisit here if the
+    # overlay ever collapses onto one position on that version.
     QML_FILES
         Overlay.qml
 )
