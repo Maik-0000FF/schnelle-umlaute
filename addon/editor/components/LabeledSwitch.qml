@@ -33,8 +33,8 @@ RowLayout {
         // grows the row, the card, and shifts every label inside it.
         padding: 0
         spacing: 0
-        implicitWidth: 40
-        implicitHeight: 22
+        implicitWidth: sw.indicator.implicitWidth
+        implicitHeight: sw.indicator.implicitHeight
 
         indicator: Rectangle {
             implicitWidth: 40
