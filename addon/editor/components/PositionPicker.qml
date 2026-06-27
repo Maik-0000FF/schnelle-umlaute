@@ -19,6 +19,19 @@ ColumnLayout {
     readonly property int rows: 3
     readonly property var rowPrefixes: ["Top", "Center", "Bottom"]
 
+    // Caption font, declared once so the reserved two-line height below tracks
+    // it instead of a hardcoded pixel count.
+    readonly property int captionFontSize: 11
+    FontMetrics {
+        id: captionMetrics
+        font.family: Theme.fontFamily
+        font.pixelSize: root.captionFontSize
+        font.italic: true
+    }
+    // Fixed slot for two lines so swapping the caption text never reflows the
+    // column and makes the rows below jump.
+    readonly property real captionHeight: 2 * captionMetrics.height
+
     function positionFor(r, c) {
         return root.rowPrefixes[r] + "Col" + (c + 1)
     }
@@ -107,14 +120,17 @@ ColumnLayout {
         Canvas {
             id: cursorMarker
             visible: root.atCursorMode
-            width: 56
-            height: 56
+            // Visual size of the pointer glyph. The arrow path in onPaint spans
+            // 12×15 glyph units, so the canvas is sized to contain it at this
+            // scale instead of a hardcoded box.
+            readonly property real markerScale: 2.8
+            width: 12 * markerScale
+            height: 15 * markerScale
             // Grid cell size derived from the preview (no magic numbers): the
             // GridLayout insets its content by Theme.spacingMd on every side,
             // so the centre cell's centre coincides with the preview centre.
             readonly property real cellW: (parent.width - 2 * Theme.spacingMd) / root.cols
             readonly property real cellH: (parent.height - 2 * Theme.spacingMd) / root.rows
-            readonly property real markerScale: 2.8
             // Put the arrow tip (its hotspot, drawn at 2s,1s in onPaint) on the
             // lower-right corner of the centre cell.
             x: parent.width / 2 + cellW / 2 - 2 * markerScale
@@ -155,20 +171,17 @@ ColumnLayout {
     Text {
         Layout.fillWidth: true
         Layout.minimumWidth: 0
-        // Reserve a fixed height for two lines so swapping the caption text (or
-        // a narrow-width wrap) never reflows the column and makes the rows
-        // below jump.
-        Layout.minimumHeight: 32
-        Layout.preferredHeight: 32
+        Layout.minimumHeight: root.captionHeight
+        Layout.preferredHeight: root.captionHeight
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignTop
         wrapMode: Text.WordWrap
         text: root.atCursorMode
-            ? qsTr("The overlay follows the mouse pointer (fallback position dimmed)")
+            ? qsTr("Follows the mouse pointer; the dimmed cell is the fallback when the cursor can't be read.")
             : qsTr("Click on the monitor to choose overlay position")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: 11
+        font.pixelSize: root.captionFontSize
         font.italic: true
     }
 }
