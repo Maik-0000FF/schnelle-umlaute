@@ -55,6 +55,12 @@ public:
 
     static bool isValidTheme(const QString &name);
 
+    // Pure progress-bar geometry exposed to QML so the sizing math lives once in
+    // progress_overlay_geometry.h (tested), shared with the daemon's grid
+    // placement, instead of being duplicated in QML bindings.
+    Q_INVOKABLE int progressBarLength(int totalMs, int screenWidth) const;
+    Q_INVOKABLE int progressLeadLength(int barLen, int leadMs, int totalMs) const;
+
 Q_SIGNALS:
     void stateChanged();
     void themeChanged();

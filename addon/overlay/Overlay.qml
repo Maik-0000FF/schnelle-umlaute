@@ -50,35 +50,22 @@ Window {
     readonly property int cellTextInset: 8
 
     // Progress bar (opt-in via [Overlay]/ProgressBar). It starts at the panel's
-    // top-right corner and runs to the right; its pixel length encodes the total
-    // gesture time (lead-in + window) at progressPxPerMs, clamped to a fraction
-    // of the screen. The window-position clamp (cursor/grid placement) keeps the
-    // bar's right end from crossing the monitor edge. The lead/window split is
-    // proportional to min : (max - min).
-    readonly property real progressPxPerMs: 0.22
-    readonly property real progressBarScreenFraction: 0.6
+    // top-right corner and runs to the right. Its pixel length and the
+    // lead/window split come from progress_overlay_geometry.h via
+    // OverlayController (one tested source, shared with the daemon's grid
+    // placement); only the bar's visual height/gap/radius live here.
     readonly property int progressBarHeight: 6
     readonly property int progressBarRadius: 3
     readonly property int progressBarGap: 8
-    readonly property int progressBarMinWidth: 80
-    // Fallback width before the surface is bound to an output (Screen.width 0).
-    readonly property int progressFallbackScreenWidth: 1920
-    readonly property int progressScreenWidth: Screen.width > 0
-                                               ? Screen.width
-                                               : progressFallbackScreenWidth
-    readonly property int progressBarMaxWidth:
-        Math.round(progressScreenWidth * progressBarScreenFraction)
 
     readonly property int progressLead: OverlayController.progressLeadMs
     readonly property int progressWindow: OverlayController.progressWindowMs
     readonly property int progressTotal: progressLead + progressWindow
-    readonly property int progressBarWidth: Math.max(
-        progressBarMinWidth,
-        Math.min(progressBarMaxWidth,
-                 Math.round(progressTotal * progressPxPerMs)))
-    readonly property real progressLeadWidth: progressTotal > 0
-        ? progressBarWidth * progressLead / progressTotal
-        : 0
+    readonly property int progressBarWidth:
+        OverlayController.progressBarLength(progressTotal, Screen.width)
+    readonly property real progressLeadWidth:
+        OverlayController.progressLeadLength(progressBarWidth, progressLead,
+                                             progressTotal)
     readonly property real progressWindowWidth:
         progressBarWidth - progressLeadWidth
     // True once the lead-in has elapsed and the leader window is open; drives the

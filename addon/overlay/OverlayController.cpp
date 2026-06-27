@@ -1,5 +1,6 @@
 #include "OverlayController.h"
 #include "../themes.h"
+#include "progress_overlay_geometry.h"
 
 #include <QCoreApplication>
 
@@ -71,6 +72,15 @@ void OverlayController::freezeProgress() {
         return;
     progressFrozen_ = true;
     Q_EMIT progressChanged();
+}
+
+int OverlayController::progressBarLength(int totalMs, int screenWidth) const {
+    return schnelle_umlaute::progress::barLength(totalMs, screenWidth);
+}
+
+int OverlayController::progressLeadLength(int barLen, int leadMs,
+                                          int totalMs) const {
+    return schnelle_umlaute::progress::leadLength(barLen, leadMs, totalMs);
 }
 
 OverlayDBusAdaptor::OverlayDBusAdaptor(OverlayController *ctrl)
