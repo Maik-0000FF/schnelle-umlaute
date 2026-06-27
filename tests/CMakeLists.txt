@@ -47,6 +47,17 @@ target_compile_options(testlayershellcapability PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testlayershellcapability COMMAND testlayershellcapability)
 set_tests_properties(testlayershellcapability PROPERTIES TIMEOUT 10)
 
+# Unit test for the cursor-overlay geometry helpers. Pure header-only logic —
+# guards the "Cursor:" wire-format split and the lower-left-at-cursor margin
+# math (clamping to the cursor's output) that the overlay daemon relies on.
+add_executable(testcursorgeometry testcursorgeometry.cpp)
+target_include_directories(testcursorgeometry PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testcursorgeometry PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testcursorgeometry COMMAND testcursorgeometry)
+set_tests_properties(testcursorgeometry PROPERTIES TIMEOUT 10)
+
 # Unit test for classifySessionEnv(). Pure header-only logic — guards the
 # rule table that decides between the "logout pending" and "compositor
 # config" setup dialogs (environment.d sessions vs TTY-launched

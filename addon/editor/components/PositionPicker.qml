@@ -9,6 +9,10 @@ ColumnLayout {
     spacing: Theme.spacingSm
 
     property string value: "TopCol4"
+    // When true the overlay follows the mouse pointer; the grid below is only
+    // the fallback, so the chosen cell stays marked but dimmed and a pointer
+    // marker is drawn on the monitor preview.
+    property bool atCursorMode: false
     signal edited(string newValue)
 
     readonly property int cols: 7
@@ -62,6 +66,10 @@ ColumnLayout {
                             : (mouse.containsMouse ? Theme.surfaceHover : Theme.surface)
                         border.color: parent.active ? Theme.accent : Theme.border
                         border.width: 1
+                        // In cursor mode the active cell is only the fallback —
+                        // keep it marked but dimmed so the pointer marker reads
+                        // as the primary placement.
+                        opacity: (parent.active && root.atCursorMode) ? 0.4 : 1.0
 
                         Behavior on color { ColorAnimation { duration: Theme.animShort } }
 
@@ -92,6 +100,39 @@ ColumnLayout {
                 }
             }
         }
+
+        // Mouse-pointer marker: shown only in cursor mode to signal the menu
+        // appears wherever the pointer is (not at a fixed grid cell). Drawn as
+        // a classic arrow so it reads as a cursor regardless of theme.
+        Canvas {
+            id: cursorMarker
+            visible: root.atCursorMode
+            anchors.centerIn: parent
+            width: 40
+            height: 40
+            onVisibleChanged: requestPaint()
+            onPaint: {
+                var ctx = getContext("2d");
+                ctx.reset();
+                if (!visible)
+                    return;
+                var s = 2.0;
+                ctx.beginPath();
+                ctx.moveTo(2 * s, 1 * s);
+                ctx.lineTo(2 * s, 13 * s);
+                ctx.lineTo(5.5 * s, 9.7 * s);
+                ctx.lineTo(8 * s, 15 * s);
+                ctx.lineTo(10 * s, 14 * s);
+                ctx.lineTo(7.6 * s, 9 * s);
+                ctx.lineTo(12 * s, 9 * s);
+                ctx.closePath();
+                ctx.fillStyle = Theme.text;
+                ctx.fill();
+                ctx.lineWidth = 1.2;
+                ctx.strokeStyle = Theme.background;
+                ctx.stroke();
+            }
+        }
     }
 
     Text {
@@ -99,7 +140,9 @@ ColumnLayout {
         Layout.minimumWidth: 0
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
-        text: qsTr("Click on the monitor to choose overlay position")
+        text: root.atCursorMode
+            ? qsTr("The overlay follows the mouse pointer (fallback position dimmed)")
+            : qsTr("Click on the monitor to choose overlay position")
         color: Theme.textMuted
         font.family: Theme.fontFamily
         font.pixelSize: 11

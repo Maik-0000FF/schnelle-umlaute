@@ -21,6 +21,7 @@ endif()
 set(OVERLAY_SRCS
     main.cpp
     OverlayController.cpp
+    CursorSource.cpp
 )
 
 qt_add_executable(schnelle-umlaute-overlay ${OVERLAY_SRCS})

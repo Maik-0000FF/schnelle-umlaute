@@ -162,6 +162,12 @@ FCITX_CONFIGURATION(
     Option<bool> showOnTrigger{this, "ShowOnTrigger",
                                "Preview in the trigger window (all mapped keys)",
                                false};
+    // When on, the overlay's lower-left corner is placed at the mouse
+    // pointer instead of the fixed Row/Column grid. The grid below then
+    // serves as the fallback for compositors that can't report the cursor
+    // (the overlay daemon queries it per open; nothing runs in the
+    // background). See OverlayRenderer in addon/overlay/main.cpp.
+    Option<bool> atCursor{this, "AtCursor", "Show at mouse cursor", false};
     Option<OverlayRow> row{this, "Row", "Vertical position", OverlayRow::Top};
     Option<OverlayColumn> column{this, "Column", "Horizontal position",
                                  OverlayColumn::Col4};);
