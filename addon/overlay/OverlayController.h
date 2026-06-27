@@ -15,6 +15,14 @@ class OverlayController : public QObject {
     // theme fires its own signal: palette changes don't need a surface
     // rebuild, only QML property re-evaluation.
     Q_PROPERTY(QString theme READ theme NOTIFY themeChanged)
+    // Progress bar state fires its own signal: like theme it only drives QML
+    // property re-evaluation and must not trigger a layer-shell surface rebuild
+    // in the renderer (which listens to stateChanged only).
+    Q_PROPERTY(int progressLeadMs READ progressLeadMs NOTIFY progressChanged)
+    Q_PROPERTY(
+        int progressWindowMs READ progressWindowMs NOTIFY progressChanged)
+    Q_PROPERTY(bool progressActive READ progressActive NOTIFY progressChanged)
+    Q_PROPERTY(bool progressFrozen READ progressFrozen NOTIFY progressChanged)
 
 public:
     explicit OverlayController(QObject *parent = nullptr);
@@ -24,6 +32,10 @@ public:
     QString position() const { return position_; }
     bool visible() const { return visible_; }
     QString theme() const { return theme_; }
+    int progressLeadMs() const { return progressLeadMs_; }
+    int progressWindowMs() const { return progressWindowMs_; }
+    bool progressActive() const { return progressActive_; }
+    bool progressFrozen() const { return progressFrozen_; }
 
     // Called via DBus adapter
     void show(const QStringList &variants, int currentIndex,
@@ -35,6 +47,11 @@ public:
     // listener via cursorReported(). The renderer connects its active
     // KWinCursorSource to it.
     void sendCursor(int x, int y);
+    // Starts the progress timeline: leadMs lead-in then windowMs window. Marks
+    // it active and un-frozen.
+    void setProgress(int leadMs, int windowMs);
+    // Holds the bar at its current position (a leader caught the window).
+    void freezeProgress();
 
     static bool isValidTheme(const QString &name);
 
@@ -42,6 +59,7 @@ Q_SIGNALS:
     void stateChanged();
     void themeChanged();
     void cursorReported(int x, int y);
+    void progressChanged();
 
 private:
     QStringList variants_;
@@ -49,6 +67,10 @@ private:
     QString position_ = QStringLiteral("TopCenter");
     bool visible_ = false;
     QString theme_ = QStringLiteral("schnelle-umlaute");
+    int progressLeadMs_ = 0;
+    int progressWindowMs_ = 0;
+    bool progressActive_ = false;
+    bool progressFrozen_ = false;
 };
 
 // org.freedesktop.DBus adapter matching de.schnelle_umlaute.Overlay1.
@@ -67,6 +89,8 @@ public Q_SLOTS:
     void SetTheme(const QString &theme);
     // Called by the KWin cursor script with the live global pointer pixel.
     void SendCursor(int x, int y);
+    void SetProgress(int leadMs, int windowMs);
+    void FreezeProgress();
 
 private:
     OverlayController *ctrl_;

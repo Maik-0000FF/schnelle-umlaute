@@ -14,8 +14,13 @@ Window {
     // via KeyboardInteractivityNone), so it needs no input at all.
     flags: Qt.FramelessWindowHint | Qt.WindowTransparentForInput
     color: "transparent"
-    width: frame.implicitWidth
-    height: frame.implicitHeight
+    // Window grows to fit the optional progress bar above the cell frame; with
+    // no bar it is exactly the frame, as before.
+    width: Math.max(frame.implicitWidth,
+                    OverlayController.progressActive ? win.progressBarWidth : 0)
+    height: frame.implicitHeight + (OverlayController.progressActive
+                                    ? win.progressBarHeight + win.progressBarGap
+                                    : 0)
     // Start hidden so main() can configure the layer-shell surface
     // (layer/anchors/screen) before the first commit. main() then calls
     // show() once the surface role is fully set up.
@@ -42,6 +47,37 @@ Window {
     readonly property int cellSize: 44
     readonly property int framePadding: 16
     readonly property int cellTextInset: 8
+
+    // Progress bar (opt-in via [Overlay]/ProgressBar). The bar's pixel length
+    // encodes the total gesture time (lead-in + window) at progressPxPerMs,
+    // clamped to a fraction of the screen so a long timeout can't run
+    // off-screen. The lead/window split is proportional to min : (max - min).
+    readonly property real progressPxPerMs: 0.22
+    readonly property real progressBarScreenFraction: 0.6
+    readonly property int progressBarHeight: 6
+    readonly property int progressBarRadius: 3
+    readonly property int progressBarGap: 8
+    readonly property int progressBarMinWidth: 80
+    // Fallback width before the surface is bound to an output (Screen.width 0).
+    readonly property int progressFallbackScreenWidth: 1920
+    readonly property int progressScreenWidth: Screen.width > 0
+                                               ? Screen.width
+                                               : progressFallbackScreenWidth
+    readonly property int progressBarMaxWidth:
+        Math.round(progressScreenWidth * progressBarScreenFraction)
+
+    readonly property int progressLead: OverlayController.progressLeadMs
+    readonly property int progressWindow: OverlayController.progressWindowMs
+    readonly property int progressTotal: progressLead + progressWindow
+    readonly property int progressBarWidth: Math.max(
+        progressBarMinWidth,
+        Math.min(progressBarMaxWidth,
+                 Math.round(progressTotal * progressPxPerMs)))
+    readonly property real progressLeadWidth: progressTotal > 0
+        ? progressBarWidth * progressLead / progressTotal
+        : 0
+    readonly property real progressWindowWidth:
+        progressBarWidth - progressLeadWidth
 
     // Font sizes per variant glyph type. Color-emoji fonts occupy a
     // smaller fraction of the em-box than JetBrains Mono at the same
@@ -85,25 +121,29 @@ Window {
             frame: "#12101d", border: "#2a2640",
             cellInactive: "#1a1728", cellInactiveBorder: "#2a2640",
             cellActive: "#4ade80", cellActiveBorder: "#4ade80",
-            textInactive: "#f0fdf4", textActive: "#08060f"
+            textInactive: "#f0fdf4", textActive: "#08060f",
+            barLead: "#4ade80", barWindow: "#a855f7"
         },
         "dark": {
             frame: "#181b22", border: "#2a2f3a",
             cellInactive: "#232832", cellInactiveBorder: "#2a2f3a",
             cellActive: "#60a5fa", cellActiveBorder: "#60a5fa",
-            textInactive: "#e5e7eb", textActive: "#0f1115"
+            textInactive: "#e5e7eb", textActive: "#0f1115",
+            barLead: "#4ade80", barWindow: "#60a5fa"
         },
         "light": {
             frame: "#ffffff", border: "#d4d4d8",
             cellInactive: "#f4f4f5", cellInactiveBorder: "#d4d4d8",
             cellActive: "#2563eb", cellActiveBorder: "#2563eb",
-            textInactive: "#0f172a", textActive: "#ffffff"
+            textInactive: "#0f172a", textActive: "#ffffff",
+            barLead: "#16a34a", barWindow: "#2563eb"
         },
         "contrast": {
             frame: "#000000", border: "#ffffff",
             cellInactive: "#0a0a0a", cellInactiveBorder: "#ffffff",
             cellActive: "#ffd60a", cellActiveBorder: "#ffd60a",
-            textInactive: "#ffffff", textActive: "#000000"
+            textInactive: "#ffffff", textActive: "#000000",
+            barLead: "#ffffff", barWindow: "#ffd60a"
         }
     })
     readonly property var p: palettes[OverlayController.theme]
@@ -159,9 +199,65 @@ Window {
         return cp >= 0x1F000
     }
 
+    // Progress bar above the cells (progress mode only). Two segments: a
+    // lead-in (green) that fills right-to-left over the min-hold, then a window
+    // (accent color) that appears full and counts down right-to-left across
+    // [min, max]. Hidden and zero-space otherwise.
+    Item {
+        id: progressSlot
+        visible: OverlayController.progressActive
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: win.progressBarWidth
+        height: win.progressBarHeight
+
+        Rectangle {
+            id: leadFill
+            height: parent.height
+            radius: win.progressBarRadius
+            color: win.p.barLead
+            // Right edge pinned at the lead/window boundary; width grows
+            // 0 -> leadWidth so it fills from the right toward the left.
+            x: win.progressLeadWidth - width
+            width: 0
+        }
+        Rectangle {
+            id: windowFill
+            height: parent.height
+            radius: win.progressBarRadius
+            color: win.p.barWindow
+            // Left edge pinned at the boundary; width shrinks windowWidth -> 0
+            // so its right edge recedes left as the window counts down.
+            x: win.progressLeadWidth
+            width: 0
+        }
+
+        SequentialAnimation {
+            running: OverlayController.progressActive
+            paused: OverlayController.progressFrozen
+            NumberAnimation {
+                target: leadFill
+                property: "width"
+                from: 0
+                to: win.progressLeadWidth
+                duration: win.progressLead
+                easing.type: Easing.Linear
+            }
+            NumberAnimation {
+                target: windowFill
+                property: "width"
+                from: win.progressWindowWidth
+                to: 0
+                duration: win.progressWindow
+                easing.type: Easing.Linear
+            }
+        }
+    }
+
     Rectangle {
         id: frame
-        anchors.fill: parent
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
         color: Qt.alpha(win.p.frame, win.frameOpacity)
         radius: 16
         border.color: win.p.border
