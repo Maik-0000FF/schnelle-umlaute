@@ -230,11 +230,39 @@ Item {
                             : ""
                     }
 
+                    LabeledSwitch {
+                        labelText: qsTr("Show at mouse cursor")
+                        // Sub-option of the overlay: only meaningful once the
+                        // overlay itself is enabled.
+                        enabled: root.settingsModel
+                            && root.settingsModel.layerShellAvailable
+                            && root.settingsModel.overlayEnabled
+                        checked: root.settingsModel ? root.settingsModel.overlayAtCursor : false
+                        onToggled: (v) => root.settingsModel.overlayAtCursor = v
+                    }
+
+                    Text {
+                        visible: root.settingsModel
+                            && root.settingsModel.layerShellAvailable
+                            && root.settingsModel.overlayEnabled
+                            && root.settingsModel.overlayAtCursor
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        text: qsTr("The overlay's lower-left corner appears at the pointer. The position below is the fallback for compositors that can't report the cursor.")
+                    }
+
                     PositionPicker {
                         visible: root.settingsModel
                             && root.settingsModel.layerShellAvailable
                             && root.settingsModel.overlayEnabled
                         value: root.settingsModel ? root.settingsModel.overlayPosition : "TopCenter"
+                        // In cursor mode the grid is only the fallback: it stays
+                        // marked but dimmed, and a pointer marker shows the menu
+                        // follows the mouse.
+                        atCursorMode: root.settingsModel ? root.settingsModel.overlayAtCursor : false
                         onEdited: (v) => root.settingsModel.overlayPosition = v
                     }
                 }
