@@ -69,7 +69,7 @@ Available on the [AUR](https://aur.archlinux.org/packages/fcitx5-schnelle-umlaut
 yay -S fcitx5-schnelle-umlaute-git
 ```
 
-> **About `-git`:** This package builds from the `dev` branch and ships features ahead of the latest tagged release — the standalone QML editor (`schnelle-umlaute-editor`), the cycle overlay daemon, and the per-user setup script (`schnelle-umlaute-setup`). Run `schnelle-umlaute-setup` once after install to write your fcitx5 environment variables and set up autostart. As a safety net, the editor also detects missing input-method variables on startup and offers to write them — but it does not configure autostart, so running `schnelle-umlaute-setup` is still the complete path.
+> **`-git`:** Builds the latest code at install time. Run `schnelle-umlaute-setup` once afterwards to set your fcitx5 environment variables and enable autostart, which a package install cannot do in your home directory.
 
 ### NixOS
 
