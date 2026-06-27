@@ -266,16 +266,20 @@ private:
             if (ctrl_->progressActive() &&
                 parsePosition(canonicalizePosition(grid), row, col)) {
                 (void)row;
-                const int total =
-                    ctrl_->progressLeadMs() + ctrl_->progressWindowMs();
-                const int barLen =
-                    schnelle_umlaute::progress::barLength(total, sw);
-                const int frameW = std::max(0, ow - barLen);
-                a.anchors &= ~(LSWindow::AnchorLeft | LSWindow::AnchorRight);
-                a.anchors |= LSWindow::AnchorLeft;
-                a.margins.setLeft(schnelle_umlaute::progress::gridPanelLeftMargin(
-                    col, sw, frameW, ow, kEdgeMargin));
-                a.margins.setRight(0);
+                // The surface is max(panel, bar) wide with the bar left-aligned;
+                // read the panel width from QML so the panel (not the surface)
+                // is centred on the column. If the property can't be read (0),
+                // skip the override and keep anchorsFor's surface-centring
+                // rather than mis-place the panel.
+                const int frameW = qwinPtr->property("frameWidth").toInt();
+                if (frameW > 0) {
+                    a.anchors &= ~(LSWindow::AnchorLeft | LSWindow::AnchorRight);
+                    a.anchors |= LSWindow::AnchorLeft;
+                    a.margins.setLeft(
+                        schnelle_umlaute::progress::gridPanelLeftMargin(
+                            col, sw, frameW, ow, kEdgeMargin));
+                    a.margins.setRight(0);
+                }
             }
             ls2->setAnchors(a.anchors);
             ls2->setMargins(a.margins);

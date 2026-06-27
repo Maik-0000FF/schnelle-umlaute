@@ -14,14 +14,18 @@ Window {
     // via KeyboardInteractivityNone), so it needs no input at all.
     flags: Qt.FramelessWindowHint | Qt.WindowTransparentForInput
     color: "transparent"
-    // Window grows up and to the right to hold the optional progress bar, which
-    // starts at the panel's top-right corner; the panel stays bottom-left at its
-    // own size so it never reflows. With no bar the window is exactly the frame.
-    width: frame.implicitWidth + (OverlayController.progressActive
-                                  ? win.progressBarWidth : 0)
+    // Window grows up, and to the right only when the bar is longer than the
+    // panel, to hold the optional progress bar. The bar is left-aligned with the
+    // panel's top edge; the panel stays bottom-left at its own size so it never
+    // reflows. With no bar the window is exactly the frame.
+    width: Math.max(frame.implicitWidth,
+                    OverlayController.progressActive ? win.progressBarWidth : 0)
     height: frame.implicitHeight + (OverlayController.progressActive
                                     ? win.progressBarHeight + win.progressBarGap
                                     : 0)
+    // Panel width, read by the daemon to centre the panel (not the wider
+    // panel+bar surface) on a grid column.
+    readonly property int frameWidth: frame.implicitWidth
     // Start hidden so main() can configure the layer-shell surface
     // (layer/anchors/screen) before the first commit. main() then calls
     // show() once the surface role is fully set up.
@@ -123,21 +127,21 @@ Window {
             cellInactive: "#232832", cellInactiveBorder: "#2a2f3a",
             cellActive: "#60a5fa", cellActiveBorder: "#60a5fa",
             textInactive: "#e5e7eb", textActive: "#0f1115",
-            barLead: "#4ade80", barWindow: "#60a5fa"
+            barLead: "#60a5fa", barWindow: "#f87171"
         },
         "light": {
             frame: "#ffffff", border: "#d4d4d8",
             cellInactive: "#f4f4f5", cellInactiveBorder: "#d4d4d8",
             cellActive: "#2563eb", cellActiveBorder: "#2563eb",
             textInactive: "#0f172a", textActive: "#ffffff",
-            barLead: "#16a34a", barWindow: "#2563eb"
+            barLead: "#2563eb", barWindow: "#dc2626"
         },
         "contrast": {
             frame: "#000000", border: "#ffffff",
             cellInactive: "#0a0a0a", cellInactiveBorder: "#ffffff",
             cellActive: "#ffd60a", cellActiveBorder: "#ffd60a",
             textInactive: "#ffffff", textActive: "#000000",
-            barLead: "#ffffff", barWindow: "#ffd60a"
+            barLead: "#ffd60a", barWindow: "#ffffff"
         }
     })
     readonly property var p: palettes[OverlayController.theme]
@@ -193,16 +197,17 @@ Window {
         return cp >= 0x1F000
     }
 
-    // Progress bar starting at the panel's top-right corner, running right
-    // (progress mode only). Phase 1: the lead segment (green) grows out from the
-    // corner to the right over the min-hold. Phase 2: the window segment (accent)
-    // shows full and its right end recedes left as [min, max] counts down. The
-    // panel is hidden during phase 1 and revealed when the window opens.
+    // Progress bar starting at the panel's top-left corner, running right
+    // (progress mode only). Phase 1: the lead segment (green) grows from the
+    // corner to the right over the min-hold. Phase 2: the window segment
+    // (accent) appears full past the lead, then its right end recedes left as
+    // [min, max] counts down. The panel is hidden during phase 1 and revealed
+    // when the window opens.
     Item {
         id: progressSlot
         visible: OverlayController.progressActive
         anchors.top: parent.top
-        x: frame.width
+        anchors.left: parent.left
         width: win.progressBarWidth
         height: win.progressBarHeight
 
@@ -212,7 +217,8 @@ Window {
             height: parent.height
             radius: win.progressBarRadius
             color: win.p.barLead
-            // Grows from the panel corner (x = 0) to the right over the lead-in.
+            // Grows from the top-left corner to the right over the lead-in and
+            // stays full through the window phase.
             width: 0
         }
         Rectangle {
@@ -221,8 +227,8 @@ Window {
             height: parent.height
             radius: win.progressBarRadius
             color: win.p.barWindow
-            // Left edge pinned past the lead segment; width shrinks
-            // windowWidth -> 0 so its right end recedes left as it counts down.
+            // Pinned just past the lead segment; appears full when the window
+            // opens, then its right end recedes left as it counts down.
             width: 0
         }
 
