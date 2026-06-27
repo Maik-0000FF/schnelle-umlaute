@@ -6,7 +6,13 @@ import SchnelleUmlauteOverlay
 
 Window {
     id: win
-    flags: Qt.FramelessWindowHint
+    // WindowTransparentForInput sets an empty wl_surface input region, so the
+    // overlay never captures the pointer: clicks fall through to the window
+    // below and, crucially in cursor mode where the panel sits right under the
+    // pointer, hiding it doesn't leave the cursor unpainted until the next
+    // motion event. The overlay is a passive indicator (keyboard already off
+    // via KeyboardInteractivityNone), so it needs no input at all.
+    flags: Qt.FramelessWindowHint | Qt.WindowTransparentForInput
     color: "transparent"
     width: frame.implicitWidth
     height: frame.implicitHeight
