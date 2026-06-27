@@ -241,6 +241,17 @@ Item {
                         onToggled: (v) => root.settingsModel.overlayAtCursor = v
                     }
 
+                    LabeledSwitch {
+                        labelText: qsTr("Show timing progress bar")
+                        // Sub-option of the overlay: only meaningful once the
+                        // overlay itself is enabled.
+                        enabled: root.settingsModel
+                            && root.settingsModel.layerShellAvailable
+                            && root.settingsModel.overlayEnabled
+                        checked: root.settingsModel ? root.settingsModel.overlayProgressBar : false
+                        onToggled: (v) => root.settingsModel.overlayProgressBar = v
+                    }
+
                     PositionPicker {
                         visible: root.settingsModel
                             && root.settingsModel.layerShellAvailable

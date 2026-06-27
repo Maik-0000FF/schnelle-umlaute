@@ -213,6 +213,13 @@ void SettingsModel::setOverlayAtCursor(bool v) {
     Q_EMIT overlayAtCursorChanged();
     save();
 }
+void SettingsModel::setOverlayProgressBar(bool v) {
+    if (overlayProgressBar_ == v)
+        return;
+    overlayProgressBar_ = v;
+    Q_EMIT overlayProgressBarChanged();
+    save();
+}
 
 void SettingsModel::setOverlayPosition(const QString &v) {
     if (overlayPosition_ == v)
@@ -370,6 +377,8 @@ void SettingsModel::load() {
                 overlayShowOnTrigger_ = fromBool(val);
             else if (key == "AtCursor")
                 overlayAtCursor_ = fromBool(val);
+            else if (key == "ProgressBar")
+                overlayProgressBar_ = fromBool(val);
             // Pre-1.2 wrote a combined "Position=TopCenter" key. 1.2 splits
             // it into Row + Column because FCITX_CONFIG_ENUM caps at 12
             // values and we need 21 cells. Accept both formats on read so
@@ -417,6 +426,7 @@ void SettingsModel::load() {
     Q_EMIT overlayEnabledChanged();
     Q_EMIT overlayShowOnTriggerChanged();
     Q_EMIT overlayAtCursorChanged();
+    Q_EMIT overlayProgressBarChanged();
     Q_EMIT overlayPositionChanged();
     Q_EMIT themeChanged();
 }
@@ -489,6 +499,8 @@ void SettingsModel::save() {
         << "ShowOnTrigger=" << toBool(overlayShowOnTrigger_) << "\n";
     out << "# Show at mouse cursor\n"
         << "AtCursor=" << toBool(overlayAtCursor_) << "\n";
+    out << "# Show timing progress bar\n"
+        << "ProgressBar=" << toBool(overlayProgressBar_) << "\n";
     // Split "TopCol4" into Row=Top + Column=Col4 for the fcitx5 config
     // schema, which represents each as a small enum (capped at 12 values).
     const int splitAt =

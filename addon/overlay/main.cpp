@@ -22,6 +22,7 @@
 #include "CursorSource.h"
 #include "OverlayController.h"
 #include "cursor_overlay_geometry.h"
+#include "progress_overlay_geometry.h"
 
 namespace {
 
@@ -255,7 +256,27 @@ private:
                 scr = QGuiApplication::primaryScreen();
             const int sw = scr ? scr->geometry().width() : 1920;
             const int ow = qwinPtr->width() > 0 ? qwinPtr->width() : 200;
-            const auto a = anchorsFor(grid, sw, ow);
+            auto a = anchorsFor(grid, sw, ow);
+            // In progress mode the surface includes the bar overhang to the
+            // right of the panel; anchorsFor centres the whole surface, which
+            // would shift the panel left by half the bar. Re-anchor horizontally
+            // so the PANEL lands on the column (vertical/row placement stays),
+            // clamped so the bar's right end stays on the output.
+            int row = 0, col = 0;
+            if (ctrl_->progressActive() &&
+                parsePosition(canonicalizePosition(grid), row, col)) {
+                (void)row;
+                const int total =
+                    ctrl_->progressLeadMs() + ctrl_->progressWindowMs();
+                const int barLen =
+                    schnelle_umlaute::progress::barLength(total, sw);
+                const int frameW = std::max(0, ow - barLen);
+                a.anchors &= ~(LSWindow::AnchorLeft | LSWindow::AnchorRight);
+                a.anchors |= LSWindow::AnchorLeft;
+                a.margins.setLeft(schnelle_umlaute::progress::gridPanelLeftMargin(
+                    col, sw, frameW, ow, kEdgeMargin));
+                a.margins.setRight(0);
+            }
             ls2->setAnchors(a.anchors);
             ls2->setMargins(a.margins);
             qwinPtr->setVisible(true);
