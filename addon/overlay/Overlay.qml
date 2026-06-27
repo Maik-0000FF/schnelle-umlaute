@@ -14,10 +14,11 @@ Window {
     // via KeyboardInteractivityNone), so it needs no input at all.
     flags: Qt.FramelessWindowHint | Qt.WindowTransparentForInput
     color: "transparent"
-    // Window grows to fit the optional progress bar above the cell frame; with
-    // no bar it is exactly the frame, as before.
-    width: Math.max(frame.implicitWidth,
-                    OverlayController.progressActive ? win.progressBarWidth : 0)
+    // Window grows up and to the right to hold the optional progress bar, which
+    // starts at the panel's top-right corner; the panel stays bottom-left at its
+    // own size so it never reflows. With no bar the window is exactly the frame.
+    width: frame.implicitWidth + (OverlayController.progressActive
+                                  ? win.progressBarWidth : 0)
     height: frame.implicitHeight + (OverlayController.progressActive
                                     ? win.progressBarHeight + win.progressBarGap
                                     : 0)
@@ -48,10 +49,12 @@ Window {
     readonly property int framePadding: 16
     readonly property int cellTextInset: 8
 
-    // Progress bar (opt-in via [Overlay]/ProgressBar). The bar's pixel length
-    // encodes the total gesture time (lead-in + window) at progressPxPerMs,
-    // clamped to a fraction of the screen so a long timeout can't run
-    // off-screen. The lead/window split is proportional to min : (max - min).
+    // Progress bar (opt-in via [Overlay]/ProgressBar). It starts at the panel's
+    // top-right corner and runs to the right; its pixel length encodes the total
+    // gesture time (lead-in + window) at progressPxPerMs, clamped to a fraction
+    // of the screen. The window-position clamp (cursor/grid placement) keeps the
+    // bar's right end from crossing the monitor edge. The lead/window split is
+    // proportional to min : (max - min).
     readonly property real progressPxPerMs: 0.22
     readonly property real progressBarScreenFraction: 0.6
     readonly property int progressBarHeight: 6
@@ -78,6 +81,10 @@ Window {
         : 0
     readonly property real progressWindowWidth:
         progressBarWidth - progressLeadWidth
+    // True once the lead-in has elapsed and the leader window is open; drives the
+    // panel reveal (the cells appear only when the window opens, not during the
+    // lead-in). Reset at the start of each gesture's animation.
+    property bool progressWindowPhase: false
 
     // Font sizes per variant glyph type. Color-emoji fonts occupy a
     // smaller fraction of the em-box than JetBrains Mono at the same
@@ -199,42 +206,44 @@ Window {
         return cp >= 0x1F000
     }
 
-    // Progress bar above the cells (progress mode only). Two segments: a
-    // lead-in (green) that fills right-to-left over the min-hold, then a window
-    // (accent color) that appears full and counts down right-to-left across
-    // [min, max]. Hidden and zero-space otherwise.
+    // Progress bar starting at the panel's top-right corner, running right
+    // (progress mode only). Phase 1: the lead segment (green) grows out from the
+    // corner to the right over the min-hold. Phase 2: the window segment (accent)
+    // shows full and its right end recedes left as [min, max] counts down. The
+    // panel is hidden during phase 1 and revealed when the window opens.
     Item {
         id: progressSlot
         visible: OverlayController.progressActive
         anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
+        x: frame.width
         width: win.progressBarWidth
         height: win.progressBarHeight
 
         Rectangle {
             id: leadFill
+            x: 0
             height: parent.height
             radius: win.progressBarRadius
             color: win.p.barLead
-            // Right edge pinned at the lead/window boundary; width grows
-            // 0 -> leadWidth so it fills from the right toward the left.
-            x: win.progressLeadWidth - width
+            // Grows from the panel corner (x = 0) to the right over the lead-in.
             width: 0
         }
         Rectangle {
             id: windowFill
+            x: win.progressLeadWidth
             height: parent.height
             radius: win.progressBarRadius
             color: win.p.barWindow
-            // Left edge pinned at the boundary; width shrinks windowWidth -> 0
-            // so its right edge recedes left as the window counts down.
-            x: win.progressLeadWidth
+            // Left edge pinned past the lead segment; width shrinks
+            // windowWidth -> 0 so its right end recedes left as it counts down.
             width: 0
         }
 
         SequentialAnimation {
             running: OverlayController.progressActive
             paused: OverlayController.progressFrozen
+            // Restart from the lead-in on each fresh gesture.
+            onStarted: win.progressWindowPhase = false
             NumberAnimation {
                 target: leadFill
                 property: "width"
@@ -243,6 +252,8 @@ Window {
                 duration: win.progressLead
                 easing.type: Easing.Linear
             }
+            // Lead-in over: open the window and reveal the panel.
+            ScriptAction { script: win.progressWindowPhase = true }
             NumberAnimation {
                 target: windowFill
                 property: "width"
@@ -256,8 +267,15 @@ Window {
 
     Rectangle {
         id: frame
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.left: parent.left
         anchors.bottom: parent.bottom
+        // In progress mode the panel is hidden during the lead-in and fades in
+        // when the window opens; it keeps its layout slot (opacity, not visible)
+        // so the bar can anchor to its top-right corner. Always shown otherwise.
+        opacity: OverlayController.progressActive
+                 ? (win.progressWindowPhase ? 1 : 0)
+                 : 1
+        Behavior on opacity { NumberAnimation { duration: win.animationDuration } }
         color: Qt.alpha(win.p.frame, win.frameOpacity)
         radius: 16
         border.color: win.p.border
