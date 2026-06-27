@@ -159,21 +159,18 @@ void KWinCursorSource::getCursor(CursorCallback cb) {
                     resolve(std::nullopt);
                     return;
                 }
-                const int id = reply.value();
-                // The query may have already timed out (resolve cleared
-                // pending_) before this load reply arrived. The script still
-                // got instantiated in KWin, so unload it here rather than
-                // leaking one instance per timed-out open.
-                if (!pending_) {
-                    stopScript(kwinScriptPath(id));
-                    return;
-                }
-                runScript(id);
+                // runScript() is the single decision point: it runs the
+                // freshly loaded script while a query is pending, or unloads it
+                // when the query already timed out.
+                runScript(reply.value());
             });
     timer_->start(kKwinTimeoutMs);
 }
 
 void KWinCursorSource::runScript(int id) {
+    // The query may have already timed out (resolve cleared pending_) before
+    // this load reply arrived. The script still got instantiated in KWin, so
+    // unload it rather than leaking one instance per timed-out open.
     if (!pending_) {
         stopScript(kwinScriptPath(id));
         return;
