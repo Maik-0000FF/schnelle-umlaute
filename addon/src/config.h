@@ -168,6 +168,12 @@ FCITX_CONFIGURATION(
     // (the overlay daemon queries it per open; nothing runs in the
     // background). See OverlayRenderer in addon/overlay/main.cpp.
     Option<bool> atCursor{this, "AtCursor", "Show at mouse cursor", false};
+    // Draws a timing bar above the overlay for the whole accent gesture: a
+    // lead-in segment (min-hold) fills, then a window segment counts down
+    // (the [min, max] leader window). Shows the overlay from key-press (t=0)
+    // so the lead-in is visible. See Overlay.qml and OverlayController.
+    Option<bool> progressBar{this, "ProgressBar", "Show timing progress bar",
+                             false};
     Option<OverlayRow> row{this, "Row", "Vertical position", OverlayRow::Top};
     Option<OverlayColumn> column{this, "Column", "Horizontal position",
                                  OverlayColumn::Col4};);

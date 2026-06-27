@@ -58,6 +58,18 @@ target_compile_options(testcursorgeometry PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testcursorgeometry COMMAND testcursorgeometry)
 set_tests_properties(testcursorgeometry PROPERTIES TIMEOUT 10)
 
+# Unit test for the progress-bar geometry helpers. Pure header-only logic —
+# guards the bar length clamp/scale, the lead/window split, and the grid
+# placement that centres the panel (not the panel+bar surface) on a column,
+# shared by the overlay daemon and QML.
+add_executable(testprogressgeometry testprogressgeometry.cpp)
+target_include_directories(testprogressgeometry PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testprogressgeometry PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testprogressgeometry COMMAND testprogressgeometry)
+set_tests_properties(testprogressgeometry PROPERTIES TIMEOUT 10)
+
 # Unit test for classifySessionEnv(). Pure header-only logic — guards the
 # rule table that decides between the "logout pending" and "compositor
 # config" setup dialogs (environment.d sessions vs TTY-launched

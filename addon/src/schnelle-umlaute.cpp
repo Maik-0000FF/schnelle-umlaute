@@ -414,6 +414,9 @@ public:
             if (!state->cyclingInput_ && state->waitingKey_ &&
                 state->isBeforeMinHold(getEffectiveMinHold(state))) {
                 std::string pending = *state->waitingKey_;
+                // In progress mode the overlay is already up (shown at t=0), so
+                // tear it down now that this turns into a plain commit.
+                hideTriggerOverlay(state);
                 ic->inputPanel().reset();
                 ic->updatePreedit();
                 state->waitingKey_.reset();
@@ -534,9 +537,12 @@ public:
                         // when there's nothing to cycle (single-output Alt
                         // still needs the cycling state above for the deferred
                         // commit / re-press machinery).
-                        if (it->second.size() > 1)
+                        if (it->second.size() > 1) {
                             overlayShow(ic, it->second, 0);
-                        else if (overlayVisible_)
+                            // The leader caught the window; hold the timing bar
+                            // where it is while the user cycles.
+                            freezeProgressOverlay();
+                        } else if (overlayVisible_)
                             // Single-output Alt: no picker, but flash the cell
                             // to confirm the trigger. The commit is deferred
                             // via the alt-gesture machinery (release / re-press),
@@ -642,9 +648,15 @@ public:
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
             scheduleTimeout(ic, state);
-            // Preview the variants in the overlay during the accent window
-            // (opt-in via [Overlay]/ShowOnTrigger). No-op otherwise.
-            scheduleTriggerOverlay(ic, state, keyChar);
+            if (*config_.overlay->progressBar) {
+                // Progress mode shows the overlay from t=0 with the timing bar
+                // instead of the deferred min-hold trigger preview.
+                startProgressOverlay(ic, state, keyChar);
+            } else {
+                // Preview the variants in the overlay during the accent window
+                // (opt-in via [Overlay]/ShowOnTrigger). No-op otherwise.
+                scheduleTriggerOverlay(ic, state, keyChar);
+            }
 
             // Set preedit text
             updateClientPreedit(ic, keyChar);
@@ -1218,6 +1230,30 @@ private:
         overlayVisible_ = false;
     }
 
+    // Progress bar ([Overlay]/ProgressBar). Unlike the trigger preview, it shows
+    // the overlay from the accent key press (t=0) so the lead-in (min-hold) is
+    // visible, then a window segment counts down across [min, max].
+    // startProgressOverlay sends the durations and shows the variant preview;
+    // freezeProgressOverlay holds the bar once a leader catches the window and
+    // cycling begins.
+    void startProgressOverlay(InputContext *ic, SchnelleUmlauteState *state,
+                              const std::string &keyChar) {
+        if (!*config_.overlay->enabled || !*config_.overlay->progressBar)
+            return;
+        auto it = umlautMap_.find(keyChar);
+        if (it == umlautMap_.end() || it->second.empty())
+            return;
+        const int lead = getEffectiveMinHold(state);
+        const int window = getEffectiveDelay(state) - lead;
+        overlayClient_.setProgress(lead, window);
+        overlayShow(ic, it->second, kPreviewNoHighlight);
+    }
+    void freezeProgressOverlay() {
+        if (!*config_.overlay->enabled || !*config_.overlay->progressBar)
+            return;
+        overlayClient_.freezeProgress();
+    }
+
     // Index sent to the overlay for the trigger-window preview. No cell
     // matches it, so the picker shows the variants without a green highlight —
     // the active cell only lights up once a leader press starts cycling.
@@ -1278,11 +1314,14 @@ private:
     }
 
     // Tear down the trigger-window preview: cancel a pending show timer and
-    // hide the overlay. The DBus hide is suppressed unless the preview feature
-    // is on, so plain commits don't emit a Hide on every keystroke.
+    // hide the overlay. The DBus hide is suppressed unless a trigger-time
+    // feature is on (the preview or the progress bar, both of which show the
+    // overlay before cycling), so plain commits don't emit a Hide on every
+    // keystroke.
     void hideTriggerOverlay(SchnelleUmlauteState *state) {
         state->cancelOverlayShow();
-        if (*config_.overlay->enabled && *config_.overlay->showOnTrigger)
+        if (*config_.overlay->enabled && (*config_.overlay->showOnTrigger ||
+                                          *config_.overlay->progressBar))
             overlayHide();
     }
 
