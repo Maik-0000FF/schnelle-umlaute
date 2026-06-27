@@ -14,8 +14,14 @@ Window {
     // via KeyboardInteractivityNone), so it needs no input at all.
     flags: Qt.FramelessWindowHint | Qt.WindowTransparentForInput
     color: "transparent"
-    width: frame.implicitWidth
-    height: frame.implicitHeight
+    // Window grows up and to the right to hold the optional progress bar, which
+    // starts at the panel's top-right corner; the panel stays bottom-left at its
+    // own size so it never reflows. With no bar the window is exactly the frame.
+    width: frame.implicitWidth + (OverlayController.progressActive
+                                  ? win.progressBarWidth : 0)
+    height: frame.implicitHeight + (OverlayController.progressActive
+                                    ? win.progressBarHeight + win.progressBarGap
+                                    : 0)
     // Start hidden so main() can configure the layer-shell surface
     // (layer/anchors/screen) before the first commit. main() then calls
     // show() once the surface role is fully set up.
@@ -42,6 +48,30 @@ Window {
     readonly property int cellSize: 44
     readonly property int framePadding: 16
     readonly property int cellTextInset: 8
+
+    // Progress bar (opt-in via [Overlay]/ProgressBar). It starts at the panel's
+    // top-right corner and runs to the right. Its pixel length and the
+    // lead/window split come from progress_overlay_geometry.h via
+    // OverlayController (one tested source, shared with the daemon's grid
+    // placement); only the bar's visual height/gap/radius live here.
+    readonly property int progressBarHeight: 6
+    readonly property int progressBarRadius: 3
+    readonly property int progressBarGap: 8
+
+    readonly property int progressLead: OverlayController.progressLeadMs
+    readonly property int progressWindow: OverlayController.progressWindowMs
+    readonly property int progressTotal: progressLead + progressWindow
+    readonly property int progressBarWidth:
+        OverlayController.progressBarLength(progressTotal, Screen.width)
+    readonly property real progressLeadWidth:
+        OverlayController.progressLeadLength(progressBarWidth, progressLead,
+                                             progressTotal)
+    readonly property real progressWindowWidth:
+        progressBarWidth - progressLeadWidth
+    // True once the lead-in has elapsed and the leader window is open; drives the
+    // panel reveal (the cells appear only when the window opens, not during the
+    // lead-in). Reset at the start of each gesture's animation.
+    property bool progressWindowPhase: false
 
     // Font sizes per variant glyph type. Color-emoji fonts occupy a
     // smaller fraction of the em-box than JetBrains Mono at the same
@@ -85,25 +115,29 @@ Window {
             frame: "#12101d", border: "#2a2640",
             cellInactive: "#1a1728", cellInactiveBorder: "#2a2640",
             cellActive: "#4ade80", cellActiveBorder: "#4ade80",
-            textInactive: "#f0fdf4", textActive: "#08060f"
+            textInactive: "#f0fdf4", textActive: "#08060f",
+            barLead: "#4ade80", barWindow: "#a855f7"
         },
         "dark": {
             frame: "#181b22", border: "#2a2f3a",
             cellInactive: "#232832", cellInactiveBorder: "#2a2f3a",
             cellActive: "#60a5fa", cellActiveBorder: "#60a5fa",
-            textInactive: "#e5e7eb", textActive: "#0f1115"
+            textInactive: "#e5e7eb", textActive: "#0f1115",
+            barLead: "#4ade80", barWindow: "#60a5fa"
         },
         "light": {
             frame: "#ffffff", border: "#d4d4d8",
             cellInactive: "#f4f4f5", cellInactiveBorder: "#d4d4d8",
             cellActive: "#2563eb", cellActiveBorder: "#2563eb",
-            textInactive: "#0f172a", textActive: "#ffffff"
+            textInactive: "#0f172a", textActive: "#ffffff",
+            barLead: "#16a34a", barWindow: "#2563eb"
         },
         "contrast": {
             frame: "#000000", border: "#ffffff",
             cellInactive: "#0a0a0a", cellInactiveBorder: "#ffffff",
             cellActive: "#ffd60a", cellActiveBorder: "#ffd60a",
-            textInactive: "#ffffff", textActive: "#000000"
+            textInactive: "#ffffff", textActive: "#000000",
+            barLead: "#ffffff", barWindow: "#ffd60a"
         }
     })
     readonly property var p: palettes[OverlayController.theme]
@@ -159,9 +193,76 @@ Window {
         return cp >= 0x1F000
     }
 
+    // Progress bar starting at the panel's top-right corner, running right
+    // (progress mode only). Phase 1: the lead segment (green) grows out from the
+    // corner to the right over the min-hold. Phase 2: the window segment (accent)
+    // shows full and its right end recedes left as [min, max] counts down. The
+    // panel is hidden during phase 1 and revealed when the window opens.
+    Item {
+        id: progressSlot
+        visible: OverlayController.progressActive
+        anchors.top: parent.top
+        x: frame.width
+        width: win.progressBarWidth
+        height: win.progressBarHeight
+
+        Rectangle {
+            id: leadFill
+            x: 0
+            height: parent.height
+            radius: win.progressBarRadius
+            color: win.p.barLead
+            // Grows from the panel corner (x = 0) to the right over the lead-in.
+            width: 0
+        }
+        Rectangle {
+            id: windowFill
+            x: win.progressLeadWidth
+            height: parent.height
+            radius: win.progressBarRadius
+            color: win.p.barWindow
+            // Left edge pinned past the lead segment; width shrinks
+            // windowWidth -> 0 so its right end recedes left as it counts down.
+            width: 0
+        }
+
+        SequentialAnimation {
+            running: OverlayController.progressActive
+            paused: OverlayController.progressFrozen
+            // Restart from the lead-in on each fresh gesture.
+            onStarted: win.progressWindowPhase = false
+            NumberAnimation {
+                target: leadFill
+                property: "width"
+                from: 0
+                to: win.progressLeadWidth
+                duration: win.progressLead
+                easing.type: Easing.Linear
+            }
+            // Lead-in over: open the window and reveal the panel.
+            ScriptAction { script: win.progressWindowPhase = true }
+            NumberAnimation {
+                target: windowFill
+                property: "width"
+                from: win.progressWindowWidth
+                to: 0
+                duration: win.progressWindow
+                easing.type: Easing.Linear
+            }
+        }
+    }
+
     Rectangle {
         id: frame
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        // In progress mode the panel is hidden during the lead-in and fades in
+        // when the window opens; it keeps its layout slot (opacity, not visible)
+        // so the bar can anchor to its top-right corner. Always shown otherwise.
+        opacity: OverlayController.progressActive
+                 ? (win.progressWindowPhase ? 1 : 0)
+                 : 1
+        Behavior on opacity { NumberAnimation { duration: win.animationDuration } }
         color: Qt.alpha(win.p.frame, win.frameOpacity)
         radius: 16
         border.color: win.p.border

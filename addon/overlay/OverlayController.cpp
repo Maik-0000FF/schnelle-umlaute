@@ -1,5 +1,6 @@
 #include "OverlayController.h"
 #include "../themes.h"
+#include "progress_overlay_geometry.h"
 
 #include <QCoreApplication>
 
@@ -20,6 +21,13 @@ void OverlayController::show(const QStringList &variants, int currentIndex,
 void OverlayController::hide() {
     visible_ = false;
     Q_EMIT stateChanged();
+    // Clear the progress bar so the next gesture starts a fresh timeline and a
+    // non-progress overlay never shows a stale bar.
+    if (progressActive_ || progressFrozen_) {
+        progressActive_ = false;
+        progressFrozen_ = false;
+        Q_EMIT progressChanged();
+    }
 }
 
 void OverlayController::quit() {
@@ -51,6 +59,30 @@ void OverlayController::sendCursor(int x, int y) {
     Q_EMIT cursorReported(x, y);
 }
 
+void OverlayController::setProgress(int leadMs, int windowMs) {
+    progressLeadMs_ = leadMs;
+    progressWindowMs_ = windowMs;
+    progressActive_ = true;
+    progressFrozen_ = false;
+    Q_EMIT progressChanged();
+}
+
+void OverlayController::freezeProgress() {
+    if (!progressActive_ || progressFrozen_)
+        return;
+    progressFrozen_ = true;
+    Q_EMIT progressChanged();
+}
+
+int OverlayController::progressBarLength(int totalMs, int screenWidth) const {
+    return schnelle_umlaute::progress::barLength(totalMs, screenWidth);
+}
+
+int OverlayController::progressLeadLength(int barLen, int leadMs,
+                                          int totalMs) const {
+    return schnelle_umlaute::progress::leadLength(barLen, leadMs, totalMs);
+}
+
 OverlayDBusAdaptor::OverlayDBusAdaptor(OverlayController *ctrl)
     : QDBusAbstractAdaptor(ctrl), ctrl_(ctrl) {}
 
@@ -75,3 +107,9 @@ void OverlayDBusAdaptor::SetTheme(const QString &theme) {
 // value landing on the wrong open. Acceptable for a session-local convenience
 // surface; revisit if the daemon ever gains a security boundary.
 void OverlayDBusAdaptor::SendCursor(int x, int y) { ctrl_->sendCursor(x, y); }
+
+void OverlayDBusAdaptor::SetProgress(int leadMs, int windowMs) {
+    ctrl_->setProgress(leadMs, windowMs);
+}
+
+void OverlayDBusAdaptor::FreezeProgress() { ctrl_->freezeProgress(); }

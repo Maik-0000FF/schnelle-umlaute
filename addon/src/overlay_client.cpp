@@ -48,6 +48,29 @@ void OverlayClient::hide() {
     bus_->flush();
 }
 
+void OverlayClient::setProgress(int leadMs, int windowMs) {
+    if (!capability_.supported)
+        return;
+    if (!bus_ || !bus_->isOpen())
+        return;
+    auto msg =
+        bus_->createMethodCall(kService, kPath, kInterface, "SetProgress");
+    msg << int32_t(leadMs) << int32_t(windowMs);
+    msg.send();
+    bus_->flush();
+}
+
+void OverlayClient::freezeProgress() {
+    if (!capability_.supported)
+        return;
+    if (!bus_ || !bus_->isOpen())
+        return;
+    auto msg =
+        bus_->createMethodCall(kService, kPath, kInterface, "FreezeProgress");
+    msg.send();
+    bus_->flush();
+}
+
 void OverlayClient::start() {
     // Sends a no-op Hide to the service name. DBus sees the call and, if
     // the daemon isn't already running, activates it via the .service file.

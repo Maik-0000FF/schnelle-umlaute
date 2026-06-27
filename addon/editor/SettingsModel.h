@@ -57,6 +57,8 @@ class SettingsModel : public QObject {
                    setOverlayShowOnTrigger NOTIFY overlayShowOnTriggerChanged)
     Q_PROPERTY(bool overlayAtCursor READ overlayAtCursor WRITE
                    setOverlayAtCursor NOTIFY overlayAtCursorChanged)
+    Q_PROPERTY(bool overlayProgressBar READ overlayProgressBar WRITE
+                   setOverlayProgressBar NOTIFY overlayProgressBarChanged)
     Q_PROPERTY(QString overlayPosition READ overlayPosition WRITE
                    setOverlayPosition NOTIFY overlayPositionChanged)
 
@@ -92,6 +94,7 @@ public:
     bool overlayEnabled() const { return overlayEnabled_; }
     bool overlayShowOnTrigger() const { return overlayShowOnTrigger_; }
     bool overlayAtCursor() const { return overlayAtCursor_; }
+    bool overlayProgressBar() const { return overlayProgressBar_; }
     QString overlayPosition() const { return overlayPosition_; }
     QString theme() const { return theme_; }
     bool layerShellAvailable() const { return layerShellAvailable_; }
@@ -116,6 +119,7 @@ public:
     void setOverlayEnabled(bool v);
     void setOverlayShowOnTrigger(bool v);
     void setOverlayAtCursor(bool v);
+    void setOverlayProgressBar(bool v);
     void setOverlayPosition(const QString &v);
     void setTheme(const QString &v);
 
@@ -151,6 +155,7 @@ Q_SIGNALS:
     void overlayEnabledChanged();
     void overlayShowOnTriggerChanged();
     void overlayAtCursorChanged();
+    void overlayProgressBarChanged();
     void overlayPositionChanged();
     void themeChanged();
 
@@ -179,6 +184,7 @@ private:
     bool overlayEnabled_ = false;
     bool overlayShowOnTrigger_ = false;
     bool overlayAtCursor_ = false;
+    bool overlayProgressBar_ = false;
     QString overlayPosition_ = "TopCol4";
     QString theme_ = "schnelle-umlaute";
     bool layerShellAvailable_ = false;

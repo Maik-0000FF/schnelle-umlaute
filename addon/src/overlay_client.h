@@ -25,6 +25,14 @@ public:
               const std::string &position);
     void hide();
 
+    // Starts the timing progress bar: a lead-in segment of leadMs (the
+    // min-hold) followed by a window segment of windowMs (max - min). The
+    // daemon animates it; sent right before show() when the gesture begins.
+    void setProgress(int leadMs, int windowMs);
+    // Freezes the progress bar in place (called when a leader press starts
+    // cycling, so the bar holds at the moment the window was caught).
+    void freezeProgress();
+
     // Pokes the DBus service so a disabled-but-not-yet-running daemon is
     // activated. Used when the user enables the overlay in the editor so
     // the daemon is ready for the first cycling event.
