@@ -87,6 +87,10 @@ public:
 
 private:
     void runScript(int id);
+    // Unload a loaded KWin script by its D-Bus path. Used both on resolve (the
+    // script that produced the reply) and on the timeout race where a script
+    // finished loading after the query already gave up.
+    void stopScript(const QString &path);
     void resolve(std::optional<CursorPos> pos);
     bool ensureScriptWritten();
 

@@ -67,4 +67,11 @@ void OverlayDBusAdaptor::SetTheme(const QString &theme) {
     ctrl_->setTheme(theme);
 }
 
+// Trust note: this method is unauthenticated, so any session process can push
+// a cursor pixel. The blast radius is bounded — it can only misplace the
+// overlay on this session's screen — and the reply is not request-id matched
+// against the pending query, so the "only one overlay open at a time"
+// invariant (see OverlayRenderer) is the sole guard against a stale/spoofed
+// value landing on the wrong open. Acceptable for a session-local convenience
+// surface; revisit if the daemon ever gains a security boundary.
 void OverlayDBusAdaptor::SendCursor(int x, int y) { ctrl_->sendCursor(x, y); }

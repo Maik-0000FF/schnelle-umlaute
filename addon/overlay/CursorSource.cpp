@@ -32,6 +32,13 @@ constexpr const char *kKWinService = "org.kde.KWin";
 constexpr const char *kKWinScriptingPath = "/Scripting";
 constexpr const char *kKWinScriptingIface = "org.kde.kwin.Scripting";
 constexpr const char *kKWinScriptIface = "org.kde.kwin.Script";
+
+// Plasma 6 exposes a loaded script at /Scripting/Script<id>. Plasma 5's /<id>
+// path is deliberately not handled: KDE 6 is current, and a Plasma 5 host
+// simply never gets the callback and falls back to the grid position.
+QString kwinScriptPath(int id) {
+    return QStringLiteral("/Scripting/Script") + QString::number(id);
+}
 } // namespace
 
 std::optional<CursorPos> parseXyJson(const QByteArray &json) {
@@ -152,25 +159,41 @@ void KWinCursorSource::getCursor(CursorCallback cb) {
                     resolve(std::nullopt);
                     return;
                 }
-                runScript(reply.value());
+                const int id = reply.value();
+                // The query may have already timed out (resolve cleared
+                // pending_) before this load reply arrived. The script still
+                // got instantiated in KWin, so unload it here rather than
+                // leaking one instance per timed-out open.
+                if (!pending_) {
+                    stopScript(kwinScriptPath(id));
+                    return;
+                }
+                runScript(id);
             });
     timer_->start(kKwinTimeoutMs);
 }
 
 void KWinCursorSource::runScript(int id) {
-    if (!pending_)
+    if (!pending_) {
+        stopScript(kwinScriptPath(id));
         return;
-    // Plasma 6 exposes the loaded script at /Scripting/Script<id>. Plasma 5's
-    // /<id> path is deliberately not handled: KDE 6 is current, and a Plasma 5
-    // host simply never gets the callback and falls back to the grid position.
-    currentScriptPath_ =
-        QStringLiteral("/Scripting/Script") + QString::number(id);
+    }
+    currentScriptPath_ = kwinScriptPath(id);
     QDBusMessage run = QDBusMessage::createMethodCall(
         QString::fromLatin1(kKWinService), currentScriptPath_,
         QString::fromLatin1(kKWinScriptIface), QStringLiteral("run"));
     QDBusConnection::sessionBus().asyncCall(run);
     // The reply arrives via SendCursor → reportCursor(); the timer covers a
     // silent failure.
+}
+
+void KWinCursorSource::stopScript(const QString &path) {
+    if (path.isEmpty())
+        return;
+    QDBusMessage stop = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kKWinService), path,
+        QString::fromLatin1(kKWinScriptIface), QStringLiteral("stop"));
+    QDBusConnection::sessionBus().asyncCall(stop);
 }
 
 void KWinCursorSource::reportCursor(int x, int y) { resolve(CursorPos{x, y}); }
@@ -180,10 +203,7 @@ void KWinCursorSource::resolve(std::optional<CursorPos> pos) {
     if (!currentScriptPath_.isEmpty()) {
         // Unload the one-shot script so repeated opens don't pile up script
         // instances inside KWin.
-        QDBusMessage stop = QDBusMessage::createMethodCall(
-            QString::fromLatin1(kKWinService), currentScriptPath_,
-            QString::fromLatin1(kKWinScriptIface), QStringLiteral("stop"));
-        QDBusConnection::sessionBus().asyncCall(stop);
+        stopScript(currentScriptPath_);
         currentScriptPath_.clear();
     }
     if (pending_) {
