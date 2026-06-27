@@ -1,12 +1,16 @@
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <QDBusConnection>
 #include <QFile>
 #include <QGuiApplication>
 #include <QMargins>
+#include <QPoint>
+#include <QPointer>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
+#include <QRect>
 #include <QScreen>
 #include <QStandardPaths>
 #include <QTextStream>
@@ -15,7 +19,9 @@
 #include <LayerShellQt/Shell>
 #include <LayerShellQt/Window>
 
+#include "CursorSource.h"
 #include "OverlayController.h"
+#include "cursor_overlay_geometry.h"
 
 namespace {
 
@@ -221,24 +227,85 @@ private:
         if (auto *scr = QGuiApplication::primaryScreen())
             qwin->setScreen(scr);
 #endif
-        // Col 2/3/5/6 need the screen width (to place the overlay at a
-        // fraction of it) and the overlay's own width (to subtract half
-        // so the anchored margin lands the *center* of the overlay on
-        // the target fraction, not its leading edge). Col 1/4/7 don't
-        // use these values, so inaccurate fallbacks are harmless.
-        QScreen *targetScreen = qwin->screen();
-        if (!targetScreen)
-            targetScreen = QGuiApplication::primaryScreen();
-        const int screenWidth =
-            targetScreen ? targetScreen->geometry().width() : 1920;
-        const int overlayWidth = qwin->width() > 0 ? qwin->width() : 200;
-        const auto a = anchorsFor(ctrl_->position(), screenWidth, overlayWidth);
-        ls->setAnchors(a.anchors);
-        ls->setMargins(a.margins);
-        // Layer-shell props must be set before the first commit. Now that
-        // everything is configured, reveal the window.
-        qwin->setVisible(true);
+        // Mark the surface configured now (before the possibly-async cursor
+        // fetch) so a cycling update that arrives mid-fetch reuses it via the
+        // pos == lastPosition_ check instead of tearing it down and racing the
+        // reply.
         lastPosition_ = pos;
+
+        const schnelle_umlaute::CursorPositionSpec spec =
+            schnelle_umlaute::parseCursorPosition(pos.toStdString());
+        const QString grid = QString::fromStdString(spec.grid);
+
+        // Grid reveal: anchor the surface per the 7×3 position and show. Col
+        // 2/3/5/6 need the screen width (to place the overlay at a fraction of
+        // it) and the overlay's own width (to subtract half so the anchored
+        // margin lands the *center* of the overlay on the target fraction, not
+        // its leading edge). Col 1/4/7 don't use these, so a fallback is
+        // harmless. Layer-shell props must be set before this first commit.
+        QPointer<QWindow> qwinPtr(qwin);
+        auto revealGrid = [this, qwinPtr, grid]() {
+            if (!qwinPtr)
+                return;
+            auto *ls2 = LSWindow::get(qwinPtr);
+            if (!ls2)
+                return;
+            QScreen *scr = qwinPtr->screen();
+            if (!scr)
+                scr = QGuiApplication::primaryScreen();
+            const int sw = scr ? scr->geometry().width() : 1920;
+            const int ow = qwinPtr->width() > 0 ? qwinPtr->width() : 200;
+            const auto a = anchorsFor(grid, sw, ow);
+            ls2->setAnchors(a.anchors);
+            ls2->setMargins(a.margins);
+            qwinPtr->setVisible(true);
+        };
+
+        if (!spec.atCursor) {
+            revealGrid();
+            return;
+        }
+
+        // Cursor mode: fetch the global pointer asynchronously, then place the
+        // overlay's lower-left corner there (on the cursor's output). Any
+        // failure — unsupported compositor, query error, timeout — falls back
+        // to the grid reveal above.
+        cursorSource()->getCursor(
+            [this, qwinPtr, revealGrid](
+                std::optional<schnelle_umlaute::CursorPos> cur) {
+                // The overlay may have been torn down (a quick hide) while the
+                // reply was in flight — QPointer goes null with the window.
+                if (!qwinPtr || !ctrl_->visible())
+                    return;
+                if (!cur) {
+                    revealGrid();
+                    return;
+                }
+                auto *ls2 = LSWindow::get(qwinPtr);
+                if (!ls2)
+                    return;
+                QScreen *scr =
+                    QGuiApplication::screenAt(QPoint(cur->x, cur->y));
+                if (!scr)
+                    scr = qwinPtr->screen();
+                if (!scr)
+                    scr = QGuiApplication::primaryScreen();
+                if (!scr) {
+                    revealGrid();
+                    return;
+                }
+                qwinPtr->setScreen(scr);
+                const QRect geo = scr->geometry();
+                const int ow = qwinPtr->width() > 0 ? qwinPtr->width() : 200;
+                const int oh = qwinPtr->height() > 0 ? qwinPtr->height() : 64;
+                const auto m = schnelle_umlaute::cursorMargins(
+                    cur->x, cur->y, geo.x(), geo.y(), geo.width(), geo.height(),
+                    ow, oh);
+                ls2->setAnchors(LSWindow::Anchors(LSWindow::AnchorTop |
+                                                  LSWindow::AnchorLeft));
+                ls2->setMargins(QMargins(m.left, m.top, 0, 0));
+                qwinPtr->setVisible(true);
+            });
     }
 
     void teardown() {
@@ -249,9 +316,36 @@ private:
         lastPosition_.clear();
     }
 
+    // Lazily build the cursor backend for the running compositor and wire the
+    // KWin script reply path. Created on first cursor-mode open so a user who
+    // never enables it pays nothing; lives for the daemon's lifetime.
+    schnelle_umlaute::CursorSource *cursorSource() {
+        if (!cursorSource_) {
+            schnelle_umlaute::KWinDeps deps;
+            deps.scriptDir = QStandardPaths::writableLocation(
+                                 QStandardPaths::GenericCacheLocation) +
+                             QStringLiteral("/schnelle-umlaute-overlay");
+            deps.serviceName = QStringLiteral("de.schnelle_umlaute.Overlay");
+            deps.objectPath = QStringLiteral("/de/schnelle_umlaute/Overlay");
+            deps.interfaceName = QStringLiteral("de.schnelle_umlaute.Overlay1");
+            cursorSource_ = schnelle_umlaute::createCursorSource(
+                QString::fromLocal8Bit(qgetenv("XDG_CURRENT_DESKTOP")), deps,
+                this);
+            // The KWin script calls SendCursor on the daemon's service, which
+            // surfaces as cursorReported here; forward it to the source.
+            // A no-op for the CLI / null sources.
+            connect(ctrl_, &OverlayController::cursorReported, cursorSource_,
+                    [src = cursorSource_](int x, int y) {
+                        src->reportCursor(x, y);
+                    });
+        }
+        return cursorSource_;
+    }
+
     OverlayController *ctrl_;
     std::unique_ptr<QQmlApplicationEngine> engine_;
     QString lastPosition_;
+    schnelle_umlaute::CursorSource *cursorSource_ = nullptr;
 };
 
 } // namespace

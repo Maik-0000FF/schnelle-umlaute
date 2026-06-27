@@ -31,12 +31,17 @@ public:
     void hide();
     void quit();
     void setTheme(const QString &theme);
+    // Forwards the KWin cursor script's reply (see CursorSource) on to any
+    // listener via cursorReported(). The renderer connects its active
+    // KWinCursorSource to it.
+    void sendCursor(int x, int y);
 
     static bool isValidTheme(const QString &name);
 
 Q_SIGNALS:
     void stateChanged();
     void themeChanged();
+    void cursorReported(int x, int y);
 
 private:
     QStringList variants_;
@@ -60,6 +65,8 @@ public Q_SLOTS:
     void Hide();
     void Quit();
     void SetTheme(const QString &theme);
+    // Called by the KWin cursor script with the live global pointer pixel.
+    void SendCursor(int x, int y);
 
 private:
     OverlayController *ctrl_;

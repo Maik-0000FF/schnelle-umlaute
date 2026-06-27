@@ -47,6 +47,10 @@ bool OverlayController::isValidTheme(const QString &name) {
     return schnelle_umlaute::isValidTheme(name);
 }
 
+void OverlayController::sendCursor(int x, int y) {
+    Q_EMIT cursorReported(x, y);
+}
+
 OverlayDBusAdaptor::OverlayDBusAdaptor(OverlayController *ctrl)
     : QDBusAbstractAdaptor(ctrl), ctrl_(ctrl) {}
 
@@ -62,3 +66,5 @@ void OverlayDBusAdaptor::Quit() { ctrl_->quit(); }
 void OverlayDBusAdaptor::SetTheme(const QString &theme) {
     ctrl_->setTheme(theme);
 }
+
+void OverlayDBusAdaptor::SendCursor(int x, int y) { ctrl_->sendCursor(x, y); }

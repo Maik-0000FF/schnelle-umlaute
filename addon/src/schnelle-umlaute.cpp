@@ -1196,8 +1196,15 @@ private:
             return;
         (void)ic;
         // Combine the two enum halves into the single "<Row><Col>" string
-        // the overlay daemon expects (e.g. "TopCol4", "CenterCol7").
-        std::string position = OverlayRowToString(*config_.overlay->row);
+        // the overlay daemon expects (e.g. "TopCol4", "CenterCol7"). When
+        // "show at cursor" is on, prefix "Cursor:" so the daemon anchors the
+        // overlay's lower-left corner at the pointer; the grid string that
+        // follows is the fallback the daemon uses when the compositor can't
+        // report the cursor position.
+        std::string position;
+        if (*config_.overlay->atCursor)
+            position = "Cursor:";
+        position += OverlayRowToString(*config_.overlay->row);
         position += OverlayColumnToString(*config_.overlay->column);
         overlayClient_.show(variants, index, position);
         overlayVisible_ = true;
