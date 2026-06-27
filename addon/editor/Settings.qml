@@ -241,19 +241,6 @@ Item {
                         onToggled: (v) => root.settingsModel.overlayAtCursor = v
                     }
 
-                    Text {
-                        visible: root.settingsModel
-                            && root.settingsModel.layerShellAvailable
-                            && root.settingsModel.overlayEnabled
-                            && root.settingsModel.overlayAtCursor
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
-                        color: Theme.textMuted
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        text: qsTr("The overlay's lower-left corner appears at the pointer. The position below is the fallback for compositors that can't report the cursor.")
-                    }
-
                     PositionPicker {
                         visible: root.settingsModel
                             && root.settingsModel.layerShellAvailable
