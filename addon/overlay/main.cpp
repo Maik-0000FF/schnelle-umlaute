@@ -268,13 +268,18 @@ private:
                 (void)row;
                 // The surface is max(panel, bar) wide with the bar left-aligned;
                 // read the panel width from QML so the panel (not the surface)
-                // is centred on the column.
+                // is centred on the column. If the property can't be read (0),
+                // skip the override and keep anchorsFor's surface-centring
+                // rather than mis-place the panel.
                 const int frameW = qwinPtr->property("frameWidth").toInt();
-                a.anchors &= ~(LSWindow::AnchorLeft | LSWindow::AnchorRight);
-                a.anchors |= LSWindow::AnchorLeft;
-                a.margins.setLeft(schnelle_umlaute::progress::gridPanelLeftMargin(
-                    col, sw, frameW, ow, kEdgeMargin));
-                a.margins.setRight(0);
+                if (frameW > 0) {
+                    a.anchors &= ~(LSWindow::AnchorLeft | LSWindow::AnchorRight);
+                    a.anchors |= LSWindow::AnchorLeft;
+                    a.margins.setLeft(
+                        schnelle_umlaute::progress::gridPanelLeftMargin(
+                            col, sw, frameW, ow, kEdgeMargin));
+                    a.margins.setRight(0);
+                }
             }
             ls2->setAnchors(a.anchors);
             ls2->setMargins(a.margins);
