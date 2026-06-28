@@ -833,11 +833,12 @@ private:
                      << *config_.delay->uppercase << "]ms, Leaders=" << leaders
                      << ", Mappings=" << umlautMap_.size();
 
-        // Daemon lifecycle follows the enable flag only. It is DBus-activated
-        // on demand and only ever told to show in the Grid/MouseCursor
-        // placements, so in caret mode it stays dormant on its own without
-        // quitting it here. (Quitting on placement caused start/quit churn that
-        // could leave the daemon down after switching back to a daemon mode.)
+        // Daemon lifecycle follows the enable flag only, not the placement. On
+        // enable it is DBus-activated once (a no-op where it can't run, e.g.
+        // X11/GNOME); in caret mode it is never told to show, so it just sits
+        // idle and invisible. Tying it to !overlayAtCaret() instead caused
+        // start/quit churn on placement switches that could race the DBus
+        // activation and leave the daemon down after switching back.
         overlayClient_.applyEnabledTransition(*config_.overlay->enabled);
     }
 

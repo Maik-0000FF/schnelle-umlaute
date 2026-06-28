@@ -243,8 +243,10 @@ Item {
                     }
 
                     Text {
-                        // The Grid/MouseCursor placements need wlr-layer-shell;
-                        // "At text cursor" does not, so it stays usable here.
+                        // Grid/MouseCursor need wlr-layer-shell. "At text
+                        // cursor" works on X11 but is unreliable on GNOME
+                        // Wayland (Mutter lacks the input-method protocol), so
+                        // the note splits the two no-layer-shell sessions.
                         visible: root.settingsModel
                             && root.settingsModel.overlayEnabled
                             && !root.settingsModel.layerShellAvailable
@@ -253,11 +255,17 @@ Item {
                         color: Theme.textMuted
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
-                        text: root.settingsModel
-                            ? qsTr("\"Fixed position\" and \"At mouse cursor\" need wlr-layer-shell, unavailable on %1 (%2). Use \"At text cursor\" instead.\nLayer-shell is supported on KDE Plasma Wayland, sway, Hyprland, river, wayfire.")
-                                .arg(root.settingsModel.layerShellSession)
-                                .arg(root.settingsModel.layerShellReason)
-                            : ""
+                        text: {
+                            if (!root.settingsModel)
+                                return "";
+                            var s = root.settingsModel.layerShellSession;
+                            var head = qsTr("\"Fixed position\" and \"At mouse cursor\" need wlr-layer-shell, unavailable on %1.").arg(s);
+                            var caret = s.indexOf("(Wayland)") !== -1
+                                ? qsTr(" \"At text cursor\" is also unreliable here: this compositor lacks the input-method protocol fcitx5 needs, so it only works in X11/XWayland apps.")
+                                : qsTr(" Use \"At text cursor\" instead; it works on X11.");
+                            return head + caret
+                                + qsTr("\nLayer-shell is supported on KDE Plasma Wayland, sway, Hyprland, river, wayfire.");
+                        }
                     }
 
                     RowLayout {
