@@ -72,10 +72,15 @@ inline QStringList applyIniKeys(QStringList lines,
 
 // Build the fcitx5 classicui theme.conf (pure-colour InputPanel theme) from
 // the editor palette. Colour roles (verified against classicui theme.h):
-//   [InputPanel/Background] Color  = whole panel background
-//   NormalColor                    = non-active candidate text
-//   [InputPanel/Highlight] Color   = active-candidate background box
-//   HighlightCandidateColor        = active-candidate text
+//   [InputPanel/Background] Color  = whole panel background  (background)
+//   [InputPanel/Background] BorderColor = panel border       (border)
+//   NormalColor                    = non-active candidate text (text)
+//   HighlightCandidateColor        = active-candidate text     (onHighlight)
+//   HighlightColor                 = active highlight/preedit text, kept equal
+//                                    to HighlightCandidateColor (onHighlight)
+//   HighlightBackgroundColor       = flat active-candidate background
+//                                    (highlight); mirrors [InputPanel/Highlight]
+//                                    Color, which draws the same box
 inline QString generateCaretThemeConf(const QString &background,
                                       const QString &text,
                                       const QString &highlight,

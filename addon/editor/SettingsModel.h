@@ -65,6 +65,13 @@ class SettingsModel : public QObject {
     // the editor theme. Writes a generated fcitx5 theme + points classicui at
     // it. Persisted so the toggle state round-trips; the actual styling lives
     // in the written files, not here.
+    //
+    // Asymmetric on purpose: setOverlayCaretTheme(true) only persists the flag.
+    // Generating the theme files needs the active Theme.* colours, so it is
+    // driven from QML via applyCaretTheme(); there is no C++-side counterpart
+    // to the false branch (which calls clearCaretTheme() directly). A manual
+    // CaretTheme=True in the config therefore persists but writes no files
+    // until the editor next applies the theme.
     Q_PROPERTY(bool overlayCaretTheme READ overlayCaretTheme WRITE
                    setOverlayCaretTheme NOTIFY overlayCaretThemeChanged)
 
@@ -143,6 +150,10 @@ public:
     void setTheme(const QString &v);
 
     static bool isValidTheme(const QString &name);
+    // The three OverlayPlacement enum names the fcitx5 addon understands
+    // (config.h: Grid|MouseCursor|TextCaret). Guards load()/setter against a
+    // corrupt or hand-edited value that would diverge editor and addon.
+    static bool isValidPlacement(const QString &name);
 
     Q_INVOKABLE void addBlacklistEntry(const QString &entry);
     Q_INVOKABLE void removeBlacklistEntry(int index);

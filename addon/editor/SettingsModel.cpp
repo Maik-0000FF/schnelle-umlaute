@@ -274,7 +274,9 @@ void SettingsModel::setOverlayShowOnTrigger(bool v) {
     save();
 }
 void SettingsModel::setOverlayPlacement(const QString &v) {
-    if (overlayPlacement_ == v)
+    // Reject unknown values so the UI can't persist a placement that load()
+    // would then ignore (mirrors setTheme's isValidTheme guard).
+    if (!isValidPlacement(v) || overlayPlacement_ == v)
         return;
     overlayPlacement_ = v;
     Q_EMIT overlayPlacementChanged();
@@ -385,6 +387,15 @@ void SettingsModel::setTheme(const QString &v) {
 
 bool SettingsModel::isValidTheme(const QString &name) {
     return schnelle_umlaute::isValidTheme(name);
+}
+
+bool SettingsModel::isValidPlacement(const QString &name) {
+    // Single source for the editor side; must stay in sync with the
+    // OverlayPlacement enum in addon/src/config.h.
+    static const QStringList kPlacements = {QStringLiteral("Grid"),
+                                            QStringLiteral("MouseCursor"),
+                                            QStringLiteral("TextCaret")};
+    return kPlacements.contains(name);
 }
 
 void SettingsModel::addBlacklistEntry(const QString &entry) {
@@ -518,8 +529,13 @@ void SettingsModel::load() {
                 overlayEnabled_ = fromBool(val);
             else if (key == "ShowOnTrigger")
                 overlayShowOnTrigger_ = fromBool(val);
-            else if (key == "Placement")
-                overlayPlacement_ = val;
+            else if (key == "Placement") {
+                // Ignore an unknown value so a corrupt/hand-edited Placement
+                // keeps the in-memory default instead of round-tripping garbage
+                // that the addon's enum would silently read as Grid anyway.
+                if (isValidPlacement(val))
+                    overlayPlacement_ = val;
+            }
             // Pre-enum (1.2.3) wrote AtCursor=True/False for the mouse mode.
             // Map a leftover AtCursor=True onto MouseCursor unless an explicit
             // Placement already set something other than the Grid default.
