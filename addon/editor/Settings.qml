@@ -9,6 +9,15 @@ Item {
     property var settingsModel: null
     property var mappingsModel: null
 
+    // Push the active editor palette into the caret candidate-window theme.
+    // One place to keep the colour-argument list in sync across the toggle,
+    // the placement selector and the theme-change handler.
+    function reapplyCaretTheme() {
+        root.settingsModel.applyCaretTheme(
+            Theme.background, Theme.text, Theme.highlight,
+            Theme.onHighlight, Theme.border);
+    }
+
     ScrollView {
         id: scroll
         anchors.fill: parent
@@ -188,17 +197,35 @@ Item {
 
                     LabeledSwitch {
                         labelText: qsTr("Show overlay while cycling")
-                        enabled: root.settingsModel && root.settingsModel.layerShellAvailable
+                        // Always available: the "At text cursor" placement
+                        // renders through fcitx5's input panel and needs no
+                        // layer-shell. Only the Grid/MouseCursor placements and
+                        // their sub-options below stay layer-shell-gated.
+                        enabled: root.settingsModel
                         checked: root.settingsModel ? root.settingsModel.overlayEnabled : false
                         onToggled: (v) => root.settingsModel.overlayEnabled = v
                     }
 
+                    Text {
+                        // "while cycling" excludes single-accent keys, which
+                        // never cycle. Spell that out here, where the confusion
+                        // starts, so it is clear they need the trigger preview.
+                        visible: root.settingsModel
+                            && root.settingsModel.overlayEnabled
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        text: qsTr("Single-accent keys never cycle, so the overlay only appears for them when \"Preview in the trigger window\" is on.")
+                    }
+
                     LabeledSwitch {
                         labelText: qsTr("Preview in the trigger window")
-                        // Sub-option of the overlay: only meaningful once the
-                        // overlay itself is enabled.
+                        // Applies to every placement (the caret path shows the
+                        // same preview), so it only depends on the overlay
+                        // being enabled, not on layer-shell.
                         enabled: root.settingsModel
-                            && root.settingsModel.layerShellAvailable
                             && root.settingsModel.overlayEnabled
                         checked: root.settingsModel ? root.settingsModel.overlayShowOnTrigger : false
                         onToggled: (v) => root.settingsModel.overlayShowOnTrigger = v
@@ -206,7 +233,6 @@ Item {
 
                     Text {
                         visible: root.settingsModel
-                            && root.settingsModel.layerShellAvailable
                             && root.settingsModel.overlayEnabled
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
@@ -217,51 +243,148 @@ Item {
                     }
 
                     Text {
-                        visible: root.settingsModel && !root.settingsModel.layerShellAvailable
+                        // The Grid/MouseCursor placements need wlr-layer-shell;
+                        // "At text cursor" does not, so it stays usable here.
+                        visible: root.settingsModel
+                            && root.settingsModel.overlayEnabled
+                            && !root.settingsModel.layerShellAvailable
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
                         color: Theme.textMuted
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
                         text: root.settingsModel
-                            ? qsTr("Unavailable on %1. %2\nSupported: KDE Plasma Wayland, sway, Hyprland, river, wayfire.")
+                            ? qsTr("\"Fixed position\" and \"At mouse cursor\" need wlr-layer-shell, unavailable on %1 (%2). Use \"At text cursor\" instead.\nLayer-shell is supported on KDE Plasma Wayland, sway, Hyprland, river, wayfire.")
                                 .arg(root.settingsModel.layerShellSession)
                                 .arg(root.settingsModel.layerShellReason)
                             : ""
                     }
 
-                    LabeledSwitch {
-                        labelText: qsTr("Show at mouse cursor")
-                        // Sub-option of the overlay: only meaningful once the
-                        // overlay itself is enabled.
-                        enabled: root.settingsModel
-                            && root.settingsModel.layerShellAvailable
-                            && root.settingsModel.overlayEnabled
-                        checked: root.settingsModel ? root.settingsModel.overlayAtCursor : false
-                        onToggled: (v) => root.settingsModel.overlayAtCursor = v
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.spacingMd
+
+                        Text {
+                            text: qsTr("Placement")
+                            color: Theme.text
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 13
+                            Layout.preferredWidth: 120
+                        }
+
+                        ThemedComboBox {
+                            id: placementBox
+                            Layout.fillWidth: true
+                            // "At text cursor" renders through fcitx5's input
+                            // panel (no layer-shell); "Fixed position" and "At
+                            // mouse cursor" drive the overlay daemon. The combo
+                            // itself stays available without layer-shell so the
+                            // caret mode is reachable; the daemon modes then
+                            // surface the note above.
+                            enabled: root.settingsModel
+                                && root.settingsModel.overlayEnabled
+                            textRole: "label"
+                            valueRole: "key"
+                            model: [
+                                { key: "Grid",        label: qsTr("Fixed position") },
+                                { key: "MouseCursor", label: qsTr("At mouse cursor") },
+                                { key: "TextCaret",   label: qsTr("At text cursor (caret)") }
+                            ]
+                            currentIndex: {
+                                if (!root.settingsModel) return 0;
+                                for (var i = 0; i < model.length; ++i) {
+                                    if (model[i].key === root.settingsModel.overlayPlacement) return i;
+                                }
+                                return 0;
+                            }
+                            onActivated: {
+                                if (!root.settingsModel)
+                                    return;
+                                root.settingsModel.overlayPlacement = model[currentIndex].key;
+                                // The caret theme override only makes sense in
+                                // caret mode: apply it on entering, restore the
+                                // user's theme on leaving (keeping the toggle).
+                                if (root.settingsModel.overlayCaretTheme) {
+                                    if (model[currentIndex].key === "TextCaret")
+                                        root.reapplyCaretTheme();
+                                    else
+                                        root.settingsModel.clearCaretTheme();
+                                }
+                            }
+                        }
                     }
 
                     LabeledSwitch {
                         labelText: qsTr("Show timing progress bar")
-                        // Sub-option of the overlay: only meaningful once the
-                        // overlay itself is enabled.
-                        enabled: root.settingsModel
+                        // Daemon-only visual (needs layer-shell, no effect in
+                        // caret placement). Hide it there like the position
+                        // picker instead of leaving a dead disabled switch.
+                        visible: root.settingsModel
                             && root.settingsModel.layerShellAvailable
                             && root.settingsModel.overlayEnabled
+                            && root.settingsModel.overlayPlacement !== "TextCaret"
                         checked: root.settingsModel ? root.settingsModel.overlayProgressBar : false
                         onToggled: (v) => root.settingsModel.overlayProgressBar = v
                     }
 
                     PositionPicker {
+                        // The grid only matters for Grid/MouseCursor placement;
+                        // in TextCaret mode the caret decides the position, so
+                        // hide the picker entirely.
                         visible: root.settingsModel
                             && root.settingsModel.layerShellAvailable
                             && root.settingsModel.overlayEnabled
+                            && root.settingsModel.overlayPlacement !== "TextCaret"
                         value: root.settingsModel ? root.settingsModel.overlayPosition : "TopCenter"
-                        // In cursor mode the grid is only the fallback: it stays
-                        // marked but dimmed, and a pointer marker shows the menu
-                        // follows the mouse.
-                        atCursorMode: root.settingsModel ? root.settingsModel.overlayAtCursor : false
+                        // In mouse-cursor mode the grid is only the fallback: it
+                        // stays marked but dimmed, and a pointer marker shows the
+                        // menu follows the mouse.
+                        atCursorMode: root.settingsModel
+                            ? root.settingsModel.overlayPlacement === "MouseCursor"
+                            : false
                         onEdited: (v) => root.settingsModel.overlayPosition = v
+                    }
+
+                    // Caret mode only: style fcitx5's candidate window to match
+                    // the active editor theme. Opt-in because it changes the
+                    // global candidate window (see warning below).
+                    LabeledSwitch {
+                        labelText: qsTr("Match candidate window to this theme")
+                        visible: root.settingsModel
+                            && root.settingsModel.overlayEnabled
+                            && root.settingsModel.overlayPlacement === "TextCaret"
+                        enabled: root.settingsModel
+                            && root.settingsModel.overlayEnabled
+                        checked: root.settingsModel ? root.settingsModel.overlayCaretTheme : false
+                        onToggled: (v) => {
+                            root.settingsModel.overlayCaretTheme = v;
+                            if (v)
+                                root.reapplyCaretTheme();
+                        }
+                    }
+
+                    Text {
+                        visible: root.settingsModel
+                            && root.settingsModel.overlayEnabled
+                            && root.settingsModel.overlayPlacement === "TextCaret"
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        text: qsTr("Styles fcitx5's candidate window globally (it affects other input methods too) and overrides your classicui theme while on. Turning it off restores your previous theme.")
+                    }
+
+                    // Re-apply on every editor theme change while the toggle is
+                    // on, so the caret window follows the selected theme.
+                    Connections {
+                        target: Theme
+                        function onCurrentChanged() {
+                            if (root.settingsModel
+                                && root.settingsModel.overlayCaretTheme
+                                && root.settingsModel.overlayPlacement === "TextCaret")
+                                root.reapplyCaretTheme();
+                        }
                     }
                 }
 
