@@ -40,7 +40,7 @@ inline QMap<QString, QString> parseFlatIni(const QString &content) {
         if (t.isEmpty() || t.startsWith(QLatin1Char('#')) ||
             t.startsWith(QLatin1Char('[')))
             continue;
-        const int eq = line.indexOf(QLatin1Char('='));
+        const qsizetype eq = line.indexOf(QLatin1Char('='));
         if (eq <= 0)
             continue;
         out.insert(line.left(eq).trimmed(), line.mid(eq + 1).trimmed());
@@ -55,7 +55,7 @@ inline QStringList applyIniKeys(QStringList lines,
                                 const QMap<QString, QString> &kv) {
     QSet<QString> seen;
     for (QString &line : lines) {
-        const int eq = line.indexOf(QLatin1Char('='));
+        const qsizetype eq = line.indexOf(QLatin1Char('='));
         if (eq <= 0)
             continue;
         const QString key = line.left(eq).trimmed();
