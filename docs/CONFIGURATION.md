@@ -19,7 +19,7 @@ You can open `schnelle-umlaute-editor` in three equivalent ways:
 |---|---|
 | **Application launcher** | Search "Schnelle Umlaute Editor" in your DE's app menu (Plasma Search / KRunner / GNOME Activities / rofi / wofi) |
 | **Command line** | Run `schnelle-umlaute-editor` from any terminal |
-| **fcitx5-configtool** | Open `fcitx5-config-qt`, select **Schnelle Umlaute** in the Input Method list, click the **gear/Configure** button next to it |
+| **fcitx5-config-qt** | Open `fcitx5-config-qt`, select **Schnelle Umlaute** in the Input Method list, click the **gear/Configure** button next to it |
 
 All three open the same editor window — pick whichever fits your workflow.
 
@@ -83,25 +83,30 @@ The Mappings tab uses a dynamic list — add as many entries as you need with th
 
 ## Delays
 
-Customize the timing delays to match your typing speed:
+Customize the timing delays to match your typing speed. Each delay is a window `[min, max]`: the leader (e.g. <kbd>Space</kbd>) only triggers an accent if it arrives **after** the minimum hold and **before** the maximum. In the editor the two delay sliders are range sliders (drag the line between the handles to move the whole window).
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| **DelayLowercase** | 400 ms | Time window for lowercase gestures |
-| **DelayUppercase** | 700 ms | Time window for uppercase gestures (longer because <kbd>Shift</kbd> + Letter + <kbd>Space</kbd> requires more coordination) |
+| **Lowercase** | 400 ms | Upper bound of the window for lowercase gestures |
+| **Uppercase** | 700 ms | Upper bound for uppercase gestures (longer because <kbd>Shift</kbd> + Letter + <kbd>Space</kbd> requires more coordination) |
+| **LowercaseMin** | 0 ms | Minimum hold for lowercase: a leader arriving earlier yields the plain character |
+| **UppercaseMin** | 0 ms | Minimum hold for uppercase gestures |
 
-Valid range: 50–2000 ms.
+Valid range: 50–2000 ms for the upper bounds, 0–2000 ms for the minimum-hold lower bounds; both in 10 ms steps. The lower bounds default to 0 (no minimum). A degenerate config with `min >= max` makes the accent unreachable, so the engine ignores such a lower bound.
 
 ```ini
 [Delay]
 Lowercase=400
 Uppercase=700
+LowercaseMin=0
+UppercaseMin=0
 ```
 
 **Tips:**
 - Start with defaults and adjust if needed
 - Faster typists may prefer shorter delays (300/600 ms)
 - Slower, more deliberate typing benefits from longer delays (500/800 ms)
+- Raise the minimum hold (e.g. 80 ms) if quick deliberate <kbd>Space</kbd> presses trigger accents by accident
 
 ---
 
@@ -128,6 +133,8 @@ Right=False
 Up=False
 Down=False
 Alt=False
+
+[Leader/Custom]
 CustomKeyEnabled=False
 CustomKey=
 CustomKey2Enabled=False
@@ -282,9 +289,21 @@ The theme applies to both the editor window and the on-screen cycle overlay (whe
 
 An optional on-screen indicator that mirrors the current variant while you cycle. Toggle it in the editor's **Settings → Overlay**, then click on the position grid to choose where it appears on screen.
 
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Enabled** | `False` | Master switch for the overlay |
+| **ShowOnTrigger** | `False` | Preview all mapped keys in the trigger window, not just the variants currently being cycled |
+| **AtCursor** | `False` | Anchor the overlay at the mouse pointer instead of the Row/Column grid. The grid stays as the fallback on compositors that can't report the cursor |
+| **ProgressBar** | `False` | Draw a timing bar for the accent gesture: a lead-in segment (min-hold) fills, then the `[min, max]` leader window counts down |
+| **Row** | `Top` | Vertical grid position when not following the cursor: `Top`, `Center`, `Bottom` |
+| **Column** | `Col4` | Horizontal grid position: `Col1` (far left) … `Col4` (center) … `Col7` (far right) |
+
 ```ini
 [Overlay]
 Enabled=True
+ShowOnTrigger=False
+AtCursor=False
+ProgressBar=False
 Row=Center
 Column=Col1
 ```

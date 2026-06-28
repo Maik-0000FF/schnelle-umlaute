@@ -91,7 +91,7 @@ Setting the mode back to **Disabled** turns the filter off entirely. See [Config
 
 ## Editor doesn't launch (`schnelle-umlaute-editor`)
 
-**Symptom:** Clicking the gear button in fcitx5-configtool does nothing, or running `schnelle-umlaute-editor` from a terminal exits immediately or errors.
+**Symptom:** Clicking the gear button in fcitx5-config-qt does nothing, or running `schnelle-umlaute-editor` from a terminal exits immediately or errors.
 
 **Common causes:**
 

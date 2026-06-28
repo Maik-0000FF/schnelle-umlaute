@@ -16,6 +16,10 @@ Makefile
 !CMakeLists.txt
 install_manifest.txt
 
+# Nix build output
+result
+result-*
+
 # AUR Build (if building locally)
 pkg/
 /src/
