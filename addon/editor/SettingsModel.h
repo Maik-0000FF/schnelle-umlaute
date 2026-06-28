@@ -55,12 +55,18 @@ class SettingsModel : public QObject {
                    NOTIFY overlayEnabledChanged)
     Q_PROPERTY(bool overlayShowOnTrigger READ overlayShowOnTrigger WRITE
                    setOverlayShowOnTrigger NOTIFY overlayShowOnTriggerChanged)
-    Q_PROPERTY(bool overlayAtCursor READ overlayAtCursor WRITE
-                   setOverlayAtCursor NOTIFY overlayAtCursorChanged)
+    Q_PROPERTY(QString overlayPlacement READ overlayPlacement WRITE
+                   setOverlayPlacement NOTIFY overlayPlacementChanged)
     Q_PROPERTY(bool overlayProgressBar READ overlayProgressBar WRITE
                    setOverlayProgressBar NOTIFY overlayProgressBarChanged)
     Q_PROPERTY(QString overlayPosition READ overlayPosition WRITE
                    setOverlayPosition NOTIFY overlayPositionChanged)
+    // Opt-in (caret placement only): style fcitx5's candidate window to match
+    // the editor theme. Writes a generated fcitx5 theme + points classicui at
+    // it. Persisted so the toggle state round-trips; the actual styling lives
+    // in the written files, not here.
+    Q_PROPERTY(bool overlayCaretTheme READ overlayCaretTheme WRITE
+                   setOverlayCaretTheme NOTIFY overlayCaretThemeChanged)
 
     Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
 
@@ -93,10 +99,22 @@ public:
     QStringList whitelist() const { return whitelist_; }
     bool overlayEnabled() const { return overlayEnabled_; }
     bool overlayShowOnTrigger() const { return overlayShowOnTrigger_; }
-    bool overlayAtCursor() const { return overlayAtCursor_; }
+    QString overlayPlacement() const { return overlayPlacement_; }
     bool overlayProgressBar() const { return overlayProgressBar_; }
     QString overlayPosition() const { return overlayPosition_; }
+    bool overlayCaretTheme() const { return overlayCaretTheme_; }
     QString theme() const { return theme_; }
+
+    // Generate an fcitx5 theme from the given editor-palette colors (hex
+    // strings) and point classicui at it, or restore the user's previous
+    // classicui theme. Called from QML with the active Theme.* colors so
+    // Theme.qml stays the single colour source. Colours are #rrggbb.
+    Q_INVOKABLE void applyCaretTheme(const QString &background,
+                                     const QString &text,
+                                     const QString &highlight,
+                                     const QString &onHighlight,
+                                     const QString &border);
+    Q_INVOKABLE void clearCaretTheme();
     bool layerShellAvailable() const { return layerShellAvailable_; }
     QString layerShellSession() const { return layerShellSession_; }
     QString layerShellReason() const { return layerShellReason_; }
@@ -118,9 +136,10 @@ public:
     void setAppFilterMode(const QString &v);
     void setOverlayEnabled(bool v);
     void setOverlayShowOnTrigger(bool v);
-    void setOverlayAtCursor(bool v);
+    void setOverlayPlacement(const QString &v);
     void setOverlayProgressBar(bool v);
     void setOverlayPosition(const QString &v);
+    void setOverlayCaretTheme(bool v);
     void setTheme(const QString &v);
 
     static bool isValidTheme(const QString &name);
@@ -154,15 +173,24 @@ Q_SIGNALS:
     void whitelistChanged();
     void overlayEnabledChanged();
     void overlayShowOnTriggerChanged();
-    void overlayAtCursorChanged();
+    void overlayPlacementChanged();
     void overlayProgressBarChanged();
     void overlayPositionChanged();
+    void overlayCaretThemeChanged();
     void themeChanged();
 
 private:
     void load();
     void save();
     void reloadFcitx();
+    // Write the generated fcitx5 theme.conf from the given colors and point
+    // classicui at it (backing up the user's previous classicui theme first),
+    // or restore that backup. Helpers for applyCaretTheme/clearCaretTheme.
+    void writeCaretThemeFiles(const QString &background, const QString &text,
+                              const QString &highlight,
+                              const QString &onHighlight,
+                              const QString &border);
+    void restoreClassicUiTheme();
 
     int delayLowercase_ = 400;
     int delayUppercase_ = 700;
@@ -183,9 +211,10 @@ private:
     QStringList whitelist_;
     bool overlayEnabled_ = false;
     bool overlayShowOnTrigger_ = false;
-    bool overlayAtCursor_ = false;
+    QString overlayPlacement_ = "Grid";
     bool overlayProgressBar_ = false;
     QString overlayPosition_ = "TopCol4";
+    bool overlayCaretTheme_ = false;
     QString theme_ = "schnelle-umlaute";
     bool layerShellAvailable_ = false;
     QString layerShellSession_;

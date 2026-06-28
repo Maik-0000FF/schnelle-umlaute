@@ -285,7 +285,7 @@ The theme applies to both the editor window and the on-screen cycle overlay (whe
 
 ## Cycle Overlay
 
-> **Not available on GNOME or X11.** The overlay needs the **wlr-layer-shell** Wayland protocol. GNOME's Mutter does not implement it, and X11 has no equivalent. The editor greys out the Overlay toggle on those sessions. Cycling itself works everywhere — only the visual on-screen indicator is gated.
+> **`Grid` and `MouseCursor` need wlr-layer-shell** (Wayland only, not GNOME/Mutter, not X11). The **`TextCaret`** placement does not: it renders through fcitx5's own input panel, so it also works on X11 (see [Caret placement](#caret-placement-textcaret) below). Cycling itself works everywhere; only the on-screen indicator depends on the chosen placement.
 
 An optional on-screen indicator that mirrors the current variant while you cycle. Toggle it in the editor's **Settings → Overlay**, then click on the position grid to choose where it appears on screen.
 
@@ -293,33 +293,42 @@ An optional on-screen indicator that mirrors the current variant while you cycle
 |---------|---------|-------------|
 | **Enabled** | `False` | Master switch for the overlay |
 | **ShowOnTrigger** | `False` | Preview all mapped keys in the trigger window, not just the variants currently being cycled |
-| **AtCursor** | `False` | Anchor the overlay at the mouse pointer instead of the Row/Column grid. The grid stays as the fallback on compositors that can't report the cursor |
-| **ProgressBar** | `False` | Draw a timing bar for the accent gesture: a lead-in segment (min-hold) fills, then the `[min, max]` leader window counts down |
-| **Row** | `Top` | Vertical grid position when not following the cursor: `Top`, `Center`, `Bottom` |
+| **Placement** | `Grid` | Where the overlay appears: `Grid` (the fixed Row/Column position below), `MouseCursor` (at the mouse pointer; the grid is the fallback when the compositor can't report it), or `TextCaret` (at the text input caret where you type — see below) |
+| **ProgressBar** | `False` | Draw a timing bar for the accent gesture: a lead-in segment (min-hold) fills, then the `[min, max]` leader window counts down. `Grid`/`MouseCursor` only |
+| **Row** | `Top` | Grid vertical position (`Grid`, and `MouseCursor` fallback): `Top`, `Center`, `Bottom` |
 | **Column** | `Col4` | Horizontal grid position: `Col1` (far left) … `Col4` (center) … `Col7` (far right) |
 
 ```ini
 [Overlay]
 Enabled=True
 ShowOnTrigger=False
-AtCursor=False
+Placement=Grid
 ProgressBar=False
 Row=Center
 Column=Col1
 ```
 
-The overlay is provided by a separate daemon (`schnelle-umlaute-overlay`) that the addon starts on demand via DBus auto-activation — there is no autostart entry, the daemon only runs while the overlay is enabled. When you toggle it off in the editor, the addon calls `Quit()` on the daemon.
+For `Grid` and `MouseCursor`, the overlay is provided by a separate daemon (`schnelle-umlaute-overlay`) that the addon starts on demand via DBus auto-activation. There is no autostart entry, the daemon only runs while the overlay is enabled. When you toggle it off in the editor, the addon calls `Quit()` on the daemon.
 
-The overlay relies on the **wlr-layer-shell** Wayland protocol. The editor detects your session at launch and disables the toggle on compositors that can't host layer-shell surfaces:
+These two placements rely on the **wlr-layer-shell** Wayland protocol. The editor shows a note on sessions that can't host layer-shell surfaces (the `TextCaret` placement stays usable there):
 
-| Session | Overlay |
+| Session | `Grid` / `MouseCursor` |
 |---|---|
 | KDE Plasma (Wayland) | ✅ supported |
 | sway, Hyprland, river, wayfire, niri, LabWC | ✅ supported |
 | **GNOME (Wayland)** | ❌ Mutter does not implement wlr-layer-shell |
 | **X11 sessions** (any DE) | ❌ layer-shell is Wayland-only |
 
-Cycling itself works on every session — only the visual indicator is gated on compositor support. On unsupported sessions the toggle is greyed out with a one-line explanation, and the addon skips the overlay's DBus activation even if `Enabled=True` is set manually in the config file.
+Cycling itself works on every session; only the layer-shell placements are gated on compositor support. There the addon skips the overlay's DBus activation even if `Enabled=True` is set manually in the config file.
+
+### Caret placement (`TextCaret`)
+
+`Placement=TextCaret` anchors the overlay at the **text input cursor** where you are typing, instead of the layer-shell daemon. It renders through fcitx5's own input panel (the candidate window), which the compositor places at the caret. Consequences:
+
+- **No wlr-layer-shell needed**, and it works on **X11** too (placed via the client cursor rectangle).
+- Needs the compositor's **input-method** support: KDE Plasma, sway, Hyprland, niri and other wlroots compositors. **GNOME (Wayland)** does not implement it for native Wayland apps (XWayland apps still work via the X11 path).
+- The look is fcitx5's **standard candidate window** (styled by your fcitx5 / classic-ui theme), not the custom layer-shell overlay, and the **timing progress bar does not apply**.
+- Apps that don't report a cursor rectangle to the input method (some GTK on first focus, Chromium/Electron without `--wayland-text-input-version=3`) may place it at a default position.
 
 ---
 

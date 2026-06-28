@@ -157,17 +157,29 @@ FCITX_CONFIGURATION(
 FCITX_CONFIG_ENUM(OverlayRow, Top, Center, Bottom);
 FCITX_CONFIG_ENUM(OverlayColumn, Col1, Col2, Col3, Col4, Col5, Col6, Col7);
 
+// Where the cycle overlay appears.
+//   Grid        - the fixed Row/Column position below.
+//   MouseCursor - anchored at the mouse pointer; the grid is the fallback
+//                 when the compositor can't report the pointer.
+//   TextCaret   - at the text input cursor where you are typing. Renders
+//                 through fcitx5's input-panel candidate window (the
+//                 compositor anchors it at the caret; on X11 via the client
+//                 cursor rect), so it needs no layer-shell, but uses the
+//                 standard candidate-window look (no custom theme, no bar).
+FCITX_CONFIG_ENUM(OverlayPlacement, Grid, MouseCursor, TextCaret);
+
 FCITX_CONFIGURATION(
     OverlayConfig, Option<bool> enabled{this, "Enabled", "Enabled", false};
     Option<bool> showOnTrigger{this, "ShowOnTrigger",
                                "Preview in the trigger window (all mapped keys)",
                                false};
-    // When on, the overlay's lower-left corner is placed at the mouse
-    // pointer instead of the fixed Row/Column grid. The grid below then
-    // serves as the fallback for compositors that can't report the cursor
-    // (the overlay daemon queries it per open; nothing runs in the
-    // background). See OverlayRenderer in addon/overlay/main.cpp.
-    Option<bool> atCursor{this, "AtCursor", "Show at mouse cursor", false};
+    // See OverlayPlacement above. Grid/MouseCursor drive the layer-shell
+    // daemon (the grid is the fallback when the compositor can't report the
+    // pointer); TextCaret renders through fcitx5's input-panel candidate
+    // window so it needs no layer-shell. See OverlayRenderer in
+    // addon/overlay/main.cpp and showCaretOverlay in schnelle-umlaute.cpp.
+    Option<OverlayPlacement> placement{this, "Placement", "Placement",
+                                       OverlayPlacement::Grid};
     // Draws a timing bar above the overlay for the whole accent gesture: a
     // lead-in segment (min-hold) fills, then a window segment counts down
     // (the [min, max] leader window). Shows the overlay from key-press (t=0)

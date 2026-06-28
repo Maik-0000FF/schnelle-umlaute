@@ -1,14 +1,17 @@
 #include "SettingsModel.h"
 #include "FcitxReload.h"
+#include "caret_theme.h"
 #include "../src/layer_shell_capability.h"
 #include "../themes.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QMap>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QString>
+#include <QStringList>
 #include <QTextStream>
 
 namespace {
@@ -24,6 +27,70 @@ QString toBool(bool v) {
 }
 bool fromBool(const QString &s) {
     return s.compare("True", Qt::CaseInsensitive) == 0;
+}
+
+// --- Caret theme: generate an fcitx5 classicui theme matching the editor
+// palette and point classicui at it. All compositor-agnostic (classicui is
+// fcitx5's own renderer); the only "stop following the desktop" switch is
+// UseAccentColor=False, there is no Plasma-specific key.
+
+QString classicUiConfPath() {
+    auto base =
+        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    return base + QStringLiteral("/fcitx5/conf/classicui.conf");
+}
+// User-dir fcitx5 theme; a unique name so it never shadows a system theme.
+QString caretThemeDir() {
+    auto base =
+        QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+    return base + QStringLiteral("/fcitx5/themes/schnelle-umlaute");
+}
+// Kept in the config dir, not the generated theme dir, so removing the
+// throwaway theme never loses the record of the user's previous classicui
+// theme (which restoreClassicUiTheme needs to put it back).
+QString caretThemeBackupPath() {
+    const auto base =
+        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    const auto rel =
+        QStringLiteral("/fcitx5/conf/schnelle-umlaute-classicui-backup.conf");
+    return base + rel;
+}
+
+void writeTextFileAtomic(const QString &path, const QString &content) {
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QSaveFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
+        return;
+    QTextStream ts(&f);
+    ts << content;
+    ts.flush();
+    f.commit();
+}
+
+// File wrapper around the pure parser in caret_theme.h.
+QMap<QString, QString> readFlatIni(const QString &path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return {};
+    return schnelle_umlaute::parseFlatIni(QString::fromUtf8(f.readAll()));
+}
+
+// Read classicui.conf, patch the given keys (the pure line transform lives in
+// caret_theme.h, preserving every other line), write it back atomically.
+void setClassicUiKeys(const QMap<QString, QString> &kv) {
+    const QString path = classicUiConfPath();
+    QStringList lines;
+    QFile f(path);
+    if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&f);
+        while (!in.atEnd())
+            lines << in.readLine();
+        f.close();
+    }
+    lines = schnelle_umlaute::applyIniKeys(lines, kv);
+    writeTextFileAtomic(path, lines.join(QLatin1Char('\n')) +
+                                  (lines.isEmpty() ? QString()
+                                                   : QStringLiteral("\n")));
 }
 
 // Pre-1.2 used a 3×3 grid; 1.2 moved to 7×3. Map the old names onto the
@@ -206,11 +273,11 @@ void SettingsModel::setOverlayShowOnTrigger(bool v) {
     Q_EMIT overlayShowOnTriggerChanged();
     save();
 }
-void SettingsModel::setOverlayAtCursor(bool v) {
-    if (overlayAtCursor_ == v)
+void SettingsModel::setOverlayPlacement(const QString &v) {
+    if (overlayPlacement_ == v)
         return;
-    overlayAtCursor_ = v;
-    Q_EMIT overlayAtCursorChanged();
+    overlayPlacement_ = v;
+    Q_EMIT overlayPlacementChanged();
     save();
 }
 void SettingsModel::setOverlayProgressBar(bool v) {
@@ -228,6 +295,82 @@ void SettingsModel::setOverlayPosition(const QString &v) {
     Q_EMIT overlayPositionChanged();
     save();
 }
+void SettingsModel::setOverlayCaretTheme(bool v) {
+    if (overlayCaretTheme_ == v)
+        return;
+    overlayCaretTheme_ = v;
+    Q_EMIT overlayCaretThemeChanged();
+    // Turning it off restores the user's previous classicui theme. Turning it
+    // on is driven from QML via applyCaretTheme() with the active colours.
+    if (!v)
+        clearCaretTheme();
+    save();
+}
+
+void SettingsModel::writeCaretThemeFiles(const QString &background,
+                                         const QString &text,
+                                         const QString &highlight,
+                                         const QString &onHighlight,
+                                         const QString &border) {
+    const QString themeConf = schnelle_umlaute::generateCaretThemeConf(
+        background, text, highlight, onHighlight, border);
+    writeTextFileAtomic(caretThemeDir() + QStringLiteral("/theme.conf"),
+                        themeConf);
+
+    // Back up the user's current classicui theme once (before we override it),
+    // so turning the toggle off can put it back exactly.
+    if (!QFile::exists(caretThemeBackupPath())) {
+        const QMap<QString, QString> cur = readFlatIni(classicUiConfPath());
+        QStringList backup;
+        backup << QStringLiteral("Theme=") +
+                      cur.value(QStringLiteral("Theme"),
+                                QStringLiteral("default"));
+        backup << QStringLiteral("UseDarkTheme=") +
+                      cur.value(QStringLiteral("UseDarkTheme"),
+                                QStringLiteral("False"));
+        backup << QStringLiteral("UseAccentColor=") +
+                      cur.value(QStringLiteral("UseAccentColor"),
+                                QStringLiteral("True"));
+        writeTextFileAtomic(caretThemeBackupPath(),
+                            backup.join(QLatin1Char('\n')) +
+                                QStringLiteral("\n"));
+    }
+    // Point classicui at our theme and stop it from following the desktop
+    // accent/dark scheme (UseAccentColor=False is the real override switch;
+    // there is no Plasma-specific key).
+    setClassicUiKeys({{QStringLiteral("Theme"),
+                       QStringLiteral("schnelle-umlaute")},
+                      {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
+                      {QStringLiteral("UseAccentColor"),
+                       QStringLiteral("False")}});
+}
+
+void SettingsModel::restoreClassicUiTheme() {
+    QMap<QString, QString> backup = readFlatIni(caretThemeBackupPath());
+    if (backup.isEmpty()) {
+        // No backup recorded: fall back to fcitx5 defaults.
+        backup = {{QStringLiteral("Theme"), QStringLiteral("default")},
+                  {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
+                  {QStringLiteral("UseAccentColor"), QStringLiteral("True")}};
+    }
+    setClassicUiKeys(backup);
+    QFile::remove(caretThemeBackupPath());
+}
+
+void SettingsModel::applyCaretTheme(const QString &background,
+                                    const QString &text,
+                                    const QString &highlight,
+                                    const QString &onHighlight,
+                                    const QString &border) {
+    writeCaretThemeFiles(background, text, highlight, onHighlight, border);
+    reloadClassicUiAddon();
+}
+
+void SettingsModel::clearCaretTheme() {
+    restoreClassicUiTheme();
+    reloadClassicUiAddon();
+}
+
 void SettingsModel::setTheme(const QString &v) {
     if (!isValidTheme(v) || theme_ == v)
         return;
@@ -375,10 +518,19 @@ void SettingsModel::load() {
                 overlayEnabled_ = fromBool(val);
             else if (key == "ShowOnTrigger")
                 overlayShowOnTrigger_ = fromBool(val);
-            else if (key == "AtCursor")
-                overlayAtCursor_ = fromBool(val);
-            else if (key == "ProgressBar")
+            else if (key == "Placement")
+                overlayPlacement_ = val;
+            // Pre-enum (1.2.3) wrote AtCursor=True/False for the mouse mode.
+            // Map a leftover AtCursor=True onto MouseCursor unless an explicit
+            // Placement already set something other than the Grid default.
+            else if (key == "AtCursor") {
+                if (fromBool(val) &&
+                    overlayPlacement_ == QLatin1String("Grid"))
+                    overlayPlacement_ = QStringLiteral("MouseCursor");
+            } else if (key == "ProgressBar")
                 overlayProgressBar_ = fromBool(val);
+            else if (key == "CaretTheme")
+                overlayCaretTheme_ = fromBool(val);
             // Pre-1.2 wrote a combined "Position=TopCenter" key. 1.2 splits
             // it into Row + Column because FCITX_CONFIG_ENUM caps at 12
             // values and we need 21 cells. Accept both formats on read so
@@ -425,9 +577,10 @@ void SettingsModel::load() {
     Q_EMIT whitelistChanged();
     Q_EMIT overlayEnabledChanged();
     Q_EMIT overlayShowOnTriggerChanged();
-    Q_EMIT overlayAtCursorChanged();
+    Q_EMIT overlayPlacementChanged();
     Q_EMIT overlayProgressBarChanged();
     Q_EMIT overlayPositionChanged();
+    Q_EMIT overlayCaretThemeChanged();
     Q_EMIT themeChanged();
 }
 
@@ -497,10 +650,12 @@ void SettingsModel::save() {
         << "Enabled=" << toBool(overlayEnabled_) << "\n";
     out << "# Preview in the trigger window (all mapped keys)\n"
         << "ShowOnTrigger=" << toBool(overlayShowOnTrigger_) << "\n";
-    out << "# Show at mouse cursor\n"
-        << "AtCursor=" << toBool(overlayAtCursor_) << "\n";
+    out << "# Placement (Grid|MouseCursor|TextCaret)\n"
+        << "Placement=" << overlayPlacement_ << "\n";
     out << "# Show timing progress bar\n"
         << "ProgressBar=" << toBool(overlayProgressBar_) << "\n";
+    out << "# Match fcitx5 candidate window to the editor theme (caret mode)\n"
+        << "CaretTheme=" << toBool(overlayCaretTheme_) << "\n";
     // Split "TopCol4" into Row=Top + Column=Col4 for the fcitx5 config
     // schema, which represents each as a small enum (capped at 12 values).
     const int splitAt =
