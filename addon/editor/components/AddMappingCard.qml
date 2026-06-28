@@ -57,7 +57,7 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.spacingMd
 
-            TextField {
+            ThemedTextField {
                 id: inputField
                 Layout.preferredWidth: 80
                 placeholderText: qsTr("Key")
@@ -65,9 +65,6 @@ Rectangle {
                 font.family: Theme.fontFamilyMono
                 font.pixelSize: 16
                 horizontalAlignment: TextInput.AlignHCenter
-                color: Theme.text
-                placeholderTextColor: Theme.textMuted
-                selectByMouse: true
                 background: Rectangle {
                     radius: Theme.radiusSm
                     color: Theme.background
@@ -88,15 +85,12 @@ Rectangle {
                 font.pixelSize: 18
             }
 
-            TextField {
+            ThemedTextField {
                 id: outputField
                 Layout.fillWidth: true
                 placeholderText: qsTr("Output (e.g. ä or é,è,ê,ë)")
                 font.family: Theme.fontFamilyMono
                 font.pixelSize: 15
-                color: Theme.text
-                placeholderTextColor: Theme.textMuted
-                selectByMouse: true
                 background: Rectangle {
                     radius: Theme.radiusSm
                     color: Theme.background

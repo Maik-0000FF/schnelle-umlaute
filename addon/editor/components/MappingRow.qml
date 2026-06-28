@@ -154,7 +154,7 @@ Rectangle {
             }
         }
 
-        TextField {
+        ThemedTextField {
             id: inputEdit
             visible: root.editing
             Layout.preferredWidth: 80
@@ -163,8 +163,6 @@ Rectangle {
             font.family: Theme.fontFamilyMono
             font.pixelSize: 15
             horizontalAlignment: TextInput.AlignHCenter
-            color: Theme.text
-            selectByMouse: true
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background
@@ -192,15 +190,13 @@ Rectangle {
             elide: Text.ElideRight
         }
 
-        TextField {
+        ThemedTextField {
             id: outputEdit
             visible: root.editing
             Layout.fillWidth: true
             text: root.outputText
             font.family: Theme.fontFamilyMono
             font.pixelSize: 15
-            color: Theme.text
-            selectByMouse: true
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background

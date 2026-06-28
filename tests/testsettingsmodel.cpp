@@ -99,6 +99,17 @@ void testIsValidTheme() {
     EXPECT(!SettingsModel::isValidTheme(QStringLiteral("solarized")));
 }
 
+// Only the three OverlayPlacement enum names are accepted; anything else is
+// ignored at load and rejected at the setter so editor and addon can't diverge.
+void testIsValidPlacement() {
+    EXPECT(SettingsModel::isValidPlacement(QStringLiteral("Grid")));
+    EXPECT(SettingsModel::isValidPlacement(QStringLiteral("MouseCursor")));
+    EXPECT(SettingsModel::isValidPlacement(QStringLiteral("TextCaret")));
+    EXPECT(!SettingsModel::isValidPlacement(QStringLiteral("")));
+    EXPECT(!SettingsModel::isValidPlacement(QStringLiteral("grid")));
+    EXPECT(!SettingsModel::isValidPlacement(QStringLiteral("Gibberish")));
+}
+
 // -- default state -----------------------------------------------------------
 
 // A fresh install (no config file) must come up with the documented defaults.
@@ -124,6 +135,7 @@ void testDefaultsOnMissingFile() {
     EXPECT(s.overlayEnabled() == false);
     EXPECT(s.overlayShowOnTrigger() == false);
     EXPECT(s.overlayPosition() == QStringLiteral("TopCol4"));
+    EXPECT(s.overlayPlacement() == QStringLiteral("Grid"));
     EXPECT(s.theme() == QStringLiteral("schnelle-umlaute"));
 }
 
@@ -259,6 +271,71 @@ void testPartialRowColumnFillsColumnDefault() {
     EXPECT(s.overlayPosition() == QStringLiteral("BottomCol4"));
 }
 
+// -- placement: round-trip, validation, legacy migration --------------------
+
+// A valid placement survives save/load.
+void testPlacementRoundTrip() {
+    resetTempdir();
+    {
+        SettingsModel s;
+        s.setOverlayPlacement(QStringLiteral("TextCaret"));
+    }
+    SettingsModel s2;
+    EXPECT(s2.overlayPlacement() == QStringLiteral("TextCaret"));
+}
+
+// setOverlayPlacement must reject unknown values so the UI can't persist a
+// placement that load() would then ignore (same contract as setTheme).
+void testSetPlacementRejectsUnknown() {
+    resetTempdir();
+    SettingsModel s;
+    s.setOverlayPlacement(QStringLiteral("MouseCursor"));
+    EXPECT(s.overlayPlacement() == QStringLiteral("MouseCursor"));
+    s.setOverlayPlacement(QStringLiteral("Gibberish"));
+    EXPECT(s.overlayPlacement() == QStringLiteral("MouseCursor"));
+}
+
+// A corrupt/hand-edited Placement must not overwrite the in-memory default,
+// so editor and addon agree on Grid instead of silently diverging.
+void testUnknownPlacementIgnoredAtLoad() {
+    resetTempdir();
+    writeConfig("[Overlay]\n"
+                "Placement=Gibberish\n");
+    SettingsModel s;
+    EXPECT(s.overlayPlacement() == QStringLiteral("Grid"));
+}
+
+// Pre-enum (<=1.2.3) configs wrote AtCursor=True for the mouse mode. With no
+// explicit Placement, a leftover AtCursor=True must upgrade to MouseCursor.
+void testLegacyAtCursorMigratesToMouseCursor() {
+    resetTempdir();
+    writeConfig("[Overlay]\n"
+                "AtCursor=True\n");
+    SettingsModel s;
+    EXPECT(s.overlayPlacement() == QStringLiteral("MouseCursor"));
+}
+
+// AtCursor=False on a legacy file leaves the Grid default untouched.
+void testLegacyAtCursorFalseKeepsGrid() {
+    resetTempdir();
+    writeConfig("[Overlay]\n"
+                "AtCursor=False\n");
+    SettingsModel s;
+    EXPECT(s.overlayPlacement() == QStringLiteral("Grid"));
+}
+
+// When an explicit Placement is present, a stray AtCursor=True must not
+// override it — the migration only fills the Grid default. Placement is read
+// before AtCursor, so the upgrade sees a non-default value and backs off.
+void testExplicitPlacementBeatsLegacyAtCursor() {
+    resetTempdir();
+    writeConfig("[Overlay]\n"
+                "Placement=TextCaret\n"
+                "AtCursor=True\n");
+    SettingsModel s;
+    EXPECT(s.overlayPlacement() == QStringLiteral("TextCaret"));
+}
+
 // -- theme guard -------------------------------------------------------------
 
 // A config written by a future version with an unknown theme name must not
@@ -344,6 +421,7 @@ struct TestCase {
 const TestCase kTests[] = {
     {"testIsValidLeaderKey", testIsValidLeaderKey},
     {"testIsValidTheme", testIsValidTheme},
+    {"testIsValidPlacement", testIsValidPlacement},
     {"testDefaultsOnMissingFile", testDefaultsOnMissingFile},
     {"testScalarRoundTrip", testScalarRoundTrip},
     {"testBlacklistAddAndRoundTrip", testBlacklistAddAndRoundTrip},
@@ -356,6 +434,14 @@ const TestCase kTests[] = {
      testNewRowColumnBeatsLegacyPosition},
     {"testPartialRowColumnFillsColumnDefault",
      testPartialRowColumnFillsColumnDefault},
+    {"testPlacementRoundTrip", testPlacementRoundTrip},
+    {"testSetPlacementRejectsUnknown", testSetPlacementRejectsUnknown},
+    {"testUnknownPlacementIgnoredAtLoad", testUnknownPlacementIgnoredAtLoad},
+    {"testLegacyAtCursorMigratesToMouseCursor",
+     testLegacyAtCursorMigratesToMouseCursor},
+    {"testLegacyAtCursorFalseKeepsGrid", testLegacyAtCursorFalseKeepsGrid},
+    {"testExplicitPlacementBeatsLegacyAtCursor",
+     testExplicitPlacementBeatsLegacyAtCursor},
     {"testUnknownThemeIgnoredAtLoad", testUnknownThemeIgnoredAtLoad},
     {"testSetThemeRejectsUnknown", testSetThemeRejectsUnknown},
     {"testIsActiveLeaderKeyRespectsEnabledFlag",

@@ -24,6 +24,8 @@ QtObject {
             warning:      "#fbbf24",
             error:        "#f87171",
             onAccent:     "#ffffff",
+            highlight:    "#4ade80",
+            onHighlight:  "#08060f",
             switchThumb:  "#f0fdf4",
             scrim:        "#99000000"
         },
@@ -44,6 +46,8 @@ QtObject {
             warning:      "#fbbf24",
             error:        "#f87171",
             onAccent:     "#ffffff",
+            highlight:    "#60a5fa",
+            onHighlight:  "#0f1115",
             switchThumb:  "#e5e7eb",
             scrim:        "#99000000"
         },
@@ -64,6 +68,8 @@ QtObject {
             warning:      "#d97706",
             error:        "#dc2626",
             onAccent:     "#ffffff",
+            highlight:    "#2563eb",
+            onHighlight:  "#ffffff",
             switchThumb:  "#ffffff",
             scrim:        "#66000000"
         },
@@ -84,6 +90,8 @@ QtObject {
             warning:      "#ffd60a",
             error:        "#ffd60a",
             onAccent:     "#000000",
+            highlight:    "#ffd60a",
+            onHighlight:  "#000000",
             switchThumb:  "#000000",
             scrim:        "#cc000000"
         }
@@ -107,6 +115,10 @@ QtObject {
     readonly property color warning:      p.warning
     readonly property color error:        p.error
     readonly property color onAccent:     p.onAccent
+    // Active-selection colours, mirrored from the overlay's cellActive /
+    // textActive (the signature theme highlights in green, not the accent).
+    readonly property color highlight:    p.highlight
+    readonly property color onHighlight:  p.onHighlight
     readonly property color switchThumb:  p.switchThumb
     readonly property color scrim:        p.scrim
 

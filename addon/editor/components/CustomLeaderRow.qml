@@ -65,7 +65,7 @@ ColumnLayout {
             Layout.preferredWidth: 40
         }
 
-        TextField {
+        ThemedTextField {
             id: keyField
             Layout.preferredWidth: 80
             text: root.keyValue
@@ -74,9 +74,6 @@ ColumnLayout {
             font.family: Theme.fontFamilyMono
             font.pixelSize: 14
             horizontalAlignment: TextInput.AlignHCenter
-            color: Theme.text
-            placeholderTextColor: Theme.textMuted
-            selectByMouse: true
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background

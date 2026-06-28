@@ -8,14 +8,17 @@
 #include <fcitx-utils/event.h>
 #include <fcitx-utils/log.h>
 #include <fcitx-utils/textformatflags.h>
+#include <fcitx-utils/trackableobject.h>
 #include <fcitx-utils/utf8.h>
 #include <fcitx/addonfactory.h>
 #include <fcitx/addonmanager.h>
+#include <fcitx/candidatelist.h>
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputcontextproperty.h>
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
+#include <fcitx/userinterface.h>
 #include <xkbcommon/xkbcommon.h>
 #include "app_filter.h"
 #include "config.h"
@@ -648,13 +651,15 @@ public:
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
             scheduleTimeout(ic, state);
-            if (*config_.overlay->progressBar) {
+            if (*config_.overlay->progressBar && !overlayAtCaret()) {
                 // Progress mode shows the overlay from t=0 with the timing bar
-                // instead of the deferred min-hold trigger preview.
+                // instead of the deferred min-hold trigger preview. The bar is
+                // daemon-only; caret placement falls through to the trigger
+                // preview, which only shows when ShowOnTrigger is on.
                 startProgressOverlay(ic, state, keyChar);
             } else {
-                // Preview the variants in the overlay during the accent window
-                // (opt-in via [Overlay]/ShowOnTrigger). No-op otherwise.
+                // Preview the variants during the accent window (opt-in via
+                // [Overlay]/ShowOnTrigger). No-op otherwise.
                 scheduleTriggerOverlay(ic, state, keyChar);
             }
 
@@ -828,6 +833,12 @@ private:
                      << *config_.delay->uppercase << "]ms, Leaders=" << leaders
                      << ", Mappings=" << umlautMap_.size();
 
+        // Daemon lifecycle follows the enable flag only, not the placement. On
+        // enable it is DBus-activated once (a no-op where it can't run, e.g.
+        // X11/GNOME); in caret mode it is never told to show, so it just sits
+        // idle and invisible. Tying it to !overlayAtCaret() instead caused
+        // start/quit churn on placement switches that could race the DBus
+        // activation and leave the daemon down after switching back.
         overlayClient_.applyEnabledTransition(*config_.overlay->enabled);
     }
 
@@ -1202,21 +1213,37 @@ private:
     // (commitPendingKey + the app's follow-up reset). A daemon restart can
     // briefly desync this, but the next real show() corrects it.
     bool overlayVisible_ = false;
+    // In TextCaret placement the overlay is fcitx5's own input-panel
+    // candidate window, owned by the focused InputContext rather than the
+    // daemon. Track that context so overlayHide() can clear its candidate
+    // list. Watched (not a raw pointer) so a destroyed context resolves to
+    // null instead of dangling.
+    TrackableObjectReference<InputContext> caretOverlayIc_;
+
+    // TextCaret placement renders through fcitx5's input-panel candidate
+    // window (compositor-anchored at the caret) instead of the layer-shell
+    // daemon. See OverlayPlacement in config.h.
+    bool overlayAtCaret() const {
+        return *config_.overlay->placement == OverlayPlacement::TextCaret;
+    }
 
     void overlayShow(InputContext *ic, const std::vector<std::string> &variants,
                      int index) {
         if (!*config_.overlay->enabled)
             return;
-        (void)ic;
+        if (overlayAtCaret()) {
+            showCaretOverlay(ic, variants, index);
+            return;
+        }
         // Combine the two enum halves into the single "<Row><Col>" string
-        // the overlay daemon expects (e.g. "TopCol4", "CenterCol7"). When
-        // "show at cursor" is on, prefix the shared cursor marker so the
-        // daemon anchors the overlay's lower-left corner at the pointer; the
-        // grid string that follows is the fallback the daemon uses when the
+        // the overlay daemon expects (e.g. "TopCol4", "CenterCol7"). In
+        // MouseCursor placement, prefix the shared cursor marker so the daemon
+        // anchors the overlay's lower-left corner at the pointer; the grid
+        // string that follows is the fallback the daemon uses when the
         // compositor can't report the cursor position. The prefix is the same
         // constant the daemon parses with, so writer and reader can't drift.
         std::string position;
-        if (*config_.overlay->atCursor)
+        if (*config_.overlay->placement == OverlayPlacement::MouseCursor)
             position = schnelle_umlaute::cursorPositionPrefix();
         position += OverlayRowToString(*config_.overlay->row);
         position += OverlayColumnToString(*config_.overlay->column);
@@ -1226,8 +1253,35 @@ private:
     void overlayHide() {
         if (!*config_.overlay->enabled || !overlayVisible_)
             return;
-        overlayClient_.hide();
+        if (overlayAtCaret())
+            hideCaretOverlay();
+        else
+            overlayClient_.hide();
         overlayVisible_ = false;
+    }
+
+    // Show the variants as a horizontal candidate list on the focused
+    // context. fcitx5's active UI (classic-ui) wraps it in a
+    // zwp_input_popup_surface_v2 the compositor anchors at the text caret; on
+    // X11 it is placed via the client cursor rect. index < 0 means "no
+    // highlight" (the trigger/progress preview before a leader is pressed).
+    void showCaretOverlay(InputContext *ic,
+                          const std::vector<std::string> &variants, int index) {
+        auto list = std::make_unique<DisplayOnlyCandidateList>();
+        list->setContent(variants);
+        list->setLayoutHint(CandidateLayoutHint::Horizontal);
+        list->setCursorIndex(index >= 0 ? index : -1);
+        ic->inputPanel().setCandidateList(std::move(list));
+        ic->updateUserInterface(UserInterfaceComponent::InputPanel);
+        caretOverlayIc_ = ic->watch();
+        overlayVisible_ = true;
+    }
+    void hideCaretOverlay() {
+        if (auto *ic = caretOverlayIc_.get()) {
+            ic->inputPanel().setCandidateList(nullptr);
+            ic->updateUserInterface(UserInterfaceComponent::InputPanel);
+        }
+        caretOverlayIc_.unwatch();
     }
 
     // Progress bar ([Overlay]/ProgressBar). Unlike the trigger preview, it shows
@@ -1253,6 +1307,8 @@ private:
     }
     void freezeProgressOverlay() {
         if (!*config_.overlay->enabled || !*config_.overlay->progressBar)
+            return;
+        if (overlayAtCaret())
             return;
         overlayClient_.freezeProgress();
     }
@@ -1340,6 +1396,15 @@ private:
     void flashCommitOverlay(InputContext *ic, SchnelleUmlauteState *state,
                             const std::vector<std::string> &variants) {
         state->cancelOverlayShow();
+        // The post-commit flash is a daemon-only confirmation: it survives the
+        // commit because the daemon overlay is independent of the input panel.
+        // In TextCaret placement the overlay IS the candidate list, which the
+        // commit's inputPanel().reset() clears at once, so a flash would only
+        // flicker. Just tear the preview down cleanly instead.
+        if (overlayAtCaret()) {
+            overlayHide();
+            return;
+        }
         overlayShow(ic, variants, 0);
         auto savedRef = ic->watch();
         auto *eventLoop = &instance_->eventLoop();
