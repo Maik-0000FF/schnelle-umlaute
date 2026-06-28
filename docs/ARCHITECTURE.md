@@ -40,7 +40,7 @@ The Fcitx5 input-method engine. Source under `addon/src/`, decomposed into focus
 ### Standalone editor — `schnelle-umlaute-editor`
 
 A Qt Quick application under `addon/editor/`. Launched in three equivalent ways:
-- fcitx5-configtool's gear/Configure button (via the `[Editor] External=schnelle-umlaute-editor` entry in the addon's config descriptor)
+- fcitx5-config-qt's gear/Configure button (via the `[Editor] External=schnelle-umlaute-editor` entry in the addon's config descriptor)
 - The CLI command `schnelle-umlaute-editor`
 - The desktop launcher (Activities / app menu)
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(fcitx5-schnelle-umlaute VERSION 1.2.2)
+project(fcitx5-schnelle-umlaute VERSION 1.2.3)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -63,7 +63,7 @@ install(FILES data/schnelle-umlaute-inputmethod.conf
         DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod"
         RENAME schnelle-umlaute.conf)
 
-# Standalone QML editor (launched directly from fcitx5-configtool's gear
+# Standalone QML editor (launched directly from fcitx5-config-qt's gear
 # icon via the ExternalOption returned by SchnelleUmlauteEngine::getConfig())
 add_subdirectory(editor)
 

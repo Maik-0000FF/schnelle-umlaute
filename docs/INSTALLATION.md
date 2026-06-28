@@ -236,7 +236,7 @@ fcitx5-remote   # Should print "1" (inactive) or "2" (active)
 
 Open `fcitx5-config-qt` (or KDE System Settings → Input Method), add **Schnelle Umlaute** to your active input methods, and toggle it with <kbd>Ctrl</kbd>+<kbd>Space</kbd>.
 
-To configure mappings, leader keys, the app filter, and the cycle overlay, click the gear/Configure button next to the addon — fcitx5-configtool launches the standalone `schnelle-umlaute-editor`. You can also start it directly from the command line, an application launcher, or its desktop entry.
+To configure mappings, leader keys, the app filter, and the cycle overlay, click the gear/Configure button next to the addon: fcitx5-config-qt launches the standalone `schnelle-umlaute-editor`. You can also start it directly from the command line, an application launcher, or its desktop entry.
 
 ---
 

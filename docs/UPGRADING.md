@@ -1,5 +1,15 @@
 # Upgrading
 
+## Upgrading from v1.2.2 to v1.2.3
+
+No mapping or config migration required. v1.2.3 is config-compatible with v1.2.2. Pull / reinstall and restart fcitx5. If you have the overlay enabled, restart the `schnelle-umlaute-overlay` daemon (or toggle the overlay off and on in the editor) so it picks up the new build.
+
+### What changed
+
+- **Overlay can follow the mouse cursor.** A new `[Overlay] AtCursor` option anchors the overlay at the pointer instead of the fixed Row/Column grid; the grid stays as the fallback for compositors that can't report the cursor. Off by default.
+- **Overlay timing progress bar.** A new `[Overlay] ProgressBar` option draws a timing bar for the whole accent gesture (min-hold lead-in, then the `[min, max]` leader window counting down). Off by default.
+- **Per-theme overlay colours, click-through surface, refined cursor picker.** The overlay now draws its accent/progress colours from the active theme, never intercepts input (click-through), and the editor's position picker is refined. No config or action required.
+
 ## Upgrading from v1.2.1 to v1.2.2
 
 No mapping or config migration required. v1.2.2 is config-compatible with v1.2.1. Pull / reinstall and restart fcitx5.
@@ -27,7 +37,7 @@ No mapping or config migration required. v1.2.0 is config-compatible with v1.1.x
 
 ### What changed
 
-- **Editor moved to a standalone application.** The Qt Widgets plugin `libschnelle-umlaute-config-editor.so` (loaded by `fcitx5-config-qt` from inside its own window) is **removed**. It is replaced by a standalone QML application: `schnelle-umlaute-editor`. fcitx5-configtool's gear/Configure button now launches this binary instead — same entry point, separate window. You can also start it directly from the command line, an application launcher, or its desktop entry.
+- **Editor moved to a standalone application.** The Qt Widgets plugin `libschnelle-umlaute-config-editor.so` (loaded by `fcitx5-config-qt` from inside its own window) is **removed**. It is replaced by a standalone QML application: `schnelle-umlaute-editor`. fcitx5-config-qt's gear/Configure button now launches this binary instead (same entry point, separate window). You can also start it directly from the command line, an application launcher, or its desktop entry.
 - **New cycle overlay daemon.** A new binary `schnelle-umlaute-overlay` provides an on-screen overlay during accent cycling. It is DBus-activated (no autostart entry) and only available on Wayland compositors with `wlr-layer-shell` (KDE Plasma, sway, Hyprland, …). Disabled by default — enable in the editor's Settings tab.
 - **New per-user setup helper.** A small script `schnelle-umlaute-setup` ships in `/usr/bin/`. Run once after install/upgrade to write your fcitx5 environment variables into `~/.config/environment.d/fcitx5.conf` and the autostart entry. Idempotent, refuses to run as root.
 - **Engine decomposed.** The addon source is now split across several modules (`app_filter`, `hand_classifier`, `mappings_loader`, `overlay_client`, `state.h`, `config.h`, …). No user-visible behavior change — see [ARCHITECTURE.md](ARCHITECTURE.md).
