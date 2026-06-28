@@ -25,15 +25,12 @@ ColumnLayout {
         Layout.fillWidth: true
         spacing: Theme.spacingSm
 
-        TextField {
+        ThemedTextField {
             id: inputField
             Layout.fillWidth: true
             placeholderText: qsTr("e.g. firefox or libreoffice")
             font.family: Theme.fontFamilyMono
             font.pixelSize: 13
-            color: Theme.text
-            placeholderTextColor: Theme.textMuted
-            selectByMouse: true
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background
