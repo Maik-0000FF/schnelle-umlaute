@@ -197,6 +197,35 @@ FCITX_CONFIGURATION(
     Option<AppFilterConfig> appFilter{this, "AppFilter", "App Filter"};
     Option<OverlayConfig> overlay{this, "Overlay", "Overlay"};);
 
+// Mapping profiles. A profile is a named mapping set; the active one feeds
+// umlautMap_. These live in a SEPARATE file (schnelle-umlaute/profiles.conf),
+// NOT in schnelle-umlaute.conf above, because the editor's SettingsModel
+// rewrites the whole .conf on save and would clobber profile metadata. The
+// editor's ProfileListModel owns profiles.conf; the engine only reads it.
+//
+// Each entry maps a display Name to a relative File under the addon's config
+// dir ("mappings.txt" for the Standard profile, "profiles/<slug>.txt" for the
+// rest) plus an optional SelectKey hotkey. CycleNext/CyclePrev switch through
+// the list. Hotkeys are stored as plain portable combo strings (e.g.
+// "Control+Alt+1"); the QML editor (which does not link fcitx-config) writes
+// them by hand and the engine parses each with fcitx::Key() and matches via
+// Key::check(). Plain strings keep the editor/engine-shared INI trivial,
+// unlike a KeyList which serializes as a nested sub-section.
+FCITX_CONFIGURATION(
+    ProfileEntryConfig, Option<std::string> name{this, "Name", "Name", ""};
+    Option<std::string> file{this, "File", "File", ""};
+    Option<std::string> selectKey{this, "SelectKey", "Select shortcut", ""};);
+
+FCITX_CONFIGURATION(
+    ProfilesConfig,
+    Option<std::vector<ProfileEntryConfig>> profiles{this, "Profiles",
+                                                     "Profiles", {}};
+    Option<std::string> active{this, "Active", "Active profile", "Standard"};
+    Option<std::string> cycleNext{this, "CycleNext", "Cycle to next profile",
+                                  ""};
+    Option<std::string> cyclePrev{this, "CyclePrev", "Cycle to previous profile",
+                                  ""};);
+
 // What fcitx5-config-qt and the KDE KCM render when the user clicks the
 // gear icon next to "Schnelle Umlaute". Exposing exactly one ExternalOption
 // (and no other keys) triggers the configtool's single-external fast path

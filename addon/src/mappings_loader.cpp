@@ -47,18 +47,17 @@ std::vector<std::string> splitOutputs(const std::string &output) {
     return outputs;
 }
 
-UmlautMap loadMappingsFromFile() {
+UmlautMap loadMappingsFromFile(const std::string &relPath) {
     using namespace fcitx;
     UmlautMap map;
 #if SU_HAS_NEW_STDPATHS
-    auto file = StandardPaths::global().open(StandardPathsType::PkgConfig,
-                                             "schnelle-umlaute/mappings.txt");
+    auto file =
+        StandardPaths::global().open(StandardPathsType::PkgConfig, relPath);
     if (file.isValid()) {
         auto fp = fs::openFD(file, "r");
 #else
-    auto file =
-        StandardPath::global().open(StandardPath::Type::PkgConfig,
-                                    "schnelle-umlaute/mappings.txt", O_RDONLY);
+    auto file = StandardPath::global().open(StandardPath::Type::PkgConfig,
+                                            relPath, O_RDONLY);
     if (file.fd() >= 0) {
         auto fp = fs::openFD(file, "r");
 #endif
@@ -81,6 +80,10 @@ UmlautMap loadMappingsFromFile() {
         }
     }
     return map;
+}
+
+UmlautMap loadMappingsFromFile() {
+    return loadMappingsFromFile("schnelle-umlaute/mappings.txt");
 }
 
 } // namespace schnelle_umlaute

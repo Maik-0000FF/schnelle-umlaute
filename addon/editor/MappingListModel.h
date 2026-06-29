@@ -12,6 +12,13 @@ class MappingListModel : public QAbstractListModel {
     QML_ELEMENT
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
     Q_PROPERTY(QString saveStatus READ saveStatus NOTIFY saveStatusChanged)
+    // Which profile's mappings file this model edits, relative to
+    // ~/.config/fcitx5/schnelle-umlaute/ ("mappings.txt" for the Standard
+    // profile, "profiles/<slug>.txt" otherwise). This is the EDIT target and
+    // is independent of the runtime-active profile: editing a non-active
+    // profile writes its file but does not change what the engine is using.
+    Q_PROPERTY(QString profileFile READ profileFile WRITE setProfileFile NOTIFY
+                   profileFileChanged)
 
 public:
     enum Roles {
@@ -27,6 +34,9 @@ public:
 
     QString saveStatus() const { return saveStatus_; }
 
+    QString profileFile() const { return profileFile_; }
+    void setProfileFile(const QString &file);
+
     Q_INVOKABLE bool addMapping(const QString &input, const QString &output);
     Q_INVOKABLE void removeMapping(int row);
     Q_INVOKABLE bool updateMapping(int row, const QString &input,
@@ -41,6 +51,7 @@ public:
 Q_SIGNALS:
     void countChanged();
     void saveStatusChanged();
+    void profileFileChanged();
     void errorOccurred(const QString &message);
 
 private:
@@ -57,6 +68,9 @@ private:
     };
     std::vector<Entry> entries_;
     QString saveStatus_;
+    // Relative to ~/.config/fcitx5/schnelle-umlaute/. Default is the Standard
+    // profile's legacy file.
+    QString profileFile_ = QStringLiteral("mappings.txt");
 };
 
 #endif

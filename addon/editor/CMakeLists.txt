@@ -13,6 +13,7 @@ set(EDITOR_SRCS
     EnvSetup.cpp
     MappingListModel.cpp
     OverlayDBusClient.cpp
+    ProfileListModel.cpp
     SettingsModel.cpp
     SingleInstance.cpp
 )
@@ -41,6 +42,7 @@ qt_add_qml_module(schnelle-umlaute-editor
     QML_FILES
         Main.qml
         Mappings.qml
+        Profiles.qml
         Settings.qml
         Theme.qml
         components/Header.qml
