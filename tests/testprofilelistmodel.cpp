@@ -236,6 +236,32 @@ void testEditorPreservesRuntimeActive(ProfileListModel &m) {
     EXPECT(after.data(after.index(1), ProfileListModel::FavoriteRole).toBool());
 }
 
+// A shortcut combo may be bound to only one action: re-using it for another
+// profile's SelectKey or for a cycle key is rejected, so a keypress never has
+// an ambiguous meaning.
+void testRejectsDuplicateShortcut(ProfileListModel &m) {
+    EXPECT(m.createProfile(QStringLiteral("Mathematik")));
+    EXPECT(m.createProfile(QStringLiteral("Physik")));
+    EXPECT(m.setSelectKey(1, QStringLiteral("Control+Alt+1")));
+
+    // Same combo on another profile -> rejected, that row stays unset.
+    EXPECT(!m.setSelectKey(2, QStringLiteral("Control+Alt+1")));
+    EXPECT(rowSelectKey(m, 2).isEmpty());
+    // A different combo is accepted.
+    EXPECT(m.setSelectKey(2, QStringLiteral("Control+Alt+2")));
+    // Re-setting a row to its own existing combo is fine (excludeRow).
+    EXPECT(m.setSelectKey(1, QStringLiteral("Control+Alt+1")));
+
+    // Cycle keys collide with select keys too.
+    m.setCycleNext(QStringLiteral("Control+Alt+1")); // taken -> ignored
+    EXPECT(m.cycleNext().isEmpty());
+    m.setCycleNext(QStringLiteral("Control+Alt+J")); // free -> set
+    EXPECT(m.cycleNext() == QStringLiteral("Control+Alt+J"));
+    // CyclePrev cannot reuse CycleNext.
+    m.setCyclePrev(QStringLiteral("Control+Alt+J"));
+    EXPECT(m.cyclePrev().isEmpty());
+}
+
 // -- runner ------------------------------------------------------------------
 
 using TestFn = void (*)(ProfileListModel &);
@@ -262,6 +288,7 @@ const TestCase kTests[] = {
     {"testSpacedNameRoundTrip", testSpacedNameRoundTrip},
     {"testRejectsUnsafeFileOnLoad", testRejectsUnsafeFileOnLoad},
     {"testEditorPreservesRuntimeActive", testEditorPreservesRuntimeActive},
+    {"testRejectsDuplicateShortcut", testRejectsDuplicateShortcut},
 };
 
 int main(int argc, char **argv) {

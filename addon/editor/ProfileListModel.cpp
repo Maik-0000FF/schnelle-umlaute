@@ -373,11 +373,33 @@ bool ProfileListModel::setActiveRow(int row) {
     return true;
 }
 
+bool ProfileListModel::isComboFree(const QString &combo, int excludeRow,
+                                   int excludeCycle) const {
+    if (combo.isEmpty())
+        return true;
+    for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
+        if (i == excludeRow)
+            continue;
+        if (combo.compare(entries_[i].selectKey, Qt::CaseInsensitive) == 0)
+            return false;
+    }
+    if (excludeCycle != 1 && combo.compare(cycleNext_, Qt::CaseInsensitive) == 0)
+        return false;
+    if (excludeCycle != 2 && combo.compare(cyclePrev_, Qt::CaseInsensitive) == 0)
+        return false;
+    return true;
+}
+
 bool ProfileListModel::setSelectKey(int row, const QString &combo) {
     reloadActiveFromDisk();
     if (row < 0 || row >= static_cast<int>(entries_.size()))
         return false;
-    entries_[row].selectKey = combo.trimmed();
+    QString c = combo.trimmed();
+    if (!isComboFree(c, row, 0)) {
+        Q_EMIT errorOccurred(tr("Shortcut already in use"));
+        return false;
+    }
+    entries_[row].selectKey = c;
     auto idx = index(row);
     Q_EMIT dataChanged(idx, idx, {SelectKeyRole});
     save();
@@ -402,6 +424,10 @@ void ProfileListModel::setCycleNext(const QString &combo) {
     QString c = combo.trimmed();
     if (c == cycleNext_)
         return;
+    if (!isComboFree(c, -1, 1)) {
+        Q_EMIT errorOccurred(tr("Shortcut already in use"));
+        return;
+    }
     cycleNext_ = c;
     Q_EMIT cycleNextChanged();
     save();
@@ -412,6 +438,10 @@ void ProfileListModel::setCyclePrev(const QString &combo) {
     QString c = combo.trimmed();
     if (c == cyclePrev_)
         return;
+    if (!isComboFree(c, -1, 2)) {
+        Q_EMIT errorOccurred(tr("Shortcut already in use"));
+        return;
+    }
     cyclePrev_ = c;
     Q_EMIT cyclePrevChanged();
     save();

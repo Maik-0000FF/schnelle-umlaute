@@ -192,6 +192,8 @@ Item {
                     required property string name
                     required property bool isActive
                     required property bool isProtected
+                    required property bool favorite
+                    required property string selectKey
                     width: ListView.view.width
                     height: 36
                     radius: Theme.radiusSm
@@ -236,6 +238,34 @@ Item {
                                             qsTr("Switched to “%1”").arg(prow.name),
                                             Theme.accent);
                                 }
+                            }
+                        }
+
+                        // Favorite toggle (★). When any profile is a favorite,
+                        // the cycle shortcut steps through favorites only.
+                        Text {
+                            text: prow.favorite ? "★" : "☆"
+                            color: prow.favorite
+                                   ? Theme.accent
+                                   : (favMouse.containsMouse ? Theme.textMuted
+                                                             : Theme.border)
+                            font.pixelSize: 15
+                            Layout.preferredWidth: 20
+                            horizontalAlignment: Text.AlignHCenter
+                            ThemedToolTip {
+                                visible: favMouse.containsMouse
+                                text: prow.favorite
+                                      ? qsTr("Favorite (in cycle)")
+                                      : qsTr("Add to cycle favorites")
+                            }
+                            MouseArea {
+                                id: favMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: if (root.profilesModel)
+                                    root.profilesModel.setFavorite(
+                                        prow.index, !prow.favorite);
                             }
                         }
 
@@ -294,6 +324,18 @@ Item {
                                     text = prow.name; // cancel on focus loss
                                     prow.renaming = false;
                                 }
+                            }
+                        }
+
+                        // Per-profile select hotkey (compact capture field).
+                        KeyCaptureField {
+                            Layout.preferredWidth: 96
+                            visible: !prow.renaming
+                            value: prow.selectKey
+                            onCaptured: (combo) => {
+                                if (root.profilesModel)
+                                    root.profilesModel.setSelectKey(prow.index,
+                                                                    combo);
                             }
                         }
 

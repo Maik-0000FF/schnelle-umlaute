@@ -100,6 +100,11 @@ private:
     static QString slugify(const QString &name);
     bool nameExists(const QString &name, int excludeRow) const;
     bool fileExists(const QString &file, int excludeRow) const;
+    // True if combo is unused by any other shortcut. excludeRow skips one
+    // profile's SelectKey; excludeCycle skips CycleNext (1) or CyclePrev (2) so
+    // re-setting the same slot doesn't collide with itself. Empty == free.
+    bool isComboFree(const QString &combo, int excludeRow,
+                     int excludeCycle) const;
     QString uniqueSlugFile(const QString &name) const;
 
     static QString escapeValue(const QString &s);

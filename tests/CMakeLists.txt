@@ -197,6 +197,19 @@ target_link_libraries(testprofilesloader Fcitx5::Core)
 add_test(NAME testprofilesloader COMMAND testprofilesloader)
 set_tests_properties(testprofilesloader PROPERTIES TIMEOUT 10)
 
+# Editor Qt-to-fcitx combo conversion round-trip: the captured-combo strings
+# must parse with fcitx Key() and match a real press after normalization.
+# Links keycombo.cpp (pure, no QML) + Fcitx5::Core (Key) + Qt Core (QString).
+add_executable(testkeycombo
+    testkeycombo.cpp
+    ${PROJECT_SOURCE_DIR}/editor/keycombo.cpp)
+target_include_directories(testkeycombo PRIVATE ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testkeycombo PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testkeycombo PRIVATE QT_NO_KEYWORDS)
+target_link_libraries(testkeycombo Qt${QT_MAJOR_VERSION}::Core Fcitx5::Core)
+add_test(NAME testkeycombo COMMAND testkeycombo)
+set_tests_properties(testkeycombo PROPERTIES TIMEOUT 10)
+
 # Standalone editor: ProfileListModel CRUD, name + slug uniqueness,
 # Standard/last-profile protection, active reassignment on delete, first-run
 # seeding, and the editor's own profiles.conf write/read round-trip. Same
