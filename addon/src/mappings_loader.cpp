@@ -75,7 +75,11 @@ UmlautMap loadMappingsFromFile(const std::string &relPath) {
             }
         }
     }
-    if (map.empty()) {
+    // The built-in German defaults are a first-install convenience for the
+    // Standard profile only. Other profiles stay genuinely empty when their
+    // file is missing/empty, so a freshly created profile starts blank instead
+    // of inheriting the umlaut set.
+    if (map.empty() && isStandardProfile(relPath)) {
         for (const auto &m : defaultMappings()) {
             map[m.input] = splitOutputs(m.output);
         }

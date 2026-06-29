@@ -148,6 +148,10 @@ QtObject {
     readonly property int radiusMd: 10
     readonly property int radiusLg: 14
 
+    // Height of single-line interactive controls (combo box, dropdown header)
+    // so they line up across the editor.
+    readonly property int controlHeight: 34
+
     readonly property int spacingXs: 4
     readonly property int spacingSm: 8
     readonly property int spacingMd: 12

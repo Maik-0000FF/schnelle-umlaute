@@ -175,6 +175,20 @@ target_link_libraries(testsettingsmodel
 add_test(NAME testsettingsmodel COMMAND testsettingsmodel)
 set_tests_properties(testsettingsmodel PROPERTIES TIMEOUT 10)
 
+# Engine-side loader: per-profile defaults rule (only the Standard profile
+# seeds the German defaults; other profiles load empty). Links mappings_loader
+# + Fcitx5::Core (StandardPaths); no Qt.
+add_executable(testprofilesloader
+    testprofilesloader.cpp
+    ${PROJECT_SOURCE_DIR}/src/mappings_loader.cpp)
+target_include_directories(testprofilesloader PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/src)
+target_compile_options(testprofilesloader PRIVATE ${SU_TEST_WARN_FLAGS})
+target_link_libraries(testprofilesloader Fcitx5::Core)
+add_test(NAME testprofilesloader COMMAND testprofilesloader)
+set_tests_properties(testprofilesloader PROPERTIES TIMEOUT 10)
+
 # Standalone editor: ProfileListModel CRUD, name + slug uniqueness,
 # Standard/last-profile protection, active reassignment on delete, first-run
 # seeding, and the editor's own profiles.conf write/read round-trip. Same

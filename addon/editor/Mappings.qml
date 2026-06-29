@@ -17,71 +17,44 @@ Item {
         anchors.margins: Theme.spacingLg
         spacing: Theme.spacingMd
 
-        // Edit-target selector: which profile's mappings are shown/edited here.
-        // Independent of the active profile: editing the active one applies
-        // live on save; editing another only writes that profile's file.
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Theme.spacingMd
-            visible: root.profilesModel && root.profilesModel.count > 1
+        // Profile section: one dropdown to pick the edit target, create new
+        // (empty) profiles, set the active one (star), rename and delete.
+        SettingsCard {
+            titleText: qsTr("Profile")
+
+            ProfileSelector {
+                Layout.fillWidth: true
+                profilesModel: root.profilesModel
+                mappingsModel: root.mappingsModel
+                onRequestSnackbar: (msg, c) => root.requestSnackbar(msg, c)
+                onRequestDelete: (index, name) => {
+                    profileConfirm.messageText = qsTr(
+                        "Delete the profile “%1”? Its mappings file is removed."
+                    ).arg(name);
+                    profileConfirm.onConfirmed = () => {
+                        if (root.profilesModel.removeProfile(index))
+                            root.requestSnackbar(qsTr("Profile deleted"),
+                                                 Theme.textMuted);
+                    };
+                    profileConfirm.open();
+                }
+            }
 
             Text {
-                text: qsTr("Editing profile")
-                color: Theme.text
-                font.family: Theme.fontFamily
-                font.pixelSize: 13
-                Layout.preferredWidth: 120
-            }
-
-            ThemedComboBox {
-                id: editTargetBox
                 Layout.fillWidth: true
-                model: {
-                    if (!root.profilesModel) return [];
-                    root.profilesModel.revision; // re-eval on changes
-                    return root.profilesModel.profileNames();
+                wrapMode: Text.WordWrap
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: 12
+                text: {
+                    if (!root.profilesModel || !root.mappingsModel) return "";
+                    root.profilesModel.revision; // refresh on active/edit change
+                    return root.profilesModel.fileForRow(
+                               root.profilesModel.activeRow())
+                               === root.mappingsModel.profileFile
+                        ? qsTr("Editing the active profile: changes apply while typing as soon as you save.")
+                        : qsTr("Editing a profile that is not active: changes are saved but take effect once you make it active (checkmark).");
                 }
-                onActivated: {
-                    if (root.profilesModel && root.mappingsModel)
-                        root.mappingsModel.profileFile =
-                            root.profilesModel.fileForRow(currentIndex);
-                }
-            }
-
-            // ComboBox assigns currentIndex imperatively on activation, which
-            // would break a plain declarative binding; a Binding element keeps
-            // it tracking the real edit target across rename/delete/switch.
-            Binding {
-                target: editTargetBox
-                property: "currentIndex"
-                value: {
-                    if (!root.profilesModel || !root.mappingsModel) return 0;
-                    root.profilesModel.revision;
-                    for (var i = 0; i < root.profilesModel.count; ++i) {
-                        if (root.profilesModel.fileForRow(i)
-                                === root.mappingsModel.profileFile)
-                            return i;
-                    }
-                    return 0;
-                }
-            }
-        }
-
-        Text {
-            Layout.fillWidth: true
-            visible: root.profilesModel && root.profilesModel.count > 1
-            wrapMode: Text.WordWrap
-            color: Theme.textMuted
-            font.family: Theme.fontFamily
-            font.pixelSize: 12
-            text: {
-                if (!root.profilesModel || !root.mappingsModel) return "";
-                root.profilesModel.revision; // refresh on active/profile change
-                return root.profilesModel.fileForRow(
-                           root.profilesModel.activeRow())
-                           === root.mappingsModel.profileFile
-                    ? qsTr("This is the active profile: changes apply while typing as soon as you save.")
-                    : qsTr("This is not the active profile: changes are saved but only take effect once you switch to it.");
             }
         }
 
@@ -163,6 +136,12 @@ Item {
     ConfirmDialog {
         id: confirmDialog
         titleText: qsTr("Delete mapping")
+        confirmText: qsTr("Delete")
+    }
+
+    ConfirmDialog {
+        id: profileConfirm
+        titleText: qsTr("Delete profile")
         confirmText: qsTr("Delete")
     }
 

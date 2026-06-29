@@ -147,6 +147,21 @@ void testExistingFileIsPreferredOverDefaults() {
     EXPECT(outputAt(m, 1) == QString::fromUtf8("ñ"));
 }
 
+// A non-Standard profile (profiles/<slug>.txt) does NOT inherit the German
+// defaults: a freshly created profile must start empty. Only the Standard
+// mappings.txt keeps the defaults fallback (covered above).
+void testNonStandardProfileLoadsEmpty() {
+    resetTempdir();
+    MappingListModel m; // edit target defaults to mappings.txt -> defaults
+    EXPECT(m.rowCount() > 0);
+    // Switch the edit target to a non-existent, non-Standard profile.
+    m.setProfileFile(QStringLiteral("profiles/leer.txt"));
+    EXPECT(m.rowCount() == 0); // empty, no defaults
+    // Back to Standard -> defaults again.
+    m.setProfileFile(QStringLiteral("mappings.txt"));
+    EXPECT(m.rowCount() > 0);
+}
+
 // -- addMapping --------------------------------------------------------------
 
 void testAddMappingAppends() {
@@ -378,6 +393,7 @@ const TestCase kTests[] = {
     {"testExplicitEmptyFileLoadsDefaults", testExplicitEmptyFileLoadsDefaults},
     {"testExistingFileIsPreferredOverDefaults",
      testExistingFileIsPreferredOverDefaults},
+    {"testNonStandardProfileLoadsEmpty", testNonStandardProfileLoadsEmpty},
     {"testAddMappingAppends", testAddMappingAppends},
     {"testAddMappingRejectsInvalidInput", testAddMappingRejectsInvalidInput},
     {"testAddMappingRejectsInvalidOutput", testAddMappingRejectsInvalidOutput},

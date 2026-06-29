@@ -13,7 +13,7 @@ import SchnelleUmlaute
 // the delegate falls back to modelData when textRole is empty.
 ComboBox {
     id: combo
-    implicitHeight: 34
+    implicitHeight: Theme.controlHeight
     font.family: Theme.fontFamily
     font.pixelSize: 13
 
@@ -57,29 +57,9 @@ ComboBox {
         Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
     }
 
-    indicator: Canvas {
+    indicator: DropdownIndicator {
         x: combo.width - width - Theme.spacingMd
         y: (combo.height - height) / 2
-        width: 10
-        height: 6
-        contextType: "2d"
-        // Repaint when the theme palette changes — Theme.textMuted is
-        // a binding, but Canvas only re-renders on explicit requestPaint.
-        Connections {
-            target: Theme
-            function onCurrentChanged() { combo.indicator.requestPaint() }
-        }
-        onPaint: {
-            const ctx = getContext("2d");
-            ctx.reset();
-            ctx.fillStyle = Theme.textMuted;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(width, 0);
-            ctx.lineTo(width / 2, height);
-            ctx.closePath();
-            ctx.fill();
-        }
     }
 
     delegate: ItemDelegate {
