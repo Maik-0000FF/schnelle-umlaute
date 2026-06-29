@@ -12,6 +12,10 @@ class OverlayController : public QObject {
     Q_PROPERTY(int currentIndex READ currentIndex NOTIFY stateChanged)
     Q_PROPERTY(QString position READ position NOTIFY stateChanged)
     Q_PROPERTY(bool visible READ visible NOTIFY stateChanged)
+    // Label mode: render variants[0] as one full-width text (a profile-switch
+    // name) instead of fixed single-glyph accent cells, so the name is not
+    // truncated.
+    Q_PROPERTY(bool label READ label NOTIFY stateChanged)
     // theme fires its own signal: palette changes don't need a surface
     // rebuild, only QML property re-evaluation.
     Q_PROPERTY(QString theme READ theme NOTIFY themeChanged)
@@ -31,6 +35,7 @@ public:
     int currentIndex() const { return currentIndex_; }
     QString position() const { return position_; }
     bool visible() const { return visible_; }
+    bool label() const { return label_; }
     QString theme() const { return theme_; }
     int progressLeadMs() const { return progressLeadMs_; }
     int progressWindowMs() const { return progressWindowMs_; }
@@ -39,7 +44,7 @@ public:
 
     // Called via DBus adapter
     void show(const QStringList &variants, int currentIndex,
-              const QString &position);
+              const QString &position, bool label = false);
     void hide();
     void quit();
     void setTheme(const QString &theme);
@@ -72,6 +77,7 @@ private:
     int currentIndex_ = 0;
     QString position_ = QStringLiteral("TopCenter");
     bool visible_ = false;
+    bool label_ = false;
     QString theme_ = QStringLiteral("schnelle-umlaute");
     int progressLeadMs_ = 0;
     int progressWindowMs_ = 0;
@@ -89,7 +95,7 @@ public:
 
 public Q_SLOTS:
     void Show(const QStringList &variants, int currentIndex,
-              const QString &position);
+              const QString &position, bool label);
     void Hide();
     void Quit();
     void SetTheme(const QString &theme);

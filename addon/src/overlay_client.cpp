@@ -26,13 +26,14 @@ OverlayClient::OverlayClient() : capability_(detectLayerShellCapability()) {
 OverlayClient::~OverlayClient() = default;
 
 void OverlayClient::show(const std::vector<std::string> &variants,
-                         int currentIndex, const std::string &position) {
+                         int currentIndex, const std::string &position,
+                         bool label) {
     if (!capability_.supported)
         return;
     if (!bus_ || !bus_->isOpen() || variants.empty())
         return;
     auto msg = bus_->createMethodCall(kService, kPath, kInterface, "Show");
-    msg << variants << int32_t(currentIndex) << position;
+    msg << variants << int32_t(currentIndex) << position << label;
     // Fire-and-forget. flush() is needed because the bus isn't attached to
     // fcitx5's event loop — without it messages pile up in the send buffer
     // and the daemon never sees them.

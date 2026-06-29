@@ -76,6 +76,22 @@ void testShowWithEmptyPositionPreservesPrevious() {
     EXPECT(ctrl.position() == QStringLiteral("Center"));
 }
 
+// label defaults off for accent cycling and turns on for a profile-name flash,
+// so the renderer knows to draw one full-width label instead of glyph cells.
+void testLabelModeFlag() {
+    OverlayController ctrl;
+    ctrl.show({"ä", "Ä"}, 0, QStringLiteral("TopCenter"));
+    EXPECT(!ctrl.label());
+
+    ctrl.show({"Mathematik"}, -1, QStringLiteral("TopCenter"), true);
+    EXPECT(ctrl.label());
+    EXPECT(ctrl.variants().at(0) == QStringLiteral("Mathematik"));
+
+    // Falls back to cell mode on the next accent show.
+    ctrl.show({"ö"}, 0, QStringLiteral("TopCenter"));
+    EXPECT(!ctrl.label());
+}
+
 // quit() schedules a QCoreApplication::quit via QueuedConnection. Verify
 // that running exec() after calling quit() returns cleanly — a missing
 // or broken schedule would hang the event loop (caught by the timeout).
@@ -104,6 +120,7 @@ int main(int argc, char *argv[]) {
     testShowEmptyVariantsHides();
     testHideClearsVisibleKeepsPosition();
     testShowWithEmptyPositionPreservesPrevious();
+    testLabelModeFlag();
     testQuitSchedulesAppExit();
 
     std::fprintf(stderr, "testoverlaycontroller: all tests passed\n");
