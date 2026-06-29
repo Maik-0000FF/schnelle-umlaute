@@ -182,7 +182,12 @@ void MappingListModel::load() {
         }
         std::fclose(fp);
     }
-    if (entries_.empty()) {
+    // The German defaults are seeded only for the Standard profile (the
+    // first-install convenience). A freshly created profile loads empty, so the
+    // user fills it from scratch instead of inheriting the umlaut set. Mirrors
+    // the engine loader's fallback rule.
+    if (entries_.empty() &&
+        profileFile_ == QLatin1String(schnelle_umlaute::kMappingsFile)) {
         for (const auto &m : schnelle_umlaute::defaultMappings()) {
             entries_.push_back({QString::fromStdString(m.input),
                                 QString::fromStdString(m.output)});

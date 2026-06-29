@@ -42,7 +42,6 @@ qt_add_qml_module(schnelle-umlaute-editor
     QML_FILES
         Main.qml
         Mappings.qml
-        Profiles.qml
         Settings.qml
         Theme.qml
         components/Header.qml
@@ -58,6 +57,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/AppListEditor.qml
         components/ConfirmDialog.qml
         components/PositionPicker.qml
+        components/ProfileSelector.qml
         components/ThemedComboBox.qml
         components/ThemedTextField.qml
         components/ThemedToolTip.qml

@@ -215,7 +215,7 @@ ApplicationWindow {
                 property int currentIndex: 0
 
                 Repeater {
-                    model: [qsTr("Settings"), qsTr("Mappings"), qsTr("Profiles")]
+                    model: [qsTr("Settings"), qsTr("Mappings")]
                     delegate: Item {
                         required property int index
                         required property string modelData
@@ -282,12 +282,6 @@ ApplicationWindow {
                 profilesModel: profiles
                 onRequestSnackbar: (msg, c) => snackbar.show(msg, c)
                 onRequestUndoSnackbar: (msg, cb) => snackbar.showUndo(msg, cb)
-            }
-
-            Profiles {
-                id: profilesPanel
-                profilesModel: profiles
-                onRequestSnackbar: (msg, c) => snackbar.show(msg, c)
             }
         }
 
@@ -395,10 +389,6 @@ ApplicationWindow {
     Shortcut {
         sequence: "Ctrl+2"
         onActivated: tabRow.currentIndex = 1
-    }
-    Shortcut {
-        sequence: "Ctrl+3"
-        onActivated: tabRow.currentIndex = 2
     }
     Shortcut {
         sequence: "Esc"
