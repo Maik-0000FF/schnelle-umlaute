@@ -56,6 +56,7 @@ ColumnLayout {
             Repeater {
                 model: root.cols * root.rows
                 delegate: Item {
+                    id: cell
                     required property int index
                     readonly property int r: Math.floor(index / root.cols)
                     readonly property int c: index % root.cols
@@ -95,8 +96,10 @@ ColumnLayout {
                             font.weight: Font.Bold
                         }
 
-                        ToolTip.visible: mouse.containsMouse
-                        ToolTip.text: parent.pos
+                        ThemedToolTip {
+                            visible: mouse.containsMouse
+                            text: cell.pos
+                        }
 
                         MouseArea {
                             id: mouse

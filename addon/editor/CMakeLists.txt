@@ -58,6 +58,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/PositionPicker.qml
         components/ThemedComboBox.qml
         components/ThemedTextField.qml
+        components/ThemedToolTip.qml
     RESOURCES
         assets/schnelle-umlaute-icon.png
 )
