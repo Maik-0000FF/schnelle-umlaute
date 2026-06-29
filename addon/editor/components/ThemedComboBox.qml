@@ -24,9 +24,24 @@ ComboBox {
     padding: 0
     spacing: 0
 
+    // Single source for the "unavailable" predicate, shared by the collapsed
+    // box (currentUnavailable) and the open dropdown delegate (itemUnavailable)
+    // so the dimming rule lives in one place. Object models may carry an
+    // `unavailable: true` field; plain string models leave it undefined, so
+    // they render unchanged.
+    function isUnavailable(d) {
+        return d && typeof d === "object" && d.unavailable === true;
+    }
+
+    // Whether the currently selected entry is flagged unavailable, so the
+    // collapsed box dims to match the open dropdown's delegate.
+    readonly property bool currentUnavailable:
+        combo.isUnavailable(combo.model && combo.currentIndex >= 0
+            ? combo.model[combo.currentIndex] : null)
+
     contentItem: Text {
         text: combo.displayText
-        color: Theme.text
+        color: combo.currentUnavailable ? Theme.textMuted : Theme.text
         font: combo.font
         leftPadding: Theme.spacingMd
         rightPadding: combo.indicator.width + Theme.spacingSm
@@ -81,13 +96,18 @@ ComboBox {
             combo.textRole && modelData && typeof modelData === "object"
                 ? modelData[combo.textRole]
                 : modelData
+        // Per-item dimming for a choice the environment can't honour (e.g. a
+        // placement that needs a missing protocol). Uses the shared predicate
+        // on the combo root; string models render unchanged.
+        readonly property bool itemUnavailable: combo.isUnavailable(modelData)
         contentItem: Text {
             text: item.itemLabel
             // Use Theme.accent (varies per theme) instead of Theme.brand
             // (constant green across themes) so the "active item" stamp
             // reads as part of the current theme rather than as the
             // schnelle-umlaute brand bleeding into every palette.
-            color: item.current ? Theme.accent : Theme.text
+            color: item.itemUnavailable ? Theme.textMuted
+                   : item.current ? Theme.accent : Theme.text
             font.family: Theme.fontFamily
             font.pixelSize: 13
             font.weight: item.current ? Font.Medium : Font.Normal
