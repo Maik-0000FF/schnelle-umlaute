@@ -24,15 +24,20 @@ ComboBox {
     padding: 0
     spacing: 0
 
-    // Whether the currently selected entry is flagged unavailable, so the
-    // collapsed box dims to match the open dropdown's delegate (see
-    // itemUnavailable below). Guarded by the object-model check, so plain
-    // string models leave this false and render unchanged.
-    readonly property bool currentUnavailable: {
-        const item = combo.model && combo.currentIndex >= 0
-            ? combo.model[combo.currentIndex] : null;
-        return item && typeof item === "object" && item.unavailable === true;
+    // Single source for the "unavailable" predicate, shared by the collapsed
+    // box (currentUnavailable) and the open dropdown delegate (itemUnavailable)
+    // so the dimming rule lives in one place. Object models may carry an
+    // `unavailable: true` field; plain string models leave it undefined, so
+    // they render unchanged.
+    function isUnavailable(d) {
+        return d && typeof d === "object" && d.unavailable === true;
     }
+
+    // Whether the currently selected entry is flagged unavailable, so the
+    // collapsed box dims to match the open dropdown's delegate.
+    readonly property bool currentUnavailable:
+        combo.isUnavailable(combo.model && combo.currentIndex >= 0
+            ? combo.model[combo.currentIndex] : null)
 
     contentItem: Text {
         text: combo.displayText
@@ -91,13 +96,10 @@ ComboBox {
             combo.textRole && modelData && typeof modelData === "object"
                 ? modelData[combo.textRole]
                 : modelData
-        // Optional per-item dimming: object models may carry an
-        // `unavailable: true` field to mark a choice the environment can't
-        // honour (e.g. a placement that needs a missing protocol). String
-        // models leave this undefined, so they render unchanged.
-        readonly property bool itemUnavailable:
-            modelData && typeof modelData === "object"
-                && modelData.unavailable === true
+        // Per-item dimming for a choice the environment can't honour (e.g. a
+        // placement that needs a missing protocol). Uses the shared predicate
+        // on the combo root; string models render unchanged.
+        readonly property bool itemUnavailable: combo.isUnavailable(modelData)
         contentItem: Text {
             text: item.itemLabel
             // Use Theme.accent (varies per theme) instead of Theme.brand
