@@ -1,8 +1,16 @@
 # Upgrading
 
-## Unreleased
+## Upgrading from v1.2.3 to v1.3.0
 
 `[Overlay] AtCursor` (added in 1.2.3) is replaced by `[Overlay] Placement` with three values: `Grid` (the fixed Row/Column position), `MouseCursor` (at the mouse pointer), and the new `TextCaret` (at the text input cursor, rendered through fcitx5's candidate window, so it needs no layer-shell and works on X11 too). The editor migrates an old `AtCursor=True` to `MouseCursor` automatically.
+
+No other config or mapping migration required. v1.3.0 is otherwise config-compatible with v1.2.3. Pull / reinstall and restart fcitx5. If you have the overlay enabled, restart the `schnelle-umlaute-overlay` daemon (or toggle the overlay off and on in the editor) so it picks up the new build.
+
+### What changed
+
+- **Overlay at the text caret.** The new `TextCaret` placement shows the accent variants at the text input cursor through fcitx5's candidate window, so it needs no layer-shell and works on X11 too. An opt-in option styles that candidate window to match the editor theme.
+- **Clearer overlay settings.** The editor's Overlay section leads with the placement choice, and placements that need wlr-layer-shell are flagged inline on sessions that lack it.
+- **Themed editor chrome.** The right-click context menu in editor input fields and the control tooltips now follow the editor theme instead of the platform default.
 
 ## Upgrading from v1.2.2 to v1.2.3
 

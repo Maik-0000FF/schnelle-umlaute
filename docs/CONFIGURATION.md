@@ -321,6 +321,16 @@ These two placements rely on the **wlr-layer-shell** Wayland protocol. The edito
 
 Cycling itself works on every session; only the layer-shell placements are gated on compositor support. There the addon skips the overlay's DBus activation even if `Enabled=True` is set manually in the config file.
 
+### Instant overlay on animating compositors
+
+Some compositors animate layer-shell surfaces (Hyprland, mango, wayfire, ...), so the `Grid`/`MouseCursor` overlay fades or slides in with a short delay. That is the compositor's default layer-surface animation, not an addon delay. The overlay sets a stable layer-shell namespace, `schnelle-umlaute-overlay`, so you can turn the animation off for just this surface. On Hyprland:
+
+```
+layerrule = noanim, schnelle-umlaute-overlay
+```
+
+The rule syntax varies per compositor (mango parses `no_anim`). Compositors that don't animate layer-shell surfaces (sway, river) need no rule.
+
 ### Caret placement (`TextCaret`)
 
 `Placement=TextCaret` anchors the overlay at the **text input cursor** where you are typing, instead of the layer-shell daemon. It renders through fcitx5's own input panel (the candidate window), which the compositor places at the caret. Consequences:
