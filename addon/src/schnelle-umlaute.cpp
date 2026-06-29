@@ -865,10 +865,12 @@ private:
         if (!known)
             return;
         auto *st = ic->propertyFor(&factory_);
-        // Commit any in-flight cycling accent on this IC before wiping, so
-        // switching mid-cycle commits the pending character (like a release
-        // would) instead of dropping it. Uses the OLD umlautMap_, since the
-        // pending char belongs to the profile being left.
+        // Commit any in-flight character on this IC before wiping, so switching
+        // mid-input commits the pending char (like a release would) instead of
+        // dropping it. cyclingInput_ (an accent variant) and waitingKey_ (the
+        // pre-leader base char) are mutually exclusive: cycling resets
+        // waitingKey_. Cycling uses the OLD umlautMap_, since the pending char
+        // belongs to the profile being left.
         if (st->cyclingInput_) {
             auto it = umlautMap_.find(*st->cyclingInput_);
             if (it != umlautMap_.end() &&
@@ -877,6 +879,8 @@ private:
                 ic->updatePreedit();
                 ic->commitString(it->second[st->cyclingIndex_]);
             }
+        } else if (st->waitingKey_) {
+            commitPendingKey(ic, st);
         }
         // Preserve this IC's held-key set across the wipe: clearAllState() would
         // clear it, so the still-held switch combo's next auto-repeat would
@@ -1451,6 +1455,11 @@ private:
                      int index) {
         if (!*config_.overlay->enabled)
             return;
+        // A real overlay (a gesture preview) supersedes a profile-name flash:
+        // cancel the pending flash auto-hide so it can't later hide this
+        // overlay. The gesture's own overlayHideEvent_ takes over hiding. All
+        // gesture overlays (daemon and caret) route through here.
+        profileFlashHideEvent_.reset();
         if (overlayAtCaret()) {
             showCaretOverlay(ic, variants, index);
             return;
