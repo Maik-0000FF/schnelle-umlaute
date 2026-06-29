@@ -81,13 +81,21 @@ ComboBox {
             combo.textRole && modelData && typeof modelData === "object"
                 ? modelData[combo.textRole]
                 : modelData
+        // Optional per-item dimming: object models may carry an
+        // `unavailable: true` field to mark a choice the environment can't
+        // honour (e.g. a placement that needs a missing protocol). String
+        // models leave this undefined, so they render unchanged.
+        readonly property bool itemUnavailable:
+            modelData && typeof modelData === "object"
+                && modelData.unavailable === true
         contentItem: Text {
             text: item.itemLabel
             // Use Theme.accent (varies per theme) instead of Theme.brand
             // (constant green across themes) so the "active item" stamp
             // reads as part of the current theme rather than as the
             // schnelle-umlaute brand bleeding into every palette.
-            color: item.current ? Theme.accent : Theme.text
+            color: item.itemUnavailable ? Theme.textMuted
+                   : item.current ? Theme.accent : Theme.text
             font.family: Theme.fontFamily
             font.pixelSize: 13
             font.weight: item.current ? Font.Medium : Font.Normal

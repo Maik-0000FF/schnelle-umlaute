@@ -196,7 +196,11 @@ Item {
                     titleText: qsTr("Overlay")
 
                     LabeledSwitch {
-                        labelText: qsTr("Show overlay while cycling")
+                        // Governs every overlay feature (cycling picker, trigger
+                        // preview, progress bar, caret window), so the label is
+                        // the plain master switch, not "while cycling" which
+                        // undersold its scope.
+                        labelText: qsTr("Show overlay")
                         // Always available: the "At text cursor" placement
                         // renders through fcitx5's input panel and needs no
                         // layer-shell. Only the Grid/MouseCursor placements and
@@ -206,71 +210,14 @@ Item {
                         onToggled: (v) => root.settingsModel.overlayEnabled = v
                     }
 
-                    Text {
-                        // "while cycling" excludes single-accent keys, which
-                        // never cycle. Spell that out here, where the confusion
-                        // starts, so it is clear they need the trigger preview.
-                        visible: root.settingsModel
-                            && root.settingsModel.overlayEnabled
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
-                        color: Theme.textMuted
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        text: qsTr("Single-accent keys never cycle, so the overlay only appears for them when \"Preview in the trigger window\" is on.")
-                    }
-
-                    LabeledSwitch {
-                        labelText: qsTr("Preview in the trigger window")
-                        // Applies to every placement (the caret path shows the
-                        // same preview), so it only depends on the overlay
-                        // being enabled, not on layer-shell.
-                        enabled: root.settingsModel
-                            && root.settingsModel.overlayEnabled
-                        checked: root.settingsModel ? root.settingsModel.overlayShowOnTrigger : false
-                        onToggled: (v) => root.settingsModel.overlayShowOnTrigger = v
-                    }
-
-                    Text {
-                        visible: root.settingsModel
-                            && root.settingsModel.overlayEnabled
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
-                        color: Theme.textMuted
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        text: qsTr("Shows the available accents as soon as you hold a mapped key, before pressing a leader, even for keys with a single accent.")
-                    }
-
-                    Text {
-                        // Grid/MouseCursor need wlr-layer-shell. "At text
-                        // cursor" works on X11 but is unreliable on GNOME
-                        // Wayland (Mutter lacks the input-method protocol), so
-                        // the note splits the two no-layer-shell sessions.
-                        visible: root.settingsModel
-                            && root.settingsModel.overlayEnabled
-                            && !root.settingsModel.layerShellAvailable
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
-                        color: Theme.textMuted
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        text: {
-                            if (!root.settingsModel)
-                                return "";
-                            var s = root.settingsModel.layerShellSession;
-                            var head = qsTr("\"Fixed position\" and \"At mouse cursor\" need wlr-layer-shell, unavailable on %1.").arg(s);
-                            var caret = s.indexOf("(Wayland)") !== -1
-                                ? qsTr(" \"At text cursor\" is also unreliable here: this compositor lacks the input-method protocol fcitx5 needs, so it only works in X11/XWayland apps.")
-                                : qsTr(" Use \"At text cursor\" instead; it works on X11.");
-                            return head + caret
-                                + qsTr("\nLayer-shell is supported on KDE Plasma Wayland, sway, Hyprland, river, wayfire.");
-                        }
-                    }
-
+                    // Placement is the structural choice, so it comes first,
+                    // right under the master switch. The sub-options below adapt
+                    // to whichever placement is selected.
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: Theme.spacingMd
+                        visible: root.settingsModel
+                            && root.settingsModel.overlayEnabled
 
                         Text {
                             text: qsTr("Placement")
@@ -285,18 +232,33 @@ Item {
                             Layout.fillWidth: true
                             // "At text cursor" renders through fcitx5's input
                             // panel (no layer-shell); "Fixed position" and "At
-                            // mouse cursor" drive the overlay daemon. The combo
-                            // itself stays available without layer-shell so the
-                            // caret mode is reachable; the daemon modes then
-                            // surface the note above.
+                            // mouse cursor" drive the overlay daemon, which needs
+                            // wlr-layer-shell. Where that is missing, those two
+                            // are flagged "(needs layer-shell)" and dimmed inline
+                            // so the constraint shows at the point of choice, not
+                            // only in the note below. They stay selectable as an
+                            // escape hatch if the capability check is wrong.
                             enabled: root.settingsModel
                                 && root.settingsModel.overlayEnabled
                             textRole: "label"
                             valueRole: "key"
+                            readonly property bool noLayerShell:
+                                root.settingsModel
+                                && !root.settingsModel.layerShellAvailable
                             model: [
-                                { key: "Grid",        label: qsTr("Fixed position") },
-                                { key: "MouseCursor", label: qsTr("At mouse cursor") },
-                                { key: "TextCaret",   label: qsTr("At text cursor (caret)") }
+                                { key: "Grid",
+                                  label: placementBox.noLayerShell
+                                      ? qsTr("Fixed position (needs layer-shell)")
+                                      : qsTr("Fixed position"),
+                                  unavailable: placementBox.noLayerShell },
+                                { key: "MouseCursor",
+                                  label: placementBox.noLayerShell
+                                      ? qsTr("At mouse cursor (needs layer-shell)")
+                                      : qsTr("At mouse cursor"),
+                                  unavailable: placementBox.noLayerShell },
+                                { key: "TextCaret",
+                                  label: qsTr("At text cursor (caret)"),
+                                  unavailable: false }
                             ]
                             currentIndex: {
                                 if (!root.settingsModel) return 0;
@@ -319,6 +281,33 @@ Item {
                                         root.settingsModel.clearCaretTheme();
                                 }
                             }
+                        }
+                    }
+
+                    Text {
+                        // Sits right under the placement combo it explains:
+                        // Grid/MouseCursor need wlr-layer-shell. "At text
+                        // cursor" works on X11 but is unreliable on GNOME
+                        // Wayland (Mutter lacks the input-method protocol), so
+                        // the note splits the two no-layer-shell sessions.
+                        visible: root.settingsModel
+                            && root.settingsModel.overlayEnabled
+                            && !root.settingsModel.layerShellAvailable
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        text: {
+                            if (!root.settingsModel)
+                                return "";
+                            var s = root.settingsModel.layerShellSession;
+                            var head = qsTr("\"Fixed position\" and \"At mouse cursor\" need wlr-layer-shell, unavailable on %1.").arg(s);
+                            var caret = s.indexOf("(Wayland)") !== -1
+                                ? qsTr(" \"At text cursor\" is also unreliable here: this compositor lacks the input-method protocol fcitx5 needs, so it only works in X11/XWayland apps.")
+                                : qsTr(" Use \"At text cursor\" instead; it works on X11.");
+                            return head + caret
+                                + qsTr("\nLayer-shell is supported on KDE Plasma Wayland, sway, Hyprland, river, wayfire.");
                         }
                     }
 
@@ -372,15 +361,46 @@ Item {
                     }
 
                     Text {
+                        // Warning-coloured, not muted: this toggle has a global
+                        // side effect (it rewrites the shared classicui theme,
+                        // affecting other input methods), so it must read louder
+                        // than a plain field description.
                         visible: root.settingsModel
                             && root.settingsModel.overlayEnabled
                             && root.settingsModel.overlayPlacement === "TextCaret"
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        color: Theme.textMuted
+                        color: Theme.warning
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
                         text: qsTr("Styles fcitx5's candidate window globally (it affects other input methods too) and overrides your classicui theme while on. Turning it off restores your previous theme.")
+                    }
+
+                    LabeledSwitch {
+                        labelText: qsTr("Preview in the trigger window")
+                        // Applies to every placement (the caret path shows the
+                        // same preview), so it only depends on the overlay
+                        // being enabled, not on layer-shell.
+                        enabled: root.settingsModel
+                            && root.settingsModel.overlayEnabled
+                        checked: root.settingsModel ? root.settingsModel.overlayShowOnTrigger : false
+                        onToggled: (v) => root.settingsModel.overlayShowOnTrigger = v
+                    }
+
+                    Text {
+                        // One combined note: what the preview does plus the
+                        // single-accent caveat (those keys never cycle, so the
+                        // preview is the only way they ever get an overlay).
+                        // Merged from two stacked paragraphs to thin the
+                        // muted-text wall.
+                        visible: root.settingsModel
+                            && root.settingsModel.overlayEnabled
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        text: qsTr("Shows the available accents as soon as you hold a mapped key, before pressing a leader. It is also the only way single-accent keys, which never cycle, get an overlay.")
                     }
 
                     // Re-apply on every editor theme change while the toggle is
