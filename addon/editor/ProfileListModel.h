@@ -100,6 +100,17 @@ private:
     static QString slugify(const QString &name);
     bool nameExists(const QString &name, int excludeRow) const;
     bool fileExists(const QString &file, int excludeRow) const;
+    // Which cycle slot to skip in the duplicate check, so re-setting a slot
+    // does not collide with itself.
+    enum class CycleSlot { None, Next, Prev };
+    // True if combo is unused by any other shortcut. excludeRow skips one
+    // profile's SelectKey; excludeCycle skips CycleNext/CyclePrev. Empty == free.
+    bool isComboFree(const QString &combo, int excludeRow,
+                     CycleSlot excludeCycle) const;
+    // Canonical form for comparing combos the way the engine matches them:
+    // modifiers in a fixed order, a single letter upper-cased. Lets the
+    // duplicate check treat "Alt+Control+j" and "Control+Alt+J" as the same.
+    static QString canonicalCombo(const QString &combo);
     QString uniqueSlugFile(const QString &name) const;
 
     static QString escapeValue(const QString &s);

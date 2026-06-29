@@ -12,6 +12,18 @@ Item {
     signal requestSnackbar(string message, color c)
     signal requestUndoSnackbar(string message, var callback)
 
+    // Shared label column width for the cycle-shortcut rows.
+    readonly property int cycleLabelWidth: 100
+
+    // Surface model-side validation errors (e.g. a duplicate shortcut) as a
+    // snackbar. A null target is a harmless no-op until profilesModel is set.
+    Connections {
+        target: root.profilesModel
+        function onErrorOccurred(message) {
+            root.requestSnackbar(message, Theme.error);
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Theme.spacingLg
@@ -54,6 +66,48 @@ Item {
                                === root.mappingsModel.profileFile
                         ? qsTr("Editing the active profile: changes apply while typing as soon as you save.")
                         : qsTr("Editing a profile that is not active: changes are saved but take effect once you make it active (checkmark).");
+                }
+            }
+
+            // Global cycle shortcuts: step through the favorites (★), or all
+            // profiles if none are favorited.
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.spacingXs
+                spacing: Theme.spacingMd
+                Text {
+                    text: qsTr("Cycle next")
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 13
+                    Layout.preferredWidth: root.cycleLabelWidth
+                }
+                KeyCaptureField {
+                    Layout.fillWidth: true
+                    value: root.profilesModel ? root.profilesModel.cycleNext : ""
+                    onCaptured: (combo) => {
+                        if (root.profilesModel)
+                            root.profilesModel.cycleNext = combo;
+                    }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingMd
+                Text {
+                    text: qsTr("Cycle previous")
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 13
+                    Layout.preferredWidth: root.cycleLabelWidth
+                }
+                KeyCaptureField {
+                    Layout.fillWidth: true
+                    value: root.profilesModel ? root.profilesModel.cyclePrev : ""
+                    onCaptured: (combo) => {
+                        if (root.profilesModel)
+                            root.profilesModel.cyclePrev = combo;
+                    }
                 }
             }
         }

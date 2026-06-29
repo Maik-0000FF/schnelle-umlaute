@@ -207,18 +207,21 @@ public:
         // leaking to the app. switchToProfileName/cycleProfile clear gesture
         // state, swap the active profile's mappings, and flash the name.
         if (isPress && isNewKeyPress) {
-            if (cycleNextKey_.isValid() && key.check(cycleNextKey_)) {
+            // Normalize the event key to match the normalized stored combos
+            // (case-insensitive letters, see parseShortcut).
+            Key nkey = key.normalize();
+            if (cycleNextKey_.isValid() && nkey.check(cycleNextKey_)) {
                 cycleProfile(ic, +1);
                 keyEvent.filterAndAccept();
                 return;
             }
-            if (cyclePrevKey_.isValid() && key.check(cyclePrevKey_)) {
+            if (cyclePrevKey_.isValid() && nkey.check(cyclePrevKey_)) {
                 cycleProfile(ic, -1);
                 keyEvent.filterAndAccept();
                 return;
             }
             for (const auto &s : profileSelectShortcuts_) {
-                if (key.check(s.key)) {
+                if (nkey.check(s.key)) {
                     switchToProfileName(ic, s.name);
                     keyEvent.filterAndAccept();
                     return;
@@ -821,7 +824,13 @@ private:
         if (combo.empty())
             return Key();
         Key k(combo);
-        return (k.isValid() && hasModifiers(k)) ? k : Key();
+        if (!k.isValid() || !hasModifiers(k))
+            return Key();
+        // Normalize so matching is case-insensitive for letters: a
+        // "Control+Alt+J" binding and a Ctrl+Alt+j press normalize to the same
+        // sym/states (Key::check does no case folding). The event key is
+        // normalized too at the match site.
+        return k.normalize();
     }
 
     // Parse the configured combo strings into fcitx Keys once per config load,

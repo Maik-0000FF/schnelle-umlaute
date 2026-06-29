@@ -11,11 +11,13 @@ endif()
 set(EDITOR_SRCS
     main.cpp
     EnvSetup.cpp
+    KeyComboUtil.cpp
     MappingListModel.cpp
     OverlayDBusClient.cpp
     ProfileListModel.cpp
     SettingsModel.cpp
     SingleInstance.cpp
+    keycombo.cpp
 )
 
 qt_add_executable(schnelle-umlaute-editor ${EDITOR_SRCS})
@@ -57,6 +59,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/AppListEditor.qml
         components/ConfirmDialog.qml
         components/DropdownIndicator.qml
+        components/KeyCaptureField.qml
         components/PositionPicker.qml
         components/ProfileSelector.qml
         components/ThemedComboBox.qml
