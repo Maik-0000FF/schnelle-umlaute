@@ -271,6 +271,7 @@ int ProfileListModel::activeRow() const {
 }
 
 bool ProfileListModel::createProfile(const QString &name) {
+    reloadActiveFromDisk();
     QString err = nameErrorFor(name, -1);
     if (!err.isEmpty()) {
         Q_EMIT errorOccurred(err);
@@ -293,6 +294,7 @@ bool ProfileListModel::createProfile(const QString &name) {
 }
 
 bool ProfileListModel::renameProfile(int row, const QString &name) {
+    reloadActiveFromDisk();
     if (row < 0 || row >= static_cast<int>(entries_.size()))
         return false;
     QString err = nameErrorFor(name, row);
@@ -314,6 +316,7 @@ bool ProfileListModel::renameProfile(int row, const QString &name) {
 }
 
 bool ProfileListModel::removeProfile(int row) {
+    reloadActiveFromDisk();
     if (row < 0 || row >= static_cast<int>(entries_.size()))
         return false;
     if (isProtected(row)) {
@@ -351,6 +354,7 @@ bool ProfileListModel::removeProfile(int row) {
 }
 
 bool ProfileListModel::setActiveRow(int row) {
+    reloadActiveFromDisk();
     if (row < 0 || row >= static_cast<int>(entries_.size()))
         return false;
     if (entries_[row].name == active_)
@@ -370,6 +374,7 @@ bool ProfileListModel::setActiveRow(int row) {
 }
 
 bool ProfileListModel::setSelectKey(int row, const QString &combo) {
+    reloadActiveFromDisk();
     if (row < 0 || row >= static_cast<int>(entries_.size()))
         return false;
     entries_[row].selectKey = combo.trimmed();
@@ -380,6 +385,7 @@ bool ProfileListModel::setSelectKey(int row, const QString &combo) {
 }
 
 bool ProfileListModel::setFavorite(int row, bool favorite) {
+    reloadActiveFromDisk();
     if (row < 0 || row >= static_cast<int>(entries_.size()))
         return false;
     if (entries_[row].favorite == favorite)
@@ -392,6 +398,7 @@ bool ProfileListModel::setFavorite(int row, bool favorite) {
 }
 
 void ProfileListModel::setCycleNext(const QString &combo) {
+    reloadActiveFromDisk();
     QString c = combo.trimmed();
     if (c == cycleNext_)
         return;
@@ -401,6 +408,7 @@ void ProfileListModel::setCycleNext(const QString &combo) {
 }
 
 void ProfileListModel::setCyclePrev(const QString &combo) {
+    reloadActiveFromDisk();
     QString c = combo.trimmed();
     if (c == cyclePrev_)
         return;
@@ -496,6 +504,46 @@ void ProfileListModel::load() {
     } else if (active_.isEmpty() || activeRow() < 0) {
         // Unknown/absent active falls back to the first profile.
         active_ = entries_.front().name;
+    }
+}
+
+void ProfileListModel::reloadActiveFromDisk() {
+    QFile f(profilesConfPath());
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return;
+    QTextStream in(&f);
+    QString diskActive;
+    while (!in.atEnd()) {
+        QString t = in.readLine().trimmed();
+        if (t.startsWith(QChar('['))) // top-level keys only (before sections)
+            break;
+        if (t.startsWith(QStringLiteral("Active="))) {
+            diskActive = unescapeValue(t.mid(7).trimmed());
+            break;
+        }
+    }
+    f.close();
+
+    if (diskActive.isEmpty() || diskActive == active_)
+        return;
+    // Adopt only if it names a profile we know; otherwise keep the current one.
+    bool known = false;
+    for (const auto &e : entries_) {
+        if (e.name == diskActive) {
+            known = true;
+            break;
+        }
+    }
+    if (!known)
+        return;
+    const QString old = active_;
+    active_ = diskActive;
+    Q_EMIT activeChanged();
+    for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
+        if (entries_[i].name == active_ || entries_[i].name == old) {
+            auto idx = index(i);
+            Q_EMIT dataChanged(idx, idx, {IsActiveRole});
+        }
     }
 }
 

@@ -121,14 +121,7 @@ public:
             // the rebuild keeps those reads consistent. Also avoids leaving
             // ICs in a cycling state that references a now-removed entry
             // (e.g. mapping shortened from "ä,ae" to "ä" while held).
-            instance_->inputContextManager().foreach([this](InputContext *ic) {
-                auto *s = ic->propertyFor(&factory_);
-                s->clearAllState();
-                s->recentlyCommitted_ = false;
-                ic->inputPanel().reset();
-                ic->updatePreedit();
-                return true;
-            });
+            wipeAllGestureState();
             // If RawConfig contains mapping data, use it directly.
             // Otherwise, reload from file (normal configtool path).
             umlautMap_.clear();
@@ -821,21 +814,27 @@ private:
         return profileRelPath(*profs.front().file);
     }
 
+    // Parse a combo string to a Key, or an invalid Key if it is empty or
+    // carries no real (non-Shift) modifier. The modifier requirement stops a
+    // bare key like "1" from matching and swallowing every plain press of it.
+    static Key parseShortcut(const std::string &combo) {
+        if (combo.empty())
+            return Key();
+        Key k(combo);
+        return (k.isValid() && hasModifiers(k)) ? k : Key();
+    }
+
     // Parse the configured combo strings into fcitx Keys once per config load,
     // so keyEvent only does Key::check (no per-keystroke string parsing).
     void rebuildProfileShortcuts() {
         profileSelectShortcuts_.clear();
         for (const auto &p : *profiles_.profiles) {
-            if (p.selectKey->empty())
-                continue;
-            Key k(*p.selectKey);
+            Key k = parseShortcut(*p.selectKey);
             if (k.isValid())
                 profileSelectShortcuts_.push_back({k, *p.name});
         }
-        cycleNextKey_ =
-            profiles_.cycleNext->empty() ? Key() : Key(*profiles_.cycleNext);
-        cyclePrevKey_ =
-            profiles_.cyclePrev->empty() ? Key() : Key(*profiles_.cyclePrev);
+        cycleNextKey_ = parseShortcut(*profiles_.cycleNext);
+        cyclePrevKey_ = parseShortcut(*profiles_.cyclePrev);
     }
 
     // Cancel any active gesture on every IC before swapping umlautMap_, so no
@@ -865,7 +864,28 @@ private:
         }
         if (!known)
             return;
+        auto *st = ic->propertyFor(&factory_);
+        // Commit any in-flight cycling accent on this IC before wiping, so
+        // switching mid-cycle commits the pending character (like a release
+        // would) instead of dropping it. Uses the OLD umlautMap_, since the
+        // pending char belongs to the profile being left.
+        if (st->cyclingInput_) {
+            auto it = umlautMap_.find(*st->cyclingInput_);
+            if (it != umlautMap_.end() &&
+                st->cyclingIndex_ < it->second.size()) {
+                ic->inputPanel().reset();
+                ic->updatePreedit();
+                ic->commitString(it->second[st->cyclingIndex_]);
+            }
+        }
+        // Preserve this IC's held-key set across the wipe: clearAllState() would
+        // clear it, so the still-held switch combo's next auto-repeat would
+        // re-qualify as a fresh press and cycle again per repeat tick (each a
+        // disk write). Keeping it marks the combo as held, suppressing repeats
+        // until real release.
+        auto heldKeys = st->heldRawCodes_;
         wipeAllGestureState();
+        st->heldRawCodes_ = std::move(heldKeys);
         profiles_.active.setValue(name);
         umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
         safeSaveAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
@@ -893,17 +913,11 @@ private:
     // delay (longer than the commit flash), like the input-method-switch popup.
     static constexpr int kProfileFlashMs = 1500;
     void flashProfileName(InputContext *ic, const std::string &name) {
-        auto *state = ic->propertyFor(&factory_);
-        state->cancelOverlayShow();
-        state->cancelOverlayHide();
+        profileFlashHideEvent_.reset(); // supersede any in-flight flash
         const bool useDaemon = *config_.overlay->enabled && !overlayAtCaret();
         if (useDaemon) {
-            std::string position;
-            if (*config_.overlay->placement == OverlayPlacement::MouseCursor)
-                position = schnelle_umlaute::cursorPositionPrefix();
-            position += OverlayRowToString(*config_.overlay->row);
-            position += OverlayColumnToString(*config_.overlay->column);
-            overlayClient_.show({name}, kPreviewNoHighlight, position);
+            overlayClient_.show({name}, kPreviewNoHighlight,
+                                overlayPositionString());
             overlayVisible_ = true;
         } else {
             showCaretOverlay(ic, {name}, kPreviewNoHighlight);
@@ -912,7 +926,7 @@ private:
         uint64_t target = SchnelleUmlauteState::nowUsec() +
                           static_cast<uint64_t>(kProfileFlashMs) *
                               kMicrosecondsPerMillisecond;
-        state->overlayHideEvent_ = instance_->eventLoop().addTimeEvent(
+        profileFlashHideEvent_ = instance_->eventLoop().addTimeEvent(
             CLOCK_MONOTONIC, target, 0,
             [this, savedRef, useDaemon](EventSourceTime *, uint64_t) {
                 if (savedRef.get()) {
@@ -1373,6 +1387,10 @@ private:
     std::vector<ProfileShortcut> profileSelectShortcuts_;
     Key cycleNextKey_;
     Key cyclePrevKey_;
+    // Dedicated timer for the profile-name flash auto-hide, kept off the per-IC
+    // overlayHideEvent_ so a following gesture's cancelOverlayHide() cannot
+    // cancel it and leave the name stuck on screen.
+    std::unique_ptr<EventSourceTime> profileFlashHideEvent_;
 
     // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
@@ -1415,6 +1433,20 @@ private:
         return *config_.overlay->placement == OverlayPlacement::TextCaret;
     }
 
+    // The single "<Row><Col>" position string the overlay daemon expects (e.g.
+    // "TopCol4"). In MouseCursor placement the shared cursor marker is
+    // prefixed so the daemon anchors at the pointer, with the grid string as
+    // the fallback when the compositor can't report it. Shared by overlayShow
+    // and flashProfileName so the assembly lives in one place.
+    std::string overlayPositionString() const {
+        std::string position;
+        if (*config_.overlay->placement == OverlayPlacement::MouseCursor)
+            position = schnelle_umlaute::cursorPositionPrefix();
+        position += OverlayRowToString(*config_.overlay->row);
+        position += OverlayColumnToString(*config_.overlay->column);
+        return position;
+    }
+
     void overlayShow(InputContext *ic, const std::vector<std::string> &variants,
                      int index) {
         if (!*config_.overlay->enabled)
@@ -1423,19 +1455,7 @@ private:
             showCaretOverlay(ic, variants, index);
             return;
         }
-        // Combine the two enum halves into the single "<Row><Col>" string
-        // the overlay daemon expects (e.g. "TopCol4", "CenterCol7"). In
-        // MouseCursor placement, prefix the shared cursor marker so the daemon
-        // anchors the overlay's lower-left corner at the pointer; the grid
-        // string that follows is the fallback the daemon uses when the
-        // compositor can't report the cursor position. The prefix is the same
-        // constant the daemon parses with, so writer and reader can't drift.
-        std::string position;
-        if (*config_.overlay->placement == OverlayPlacement::MouseCursor)
-            position = schnelle_umlaute::cursorPositionPrefix();
-        position += OverlayRowToString(*config_.overlay->row);
-        position += OverlayColumnToString(*config_.overlay->column);
-        overlayClient_.show(variants, index, position);
+        overlayClient_.show(variants, index, overlayPositionString());
         overlayVisible_ = true;
     }
     void overlayHide() {
