@@ -9,6 +9,8 @@
 #include <fcitx-config/enum.h>
 #include <fcitx-config/rawconfig.h>
 
+#include "profile_paths.h"
+
 #include <string>
 #include <utility>
 #include <vector>
@@ -220,7 +222,8 @@ FCITX_CONFIGURATION(
     ProfilesConfig,
     Option<std::vector<ProfileEntryConfig>> profiles{this, "Profiles",
                                                      "Profiles", {}};
-    Option<std::string> active{this, "Active", "Active profile", "Standard"};
+    Option<std::string> active{this, "Active", "Active profile",
+                               schnelle_umlaute::kStandardProfile};
     Option<std::string> cycleNext{this, "CycleNext", "Cycle to next profile",
                                   ""};
     Option<std::string> cyclePrev{this, "CyclePrev", "Cycle to previous profile",

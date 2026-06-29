@@ -1,6 +1,7 @@
 #include "MappingListModel.h"
 #include "FcitxReload.h"
 #include "mappings-io.h"
+#include "profile_paths.h"
 
 #include <QDir>
 #include <QFile>
@@ -10,11 +11,13 @@
 namespace {
 
 // Resolve a profile-relative file ("mappings.txt" / "profiles/<slug>.txt") to
-// an absolute path under ~/.config/fcitx5/schnelle-umlaute/.
+// an absolute path under ~/.config/fcitx5/<config subdir>/.
 QString resolveProfilePath(const QString &relFile) {
     auto base =
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    return base + QStringLiteral("/fcitx5/schnelle-umlaute/") + relFile;
+    return base + QStringLiteral("/fcitx5/") +
+           QLatin1String(schnelle_umlaute::kConfigSubdir) + QStringLiteral("/") +
+           relFile;
 }
 
 } // namespace
@@ -160,7 +163,8 @@ void MappingListModel::moveMapping(int from, int to) {
 }
 
 void MappingListModel::setProfileFile(const QString &file) {
-    QString f = file.isEmpty() ? QStringLiteral("mappings.txt") : file;
+    QString f = file.isEmpty() ? QLatin1String(schnelle_umlaute::kMappingsFile)
+                               : file;
     if (f == profileFile_)
         return;
     profileFile_ = f;

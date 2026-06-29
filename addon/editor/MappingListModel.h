@@ -7,6 +7,8 @@
 #include <QQmlEngine>
 #include <QString>
 
+#include "profile_paths.h"
+
 class MappingListModel : public QAbstractListModel {
     Q_OBJECT
     QML_ELEMENT
@@ -68,9 +70,11 @@ private:
     };
     std::vector<Entry> entries_;
     QString saveStatus_;
-    // Relative to ~/.config/fcitx5/schnelle-umlaute/. Default is the Standard
-    // profile's legacy file.
-    QString profileFile_ = QStringLiteral("mappings.txt");
+    // Relative to ~/.config/fcitx5/<config subdir>/. Default is the Standard
+    // profile's legacy file (the editor overrides this to the active profile
+    // on startup).
+    QString profileFile_ =
+        QString::fromLatin1(schnelle_umlaute::kMappingsFile);
 };
 
 #endif

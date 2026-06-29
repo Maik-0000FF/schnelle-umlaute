@@ -1,5 +1,6 @@
 #include "ProfileListModel.h"
 #include "FcitxReload.h"
+#include "profile_paths.h"
 
 #include <QDir>
 #include <QFile>
@@ -10,15 +11,127 @@
 
 namespace {
 
+using schnelle_umlaute::kConfigSubdir;
+using schnelle_umlaute::kMappingsFile;
+using schnelle_umlaute::kProfilesConf;
+using schnelle_umlaute::kProfilesSubdir;
+using schnelle_umlaute::kStandardProfile;
+
+// Longest slug accepted, so a pathological profile name can't produce a
+// filename that hits the filesystem's NAME_MAX on save.
+constexpr int kMaxSlugLength = 64;
+
 QString configDir() {
     auto base =
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    return base + QStringLiteral("/fcitx5/schnelle-umlaute/");
+    return base + QStringLiteral("/fcitx5/") + QLatin1String(kConfigSubdir) +
+           QStringLiteral("/");
 }
 
-QString profilesConfPath() { return configDir() + QStringLiteral("profiles.conf"); }
+QString profilesConfPath() {
+    return configDir() + QLatin1String(kProfilesConf);
+}
 
 } // namespace
+
+// Mirror of fcitx stringutils::escapeForValue: quote the value when it
+// contains whitespace, a quote or a backslash, and backslash-escape the
+// special characters. Keeps the editor-written profiles.conf byte-compatible
+// with what the engine's safeSaveAsIni would produce.
+QString ProfileListModel::escapeValue(const QString &s) {
+    bool needEscape = false;
+    for (QChar c : s) {
+        char16_t u = c.unicode();
+        if (u == '\f' || u == '\r' || u == '\t' || u == '\v' || u == ' ' ||
+            u == '"' || u == '\\' || u == '\n') {
+            needEscape = true;
+            break;
+        }
+    }
+    QString out;
+    if (needEscape)
+        out += QChar('"');
+    for (QChar c : s) {
+        char16_t u = c.unicode();
+        char esc = 0;
+        switch (u) {
+        case '\\': esc = '\\'; break;
+        case '"': esc = '"'; break;
+        case '\n': esc = 'n'; break;
+        case '\f': esc = 'f'; break;
+        case '\r': esc = 'r'; break;
+        case '\t': esc = 't'; break;
+        case '\v': esc = 'v'; break;
+        default: break;
+        }
+        if (esc) {
+            out += QChar('\\');
+            out += QChar(esc);
+        } else {
+            out += c;
+        }
+    }
+    if (needEscape)
+        out += QChar('"');
+    return out;
+}
+
+// Mirror of fcitx stringutils::unescapeForValue: a value wrapped in quotes is
+// unescaped; anything else is returned verbatim. A malformed quoted value
+// (not closed exactly at the end) is returned raw, best-effort.
+QString ProfileListModel::unescapeValue(const QString &s) {
+    if (s.size() < 2 || s.front() != QChar('"') || s.back() != QChar('"'))
+        return s;
+    QString result;
+    bool escape = false;
+    bool closed = false;
+    qsizetype i = 1;
+    for (; i < s.size(); ++i) {
+        QChar c = s[i];
+        if (!escape) {
+            if (c == QChar('\\')) {
+                escape = true;
+            } else if (c == QChar('"')) {
+                ++i;
+                closed = true;
+                break;
+            } else {
+                result += c;
+            }
+        } else {
+            char16_t u = c.unicode();
+            switch (u) {
+            case '\\': result += QChar('\\'); break;
+            case '"': result += QChar('"'); break;
+            case 'n': result += QChar('\n'); break;
+            case 'f': result += QChar('\f'); break;
+            case 'r': result += QChar('\r'); break;
+            case 't': result += QChar('\t'); break;
+            case 'v': result += QChar('\v'); break;
+            default: result += c; break; // unknown escape: keep literal
+            }
+            escape = false;
+        }
+    }
+    if (closed && i == s.size())
+        return result;
+    return s;
+}
+
+// A profile's File must be either the Standard mappings.txt or a plain file
+// directly under profiles/. Rejects path traversal / absolute paths from a
+// hand-edited or migrated profiles.conf, so the delete path and the engine's
+// loader can never reach outside the addon config dir.
+bool ProfileListModel::isSafeProfileFile(const QString &file) {
+    if (file == QLatin1String(kMappingsFile))
+        return true;
+    const QString prefix = QLatin1String(kProfilesSubdir) + QStringLiteral("/");
+    if (!file.startsWith(prefix))
+        return false;
+    QString rest = file.mid(prefix.size());
+    return !rest.isEmpty() && !rest.contains(QChar('/')) &&
+           !rest.contains(QStringLiteral(".."));
+}
 
 ProfileListModel::ProfileListModel(QObject *parent)
     : QAbstractListModel(parent) {
@@ -79,6 +192,8 @@ QString ProfileListModel::slugify(const QString &name) {
             lastDash = true;
         }
     }
+    if (slug.size() > kMaxSlugLength)
+        slug.truncate(kMaxSlugLength);
     while (slug.endsWith(QChar('-')))
         slug.chop(1);
     if (slug.isEmpty())
@@ -111,12 +226,13 @@ bool ProfileListModel::fileExists(const QString &file, int excludeRow) const {
 // if the base slug (or an existing file on disk) would collide.
 QString ProfileListModel::uniqueSlugFile(const QString &name) const {
     QString base = slugify(name);
-    QDir dir(configDir() + QStringLiteral("profiles"));
+    QDir dir(configDir() + QLatin1String(kProfilesSubdir));
+    const QString prefix = QLatin1String(kProfilesSubdir) + QStringLiteral("/");
     int n = 1;
     for (;;) {
         QString slug = (n == 1) ? base : base + QStringLiteral("-") +
                                               QString::number(n);
-        QString rel = QStringLiteral("profiles/") + slug + QStringLiteral(".txt");
+        QString rel = prefix + slug + QStringLiteral(".txt");
         if (!fileExists(rel, -1) && !dir.exists(slug + QStringLiteral(".txt")))
             return rel;
         ++n;
@@ -141,7 +257,7 @@ bool ProfileListModel::isProtected(int row) const {
         return true;
     // The Standard profile (its file holds the user's original mappings.txt)
     // and the last remaining profile cannot be deleted.
-    if (entries_[row].file == QString::fromLatin1(kStandardFile))
+    if (entries_[row].file == QLatin1String(kMappingsFile))
         return true;
     return entries_.size() <= 1;
 }
@@ -156,7 +272,7 @@ QStringList ProfileListModel::profileNames() const {
 
 QString ProfileListModel::fileForRow(int row) const {
     if (row < 0 || row >= static_cast<int>(entries_.size()))
-        return QString::fromLatin1(kStandardFile);
+        return QLatin1String(kMappingsFile);
     return entries_[row].file;
 }
 
@@ -222,17 +338,26 @@ bool ProfileListModel::removeProfile(int row) {
     entries_.erase(entries_.begin() + row);
     endRemoveRows();
     Q_EMIT countChanged();
-    // Delete the profile's mappings file (never mappings.txt — Standard is
-    // protected above, so file is always a profiles/*.txt here).
-    if (file != QString::fromLatin1(kStandardFile)) {
+    // Delete the profile's mappings file (never mappings.txt: Standard is
+    // protected above, and isSafeProfileFile keeps file under profiles/, so a
+    // malformed entry can't aim QFile::remove outside the config dir).
+    if (file != QLatin1String(kMappingsFile) && isSafeProfileFile(file)) {
         QFile::remove(configDir() + file);
     }
-    // If the active profile was removed, fall back to the first profile.
+    // If the active profile was removed, fall back to the first profile and
+    // refresh that row's active marker (the delegate's isActive only updates
+    // on dataChanged).
     if (wasActive) {
-        active_ = entries_.empty() ? QString::fromLatin1(kStandardName)
+        active_ = entries_.empty() ? QLatin1String(kStandardProfile)
                                    : entries_.front().name;
         Q_EMIT activeChanged();
+        if (!entries_.empty()) {
+            auto idx = index(0);
+            Q_EMIT dataChanged(idx, idx, {IsActiveRole});
+        }
     }
+    // Let the editor reset its edit target if it was pointing at this file.
+    Q_EMIT profileRemoved(file);
     save();
     return true;
 }
@@ -288,8 +413,8 @@ void ProfileListModel::seedStandardIfEmpty(bool persist) {
     if (!entries_.empty())
         return;
     Entry e;
-    e.name = QString::fromLatin1(kStandardName);
-    e.file = QString::fromLatin1(kStandardFile);
+    e.name = QLatin1String(kStandardProfile);
+    e.file = QLatin1String(kMappingsFile);
     entries_.push_back(e);
     if (active_.isEmpty())
         active_ = e.name;
@@ -312,7 +437,8 @@ void ProfileListModel::load() {
         auto flush = [&]() {
             if (inEntry) {
                 if (!cur.name.isEmpty() && !cur.file.isEmpty() &&
-                    !nameExists(cur.name, -1) && !fileExists(cur.file, -1))
+                    isSafeProfileFile(cur.file) && !nameExists(cur.name, -1) &&
+                    !fileExists(cur.file, -1))
                     entries_.push_back(cur);
                 cur = Entry{};
                 inEntry = false;
@@ -328,11 +454,14 @@ void ProfileListModel::load() {
                 inEntry = section.startsWith(QStringLiteral("Profiles/"));
                 continue;
             }
-            int eq = t.indexOf(QChar('='));
+            qsizetype eq = t.indexOf(QChar('='));
             if (eq < 0)
                 continue;
             QString key = t.left(eq).trimmed();
-            QString val = t.mid(eq + 1).trimmed();
+            // Values may be fcitx-quoted (e.g. when the engine wrote the file
+            // via safeSaveAsIni); unescape them so they match what the editor
+            // stored. See escapeValue/unescapeValue.
+            QString val = unescapeValue(t.mid(eq + 1).trimmed());
             if (section.isEmpty()) {
                 if (key == QStringLiteral("Active"))
                     active_ = val;
@@ -356,9 +485,12 @@ void ProfileListModel::load() {
     // Fresh install / pre-profiles upgrade: materialize the Standard profile
     // (pointing at the existing mappings.txt, which is never rewritten here).
     if (entries_.empty()) {
+        // Drop any dangling Active read from an otherwise-empty/corrupt file so
+        // the seeded Standard becomes active.
+        active_.clear();
         seedStandardIfEmpty(/*persist=*/true);
     } else if (active_.isEmpty() || activeRow() < 0) {
-        // Unknown/absent active → fall back to the first profile.
+        // Unknown/absent active falls back to the first profile.
         active_ = entries_.front().name;
     }
 }
@@ -373,16 +505,18 @@ bool ProfileListModel::save() {
     }
     QString out;
     QTextStream ts(&out);
+    // Values are escaped the way fcitx's safeSaveAsIni would, so the engine's
+    // readAsIni round-trips them identically (e.g. a profile name with spaces).
     ts << "# Mapping profiles for schnelle-umlaute. Managed by the editor.\n";
-    ts << "Active=" << active_ << "\n";
-    ts << "CycleNext=" << cycleNext_ << "\n";
-    ts << "CyclePrev=" << cyclePrev_ << "\n";
+    ts << "Active=" << escapeValue(active_) << "\n";
+    ts << "CycleNext=" << escapeValue(cycleNext_) << "\n";
+    ts << "CyclePrev=" << escapeValue(cyclePrev_) << "\n";
     for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
         const auto &e = entries_[i];
         ts << "\n[Profiles/" << i << "]\n";
-        ts << "Name=" << e.name << "\n";
-        ts << "File=" << e.file << "\n";
-        ts << "SelectKey=" << e.selectKey << "\n";
+        ts << "Name=" << escapeValue(e.name) << "\n";
+        ts << "File=" << escapeValue(e.file) << "\n";
+        ts << "SelectKey=" << escapeValue(e.selectKey) << "\n";
     }
     ts.flush();
     QByteArray buf = out.toUtf8();

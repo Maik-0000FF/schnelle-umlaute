@@ -1,6 +1,7 @@
 #include "mappings_loader.h"
 
 #include "mappings-io.h"
+#include "profile_paths.h"
 
 #include <fcitx-utils/log.h>
 #if __has_include(<fcitx-utils/standardpaths.h>)
@@ -83,7 +84,8 @@ UmlautMap loadMappingsFromFile(const std::string &relPath) {
 }
 
 UmlautMap loadMappingsFromFile() {
-    return loadMappingsFromFile("schnelle-umlaute/mappings.txt");
+    return loadMappingsFromFile(std::string(kConfigSubdir) + "/" +
+                               kMappingsFile);
 }
 
 } // namespace schnelle_umlaute

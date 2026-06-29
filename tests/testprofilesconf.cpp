@@ -44,14 +44,20 @@ constexpr const char *kProfilesRel = "schnelle-umlaute/profiles.conf";
 
 } // namespace
 
-int main(int argc, char **argv) {
+// Function-try-block: ProfilesConfig is constructed inline here (its
+// FCITX_CONFIGURATION Option members are header-defined), so clang-tidy's
+// bugprone-exception-escape sees a throwing path into main. Catch it.
+int main(int argc, char **argv) try {
     QCoreApplication app(argc, argv);
     TempXdgConfigHome tempdir("testprofilesconf");
 
     // -- Direction 1: editor writes -> engine reads --------------------------
+    // "Mein Profil" has a space, so it exercises the quote/escape path on both
+    // sides (the editor escapes it, fcitx readAsIni unescapes it).
     {
         ProfileListModel m; // seeds + writes Standard
         EXPECT(m.createProfile(QStringLiteral("Mathematik")));
+        EXPECT(m.createProfile(QStringLiteral("Mein Profil")));
         EXPECT(m.setActiveRow(1));
         EXPECT(m.setSelectKey(1, QStringLiteral("Control+Alt+1")));
         m.setCycleNext(QStringLiteral("Control+Alt+Period"));
@@ -61,7 +67,7 @@ int main(int argc, char **argv) {
     ProfilesConfig cfg;
     fcitx::readAsIni(cfg, kProfilesRel);
 
-    EXPECT(cfg.profiles->size() == 2);
+    EXPECT(cfg.profiles->size() == 3);
     EXPECT(*cfg.active == std::string("Mathematik"));
     EXPECT(*cfg.cycleNext == std::string("Control+Alt+Period"));
     EXPECT(*cfg.cyclePrev == std::string("Control+Alt+Comma"));
@@ -74,16 +80,24 @@ int main(int argc, char **argv) {
     EXPECT(math != nullptr);
     EXPECT(*math->file == std::string("profiles/mathematik.txt"));
     EXPECT(*math->selectKey == std::string("Control+Alt+1"));
+
+    // The spaced name must survive the editor's escaping unchanged.
+    const auto *spaced = findEntry(cfg, "Mein Profil");
+    EXPECT(spaced != nullptr);
+    EXPECT(*spaced->file == std::string("profiles/mein-profil.txt"));
     std::fprintf(stderr, "ok direction1_editor_write_engine_read\n");
 
     // -- Direction 2: engine writes (canonical fcitx INI) -> editor reads ----
+    // safeSaveAsIni quotes "Mein Profil"; the editor must unescape it back.
     fcitx::safeSaveAsIni(cfg, kProfilesRel);
 
     ProfileListModel m2;
-    EXPECT(m2.rowCount() == 2);
+    EXPECT(m2.rowCount() == 3);
     EXPECT(m2.profileNames().value(0) == QStringLiteral("Standard"));
     EXPECT(m2.profileNames().value(1) == QStringLiteral("Mathematik"));
+    EXPECT(m2.profileNames().value(2) == QStringLiteral("Mein Profil"));
     EXPECT(m2.fileForRow(1) == QStringLiteral("profiles/mathematik.txt"));
+    EXPECT(m2.fileForRow(2) == QStringLiteral("profiles/mein-profil.txt"));
     EXPECT(m2.active() == QStringLiteral("Mathematik"));
     EXPECT(m2.cycleNext() == QStringLiteral("Control+Alt+Period"));
     EXPECT(m2.cyclePrev() == QStringLiteral("Control+Alt+Comma"));
@@ -92,4 +106,7 @@ int main(int argc, char **argv) {
     std::fprintf(stderr, "ok direction2_engine_write_editor_read\n");
 
     return 0;
+} catch (...) {
+    std::fprintf(stderr, "FAIL: unexpected exception in main\n");
+    return 1;
 }

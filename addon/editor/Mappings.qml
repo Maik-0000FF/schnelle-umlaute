@@ -18,7 +18,7 @@ Item {
         spacing: Theme.spacingMd
 
         // Edit-target selector: which profile's mappings are shown/edited here.
-        // Independent of the active profile — editing the active one applies
+        // Independent of the active profile: editing the active one applies
         // live on save; editing another only writes that profile's file.
         RowLayout {
             Layout.fillWidth: true
@@ -41,7 +41,20 @@ Item {
                     root.profilesModel.revision; // re-eval on changes
                     return root.profilesModel.profileNames();
                 }
-                currentIndex: {
+                onActivated: {
+                    if (root.profilesModel && root.mappingsModel)
+                        root.mappingsModel.profileFile =
+                            root.profilesModel.fileForRow(currentIndex);
+                }
+            }
+
+            // ComboBox assigns currentIndex imperatively on activation, which
+            // would break a plain declarative binding; a Binding element keeps
+            // it tracking the real edit target across rename/delete/switch.
+            Binding {
+                target: editTargetBox
+                property: "currentIndex"
+                value: {
                     if (!root.profilesModel || !root.mappingsModel) return 0;
                     root.profilesModel.revision;
                     for (var i = 0; i < root.profilesModel.count; ++i) {
@@ -50,11 +63,6 @@ Item {
                             return i;
                     }
                     return 0;
-                }
-                onActivated: {
-                    if (root.profilesModel && root.mappingsModel)
-                        root.mappingsModel.profileFile =
-                            root.profilesModel.fileForRow(currentIndex);
                 }
             }
         }
@@ -66,13 +74,15 @@ Item {
             color: Theme.textMuted
             font.family: Theme.fontFamily
             font.pixelSize: 12
-            text: root.profilesModel
-                ? (root.mappingsModel
-                    && root.profilesModel.fileForRow(root.profilesModel.activeRow())
-                        === root.mappingsModel.profileFile
-                    ? qsTr("This is the active profile — changes apply while typing as soon as you save.")
-                    : qsTr("This is not the active profile — changes are saved but only take effect once you switch to it."))
-                : ""
+            text: {
+                if (!root.profilesModel || !root.mappingsModel) return "";
+                root.profilesModel.revision; // refresh on active/profile change
+                return root.profilesModel.fileForRow(
+                           root.profilesModel.activeRow())
+                           === root.mappingsModel.profileFile
+                    ? qsTr("This is the active profile: changes apply while typing as soon as you save.")
+                    : qsTr("This is not the active profile: changes are saved but only take effect once you switch to it.");
+            }
         }
 
         AddMappingCard {

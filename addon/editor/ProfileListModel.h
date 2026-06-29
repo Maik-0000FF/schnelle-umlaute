@@ -79,6 +79,9 @@ Q_SIGNALS:
     void cycleNextChanged();
     void cyclePrevChanged();
     void changed();
+    // Emitted after a profile is deleted, carrying its (now removed) relative
+    // file. Lets the Mappings edit target reset if it was pointing at it.
+    void profileRemoved(const QString &file);
     void errorOccurred(const QString &message);
 
 private:
@@ -94,12 +97,12 @@ private:
     bool fileExists(const QString &file, int excludeRow) const;
     QString uniqueSlugFile(const QString &name) const;
 
+    static QString escapeValue(const QString &s);
+    static QString unescapeValue(const QString &s);
+    static bool isSafeProfileFile(const QString &file);
     void load();
     bool save();
     void seedStandardIfEmpty(bool persist);
-
-    static constexpr const char *kStandardName = "Standard";
-    static constexpr const char *kStandardFile = "mappings.txt";
 
     std::vector<Entry> entries_;
     QString active_;

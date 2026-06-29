@@ -8,11 +8,16 @@
 // over DBus, which is a no-op without a session bus, keeping the test hermetic.
 
 #include "ProfileListModel.h"
+#include "profile_paths.h"
 #include "test_expect.h"
 #include "test_tempdir.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QModelIndex>
+#include <QStandardPaths>
 #include <QString>
 #include <QStringList>
 
@@ -22,6 +27,17 @@ namespace {
 
 QString rowName(const ProfileListModel &m, int row) {
     return m.profileNames().value(row);
+}
+
+// Where ProfileListModel reads/writes profiles.conf, built from the same
+// shared constants the model uses.
+QString profilesConfPathForTest() {
+    return QStandardPaths::writableLocation(
+               QStandardPaths::GenericConfigLocation) +
+           QStringLiteral("/fcitx5/") +
+           QLatin1String(schnelle_umlaute::kConfigSubdir) +
+           QStringLiteral("/") +
+           QLatin1String(schnelle_umlaute::kProfilesConf);
 }
 
 QString rowSelectKey(ProfileListModel &m, int row) {
@@ -175,6 +191,32 @@ void testPersistenceRoundTrip(ProfileListModel &m) {
     EXPECT(m2.cyclePrev() == QStringLiteral("Control+Alt+Comma"));
 }
 
+// A profile name with a space is quote-escaped on write and unescaped on read;
+// it must survive the editor's own round-trip unchanged.
+void testSpacedNameRoundTrip(ProfileListModel &m) {
+    EXPECT(m.createProfile(QStringLiteral("Mein Profil")));
+    EXPECT(m.fileForRow(1) == QStringLiteral("profiles/mein-profil.txt"));
+    ProfileListModel m2;
+    EXPECT(m2.rowCount() == 2);
+    EXPECT(rowName(m2, 1) == QStringLiteral("Mein Profil"));
+}
+
+// A profile File pointing outside profiles/ (path traversal from a hand-edited
+// profiles.conf) is dropped on load.
+void testRejectsUnsafeFileOnLoad(ProfileListModel &m) {
+    Q_UNUSED(m);
+    QFile f(profilesConfPathForTest());
+    QDir().mkpath(QFileInfo(f.fileName()).absolutePath());
+    EXPECT(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    f.write("Active=Standard\n\n[Profiles/0]\nName=Standard\nFile=mappings.txt\n"
+            "\n[Profiles/1]\nName=Evil\nFile=../mappings.txt\n");
+    f.close();
+    ProfileListModel m2;
+    // The unsafe "../mappings.txt" entry is dropped; only Standard survives.
+    EXPECT(m2.rowCount() == 1);
+    EXPECT(rowName(m2, 0) == QStringLiteral("Standard"));
+}
+
 // -- runner ------------------------------------------------------------------
 
 using TestFn = void (*)(ProfileListModel &);
@@ -198,6 +240,8 @@ const TestCase kTests[] = {
     {"testSetActive", testSetActive},
     {"testSetSelectKey", testSetSelectKey},
     {"testPersistenceRoundTrip", testPersistenceRoundTrip},
+    {"testSpacedNameRoundTrip", testSpacedNameRoundTrip},
+    {"testRejectsUnsafeFileOnLoad", testRejectsUnsafeFileOnLoad},
 };
 
 int main(int argc, char **argv) {

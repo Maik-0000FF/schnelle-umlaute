@@ -24,6 +24,7 @@
 #include "config.h"
 #include "hand_classifier.h"
 #include "mappings_loader.h"
+#include "profile_paths.h"
 #include "overlay/cursor_overlay_geometry.h"
 #include "overlay_client.h"
 #include "state.h"
@@ -102,7 +103,8 @@ public:
         // ProfileListModel (kept out of schnelle-umlaute.conf, which the editor
         // fully rewrites). An absent/empty list is the pre-profiles state;
         // activeProfileFile() then falls back to the legacy mappings.txt.
-        readAsIni(profiles_, "schnelle-umlaute/profiles.conf");
+        readAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
+                                 "/" + schnelle_umlaute::kProfilesConf);
         applyConfig();
     }
 
@@ -765,9 +767,10 @@ private:
     // the loader path relative to the addon config dir. Empty File defaults to
     // the legacy Standard mappings.txt.
     static std::string profileRelPath(const std::string &file) {
+        const std::string base = std::string(schnelle_umlaute::kConfigSubdir) + "/";
         if (file.empty())
-            return "schnelle-umlaute/mappings.txt";
-        return "schnelle-umlaute/" + file;
+            return base + schnelle_umlaute::kMappingsFile;
+        return base + file;
     }
 
     // Relative mappings path of the active profile. Falls back to the first
@@ -778,7 +781,7 @@ private:
     std::string activeProfileFile() const {
         const auto &profs = *profiles_.profiles;
         if (profs.empty())
-            return "schnelle-umlaute/mappings.txt";
+            return profileRelPath(schnelle_umlaute::kMappingsFile);
         const std::string &active = *profiles_.active;
         for (const auto &p : profs) {
             if (*p.name == active)
