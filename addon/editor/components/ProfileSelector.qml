@@ -210,12 +210,11 @@ Item {
                         anchors.rightMargin: Theme.spacingXs
                         spacing: Theme.spacingXs
 
-                        // Active marker / toggle (checkmark). The star glyph is
-                        // intentionally NOT used here: it is reserved for a
-                        // future "favorite for cycling" flag so the shortcut
-                        // cycle can step through favorites only.
+                        // Active marker / toggle (checkmark). The star next to
+                        // it is the separate "favorite for cycling" toggle, so
+                        // active and favorite stay visually distinct.
                         Text {
-                            text: "✓"
+                            text: Theme.iconCheck
                             color: prow.isActive
                                    ? Theme.accent
                                    : (activeMouse.containsMouse ? Theme.textMuted
@@ -246,7 +245,7 @@ Item {
                         // Favorite toggle (★). When any profile is a favorite,
                         // the cycle shortcut steps through favorites only.
                         Text {
-                            text: prow.favorite ? "★" : "☆"
+                            text: prow.favorite ? Theme.iconStar : Theme.iconStarOutline
                             color: prow.favorite
                                    ? Theme.accent
                                    : (favMouse.containsMouse ? Theme.textMuted
@@ -345,7 +344,7 @@ Item {
                         // edit pencil in MappingRow (Theme.brand is the constant
                         // green; Theme.accent varies per theme).
                         ToolButton {
-                            text: "✎"
+                            text: Theme.iconEdit
                             implicitWidth: 28
                             contentItem: Text {
                                 text: parent.text
@@ -365,7 +364,7 @@ Item {
                         // Delete (trash), hidden for protected (Standard/last).
                         ToolButton {
                             visible: !prow.isProtected
-                            text: "🗑"
+                            text: Theme.iconTrash
                             implicitWidth: 28
                             contentItem: Text {
                                 text: parent.text

@@ -90,7 +90,7 @@ ColumnLayout {
                         Text {
                             anchors.centerIn: parent
                             visible: parent.parent.active
-                            text: "✓"
+                            text: Theme.iconCheck
                             color: Theme.switchThumb
                             font.pixelSize: 14
                             font.weight: Font.Bold

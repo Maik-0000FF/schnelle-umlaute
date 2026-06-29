@@ -13,7 +13,7 @@ ColumnLayout {
         color: Theme.accentSoft
         Text {
             anchors.centerIn: parent
-            text: "✎"
+            text: Theme.iconEdit
             color: Theme.accent
             font.pixelSize: 28
         }

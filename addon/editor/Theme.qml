@@ -161,6 +161,17 @@ QtObject {
     readonly property int animShort: 150
     readonly property int animMed:   220
 
+    // Action icon glyphs, one source so the editor uses a consistent set.
+    // iconCancel (✗, abort an edit) and iconClear (✕, empty a field) are
+    // intentionally distinct glyphs for their distinct meanings.
+    readonly property string iconCheck:       "✓"
+    readonly property string iconEdit:        "✎"
+    readonly property string iconTrash:       "🗑"
+    readonly property string iconCancel:      "✗"
+    readonly property string iconClear:       "✕"
+    readonly property string iconStar:        "★"
+    readonly property string iconStarOutline: "☆"
+
     function setCurrent(name) {
         if (palettes[name] !== undefined && current !== name) {
             current = name

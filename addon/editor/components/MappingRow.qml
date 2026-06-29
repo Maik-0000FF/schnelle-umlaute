@@ -210,7 +210,7 @@ Rectangle {
 
         ToolButton {
             id: applyBtn
-            text: root.editing ? "✓" : "✎"
+            text: root.editing ? Theme.iconCheck : Theme.iconEdit
             enabled: !root.editing || root.editValid
             ThemedToolTip {
                 visible: applyBtn.hovered
@@ -234,7 +234,7 @@ Rectangle {
 
         ToolButton {
             id: deleteBtn
-            text: root.editing ? "✗" : "🗑"
+            text: root.editing ? Theme.iconCancel : Theme.iconTrash
             ThemedToolTip {
                 visible: deleteBtn.hovered
                 text: root.editing ? qsTr("Cancel") : qsTr("Delete")
