@@ -297,13 +297,15 @@ Item {
                             }
                         }
 
-                        // Rename (pencil).
+                        // Rename (pencil). Brand green on hover, matching the
+                        // edit pencil in MappingRow (Theme.brand is the constant
+                        // green; Theme.accent varies per theme).
                         ToolButton {
                             text: "✎"
                             implicitWidth: 28
                             contentItem: Text {
                                 text: parent.text
-                                color: parent.hovered ? Theme.accent : Theme.textMuted
+                                color: parent.hovered ? Theme.brand : Theme.textMuted
                                 font.pixelSize: 14
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter

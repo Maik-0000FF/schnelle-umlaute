@@ -213,10 +213,20 @@ FCITX_CONFIGURATION(
 // them by hand and the engine parses each with fcitx::Key() and matches via
 // Key::check(). Plain strings keep the editor/engine-shared INI trivial,
 // unlike a KeyList which serializes as a nested sub-section.
+//
+// CONTRACT: the INI key names below ("Name", "File", "SelectKey", "Favorite",
+// and "Active"/"CycleNext"/"CyclePrev" in ProfilesConfig) plus the True/False
+// bool spelling are the on-disk format. The editor's ProfileListModel reads and
+// writes the exact same strings by hand (load()/save()). The FCITX_CONFIGURATION
+// macro requires string literals here, so they cannot be shared as a constant;
+// keep the two sides in sync when changing any key.
 FCITX_CONFIGURATION(
     ProfileEntryConfig, Option<std::string> name{this, "Name", "Name", ""};
     Option<std::string> file{this, "File", "File", ""};
-    Option<std::string> selectKey{this, "SelectKey", "Select shortcut", ""};);
+    Option<std::string> selectKey{this, "SelectKey", "Select shortcut", ""};
+    // Marks a profile for the cycle shortcut. If any profile is a favorite the
+    // cycle steps through favorites only; if none is, it steps through all.
+    Option<bool> favorite{this, "Favorite", "Favorite for cycling", false};);
 
 FCITX_CONFIGURATION(
     ProfilesConfig,

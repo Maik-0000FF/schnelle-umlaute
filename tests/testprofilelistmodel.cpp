@@ -212,6 +212,30 @@ void testRejectsUnsafeFileOnLoad(ProfileListModel &m) {
     EXPECT(rowName(m2, 0) == QStringLiteral("Standard"));
 }
 
+// A profile switched at runtime by the engine (which writes Active to
+// profiles.conf) must not be reverted when the editor later persists an
+// unrelated change. The editor re-reads Active from disk before each mutating
+// save, so a stale in-memory active_ never clobbers the runtime switch.
+void testEditorPreservesRuntimeActive(ProfileListModel &m) {
+    EXPECT(m.createProfile(QStringLiteral("Mathematik")));
+    EXPECT(m.active() == QStringLiteral("Standard"));
+
+    // Stand in for the engine: a second model writes Active=Mathematik to disk.
+    {
+        ProfileListModel engineSide;
+        EXPECT(engineSide.setActiveRow(1));
+    }
+    EXPECT(m.active() == QStringLiteral("Standard")); // m's copy is now stale
+
+    // A non-active edit must preserve the on-disk (runtime) Active.
+    EXPECT(m.setFavorite(1, true));
+    EXPECT(m.active() == QStringLiteral("Mathematik")); // adopted from disk
+
+    ProfileListModel after;
+    EXPECT(after.active() == QStringLiteral("Mathematik")); // not reverted
+    EXPECT(after.data(after.index(1), ProfileListModel::FavoriteRole).toBool());
+}
+
 // -- runner ------------------------------------------------------------------
 
 using TestFn = void (*)(ProfileListModel &);
@@ -237,6 +261,7 @@ const TestCase kTests[] = {
     {"testPersistenceRoundTrip", testPersistenceRoundTrip},
     {"testSpacedNameRoundTrip", testSpacedNameRoundTrip},
     {"testRejectsUnsafeFileOnLoad", testRejectsUnsafeFileOnLoad},
+    {"testEditorPreservesRuntimeActive", testEditorPreservesRuntimeActive},
 };
 
 int main(int argc, char **argv) {

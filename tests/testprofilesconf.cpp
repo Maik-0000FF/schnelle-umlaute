@@ -60,6 +60,7 @@ int main(int argc, char **argv) try {
         EXPECT(m.createProfile(QStringLiteral("Mein Profil")));
         EXPECT(m.setActiveRow(1));
         EXPECT(m.setSelectKey(1, QStringLiteral("Control+Alt+1")));
+        EXPECT(m.setFavorite(1, true));
         m.setCycleNext(QStringLiteral("Control+Alt+Period"));
         m.setCyclePrev(QStringLiteral("Control+Alt+Comma"));
     }
@@ -80,6 +81,7 @@ int main(int argc, char **argv) try {
     EXPECT(math != nullptr);
     EXPECT(*math->file == std::string("profiles/mathematik.txt"));
     EXPECT(*math->selectKey == std::string("Control+Alt+1"));
+    EXPECT(*math->favorite == true);
 
     // The spaced name must survive the editor's escaping unchanged.
     const auto *spaced = findEntry(cfg, "Mein Profil");
@@ -103,6 +105,7 @@ int main(int argc, char **argv) try {
     EXPECT(m2.cyclePrev() == QStringLiteral("Control+Alt+Comma"));
     EXPECT(m2.data(m2.index(1), ProfileListModel::SelectKeyRole).toString()
            == QStringLiteral("Control+Alt+1"));
+    EXPECT(m2.data(m2.index(1), ProfileListModel::FavoriteRole).toBool());
     std::fprintf(stderr, "ok direction2_engine_write_editor_read\n");
 
     return 0;

@@ -17,8 +17,10 @@
 // This model owns profiles.conf exclusively (kept out of schnelle-umlaute.conf,
 // which SettingsModel fully rewrites). The file format is the fcitx INI the
 // engine's ProfilesConfig reads: top-level Active/CycleNext/CyclePrev plus
-// [Profiles/<i>] sections with Name/File/SelectKey. The editor does not link
-// fcitx-config, so it reads/writes that format by hand.
+// [Profiles/<i>] sections with Name/File/SelectKey/Favorite. The editor does
+// not link fcitx-config, so it reads/writes that format by hand; the key names
+// and True/False bool spelling must stay in sync with the engine's
+// FCITX_CONFIGURATION in config.h (see the CONTRACT note there).
 class ProfileListModel : public QAbstractListModel {
     Q_OBJECT
     QML_ELEMENT
@@ -39,6 +41,7 @@ public:
         SelectKeyRole,
         IsActiveRole,
         IsProtectedRole,
+        FavoriteRole,
     };
 
     explicit ProfileListModel(QObject *parent = nullptr);
@@ -65,6 +68,7 @@ public:
     Q_INVOKABLE bool removeProfile(int row);
     Q_INVOKABLE bool setActiveRow(int row);
     Q_INVOKABLE bool setSelectKey(int row, const QString &combo);
+    Q_INVOKABLE bool setFavorite(int row, bool favorite);
 
     // Validation helpers for the QML UI (mirrors MappingListModel::inputErrorFor
     // / hasInput). Empty return == valid. excludeRow skips a row (for rename).
@@ -89,6 +93,7 @@ private:
         QString name;
         QString file;
         QString selectKey;
+        bool favorite = false;
     };
 
     static QString normalizedName(const QString &name);
@@ -102,6 +107,10 @@ private:
     static bool isSafeProfileFile(const QString &file);
     void load();
     bool save();
+    // Re-read just the Active name from disk before a mutating save, so a
+    // profile switched at runtime by the engine (shortcut) is not clobbered by
+    // the editor's stale in-memory active_.
+    void reloadActiveFromDisk();
     void seedStandardIfEmpty(bool persist);
 
     std::vector<Entry> entries_;
