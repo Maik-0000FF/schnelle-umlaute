@@ -49,7 +49,7 @@ Item {
     Rectangle {
         id: header
         width: parent.width
-        implicitHeight: 34
+        implicitHeight: Theme.controlHeight
         radius: Theme.radiusSm
         color: Theme.background
         border.color: popup.visible ? Theme.borderFocus : Theme.border
@@ -68,14 +68,12 @@ Item {
             font.pixelSize: 13
             elide: Text.ElideRight
         }
-        Text {
+        DropdownIndicator {
             id: chevron
             anchors.right: parent.right
             anchors.rightMargin: Theme.spacingMd
             anchors.verticalCenter: parent.verticalCenter
-            text: popup.visible ? "▴" : "▾" // up / down triangle
-            color: Theme.textMuted
-            font.pixelSize: 12
+            pointingUp: popup.visible
         }
         MouseArea {
             anchors.fill: parent
@@ -89,6 +87,9 @@ Item {
         y: header.implicitHeight + 2
         width: header.width
         padding: Theme.spacingSm
+        // Cap the whole popup so a long profile list still fits small editor
+        // windows; the inner list gets its own (smaller) cap below so the
+        // add-row and separator always stay visible above it.
         implicitHeight: Math.min(popupCol.implicitHeight + 2 * Theme.spacingSm,
                                  360)
         background: Rectangle {
@@ -177,6 +178,8 @@ Item {
             ListView {
                 id: list
                 Layout.fillWidth: true
+                // ~6 rows (36 px each) before it scrolls, kept under the
+                // popup cap so the add-row above never gets pushed off.
                 Layout.preferredHeight: Math.min(contentHeight, 240)
                 clip: true
                 spacing: 2
@@ -227,7 +230,7 @@ Item {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    if (!prow.isActive
+                                    if (root.profilesModel && !prow.isActive
                                         && root.profilesModel.setActiveRow(prow.index))
                                         root.requestSnackbar(
                                             qsTr("Switched to “%1”").arg(prow.name),
@@ -250,9 +253,11 @@ Item {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    root.mappingsModel.profileFile =
-                                        root.profilesModel.fileForRow(prow.index);
-                                    popup.close();
+                                    if (root.profilesModel && root.mappingsModel) {
+                                        root.mappingsModel.profileFile =
+                                            root.profilesModel.fileForRow(prow.index);
+                                        popup.close();
+                                    }
                                 }
                             }
                         }
@@ -270,17 +275,31 @@ Item {
                                 border.width: 1
                             }
                             onVisibleChanged: if (visible) { forceActiveFocus(); selectAll(); }
-                            onEditingFinished: {
-                                if (text !== prow.name
+                            // Commit only on explicit Enter. Escape and losing
+                            // focus (click away, another row, popup dismiss)
+                            // cancel, so a half-typed rename is never applied
+                            // against the user's intent.
+                            onAccepted: {
+                                if (text !== prow.name && root.profilesModel
                                     && !root.profilesModel.renameProfile(prow.index, text))
-                                    text = prow.name; // revert on failure
+                                    text = prow.name; // revert on invalid name
                                 prow.renaming = false;
+                            }
+                            Keys.onEscapePressed: {
+                                text = prow.name;
+                                prow.renaming = false;
+                            }
+                            onActiveFocusChanged: {
+                                if (!activeFocus && prow.renaming) {
+                                    text = prow.name; // cancel on focus loss
+                                    prow.renaming = false;
+                                }
                             }
                         }
 
                         // Rename (pencil).
                         ToolButton {
-                            text: "✎" // ✎
+                            text: "✎"
                             implicitWidth: 28
                             contentItem: Text {
                                 text: parent.text
@@ -300,7 +319,7 @@ Item {
                         // Delete (trash), hidden for protected (Standard/last).
                         ToolButton {
                             visible: !prow.isProtected
-                            text: "\U0001F5D1" // 🗑
+                            text: "🗑"
                             implicitWidth: 28
                             contentItem: Text {
                                 text: parent.text

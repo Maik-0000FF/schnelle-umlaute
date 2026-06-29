@@ -56,6 +56,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/CustomLeaderRow.qml
         components/AppListEditor.qml
         components/ConfirmDialog.qml
+        components/DropdownIndicator.qml
         components/PositionPicker.qml
         components/ProfileSelector.qml
         components/ThemedComboBox.qml

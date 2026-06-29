@@ -187,7 +187,7 @@ void MappingListModel::load() {
     // user fills it from scratch instead of inheriting the umlaut set. Mirrors
     // the engine loader's fallback rule.
     if (entries_.empty() &&
-        profileFile_ == QLatin1String(schnelle_umlaute::kMappingsFile)) {
+        schnelle_umlaute::isStandardProfile(profileFile_.toStdString())) {
         for (const auto &m : schnelle_umlaute::defaultMappings()) {
             entries_.push_back({QString::fromStdString(m.input),
                                 QString::fromStdString(m.output)});

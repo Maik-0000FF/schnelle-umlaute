@@ -281,9 +281,10 @@ bool ProfileListModel::createProfile(const QString &name) {
     entries_.push_back(e);
     endInsertRows();
     Q_EMIT countChanged();
-    // No mapping file is written here: until the profile is first edited and
-    // saved, both editor and engine fall back to the default mappings, so a new
-    // profile starts from the defaults.
+    // No mapping file is written here: a new profile starts empty (the German
+    // defaults are seeded only for the Standard profile, in both the editor
+    // model and the engine loader). The file is created on the first save once
+    // the user adds mappings.
     save();
     return true;
 }

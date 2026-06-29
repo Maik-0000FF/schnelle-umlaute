@@ -50,6 +50,16 @@ inline bool isSafeProfileFile(std::string_view file) {
            rest.find("..") == std::string_view::npos;
 }
 
+// True when File refers to the protected Standard profile. Accepts both the
+// editor's bare File field ("mappings.txt") and the engine's config-dir-
+// relative path ("schnelle-umlaute/mappings.txt"), so both sides share one
+// rule (e.g. "seed the German defaults only for Standard") instead of
+// comparing the name in two diverging forms.
+inline bool isStandardProfile(std::string_view file) {
+    return file == kMappingsFile ||
+           file == std::string(kConfigSubdir) + "/" + kMappingsFile;
+}
+
 } // namespace schnelle_umlaute
 
 #endif
