@@ -13,8 +13,6 @@ Item {
 
     property var profilesModel: null
     property var mappingsModel: null
-    // Width of the per-row select-key capture field.
-    readonly property int selectKeyFieldWidth: 96
     signal requestSnackbar(string message, color c)
     // Delete is confirmed by the parent (its ConfirmDialog), so a modal does
     // not have to stack over this popup.
@@ -330,7 +328,7 @@ Item {
 
                         // Per-profile select hotkey (compact capture field).
                         KeyCaptureField {
-                            Layout.preferredWidth: root.selectKeyFieldWidth
+                            Layout.preferredWidth: Theme.shortcutFieldWidth
                             visible: !prow.renaming
                             value: prow.selectKey
                             onCaptured: (combo) => {
@@ -361,9 +359,12 @@ Item {
                             onClicked: prow.renaming = true
                         }
 
-                        // Delete (trash), hidden for protected (Standard/last).
+                        // Delete (trash). For protected profiles (Standard /
+                        // last) it is disabled but keeps its slot, so the
+                        // action columns stay aligned across all rows.
                         ToolButton {
-                            visible: !prow.isProtected
+                            enabled: !prow.isProtected
+                            opacity: prow.isProtected ? 0 : 1
                             text: Theme.iconTrash
                             implicitWidth: 28
                             contentItem: Text {

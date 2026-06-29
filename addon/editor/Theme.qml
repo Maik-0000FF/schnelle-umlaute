@@ -152,6 +152,11 @@ QtObject {
     // so they line up across the editor.
     readonly property int controlHeight: 34
 
+    // Width of a shortcut-capture field, wide enough to show a typical combo
+    // (e.g. "Control+Alt+Period") without eliding. Shared by the per-profile
+    // select-key field and the cycle fields.
+    readonly property int shortcutFieldWidth: 150
+
     readonly property int spacingXs: 4
     readonly property int spacingSm: 8
     readonly property int spacingMd: 12
