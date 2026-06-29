@@ -75,7 +75,14 @@ Item {
         }
 
         ToolButton {
-            visible: root.value.length > 0 && !root.capturing
+            id: clearBtn
+            // Only acts when a value is set and not capturing, but the slot is
+            // always reserved (opacity, not visible) so the pill width is
+            // stable and the field does not resize/jump when the clear button
+            // appears or disappears.
+            readonly property bool active: root.value.length > 0 && !root.capturing
+            opacity: active ? 1 : 0
+            enabled: active
             text: Theme.iconClear
             implicitWidth: 22
             contentItem: Text {
@@ -86,7 +93,10 @@ Item {
                 verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle { color: "transparent" }
-            ThemedToolTip { visible: parent.hovered; text: qsTr("Clear shortcut") }
+            ThemedToolTip {
+                visible: clearBtn.hovered && clearBtn.active
+                text: qsTr("Clear shortcut")
+            }
             onClicked: root.captured("")
         }
     }
