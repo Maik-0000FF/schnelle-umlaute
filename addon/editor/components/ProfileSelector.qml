@@ -87,6 +87,11 @@ Item {
         y: header.implicitHeight + 2
         width: header.width
         padding: Theme.spacingSm
+        // Close on a press outside the header (the popup's parent), not on the
+        // header itself, so re-clicking the header toggles cleanly instead of
+        // closing-then-reopening on the same click. A click anywhere else still
+        // dismisses it.
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         // Cap the whole popup so a long profile list still fits small editor
         // windows; the inner list gets its own (smaller) cap below so the
         // add-row and separator always stay visible above it.
