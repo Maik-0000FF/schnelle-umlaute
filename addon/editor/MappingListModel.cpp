@@ -1,23 +1,18 @@
 #include "MappingListModel.h"
 #include "FcitxReload.h"
+#include "editor_paths.h"
 #include "mappings-io.h"
-#include "profile_paths.h"
 
 #include <QDir>
 #include <QFile>
 #include <QSaveFile>
-#include <QStandardPaths>
 
 namespace {
 
 // Resolve a profile-relative file ("mappings.txt" / "profiles/<slug>.txt") to
 // an absolute path under ~/.config/fcitx5/<config subdir>/.
 QString resolveProfilePath(const QString &relFile) {
-    auto base =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    return base + QStringLiteral("/fcitx5/") +
-           QLatin1String(schnelle_umlaute::kConfigSubdir) + QStringLiteral("/") +
-           relFile;
+    return schnelle_umlaute::configDirPath() + relFile;
 }
 
 } // namespace

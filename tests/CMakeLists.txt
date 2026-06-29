@@ -175,7 +175,7 @@ target_link_libraries(testsettingsmodel
 add_test(NAME testsettingsmodel COMMAND testsettingsmodel)
 set_tests_properties(testsettingsmodel PROPERTIES TIMEOUT 10)
 
-# Standalone editor — ProfileListModel CRUD, name + slug uniqueness,
+# Standalone editor: ProfileListModel CRUD, name + slug uniqueness,
 # Standard/last-profile protection, active reassignment on delete, first-run
 # seeding, and the editor's own profiles.conf write/read round-trip. Same
 # XDG_CONFIG_HOME redirect + DBus-no-op pattern as testmappinglistmodel.

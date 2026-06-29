@@ -8,7 +8,7 @@
 // over DBus, which is a no-op without a session bus, keeping the test hermetic.
 
 #include "ProfileListModel.h"
-#include "profile_paths.h"
+#include "editor_paths.h"
 #include "test_expect.h"
 #include "test_tempdir.h"
 
@@ -17,7 +17,6 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QModelIndex>
-#include <QStandardPaths>
 #include <QString>
 #include <QStringList>
 
@@ -32,11 +31,7 @@ QString rowName(const ProfileListModel &m, int row) {
 // Where ProfileListModel reads/writes profiles.conf, built from the same
 // shared constants the model uses.
 QString profilesConfPathForTest() {
-    return QStandardPaths::writableLocation(
-               QStandardPaths::GenericConfigLocation) +
-           QStringLiteral("/fcitx5/") +
-           QLatin1String(schnelle_umlaute::kConfigSubdir) +
-           QStringLiteral("/") +
+    return schnelle_umlaute::configDirPath() +
            QLatin1String(schnelle_umlaute::kProfilesConf);
 }
 

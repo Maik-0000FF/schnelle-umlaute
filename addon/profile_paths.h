@@ -1,6 +1,9 @@
 #ifndef SCHNELLE_UMLAUTE_PROFILE_PATHS_H
 #define SCHNELLE_UMLAUTE_PROFILE_PATHS_H
 
+#include <string>
+#include <string_view>
+
 // Single source of truth for the file names that cross the editor<->engine
 // boundary. The editor (Qt, addon/editor) and the engine (fcitx, addon/src)
 // both read/write the same files, so these literals must not be duplicated in
@@ -27,6 +30,25 @@ inline constexpr const char *kProfilesSubdir = "profiles";
 inline constexpr const char *kProfilesConf = "profiles.conf";
 // Display name of the protected Standard profile.
 inline constexpr const char *kStandardProfile = "Standard";
+
+// A profile's File field must be either the Standard mappings file or a plain
+// file directly under the profiles/ subdir. Rejects path traversal / absolute
+// paths / nested dirs from a hand-edited or migrated profiles.conf, so neither
+// the engine loader nor the editor's delete ever reaches outside the addon
+// config dir. Shared by both sides so the rule lives in one place.
+inline bool isSafeProfileFile(std::string_view file) {
+    if (file == kMappingsFile) {
+        return true;
+    }
+    const std::string prefix = std::string(kProfilesSubdir) + "/";
+    if (file.size() <= prefix.size() ||
+        file.compare(0, prefix.size(), prefix) != 0) {
+        return false;
+    }
+    const std::string_view rest = file.substr(prefix.size());
+    return !rest.empty() && rest.find('/') == std::string_view::npos &&
+           rest.find("..") == std::string_view::npos;
+}
 
 } // namespace schnelle_umlaute
 

@@ -767,8 +767,12 @@ private:
     // the loader path relative to the addon config dir. Empty File defaults to
     // the legacy Standard mappings.txt.
     static std::string profileRelPath(const std::string &file) {
-        const std::string base = std::string(schnelle_umlaute::kConfigSubdir) + "/";
-        if (file.empty())
+        const std::string base =
+            std::string(schnelle_umlaute::kConfigSubdir) + "/";
+        // Guard against a hand-edited profiles.conf with a traversal/absolute
+        // File=: fall back to the Standard mappings rather than read outside
+        // the config dir. Single choke point for every engine path build.
+        if (file.empty() || !schnelle_umlaute::isSafeProfileFile(file))
             return base + schnelle_umlaute::kMappingsFile;
         return base + file;
     }

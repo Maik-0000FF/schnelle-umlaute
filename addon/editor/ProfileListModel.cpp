@@ -1,17 +1,15 @@
 #include "ProfileListModel.h"
 #include "FcitxReload.h"
-#include "profile_paths.h"
+#include "editor_paths.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
-#include <QStandardPaths>
 #include <QTextStream>
 
 namespace {
 
-using schnelle_umlaute::kConfigSubdir;
 using schnelle_umlaute::kMappingsFile;
 using schnelle_umlaute::kProfilesConf;
 using schnelle_umlaute::kProfilesSubdir;
@@ -21,12 +19,7 @@ using schnelle_umlaute::kStandardProfile;
 // filename that hits the filesystem's NAME_MAX on save.
 constexpr int kMaxSlugLength = 64;
 
-QString configDir() {
-    auto base =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    return base + QStringLiteral("/fcitx5/") + QLatin1String(kConfigSubdir) +
-           QStringLiteral("/");
-}
+QString configDir() { return schnelle_umlaute::configDirPath(); }
 
 QString profilesConfPath() {
     return configDir() + QLatin1String(kProfilesConf);
@@ -118,19 +111,10 @@ QString ProfileListModel::unescapeValue(const QString &s) {
     return s;
 }
 
-// A profile's File must be either the Standard mappings.txt or a plain file
-// directly under profiles/. Rejects path traversal / absolute paths from a
-// hand-edited or migrated profiles.conf, so the delete path and the engine's
-// loader can never reach outside the addon config dir.
+// Delegates to the shared predicate (profile_paths.h) so the editor and the
+// engine apply the exact same "File must stay under profiles/" rule.
 bool ProfileListModel::isSafeProfileFile(const QString &file) {
-    if (file == QLatin1String(kMappingsFile))
-        return true;
-    const QString prefix = QLatin1String(kProfilesSubdir) + QStringLiteral("/");
-    if (!file.startsWith(prefix))
-        return false;
-    QString rest = file.mid(prefix.size());
-    return !rest.isEmpty() && !rest.contains(QChar('/')) &&
-           !rest.contains(QStringLiteral(".."));
+    return schnelle_umlaute::isSafeProfileFile(file.toStdString());
 }
 
 ProfileListModel::ProfileListModel(QObject *parent)
