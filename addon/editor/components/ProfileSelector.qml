@@ -13,6 +13,8 @@ Item {
 
     property var profilesModel: null
     property var mappingsModel: null
+    // Width of the per-row select-key capture field.
+    readonly property int selectKeyFieldWidth: 96
     signal requestSnackbar(string message, color c)
     // Delete is confirmed by the parent (its ConfirmDialog), so a modal does
     // not have to stack over this popup.
@@ -329,7 +331,7 @@ Item {
 
                         // Per-profile select hotkey (compact capture field).
                         KeyCaptureField {
-                            Layout.preferredWidth: 96
+                            Layout.preferredWidth: root.selectKeyFieldWidth
                             visible: !prow.renaming
                             value: prow.selectKey
                             onCaptured: (combo) => {

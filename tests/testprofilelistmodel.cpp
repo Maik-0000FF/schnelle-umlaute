@@ -262,6 +262,17 @@ void testRejectsDuplicateShortcut(ProfileListModel &m) {
     EXPECT(m.cyclePrev().isEmpty());
 }
 
+// The duplicate check matches the engine's combo equivalence: modifier order
+// and letter case don't matter, so a hand-edited "Alt+Control+j" still
+// collides with "Control+Alt+J".
+void testDuplicateShortcutIgnoresOrderAndCase(ProfileListModel &m) {
+    EXPECT(m.createProfile(QStringLiteral("Mathematik")));
+    EXPECT(m.createProfile(QStringLiteral("Physik")));
+    EXPECT(m.setSelectKey(1, QStringLiteral("Control+Alt+J")));
+    EXPECT(!m.setSelectKey(2, QStringLiteral("Alt+Control+j")));
+    EXPECT(rowSelectKey(m, 2).isEmpty());
+}
+
 // -- runner ------------------------------------------------------------------
 
 using TestFn = void (*)(ProfileListModel &);
@@ -289,6 +300,8 @@ const TestCase kTests[] = {
     {"testRejectsUnsafeFileOnLoad", testRejectsUnsafeFileOnLoad},
     {"testEditorPreservesRuntimeActive", testEditorPreservesRuntimeActive},
     {"testRejectsDuplicateShortcut", testRejectsDuplicateShortcut},
+    {"testDuplicateShortcutIgnoresOrderAndCase",
+     testDuplicateShortcutIgnoresOrderAndCase},
 };
 
 int main(int argc, char **argv) {

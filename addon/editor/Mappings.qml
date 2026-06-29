@@ -12,6 +12,9 @@ Item {
     signal requestSnackbar(string message, color c)
     signal requestUndoSnackbar(string message, var callback)
 
+    // Shared label column width for the cycle-shortcut rows.
+    readonly property int cycleLabelWidth: 100
+
     // Surface model-side validation errors (e.g. a duplicate shortcut) as a
     // snackbar. A null target is a harmless no-op until profilesModel is set.
     Connections {
@@ -77,7 +80,7 @@ Item {
                     color: Theme.text
                     font.family: Theme.fontFamily
                     font.pixelSize: 13
-                    Layout.preferredWidth: 100
+                    Layout.preferredWidth: root.cycleLabelWidth
                 }
                 KeyCaptureField {
                     Layout.fillWidth: true
@@ -96,7 +99,7 @@ Item {
                     color: Theme.text
                     font.family: Theme.fontFamily
                     font.pixelSize: 13
-                    Layout.preferredWidth: 100
+                    Layout.preferredWidth: root.cycleLabelWidth
                 }
                 KeyCaptureField {
                     Layout.fillWidth: true

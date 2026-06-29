@@ -70,6 +70,13 @@ const char *symbolName(int key) {
 } // namespace
 
 QString qtKeyComboToPortable(int qtKey, int qtModifiers) {
+    // Numpad keys deliver KP_* syms at runtime (e.g. KP_1, KP_Enter), which
+    // fcitx normalize() does not fold to the main-row syms we emit here. A
+    // numpad binding would therefore look valid but never fire, so reject it
+    // (the field shows the unsupported hint and the user picks a main-row key).
+    if (qtModifiers & Qt::KeypadModifier)
+        return QString();
+
     const bool ctrl = qtModifiers & Qt::ControlModifier;
     const bool alt = qtModifiers & Qt::AltModifier;
     const bool meta = qtModifiers & Qt::MetaModifier;

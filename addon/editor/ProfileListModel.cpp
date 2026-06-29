@@ -373,19 +373,57 @@ bool ProfileListModel::setActiveRow(int row) {
     return true;
 }
 
+QString ProfileListModel::canonicalCombo(const QString &combo) {
+    const QStringList parts =
+        combo.split(QLatin1Char('+'), Qt::SkipEmptyParts);
+    bool ctrl = false, alt = false, shift = false, super = false;
+    QString base;
+    for (const QString &raw : parts) {
+        const QString p = raw.trimmed();
+        const QString l = p.toLower();
+        if (l == QLatin1String("control") || l == QLatin1String("ctrl"))
+            ctrl = true;
+        else if (l == QLatin1String("alt"))
+            alt = true;
+        else if (l == QLatin1String("shift"))
+            shift = true;
+        else if (l == QLatin1String("super") || l == QLatin1String("meta"))
+            super = true;
+        else
+            base = p; // last non-modifier token is the key
+    }
+    if (base.size() == 1 && base.at(0).isLetter())
+        base = base.toUpper();
+    QString out;
+    if (ctrl)
+        out += QLatin1String("Control+");
+    if (alt)
+        out += QLatin1String("Alt+");
+    if (shift)
+        out += QLatin1String("Shift+");
+    if (super)
+        out += QLatin1String("Super+");
+    out += base;
+    return out;
+}
+
 bool ProfileListModel::isComboFree(const QString &combo, int excludeRow,
-                                   int excludeCycle) const {
+                                   CycleSlot excludeCycle) const {
     if (combo.isEmpty())
         return true;
+    const QString c = canonicalCombo(combo);
     for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
         if (i == excludeRow)
             continue;
-        if (combo.compare(entries_[i].selectKey, Qt::CaseInsensitive) == 0)
+        if (!entries_[i].selectKey.isEmpty() &&
+            canonicalCombo(entries_[i].selectKey) == c)
             return false;
     }
-    if (excludeCycle != 1 && combo.compare(cycleNext_, Qt::CaseInsensitive) == 0)
+    if (excludeCycle != CycleSlot::Next && !cycleNext_.isEmpty() &&
+        canonicalCombo(cycleNext_) == c)
         return false;
-    if (excludeCycle != 2 && combo.compare(cyclePrev_, Qt::CaseInsensitive) == 0)
+    if (excludeCycle != CycleSlot::Prev && !cyclePrev_.isEmpty() &&
+        canonicalCombo(cyclePrev_) == c)
         return false;
     return true;
 }
@@ -395,7 +433,7 @@ bool ProfileListModel::setSelectKey(int row, const QString &combo) {
     if (row < 0 || row >= static_cast<int>(entries_.size()))
         return false;
     QString c = combo.trimmed();
-    if (!isComboFree(c, row, 0)) {
+    if (!isComboFree(c, row, CycleSlot::None)) {
         Q_EMIT errorOccurred(tr("Shortcut already in use"));
         return false;
     }
@@ -424,7 +462,7 @@ void ProfileListModel::setCycleNext(const QString &combo) {
     QString c = combo.trimmed();
     if (c == cycleNext_)
         return;
-    if (!isComboFree(c, -1, 1)) {
+    if (!isComboFree(c, -1, CycleSlot::Next)) {
         Q_EMIT errorOccurred(tr("Shortcut already in use"));
         return;
     }
@@ -438,7 +476,7 @@ void ProfileListModel::setCyclePrev(const QString &combo) {
     QString c = combo.trimmed();
     if (c == cyclePrev_)
         return;
-    if (!isComboFree(c, -1, 2)) {
+    if (!isComboFree(c, -1, CycleSlot::Prev)) {
         Q_EMIT errorOccurred(tr("Shortcut already in use"));
         return;
     }

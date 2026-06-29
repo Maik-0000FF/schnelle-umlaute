@@ -31,12 +31,16 @@ int main() {
         EXPECT(press.normalize().check(bound.normalize()));
     }
 
-    // Digit.
+    // Digit: pin the keysym name and the real-press match.
     {
         QString s = qtKeyComboToPortable(
             Qt::Key_1, Qt::ControlModifier | Qt::AltModifier);
         EXPECT(s == QStringLiteral("Control+Alt+1"));
-        EXPECT(Key(s.toStdString()).isValid());
+        Key bound(s.toStdString());
+        EXPECT(bound.isValid());
+        EXPECT(bound.sym() == FcitxKey_1);
+        Key press("Control+Alt+1");
+        EXPECT(press.normalize().check(bound.normalize()));
     }
 
     // Symbol: X keysym name, parses to the matching sym.
@@ -49,24 +53,47 @@ int main() {
         EXPECT(k.sym() == FcitxKey_period);
     }
 
-    // Meta maps to Super.
+    // Meta maps to Super; matches a real Super+k press after normalization.
     {
         QString s = qtKeyComboToPortable(Qt::Key_K, Qt::MetaModifier);
         EXPECT(s == QStringLiteral("Super+K"));
-        EXPECT(Key(s.toStdString()).isValid());
+        Key bound(s.toStdString());
+        EXPECT(bound.isValid());
+        Key press("Super+k");
+        EXPECT(press.normalize().check(bound.normalize()));
     }
 
-    // Shift combines with a real modifier.
+    // Shift combines with a real modifier; pin the sym and the real-press match.
     {
         QString s = qtKeyComboToPortable(
             Qt::Key_F5,
             Qt::ControlModifier | Qt::ShiftModifier);
         EXPECT(s == QStringLiteral("Control+Shift+F5"));
-        EXPECT(Key(s.toStdString()).isValid());
+        Key bound(s.toStdString());
+        EXPECT(bound.isValid());
+        EXPECT(bound.sym() == FcitxKey_F5);
+        Key press("Control+Shift+F5");
+        EXPECT(press.normalize().check(bound.normalize()));
     }
 
     // Unsupported base key -> empty (user picks another).
     EXPECT(qtKeyComboToPortable(Qt::Key_CapsLock, Qt::ControlModifier).isEmpty());
+
+    // Numpad keys are rejected: they deliver KP_* syms at runtime that wouldn't
+    // match the main-row syms emitted here, so they'd be dead bindings.
+    EXPECT(qtKeyComboToPortable(Qt::Key_1,
+                                Qt::ControlModifier | Qt::KeypadModifier)
+               .isEmpty());
+    EXPECT(qtKeyComboToPortable(Qt::Key_Enter,
+                                Qt::ControlModifier | Qt::KeypadModifier)
+               .isEmpty());
+
+    // A shifted number-row key (Shift+1 -> Qt::Key_Exclam) is unmapped, so the
+    // combo is rejected instead of stored as a dead binding.
+    EXPECT(qtKeyComboToPortable(Qt::Key_Exclam, Qt::ControlModifier |
+                                                    Qt::AltModifier |
+                                                    Qt::ShiftModifier)
+               .isEmpty());
 
     std::fprintf(stderr, "ok testkeycombo\n");
     return 0;
