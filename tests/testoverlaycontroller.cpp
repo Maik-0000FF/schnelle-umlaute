@@ -92,6 +92,22 @@ void testLabelModeFlag() {
     EXPECT(!ctrl.label());
 }
 
+// The DBus adaptor's Show slot forwards every arg, including the new label
+// bool, to the controller. Pins the receiver-side signature the engine
+// marshals against (asisb); exercised directly, without a bus.
+void testAdaptorShowForwardsLabel() {
+    OverlayController ctrl;
+    OverlayDBusAdaptor adaptor(&ctrl);
+
+    adaptor.Show({"Mathematik"}, -1, QStringLiteral("TopCenter"), true);
+    EXPECT(ctrl.visible());
+    EXPECT(ctrl.label());
+    EXPECT(ctrl.variants().at(0) == QStringLiteral("Mathematik"));
+
+    adaptor.Show({"ä", "Ä"}, 0, QStringLiteral("TopCenter"), false);
+    EXPECT(!ctrl.label());
+}
+
 // quit() schedules a QCoreApplication::quit via QueuedConnection. Verify
 // that running exec() after calling quit() returns cleanly — a missing
 // or broken schedule would hang the event loop (caught by the timeout).
@@ -121,6 +137,7 @@ int main(int argc, char *argv[]) {
     testHideClearsVisibleKeepsPosition();
     testShowWithEmptyPositionPreservesPrevious();
     testLabelModeFlag();
+    testAdaptorShowForwardsLabel();
     testQuitSchedulesAppExit();
 
     std::fprintf(stderr, "testoverlaycontroller: all tests passed\n");
