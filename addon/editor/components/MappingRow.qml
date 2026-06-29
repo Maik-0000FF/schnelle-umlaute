@@ -212,8 +212,10 @@ Rectangle {
             id: applyBtn
             text: root.editing ? "✓" : "✎"
             enabled: !root.editing || root.editValid
-            ToolTip.visible: hovered
-            ToolTip.text: root.editing ? qsTr("Apply") : qsTr("Edit")
+            ThemedToolTip {
+                visible: applyBtn.hovered
+                text: root.editing ? qsTr("Apply") : qsTr("Edit")
+            }
             contentItem: Text {
                 text: applyBtn.text
                 color: !applyBtn.enabled
@@ -231,9 +233,12 @@ Rectangle {
         }
 
         ToolButton {
+            id: deleteBtn
             text: root.editing ? "✗" : "🗑"
-            ToolTip.visible: hovered
-            ToolTip.text: root.editing ? qsTr("Cancel") : qsTr("Delete")
+            ThemedToolTip {
+                visible: deleteBtn.hovered
+                text: root.editing ? qsTr("Cancel") : qsTr("Delete")
+            }
             contentItem: Text {
                 text: parent.text
                 color: parent.hovered ? Theme.error : Theme.textMuted
