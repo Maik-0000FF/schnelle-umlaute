@@ -175,6 +175,48 @@ target_link_libraries(testsettingsmodel
 add_test(NAME testsettingsmodel COMMAND testsettingsmodel)
 set_tests_properties(testsettingsmodel PROPERTIES TIMEOUT 10)
 
+# Standalone editor: ProfileListModel CRUD, name + slug uniqueness,
+# Standard/last-profile protection, active reassignment on delete, first-run
+# seeding, and the editor's own profiles.conf write/read round-trip. Same
+# XDG_CONFIG_HOME redirect + DBus-no-op pattern as testmappinglistmodel.
+add_executable(testprofilelistmodel
+    testprofilelistmodel.cpp
+    ${PROJECT_SOURCE_DIR}/editor/ProfileListModel.cpp)
+set_target_properties(testprofilelistmodel PROPERTIES AUTOMOC ON)
+target_include_directories(testprofilelistmodel PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testprofilelistmodel PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testprofilelistmodel PRIVATE QT_NO_KEYWORDS)
+target_link_libraries(testprofilelistmodel
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Qml)
+add_test(NAME testprofilelistmodel COMMAND testprofilelistmodel)
+set_tests_properties(testprofilelistmodel PROPERTIES TIMEOUT 10)
+
+# Cross-component round-trip: the editor's ProfileListModel writer and the
+# engine's ProfilesConfig (config.h) reader must agree on the profiles.conf
+# INI format. Links both ProfileListModel.cpp (Qt) and Fcitx5::Core (readAsIni
+# / safeSaveAsIni); QT_NO_KEYWORDS keeps the fcitx headers safe under Qt.
+add_executable(testprofilesconf
+    testprofilesconf.cpp
+    ${PROJECT_SOURCE_DIR}/editor/ProfileListModel.cpp)
+set_target_properties(testprofilesconf PROPERTIES AUTOMOC ON)
+target_include_directories(testprofilesconf PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testprofilesconf PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testprofilesconf PRIVATE QT_NO_KEYWORDS)
+target_link_libraries(testprofilesconf
+    Fcitx5::Core
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Qml)
+add_test(NAME testprofilesconf COMMAND testprofilesconf)
+set_tests_properties(testprofilesconf PROPERTIES TIMEOUT 10)
+
 # Unit test for the pure caret-theme helpers (editor/caret_theme.h): colour
 # normalisation, the classicui.conf parse/patch round-trip, and the generated
 # theme.conf colour-role mapping. Pure QString logic — only Qt6::Core, no

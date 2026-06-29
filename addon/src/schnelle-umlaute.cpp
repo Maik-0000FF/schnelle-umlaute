@@ -24,6 +24,7 @@
 #include "config.h"
 #include "hand_classifier.h"
 #include "mappings_loader.h"
+#include "profile_paths.h"
 #include "overlay/cursor_overlay_geometry.h"
 #include "overlay_client.h"
 #include "state.h"
@@ -98,6 +99,12 @@ public:
     void reloadConfig() override {
         readAsIni(config_, "conf/schnelle-umlaute.conf");
         normalizeCustomLeaders();
+        // Profiles live in a separate file owned by the editor's
+        // ProfileListModel (kept out of schnelle-umlaute.conf, which the editor
+        // fully rewrites). An absent/empty list is the pre-profiles state;
+        // activeProfileFile() then falls back to the legacy mappings.txt.
+        readAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
+                                 "/" + schnelle_umlaute::kProfilesConf);
         applyConfig();
     }
 
@@ -140,7 +147,8 @@ public:
                 }
             }
             if (umlautMap_.empty()) {
-                umlautMap_ = schnelle_umlaute::loadMappingsFromFile();
+                umlautMap_ =
+                    schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
             }
             FCITX_INFO() << "Schnelle: Mappings reloaded, count="
                          << umlautMap_.size();
@@ -755,11 +763,42 @@ public:
     }
 
 private:
+    // Map a profile's stored File ("mappings.txt" or "profiles/<slug>.txt") to
+    // the loader path relative to the addon config dir. Empty File defaults to
+    // the legacy Standard mappings.txt.
+    static std::string profileRelPath(const std::string &file) {
+        const std::string base =
+            std::string(schnelle_umlaute::kConfigSubdir) + "/";
+        // Guard against a hand-edited profiles.conf with a traversal/absolute
+        // File=: fall back to the Standard mappings rather than read outside
+        // the config dir. Single choke point for every engine path build.
+        if (file.empty() || !schnelle_umlaute::isSafeProfileFile(file))
+            return base + schnelle_umlaute::kMappingsFile;
+        return base + file;
+    }
+
+    // Relative mappings path of the active profile. Falls back to the first
+    // profile, then to the legacy mappings.txt, so a missing/unknown active
+    // name never leaves the engine without mappings. An empty profile list is
+    // the pre-profiles / fresh-install state and maps to mappings.txt, keeping
+    // behavior unchanged until the editor seeds profiles.conf.
+    std::string activeProfileFile() const {
+        const auto &profs = *profiles_.profiles;
+        if (profs.empty())
+            return profileRelPath(schnelle_umlaute::kMappingsFile);
+        const std::string &active = *profiles_.active;
+        for (const auto &p : profs) {
+            if (*p.name == active)
+                return profileRelPath(*p.file);
+        }
+        return profileRelPath(*profs.front().file);
+    }
+
     // Apply in-memory config: rebuild mappings, sanitize custom key, log.
     // Shared by setConfig (values already loaded) and reloadConfig (read from
     // disk).
     void applyConfig() {
-        umlautMap_ = schnelle_umlaute::loadMappingsFromFile();
+        umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
 
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
@@ -831,6 +870,7 @@ private:
                      << *config_.delay->lowercase << "]ms, DelayUppercase=["
                      << *config_.delay->uppercaseMin << ","
                      << *config_.delay->uppercase << "]ms, Leaders=" << leaders
+                     << ", Profile=" << *profiles_.active
                      << ", Mappings=" << umlautMap_.size();
 
         // Daemon lifecycle follows the enable flag only, not the placement. On
@@ -1185,6 +1225,12 @@ private:
     // config_ and are written by the editor directly.
     ExternalEditorConfig externalConfig_;
     FactoryFor<SchnelleUmlauteState> factory_;
+
+    // Mapping profiles, read from schnelle-umlaute/profiles.conf (separate
+    // from config_; the editor owns that file). The active profile's mappings
+    // file feeds umlautMap_ via activeProfileFile(). An empty list is the
+    // pre-profiles / fresh-install state and falls back to mappings.txt.
+    ProfilesConfig profiles_;
 
     // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;

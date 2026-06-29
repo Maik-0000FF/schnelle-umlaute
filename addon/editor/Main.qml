@@ -25,8 +25,23 @@ ApplicationWindow {
         onThemeChanged: Theme.setCurrent(theme)
     }
 
+    ProfileListModel {
+        id: profiles
+        onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
+        // If the deleted profile was the Mappings edit target, fall back to the
+        // active profile so the tab never keeps editing an orphaned file.
+        onProfileRemoved: (file) => {
+            if (mappings.profileFile === file)
+                mappings.profileFile = profiles.fileForRow(profiles.activeRow());
+        }
+    }
+
     Component.onCompleted: {
         Theme.setCurrent(settings.theme);
+        // Default the Mappings edit target to the active profile (the two are
+        // otherwise independent: you can switch the edit target without
+        // changing which profile is active at runtime).
+        mappings.profileFile = profiles.fileForRow(profiles.activeRow());
         // States for the IM environment (checked only when the variables
         // are not already active):
         //   1) env.d not imported          → TTY-launched compositor
@@ -200,7 +215,7 @@ ApplicationWindow {
                 property int currentIndex: 0
 
                 Repeater {
-                    model: [qsTr("Settings"), qsTr("Mappings")]
+                    model: [qsTr("Settings"), qsTr("Mappings"), qsTr("Profiles")]
                     delegate: Item {
                         required property int index
                         required property string modelData
@@ -264,8 +279,15 @@ ApplicationWindow {
                 id: mappingsPanel
                 mappingsModel: mappings
                 settingsModel: settings
+                profilesModel: profiles
                 onRequestSnackbar: (msg, c) => snackbar.show(msg, c)
                 onRequestUndoSnackbar: (msg, cb) => snackbar.showUndo(msg, cb)
+            }
+
+            Profiles {
+                id: profilesPanel
+                profilesModel: profiles
+                onRequestSnackbar: (msg, c) => snackbar.show(msg, c)
             }
         }
 
@@ -373,6 +395,10 @@ ApplicationWindow {
     Shortcut {
         sequence: "Ctrl+2"
         onActivated: tabRow.currentIndex = 1
+    }
+    Shortcut {
+        sequence: "Ctrl+3"
+        onActivated: tabRow.currentIndex = 2
     }
     Shortcut {
         sequence: "Esc"

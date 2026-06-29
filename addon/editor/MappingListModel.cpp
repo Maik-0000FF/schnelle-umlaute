@@ -1,18 +1,18 @@
 #include "MappingListModel.h"
 #include "FcitxReload.h"
+#include "editor_paths.h"
 #include "mappings-io.h"
 
 #include <QDir>
 #include <QFile>
 #include <QSaveFile>
-#include <QStandardPaths>
 
 namespace {
 
-QString mappingsFilePath() {
-    auto base =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    return base + QStringLiteral("/fcitx5/schnelle-umlaute/mappings.txt");
+// Resolve a profile-relative file ("mappings.txt" / "profiles/<slug>.txt") to
+// an absolute path under ~/.config/fcitx5/<config subdir>/.
+QString resolveProfilePath(const QString &relFile) {
+    return schnelle_umlaute::configDirPath() + relFile;
 }
 
 } // namespace
@@ -157,9 +157,24 @@ void MappingListModel::moveMapping(int from, int to) {
     save();
 }
 
+void MappingListModel::setProfileFile(const QString &file) {
+    QString f = file.isEmpty() ? QLatin1String(schnelle_umlaute::kMappingsFile)
+                               : file;
+    if (f == profileFile_)
+        return;
+    profileFile_ = f;
+    Q_EMIT profileFileChanged();
+    // Reload the model from the newly selected edit target. Wrapped in
+    // begin/endResetModel so the QML view rebinds to the new rows.
+    beginResetModel();
+    load();
+    endResetModel();
+    Q_EMIT countChanged();
+}
+
 void MappingListModel::load() {
     entries_.clear();
-    QString path = mappingsFilePath();
+    QString path = resolveProfilePath(profileFile_);
     if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
         for (const auto &m : schnelle_umlaute::parseMappings(fp)) {
             entries_.push_back({QString::fromStdString(m.input),
@@ -177,7 +192,7 @@ void MappingListModel::load() {
 }
 
 bool MappingListModel::save() {
-    QString path = mappingsFilePath();
+    QString path = resolveProfilePath(profileFile_);
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {

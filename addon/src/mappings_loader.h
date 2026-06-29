@@ -22,11 +22,16 @@ using UmlautMap = std::unordered_map<std::string, std::vector<std::string>>;
 // Empty segments are skipped: "a,,,b" → ["a,", "b"] (greedy from left).
 std::vector<std::string> splitOutputs(const std::string &output);
 
-// Load mappings from the addon's standard config file
-// ($XDG_CONFIG_HOME/fcitx5/schnelle-umlaute/mappings.txt).
-// Falls back to defaultMappings() when the file is absent, empty, or
-// every parsed entry splits into zero variants. Individual malformed
-// entries are skipped with an FCITX_WARN but do not abort the load.
+// Load mappings from a config file relative to the addon's config dir
+// ($XDG_CONFIG_HOME/fcitx5/), e.g. "schnelle-umlaute/mappings.txt" for the
+// Standard profile or "schnelle-umlaute/profiles/<slug>.txt" for another
+// profile. Falls back to defaultMappings() when the file is absent, empty, or
+// every parsed entry splits into zero variants. Individual malformed entries
+// are skipped with an FCITX_WARN but do not abort the load.
+UmlautMap loadMappingsFromFile(const std::string &relPath);
+
+// Convenience overload for the Standard profile
+// ("schnelle-umlaute/mappings.txt").
 UmlautMap loadMappingsFromFile();
 
 } // namespace schnelle_umlaute
