@@ -144,6 +144,8 @@ QVariant ProfileListModel::data(const QModelIndex &index, int role) const {
         return e.name == active_;
     case IsProtectedRole:
         return isProtected(row);
+    case FavoriteRole:
+        return e.favorite;
     default:
         return {};
     }
@@ -156,6 +158,7 @@ QHash<int, QByteArray> ProfileListModel::roleNames() const {
         {SelectKeyRole, "selectKey"},
         {IsActiveRole, "isActive"},
         {IsProtectedRole, "isProtected"},
+        {FavoriteRole, "favorite"},
     };
 }
 
@@ -376,6 +379,18 @@ bool ProfileListModel::setSelectKey(int row, const QString &combo) {
     return true;
 }
 
+bool ProfileListModel::setFavorite(int row, bool favorite) {
+    if (row < 0 || row >= static_cast<int>(entries_.size()))
+        return false;
+    if (entries_[row].favorite == favorite)
+        return true;
+    entries_[row].favorite = favorite;
+    auto idx = index(row);
+    Q_EMIT dataChanged(idx, idx, {FavoriteRole});
+    save();
+    return true;
+}
+
 void ProfileListModel::setCycleNext(const QString &combo) {
     QString c = combo.trimmed();
     if (c == cycleNext_)
@@ -461,6 +476,10 @@ void ProfileListModel::load() {
                     cur.file = val;
                 else if (key == QStringLiteral("SelectKey"))
                     cur.selectKey = val;
+                else if (key == QStringLiteral("Favorite"))
+                    cur.favorite = (val.compare(QStringLiteral("True"),
+                                                Qt::CaseInsensitive) == 0 ||
+                                    val == QStringLiteral("1"));
             }
         }
         flush();
@@ -502,6 +521,7 @@ bool ProfileListModel::save() {
         ts << "Name=" << escapeValue(e.name) << "\n";
         ts << "File=" << escapeValue(e.file) << "\n";
         ts << "SelectKey=" << escapeValue(e.selectKey) << "\n";
+        ts << "Favorite=" << (e.favorite ? "True" : "False") << "\n";
     }
     ts.flush();
     QByteArray buf = out.toUtf8();

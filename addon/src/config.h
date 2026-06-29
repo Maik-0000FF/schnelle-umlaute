@@ -216,7 +216,10 @@ FCITX_CONFIGURATION(
 FCITX_CONFIGURATION(
     ProfileEntryConfig, Option<std::string> name{this, "Name", "Name", ""};
     Option<std::string> file{this, "File", "File", ""};
-    Option<std::string> selectKey{this, "SelectKey", "Select shortcut", ""};);
+    Option<std::string> selectKey{this, "SelectKey", "Select shortcut", ""};
+    // Marks a profile for the cycle shortcut. If any profile is a favorite the
+    // cycle steps through favorites only; if none is, it steps through all.
+    Option<bool> favorite{this, "Favorite", "Favorite for cycling", false};);
 
 FCITX_CONFIGURATION(
     ProfilesConfig,

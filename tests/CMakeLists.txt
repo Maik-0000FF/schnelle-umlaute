@@ -175,6 +175,14 @@ target_link_libraries(testsettingsmodel
 add_test(NAME testsettingsmodel COMMAND testsettingsmodel)
 set_tests_properties(testsettingsmodel PROPERTIES TIMEOUT 10)
 
+# Pure profile-cycle logic (profile_cycle.h): favorites-vs-all selection and
+# the wrapping next/previous step. No fcitx/Qt runtime needed.
+add_executable(testprofilecycle testprofilecycle.cpp)
+target_include_directories(testprofilecycle PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testprofilecycle PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testprofilecycle COMMAND testprofilecycle)
+set_tests_properties(testprofilecycle PROPERTIES TIMEOUT 10)
+
 # Engine-side loader: per-profile defaults rule (only the Standard profile
 # seeds the German defaults; other profiles load empty). Links mappings_loader
 # + Fcitx5::Core (StandardPaths); no Qt.

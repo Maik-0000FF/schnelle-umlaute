@@ -39,6 +39,7 @@ public:
         SelectKeyRole,
         IsActiveRole,
         IsProtectedRole,
+        FavoriteRole,
     };
 
     explicit ProfileListModel(QObject *parent = nullptr);
@@ -65,6 +66,7 @@ public:
     Q_INVOKABLE bool removeProfile(int row);
     Q_INVOKABLE bool setActiveRow(int row);
     Q_INVOKABLE bool setSelectKey(int row, const QString &combo);
+    Q_INVOKABLE bool setFavorite(int row, bool favorite);
 
     // Validation helpers for the QML UI (mirrors MappingListModel::inputErrorFor
     // / hasInput). Empty return == valid. excludeRow skips a row (for rename).
@@ -89,6 +91,7 @@ private:
         QString name;
         QString file;
         QString selectKey;
+        bool favorite = false;
     };
 
     static QString normalizedName(const QString &name);

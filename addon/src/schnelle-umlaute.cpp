@@ -24,7 +24,9 @@
 #include "config.h"
 #include "hand_classifier.h"
 #include "mappings_loader.h"
+#include "profile_cycle.h"
 #include "profile_paths.h"
+#include <fcitx-utils/key.h>
 #include "overlay/cursor_overlay_geometry.h"
 #include "overlay_client.h"
 #include "state.h"
@@ -203,6 +205,31 @@ public:
                 // may still be ongoing. Cleared via clearAllState() or when
                 // a non-gesture key is pressed.
                 return;
+            }
+        }
+
+        // Profile-switch shortcuts (user-configurable, e.g. Ctrl+Alt+1 or
+        // Ctrl+Alt+J/K). Matched on a fresh press only (no auto-repeat) and
+        // before gesture handling so the combo is intercepted rather than
+        // leaking to the app. switchToProfileName/cycleProfile clear gesture
+        // state, swap the active profile's mappings, and flash the name.
+        if (isPress && isNewKeyPress) {
+            if (cycleNextKey_.isValid() && key.check(cycleNextKey_)) {
+                cycleProfile(ic, +1);
+                keyEvent.filterAndAccept();
+                return;
+            }
+            if (cyclePrevKey_.isValid() && key.check(cyclePrevKey_)) {
+                cycleProfile(ic, -1);
+                keyEvent.filterAndAccept();
+                return;
+            }
+            for (const auto &s : profileSelectShortcuts_) {
+                if (key.check(s.key)) {
+                    switchToProfileName(ic, s.name);
+                    keyEvent.filterAndAccept();
+                    return;
+                }
             }
         }
 
@@ -794,11 +821,117 @@ private:
         return profileRelPath(*profs.front().file);
     }
 
+    // Parse the configured combo strings into fcitx Keys once per config load,
+    // so keyEvent only does Key::check (no per-keystroke string parsing).
+    void rebuildProfileShortcuts() {
+        profileSelectShortcuts_.clear();
+        for (const auto &p : *profiles_.profiles) {
+            if (p.selectKey->empty())
+                continue;
+            Key k(*p.selectKey);
+            if (k.isValid())
+                profileSelectShortcuts_.push_back({k, *p.name});
+        }
+        cycleNextKey_ =
+            profiles_.cycleNext->empty() ? Key() : Key(*profiles_.cycleNext);
+        cyclePrevKey_ =
+            profiles_.cyclePrev->empty() ? Key() : Key(*profiles_.cyclePrev);
+    }
+
+    // Cancel any active gesture on every IC before swapping umlautMap_, so no
+    // cycling state references a now-removed entry. Mirrors setSubConfig.
+    void wipeAllGestureState() {
+        instance_->inputContextManager().foreach([this](InputContext *c) {
+            auto *s = c->propertyFor(&factory_);
+            s->clearAllState();
+            s->recentlyCommitted_ = false;
+            c->inputPanel().reset();
+            c->updatePreedit();
+            return true;
+        });
+    }
+
+    // Switch the active profile by name: wipe gesture state, load its mappings,
+    // persist the choice, flash the name. No-op if already active or unknown.
+    void switchToProfileName(InputContext *ic, const std::string &name) {
+        if (name.empty() || name == *profiles_.active)
+            return;
+        bool known = false;
+        for (const auto &p : *profiles_.profiles) {
+            if (*p.name == name) {
+                known = true;
+                break;
+            }
+        }
+        if (!known)
+            return;
+        wipeAllGestureState();
+        profiles_.active.setValue(name);
+        umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
+        safeSaveAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
+                                     "/" + schnelle_umlaute::kProfilesConf);
+        flashProfileName(ic, name);
+        FCITX_INFO() << "Schnelle: Switched to profile '" << name
+                     << "', Mappings=" << umlautMap_.size();
+    }
+
+    // Cycle the active profile by delta (+1 next, -1 previous) through the
+    // favorites (or all profiles when none are marked favorite).
+    void cycleProfile(InputContext *ic, int delta) {
+        std::vector<schnelle_umlaute::CycleEntry> entries;
+        for (const auto &p : *profiles_.profiles)
+            entries.push_back({*p.name, *p.favorite});
+        switchToProfileName(
+            ic, schnelle_umlaute::cycleTarget(
+                    schnelle_umlaute::cycleNames(entries), *profiles_.active,
+                    delta));
+    }
+
+    // Brief on-switch feedback: show the new profile name where output is
+    // visible (the daemon overlay when enabled and not in caret placement,
+    // otherwise the caret candidate window), then auto-hide after a readable
+    // delay (longer than the commit flash), like the input-method-switch popup.
+    static constexpr int kProfileFlashMs = 1500;
+    void flashProfileName(InputContext *ic, const std::string &name) {
+        auto *state = ic->propertyFor(&factory_);
+        state->cancelOverlayShow();
+        state->cancelOverlayHide();
+        const bool useDaemon = *config_.overlay->enabled && !overlayAtCaret();
+        if (useDaemon) {
+            std::string position;
+            if (*config_.overlay->placement == OverlayPlacement::MouseCursor)
+                position = schnelle_umlaute::cursorPositionPrefix();
+            position += OverlayRowToString(*config_.overlay->row);
+            position += OverlayColumnToString(*config_.overlay->column);
+            overlayClient_.show({name}, kPreviewNoHighlight, position);
+            overlayVisible_ = true;
+        } else {
+            showCaretOverlay(ic, {name}, kPreviewNoHighlight);
+        }
+        auto savedRef = ic->watch();
+        uint64_t target = SchnelleUmlauteState::nowUsec() +
+                          static_cast<uint64_t>(kProfileFlashMs) *
+                              kMicrosecondsPerMillisecond;
+        state->overlayHideEvent_ = instance_->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [this, savedRef, useDaemon](EventSourceTime *, uint64_t) {
+                if (savedRef.get()) {
+                    if (useDaemon)
+                        overlayClient_.hide();
+                    else
+                        hideCaretOverlay();
+                    overlayVisible_ = false;
+                }
+                return false;
+            });
+    }
+
     // Apply in-memory config: rebuild mappings, sanitize custom key, log.
     // Shared by setConfig (values already loaded) and reloadConfig (read from
     // disk).
     void applyConfig() {
         umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
+        rebuildProfileShortcuts();
 
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
@@ -1231,6 +1364,15 @@ private:
     // file feeds umlautMap_ via activeProfileFile(). An empty list is the
     // pre-profiles / fresh-install state and falls back to mappings.txt.
     ProfilesConfig profiles_;
+    // Parsed profile-switch shortcuts, cached from profiles_ in applyConfig so
+    // keyEvent only does Key::check, no per-keystroke string parsing.
+    struct ProfileShortcut {
+        Key key;
+        std::string name;
+    };
+    std::vector<ProfileShortcut> profileSelectShortcuts_;
+    Key cycleNextKey_;
+    Key cyclePrevKey_;
 
     // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
