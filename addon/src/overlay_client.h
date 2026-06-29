@@ -21,8 +21,10 @@ public:
     OverlayClient();
     ~OverlayClient();
 
+    // label=true renders variants[0] as one full-width text (a profile-switch
+    // name) instead of single-glyph accent cells.
     void show(const std::vector<std::string> &variants, int currentIndex,
-              const std::string &position);
+              const std::string &position, bool label = false);
     void hide();
 
     // Starts the timing progress bar: a lead-in segment of leadMs (the

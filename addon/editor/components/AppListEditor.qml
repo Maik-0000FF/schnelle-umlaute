@@ -96,7 +96,7 @@ ColumnLayout {
                     }
 
                     ToolButton {
-                        text: "🗑"
+                        text: Theme.iconTrash
                         contentItem: Text {
                             text: parent.text
                             color: parent.hovered ? Theme.error : Theme.textMuted

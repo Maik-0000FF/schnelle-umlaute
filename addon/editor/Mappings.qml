@@ -83,12 +83,20 @@ Item {
                     Layout.preferredWidth: root.cycleLabelWidth
                 }
                 KeyCaptureField {
-                    Layout.fillWidth: true
+                    Layout.preferredWidth: Theme.shortcutFieldWidth
                     value: root.profilesModel ? root.profilesModel.cycleNext : ""
                     onCaptured: (combo) => {
                         if (root.profilesModel)
                             root.profilesModel.cycleNext = combo;
                     }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("to the next favorite profile (or any, if none)")
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
                 }
             }
             RowLayout {
@@ -102,12 +110,20 @@ Item {
                     Layout.preferredWidth: root.cycleLabelWidth
                 }
                 KeyCaptureField {
-                    Layout.fillWidth: true
+                    Layout.preferredWidth: Theme.shortcutFieldWidth
                     value: root.profilesModel ? root.profilesModel.cyclePrev : ""
                     onCaptured: (combo) => {
                         if (root.profilesModel)
                             root.profilesModel.cyclePrev = combo;
                     }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("to the previous favorite profile")
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
                 }
             }
         }

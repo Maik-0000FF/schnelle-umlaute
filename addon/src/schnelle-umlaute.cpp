@@ -930,7 +930,7 @@ private:
         const bool useDaemon = *config_.overlay->enabled && !overlayAtCaret();
         if (useDaemon) {
             overlayClient_.show({name}, kPreviewNoHighlight,
-                                overlayPositionString());
+                                overlayPositionString(), /*label=*/true);
             overlayVisible_ = true;
         } else {
             showCaretOverlay(ic, {name}, kPreviewNoHighlight);

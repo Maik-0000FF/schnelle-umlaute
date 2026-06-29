@@ -273,14 +273,40 @@ Window {
         radius: 16
         border.color: win.p.border
         border.width: 1
-        implicitWidth: row.implicitWidth + 2 * win.framePadding
+        implicitWidth: (OverlayController.label ? labelText.width
+                                                : row.implicitWidth)
+                       + 2 * win.framePadding
         implicitHeight: 64
 
         Behavior on color { ColorAnimation { duration: win.animationDuration } }
         Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
 
+        // Profile-switch name: one full-width label, not the per-glyph cells,
+        // so the name is shown completely instead of being squeezed into a
+        // 44 px accent cell.
+        Text {
+            id: labelText
+            visible: OverlayController.label
+            anchors.centerIn: parent
+            text: OverlayController.variants.length
+                  ? OverlayController.variants[0] : ""
+            color: win.p.textActive
+            font.family: win.fontFamilyMono
+            font.pixelSize: win.pixelSizeSingle
+            font.weight: Font.Medium
+            // Full name; only a very long one elides to stay on screen.
+            width: Math.min(implicitWidth,
+                            Screen.width - 4 * win.framePadding)
+            elide: Text.ElideRight
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+
+            Behavior on color { ColorAnimation { duration: win.animationDuration } }
+        }
+
         RowLayout {
             id: row
+            visible: !OverlayController.label
             anchors.centerIn: parent
             spacing: 8
 

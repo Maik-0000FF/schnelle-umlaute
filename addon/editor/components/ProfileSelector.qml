@@ -13,8 +13,6 @@ Item {
 
     property var profilesModel: null
     property var mappingsModel: null
-    // Width of the per-row select-key capture field.
-    readonly property int selectKeyFieldWidth: 96
     signal requestSnackbar(string message, color c)
     // Delete is confirmed by the parent (its ConfirmDialog), so a modal does
     // not have to stack over this popup.
@@ -89,6 +87,11 @@ Item {
         y: header.implicitHeight + 2
         width: header.width
         padding: Theme.spacingSm
+        // Close on a press outside the header (the popup's parent), not on the
+        // header itself, so re-clicking the header toggles cleanly instead of
+        // closing-then-reopening on the same click. A click anywhere else still
+        // dismisses it.
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         // Cap the whole popup so a long profile list still fits small editor
         // windows; the inner list gets its own (smaller) cap below so the
         // add-row and separator always stay visible above it.
@@ -210,12 +213,11 @@ Item {
                         anchors.rightMargin: Theme.spacingXs
                         spacing: Theme.spacingXs
 
-                        // Active marker / toggle (checkmark). The star glyph is
-                        // intentionally NOT used here: it is reserved for a
-                        // future "favorite for cycling" flag so the shortcut
-                        // cycle can step through favorites only.
+                        // Active marker / toggle (checkmark). The star next to
+                        // it is the separate "favorite for cycling" toggle, so
+                        // active and favorite stay visually distinct.
                         Text {
-                            text: "✓"
+                            text: Theme.iconCheck
                             color: prow.isActive
                                    ? Theme.accent
                                    : (activeMouse.containsMouse ? Theme.textMuted
@@ -246,7 +248,7 @@ Item {
                         // Favorite toggle (★). When any profile is a favorite,
                         // the cycle shortcut steps through favorites only.
                         Text {
-                            text: prow.favorite ? "★" : "☆"
+                            text: prow.favorite ? Theme.iconStar : Theme.iconStarOutline
                             color: prow.favorite
                                    ? Theme.accent
                                    : (favMouse.containsMouse ? Theme.textMuted
@@ -331,7 +333,7 @@ Item {
 
                         // Per-profile select hotkey (compact capture field).
                         KeyCaptureField {
-                            Layout.preferredWidth: root.selectKeyFieldWidth
+                            Layout.preferredWidth: Theme.shortcutFieldWidth
                             visible: !prow.renaming
                             value: prow.selectKey
                             onCaptured: (combo) => {
@@ -345,7 +347,7 @@ Item {
                         // edit pencil in MappingRow (Theme.brand is the constant
                         // green; Theme.accent varies per theme).
                         ToolButton {
-                            text: "✎"
+                            text: Theme.iconEdit
                             implicitWidth: 28
                             contentItem: Text {
                                 text: parent.text
@@ -362,10 +364,13 @@ Item {
                             onClicked: prow.renaming = true
                         }
 
-                        // Delete (trash), hidden for protected (Standard/last).
+                        // Delete (trash). For protected profiles (Standard /
+                        // last) it is disabled but keeps its slot, so the
+                        // action columns stay aligned across all rows.
                         ToolButton {
-                            visible: !prow.isProtected
-                            text: "🗑"
+                            enabled: !prow.isProtected
+                            opacity: prow.isProtected ? 0 : 1
+                            text: Theme.iconTrash
                             implicitWidth: 28
                             contentItem: Text {
                                 text: parent.text

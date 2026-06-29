@@ -76,7 +76,7 @@ Item {
 
         ToolButton {
             visible: root.value.length > 0 && !root.capturing
-            text: "✕"
+            text: Theme.iconClear
             implicitWidth: 22
             contentItem: Text {
                 text: parent.text

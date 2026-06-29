@@ -173,9 +173,10 @@ private:
             return;
         }
         const QString pos = ctrl_->position();
-        if (engine_ && pos == lastPosition_) {
-            // Same position, surface already committed — QML bindings on
-            // OverlayController.variants/currentIndex update the content.
+        if (engine_ && pos == lastPosition_ && ctrl_->label() == lastLabel_) {
+            // Same position and mode, surface already committed; QML bindings
+            // on OverlayController.variants/currentIndex update the content. A
+            // label<->grid switch falls through to rebuild (different width).
             return;
         }
         teardown();
@@ -233,6 +234,7 @@ private:
         // pos == lastPosition_ check instead of tearing it down and racing the
         // reply.
         lastPosition_ = pos;
+        lastLabel_ = ctrl_->label();
 
         const schnelle_umlaute::CursorPositionSpec spec =
             schnelle_umlaute::parseCursorPosition(pos.toStdString());
@@ -339,6 +341,7 @@ private:
             engine_.reset();
         }
         lastPosition_.clear();
+        lastLabel_ = false;
     }
 
     // Lazily build the cursor backend for the running compositor and wire the
@@ -370,6 +373,12 @@ private:
     OverlayController *ctrl_;
     std::unique_ptr<QQmlApplicationEngine> engine_;
     QString lastPosition_;
+    // Part of the surface-reuse key: label and grid modes have very different
+    // widths, and the layer-shell anchor margin is baked from the width at
+    // surface-build time (re-anchoring needs a fresh surface). Switching mode
+    // must rebuild, or the reused surface keeps a stale margin and renders
+    // off-center at fractional-column placements.
+    bool lastLabel_ = false;
     schnelle_umlaute::CursorSource *cursorSource_ = nullptr;
 };
 
