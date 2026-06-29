@@ -238,8 +238,9 @@ Item {
                             // so the constraint shows at the point of choice, not
                             // only in the note below. They stay selectable as an
                             // escape hatch if the capability check is wrong.
-                            enabled: root.settingsModel
-                                && root.settingsModel.overlayEnabled
+                            // No `enabled` gate needed: the parent row's
+                            // `visible` already carries the same condition, so
+                            // the combo only ever renders when it is usable.
                             textRole: "label"
                             valueRole: "key"
                             readonly property bool noLayerShell:

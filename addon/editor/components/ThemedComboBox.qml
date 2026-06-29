@@ -24,9 +24,19 @@ ComboBox {
     padding: 0
     spacing: 0
 
+    // Whether the currently selected entry is flagged unavailable, so the
+    // collapsed box dims to match the open dropdown's delegate (see
+    // itemUnavailable below). Guarded by the object-model check, so plain
+    // string models leave this false and render unchanged.
+    readonly property bool currentUnavailable: {
+        const item = combo.model && combo.currentIndex >= 0
+            ? combo.model[combo.currentIndex] : null;
+        return item && typeof item === "object" && item.unavailable === true;
+    }
+
     contentItem: Text {
         text: combo.displayText
-        color: Theme.text
+        color: combo.currentUnavailable ? Theme.textMuted : Theme.text
         font: combo.font
         leftPadding: Theme.spacingMd
         rightPadding: combo.indicator.width + Theme.spacingSm
