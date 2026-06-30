@@ -76,10 +76,18 @@ Window {
                                              progressTotal)
     readonly property real progressWindowWidth:
         progressBarWidth - progressLeadWidth
-    // True once the lead-in has elapsed and the leader window is open; drives the
-    // panel reveal (the cells appear only when the window opens, not during the
-    // lead-in). Reset at the start of each gesture's animation.
-    property bool progressWindowPhase: false
+    // Single time-based driver for the bar: the gesture's elapsed position in
+    // milliseconds across the whole [0, total] timeline. One NumberAnimation
+    // advances it; the lead/window fills derive their widths from it. Starting
+    // it at progressElapsedMs (the gesture's real age when SetProgress arrived)
+    // pre-advances the bar so delivery latency can't leave it open past the
+    // engine's real window.
+    property real progressNow: 0
+    // True once the lead-in has elapsed and the leader window is open; drives
+    // the panel reveal (the cells appear only when the window opens, not during
+    // the lead-in). Derived from progressNow so a latency-skipped lead reveals
+    // the panel immediately instead of replaying the lead.
+    readonly property bool progressWindowPhase: progressNow >= progressLead
 
     // Font sizes per variant glyph type. Color-emoji fonts occupy a
     // smaller fraction of the em-box than JetBrains Mono at the same
@@ -221,9 +229,11 @@ Window {
             height: parent.height
             radius: win.progressBarRadius
             color: win.p.barLead
-            // Grows from the top-left corner to the right over the lead-in and
-            // stays full through the window phase.
-            width: 0
+            // Grows from the corner over the lead-in, then stays full. A binding
+            // on the shared timeline, so it tracks progressNow exactly.
+            width: win.progressLeadWidth
+                   * Math.max(0, Math.min(1, win.progressNow
+                                             / Math.max(1, win.progressLead)))
         }
         Rectangle {
             id: windowFill
@@ -231,34 +241,31 @@ Window {
             height: parent.height
             radius: win.progressBarRadius
             color: win.p.barWindow
-            // Pinned just past the lead segment; appears full when the window
-            // opens, then its right end recedes left as it counts down.
-            width: 0
+            // Zero until the lead is over, then full and receding to 0 as the
+            // window counts down across [lead, total].
+            width: win.progressNow < win.progressLead
+                   ? 0
+                   : win.progressWindowWidth
+                     * Math.max(0, Math.min(1,
+                         (win.progressTotal - win.progressNow)
+                         / Math.max(1, win.progressWindow)))
         }
 
-        SequentialAnimation {
+        // One linear driver across the whole timeline. It starts at the elapsed
+        // offset (the gesture's real age when this message arrived) and runs out
+        // the remaining time, so delivery latency shifts neither the window's
+        // open nor its close. paused holds it when a leader freezes the window.
+        NumberAnimation {
+            target: win
+            property: "progressNow"
             running: OverlayController.progressActive
             paused: OverlayController.progressFrozen
-            // Restart from the lead-in on each fresh gesture.
-            onStarted: win.progressWindowPhase = false
-            NumberAnimation {
-                target: leadFill
-                property: "width"
-                from: 0
-                to: win.progressLeadWidth
-                duration: win.progressLead
-                easing.type: Easing.Linear
-            }
-            // Lead-in over: open the window and reveal the panel.
-            ScriptAction { script: win.progressWindowPhase = true }
-            NumberAnimation {
-                target: windowFill
-                property: "width"
-                from: win.progressWindowWidth
-                to: 0
-                duration: win.progressWindow
-                easing.type: Easing.Linear
-            }
+            from: Math.min(win.progressTotal,
+                           OverlayController.progressElapsedMs)
+            to: win.progressTotal
+            duration: Math.max(0, win.progressTotal
+                                  - OverlayController.progressElapsedMs)
+            easing.type: Easing.Linear
         }
     }
 

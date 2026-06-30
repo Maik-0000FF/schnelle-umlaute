@@ -1528,7 +1528,9 @@ private:
         // max), so window is >= 0 today. Clamp anyway so a future config/logic
         // change can never feed a negative duration to the QML bar animation.
         const int window = std::max(0, getEffectiveDelay(state) - lead);
-        overlayClient_.setProgress(lead, window);
+        // Pass the gesture start so the daemon can pre-advance the bar by the
+        // D-Bus delivery latency and stay in step with the real accent window.
+        overlayClient_.setProgress(lead, window, state->startTimeUsec_);
         overlayShow(ic, it->second, kPreviewNoHighlight);
     }
     void freezeProgressOverlay() {

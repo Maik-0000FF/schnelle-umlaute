@@ -11,6 +11,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 
 #define EXPECT(cond)                                                           \
     do {                                                                       \
@@ -129,10 +130,44 @@ void testQuitSchedulesAppExit() {
     EXPECT(rc == 0);
 }
 
+// setProgress stores lead/window and computes the elapsed offset against the
+// engine's start on the shared monotonic clock, clamped to [0, total], so the
+// daemon can pre-advance the bar past D-Bus delivery latency.
+void testSetProgressElapsedCompensation() {
+    auto nowUsec = []() {
+        timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return static_cast<qint64>(ts.tv_sec) * 1'000'000 + ts.tv_nsec / 1'000;
+    };
+
+    OverlayController ctrl;
+
+    // A start 100 ms ago yields ~100 ms elapsed (the daemon reads the clock
+    // just after, so it is >= 100 plus only microseconds of call overhead).
+    ctrl.setProgress(50, 350, nowUsec() - 100'000);
+    EXPECT(ctrl.progressLeadMs() == 50);
+    EXPECT(ctrl.progressWindowMs() == 350);
+    EXPECT(ctrl.progressActive());
+    EXPECT(ctrl.progressElapsedMs() >= 100 && ctrl.progressElapsedMs() <= 150);
+
+    // Elapsed beyond the total clamps to total (lead + window).
+    ctrl.setProgress(50, 350, nowUsec() - 10'000'000);
+    EXPECT(ctrl.progressElapsedMs() == 400);
+
+    // A future start (or a clock that ran backwards) clamps to 0.
+    ctrl.setProgress(50, 350, nowUsec() + 1'000'000);
+    EXPECT(ctrl.progressElapsedMs() == 0);
+
+    // startUsec <= 0 disables the compensation entirely.
+    ctrl.setProgress(50, 350, 0);
+    EXPECT(ctrl.progressElapsedMs() == 0);
+}
+
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     testShowPopulatesStateAndEmits();
+    testSetProgressElapsedCompensation();
     testShowEmptyVariantsHides();
     testHideClearsVisibleKeepsPosition();
     testShowWithEmptyPositionPreservesPrevious();
