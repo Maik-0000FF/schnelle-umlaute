@@ -71,59 +71,25 @@ Item {
 
             // Global cycle shortcuts: step through the favorites (★), or all
             // profiles if none are favorited.
-            RowLayout {
-                Layout.fillWidth: true
+            CycleShortcutRow {
                 Layout.topMargin: Theme.spacingXs
-                spacing: Theme.spacingMd
-                Text {
-                    text: qsTr("Cycle next")
-                    color: Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    Layout.preferredWidth: root.cycleLabelWidth
-                }
-                KeyCaptureField {
-                    Layout.preferredWidth: Theme.shortcutFieldWidth
-                    value: root.profilesModel ? root.profilesModel.cycleNext : ""
-                    onCaptured: (combo) => {
-                        if (root.profilesModel)
-                            root.profilesModel.cycleNext = combo;
-                    }
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: qsTr("to the next favorite profile (or any, if none)")
-                    color: Theme.textMuted
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 12
-                    wrapMode: Text.WordWrap
+                labelText: qsTr("Cycle next")
+                labelWidth: root.cycleLabelWidth
+                shortcut: root.profilesModel ? root.profilesModel.cycleNext : ""
+                description: qsTr("to the next favorite profile (or any, if none)")
+                onCaptured: (combo) => {
+                    if (root.profilesModel)
+                        root.profilesModel.cycleNext = combo;
                 }
             }
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.spacingMd
-                Text {
-                    text: qsTr("Cycle previous")
-                    color: Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    Layout.preferredWidth: root.cycleLabelWidth
-                }
-                KeyCaptureField {
-                    Layout.preferredWidth: Theme.shortcutFieldWidth
-                    value: root.profilesModel ? root.profilesModel.cyclePrev : ""
-                    onCaptured: (combo) => {
-                        if (root.profilesModel)
-                            root.profilesModel.cyclePrev = combo;
-                    }
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: qsTr("to the previous favorite profile")
-                    color: Theme.textMuted
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 12
-                    wrapMode: Text.WordWrap
+            CycleShortcutRow {
+                labelText: qsTr("Cycle previous")
+                labelWidth: root.cycleLabelWidth
+                shortcut: root.profilesModel ? root.profilesModel.cyclePrev : ""
+                description: qsTr("to the previous favorite profile")
+                onCaptured: (combo) => {
+                    if (root.profilesModel)
+                        root.profilesModel.cyclePrev = combo;
                 }
             }
         }

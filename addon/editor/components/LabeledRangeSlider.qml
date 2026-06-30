@@ -90,7 +90,9 @@ RowLayout {
             readonly property real mid:
                 (track.xForValue(root.from)
                  + track.xForValue(root.lowerValue)) / 2
-            visible: segW >= width
+            // width is 0 until the first text layout; require it so the label
+            // doesn't flash for one frame before its real width is known.
+            visible: width > 0 && segW >= width
             x: Math.max(0, Math.min(track.width - width, mid - width / 2))
             y: 0
             text: (root.lowerValue - root.from) + " " + root.suffix

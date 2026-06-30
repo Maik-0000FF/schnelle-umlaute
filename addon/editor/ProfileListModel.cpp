@@ -23,6 +23,22 @@ using schnelle_umlaute::kStandardProfile;
 // filename that hits the filesystem's NAME_MAX on save.
 constexpr int kMaxSlugLength = 64;
 
+// On-disk key names for profiles.conf, defined once so the editor's reader
+// (load) and writer (save) can't drift from each other. The engine mirrors the
+// same spellings as string literals in config.h (ProfilesConfig /
+// ProfileEntryConfig); the FCITX_CONFIGURATION macro requires literals there, so
+// the cross-module contract documented in config.h is what keeps the two halves
+// in sync. Centralising here removes at least the editor's own internal
+// duplication (each key was spelled once in load and again in save).
+const QLatin1String kKeyActive("Active");
+const QLatin1String kKeyCycleNext("CycleNext");
+const QLatin1String kKeyCyclePrev("CyclePrev");
+const QLatin1String kKeyName("Name");
+const QLatin1String kKeyFile("File");
+const QLatin1String kKeySelectKey("SelectKey");
+const QLatin1String kKeyFavorite("Favorite");
+const QLatin1String kSectionPrefix("Profiles/");
+
 QString configDir() { return schnelle_umlaute::configDirPath(); }
 
 QString profilesConfPath() {
@@ -624,6 +640,12 @@ int ProfileListModel::registerLooseProfiles() {
         const QString base = QFileInfo(fileName).completeBaseName();
         const schnelle_umlaute::PresetMeta meta =
             schnelle_umlaute::readPresetMeta(dir.filePath(fileName), base);
+        // A file with no derivable name (e.g. a literal ".txt": empty base and
+        // no "# Name:" header) would be adopted with an empty Name=, which
+        // load()'s flush guard then rejects, so it gets re-adopted and re-saved
+        // (with an engine reload) on every startup. Skip it instead of churning.
+        if (meta.name.trimmed().isEmpty())
+            continue;
         Entry e;
         e.name = uniqueName(meta.name);
         e.file = rel;
@@ -662,7 +684,7 @@ void ProfileListModel::load() {
             if (t.startsWith(QChar('[')) && t.endsWith(QChar(']'))) {
                 flush();
                 section = t.mid(1, t.size() - 2);
-                inEntry = section.startsWith(QStringLiteral("Profiles/"));
+                inEntry = section.startsWith(kSectionPrefix);
                 continue;
             }
             qsizetype eq = t.indexOf(QChar('='));
@@ -674,20 +696,20 @@ void ProfileListModel::load() {
             // stored. See escapeValue/unescapeValue.
             QString val = unescapeValue(t.mid(eq + 1).trimmed());
             if (section.isEmpty()) {
-                if (key == QStringLiteral("Active"))
+                if (key == kKeyActive)
                     active_ = val;
-                else if (key == QStringLiteral("CycleNext"))
+                else if (key == kKeyCycleNext)
                     cycleNext_ = val;
-                else if (key == QStringLiteral("CyclePrev"))
+                else if (key == kKeyCyclePrev)
                     cyclePrev_ = val;
             } else if (inEntry) {
-                if (key == QStringLiteral("Name"))
+                if (key == kKeyName)
                     cur.name = val;
-                else if (key == QStringLiteral("File"))
+                else if (key == kKeyFile)
                     cur.file = val;
-                else if (key == QStringLiteral("SelectKey"))
+                else if (key == kKeySelectKey)
                     cur.selectKey = val;
-                else if (key == QStringLiteral("Favorite"))
+                else if (key == kKeyFavorite)
                     cur.favorite = (val.compare(QStringLiteral("True"),
                                                 Qt::CaseInsensitive) == 0 ||
                                     val == QStringLiteral("1"));
@@ -711,8 +733,17 @@ void ProfileListModel::load() {
     // profiles.conf does not list yet, and register them so they become usable.
     if (registerLooseProfiles() > 0)
         dirty = true;
-    // Unknown/absent active falls back to the first profile.
-    if (active_.isEmpty() || activeRow() < 0)
+    // Unknown/absent active falls back to the first profile. activeRow() yields
+    // 0 (not -1) for any non-empty list, so it can't flag an active_ that names
+    // no entry (a dangling Active= whose section load() dropped, or a hand-edited
+    // typo); test membership directly so the stale name is actually corrected.
+    bool activeKnown = false;
+    for (const auto &e : entries_)
+        if (e.name == active_) {
+            activeKnown = true;
+            break;
+        }
+    if (!activeKnown)
         active_ = entries_.front().name;
     // Persist once if the Standard was seeded or loose profiles were adopted;
     // save() also fires the engine reload so the new entries take effect.
@@ -773,16 +804,16 @@ bool ProfileListModel::save() {
     // Values are escaped the way fcitx's safeSaveAsIni would, so the engine's
     // readAsIni round-trips them identically (e.g. a profile name with spaces).
     ts << "# Mapping profiles for schnelle-umlaute. Managed by the editor.\n";
-    ts << "Active=" << escapeValue(active_) << "\n";
-    ts << "CycleNext=" << escapeValue(cycleNext_) << "\n";
-    ts << "CyclePrev=" << escapeValue(cyclePrev_) << "\n";
+    ts << kKeyActive << "=" << escapeValue(active_) << "\n";
+    ts << kKeyCycleNext << "=" << escapeValue(cycleNext_) << "\n";
+    ts << kKeyCyclePrev << "=" << escapeValue(cyclePrev_) << "\n";
     for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
         const auto &e = entries_[i];
-        ts << "\n[Profiles/" << i << "]\n";
-        ts << "Name=" << escapeValue(e.name) << "\n";
-        ts << "File=" << escapeValue(e.file) << "\n";
-        ts << "SelectKey=" << escapeValue(e.selectKey) << "\n";
-        ts << "Favorite=" << (e.favorite ? "True" : "False") << "\n";
+        ts << "\n[" << kSectionPrefix << i << "]\n";
+        ts << kKeyName << "=" << escapeValue(e.name) << "\n";
+        ts << kKeyFile << "=" << escapeValue(e.file) << "\n";
+        ts << kKeySelectKey << "=" << escapeValue(e.selectKey) << "\n";
+        ts << kKeyFavorite << "=" << (e.favorite ? "True" : "False") << "\n";
     }
     ts.flush();
     QByteArray buf = out.toUtf8();
