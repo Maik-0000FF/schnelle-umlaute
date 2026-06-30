@@ -147,7 +147,9 @@ RowLayout {
             z: track.dragMode === 1 ? 2 : 1
             // Lower handle is the dead-time (lead) bound, so it carries the
             // same green as its region; the upper (window) handle stays accent.
-            color: track.dragMode === 1 ? Qt.lighter(Theme.brand, 1.25) : Theme.brand
+            // brandHover mirrors accentHover on the upper handle (one token per
+            // palette) instead of an inline lighten factor.
+            color: track.dragMode === 1 ? Theme.brandHover : Theme.brand
             border.color: Theme.background
             border.width: 2
         }
