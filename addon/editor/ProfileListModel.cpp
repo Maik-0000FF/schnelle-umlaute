@@ -365,6 +365,7 @@ QVariantList ProfileListModel::availablePresets() const {
         m.insert(QStringLiteral("file"), full);
         m.insert(QStringLiteral("name"), meta.name);
         m.insert(QStringLiteral("description"), meta.description);
+        m.insert(QStringLiteral("category"), meta.category);
         m.insert(QStringLiteral("count"), meta.mappingCount);
         out.append(m);
     }
