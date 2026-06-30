@@ -44,8 +44,15 @@ inline QString presetsDir() {
     //    Works for any prefix-based install, including the Nix store.
     const QString rel = QCoreApplication::applicationDirPath() +
                         QStringLiteral("/../share/") + sub;
-    if (QDir(rel).exists())
-        return detail::withSlash(QFileInfo(rel).canonicalFilePath());
+    if (QDir(rel).exists()) {
+        // canonicalFilePath() can still return empty even after exists() (a
+        // permission change or broken symlink between the two calls). Guard it,
+        // so a "/" never leaks through withSlash() and makes availablePresets()
+        // scan the filesystem root; fall through to the next strategy instead.
+        const QString canon = QFileInfo(rel).canonicalFilePath();
+        if (!canon.isEmpty())
+            return detail::withSlash(canon);
+    }
 
     // 3. XDG data dirs (system installs under /usr/share, /usr/local/share).
     const QString xdg = QStandardPaths::locate(
