@@ -1,0 +1,16 @@
+# Name: Español
+# Description: Acentos y signos del español (á é í ó ú ü ñ ¿ ¡)
+a=á
+e=é
+i=í
+o=ó
+u=ú,ü
+n=ñ
+A=Á
+E=É
+I=Í
+O=Ó
+U=Ú,Ü
+N=Ñ
+?=¿
+!=¡

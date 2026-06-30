@@ -95,6 +95,16 @@ for file in "${DATA_FILES[@]}"; do
     [ -f "$file" ] && FOUND_FILES+=("$file")
 done
 
+# Bundled preset profiles (the "add from library" set). Filenames vary and the
+# library grows, so glob the installed presets dir rather than list each file.
+for presets_dir in /usr/share/schnelle-umlaute/presets \
+                   /usr/local/share/schnelle-umlaute/presets; do
+    [ -d "$presets_dir" ] || continue
+    for preset in "$presets_dir"/*.txt; do
+        [ -f "$preset" ] && FOUND_FILES+=("$preset")
+    done
+done
+
 # Fallback: catch anything we missed via wildcard search.
 # Ensures any legacy file under fcitx5 directories gets caught.
 SEARCH_ROOTS=(

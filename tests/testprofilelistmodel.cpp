@@ -9,6 +9,7 @@
 
 #include "ProfileListModel.h"
 #include "editor_paths.h"
+#include "preset_meta.h"
 #include "test_expect.h"
 #include "test_tempdir.h"
 
@@ -19,6 +20,8 @@
 #include <QModelIndex>
 #include <QString>
 #include <QStringList>
+#include <QVariantList>
+#include <QVariantMap>
 
 using schnelle_umlaute_tests::TempXdgConfigHome;
 
@@ -37,6 +40,21 @@ QString profilesConfPathForTest() {
 
 QString rowSelectKey(ProfileListModel &m, int row) {
     return m.data(m.index(row), ProfileListModel::SelectKeyRole).toString();
+}
+
+void writeTextFile(const QString &path, const QString &content) {
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile f(path);
+    EXPECT(f.open(QIODevice::WriteOnly | QIODevice::Text));
+    f.write(content.toUtf8());
+    f.close();
+}
+
+int rowForName(ProfileListModel &m, const QString &name) {
+    for (int i = 0; i < m.rowCount(); ++i)
+        if (m.profileNames().value(i) == name)
+            return i;
+    return -1;
 }
 
 } // namespace
@@ -273,6 +291,113 @@ void testDuplicateShortcutIgnoresOrderAndCase(ProfileListModel &m) {
     EXPECT(rowSelectKey(m, 2).isEmpty());
 }
 
+// -- preset library + drop-in -----------------------------------------------
+
+// preset_meta.h: "# Name:" / "# Description:" headers win; without a header the
+// display name is the titleized file slug, and only input=output lines count.
+void testPresetMetaHeaderAndFallback(ProfileListModel &) {
+    EXPECT(schnelle_umlaute::titleizeSlug(QStringLiteral("francais"))
+           == QStringLiteral("Francais"));
+    EXPECT(schnelle_umlaute::titleizeSlug(QStringLiteral("math-physik"))
+           == QStringLiteral("Math Physik"));
+
+    const QString xdg = QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME"));
+    const QString p = xdg + QStringLiteral("/meta.txt");
+    writeTextFile(p, QString::fromUtf8(
+                         "# Name: Español\n# Description: Acentos\n"
+                         "n=ñ\na=á\no=ó\n"));
+    const schnelle_umlaute::PresetMeta meta =
+        schnelle_umlaute::readPresetMeta(p, QStringLiteral("espanol"));
+    EXPECT(meta.name == QString::fromUtf8("Español"));
+    EXPECT(meta.description == QString::fromUtf8("Acentos"));
+    EXPECT(meta.mappingCount == 3);
+
+    const QString p2 = xdg + QStringLiteral("/meta2.txt");
+    writeTextFile(p2, QStringLiteral("a=ae\no=oe\n"));
+    const schnelle_umlaute::PresetMeta meta2 =
+        schnelle_umlaute::readPresetMeta(p2, QStringLiteral("deutsch"));
+    EXPECT(meta2.name == QStringLiteral("Deutsch"));
+    EXPECT(meta2.description.isEmpty());
+    EXPECT(meta2.mappingCount == 2);
+}
+
+// A loose profiles/<x>.txt the editor never wrote is adopted on load (named
+// from its header), persisted to profiles.conf, and not double-registered on a
+// later load.
+void testRegistersLooseProfileOnLoad(ProfileListModel &m) {
+    const QString dir =
+        schnelle_umlaute::configDirPath() + QStringLiteral("profiles/");
+    writeTextFile(dir + QStringLiteral("francais.txt"),
+                  QString::fromUtf8("# Name: Français\na=à,â\ne=é\n"));
+
+    ProfileListModel m2; // load() scans profiles/ and registers the loose file
+    EXPECT(m2.rowCount() == 2); // Standard + adopted
+    const int row = rowForName(m2, QString::fromUtf8("Français"));
+    EXPECT(row >= 0);
+    EXPECT(m2.fileForRow(row) == QStringLiteral("profiles/francais.txt"));
+
+    ProfileListModel m3; // already in profiles.conf now -> no second copy
+    EXPECT(m3.rowCount() == 2);
+    EXPECT(rowForName(m3, QString::fromUtf8("Français")) >= 0);
+
+    (void)m;
+}
+
+// A loose file whose derived name collides with an existing profile is adopted
+// under a uniquified name (its file stays its own).
+void testLooseProfileNameCollisionUniquified(ProfileListModel &m) {
+    EXPECT(m.createProfile(QString::fromUtf8("Français"))); // slug -> fran-ais
+    const QString dir =
+        schnelle_umlaute::configDirPath() + QStringLiteral("profiles/");
+    writeTextFile(dir + QStringLiteral("francais.txt"),
+                  QString::fromUtf8("# Name: Français\na=à\n"));
+
+    ProfileListModel m2;
+    EXPECT(m2.rowCount() == 3); // Standard + Français + Français 2
+    const int row = rowForName(m2, QString::fromUtf8("Français 2"));
+    EXPECT(row >= 0);
+    EXPECT(m2.fileForRow(row) == QStringLiteral("profiles/francais.txt"));
+}
+
+// Bundled preset: availablePresets() lists it, addProfileFromPreset copies the
+// body into the user's profiles/ and registers it; adding twice yields a
+// distinct profile + file (the copy decouples it from the template).
+void testAddProfileFromPreset(ProfileListModel &m) {
+    const QString xdg = QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME"));
+    const QString srcDir = xdg + QStringLiteral("/presets-src");
+    writeTextFile(srcDir + QStringLiteral("/francais.txt"),
+                  QString::fromUtf8("# Name: Français\n# Description: Accents\n"
+                                    "a=à,â\ne=é\n"));
+    qputenv("SCHNELLE_UMLAUTE_PRESETS_DIR", srcDir.toLocal8Bit());
+
+    const QVariantList presets = m.availablePresets();
+    EXPECT(presets.size() == 1);
+    const QVariantMap p0 = presets.at(0).toMap();
+    EXPECT(p0.value(QStringLiteral("name")).toString()
+           == QString::fromUtf8("Français"));
+    EXPECT(p0.value(QStringLiteral("count")).toInt() == 2);
+
+    const QString file = p0.value(QStringLiteral("file")).toString();
+    EXPECT(m.addProfileFromPreset(file));
+    EXPECT(m.rowCount() == 2); // Standard + Français
+    const int row = rowForName(m, QString::fromUtf8("Français"));
+    EXPECT(row >= 0);
+    EXPECT(m.fileForRow(row) == QStringLiteral("profiles/francais.txt"));
+
+    QFile copied(schnelle_umlaute::configDirPath() + m.fileForRow(row));
+    EXPECT(copied.open(QIODevice::ReadOnly | QIODevice::Text));
+    EXPECT(QString::fromUtf8(copied.readAll())
+               .contains(QString::fromUtf8("a=à,â")));
+    copied.close();
+
+    EXPECT(m.addProfileFromPreset(file)); // again -> distinct copy
+    EXPECT(m.rowCount() == 3);
+    EXPECT(QFile::exists(schnelle_umlaute::configDirPath() +
+                         QStringLiteral("profiles/francais-2.txt")));
+
+    qunsetenv("SCHNELLE_UMLAUTE_PRESETS_DIR");
+}
+
 // -- runner ------------------------------------------------------------------
 
 using TestFn = void (*)(ProfileListModel &);
@@ -302,6 +427,11 @@ const TestCase kTests[] = {
     {"testRejectsDuplicateShortcut", testRejectsDuplicateShortcut},
     {"testDuplicateShortcutIgnoresOrderAndCase",
      testDuplicateShortcutIgnoresOrderAndCase},
+    {"testPresetMetaHeaderAndFallback", testPresetMetaHeaderAndFallback},
+    {"testRegistersLooseProfileOnLoad", testRegistersLooseProfileOnLoad},
+    {"testLooseProfileNameCollisionUniquified",
+     testLooseProfileNameCollisionUniquified},
+    {"testAddProfileFromPreset", testAddProfileFromPreset},
 };
 
 int main(int argc, char **argv) {
