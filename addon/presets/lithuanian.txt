@@ -1,0 +1,19 @@
+# Name: Lietuvių
+# Description: ą č ę ė į š ų ū ž
+# Category: language
+
+a=ą
+c=č
+e=ę,ė
+i=į
+s=š
+u=ų,ū
+z=ž
+
+A=Ą
+C=Č
+E=Ę,Ė
+I=Į
+S=Š
+U=Ų,Ū
+Z=Ž

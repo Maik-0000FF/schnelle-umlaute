@@ -1,0 +1,11 @@
+# Name: Svenska
+# Description: ä å é ö
+# Category: language
+
+a=ä,å
+e=é
+o=ö
+
+A=Ä,Å
+E=É
+O=Ö

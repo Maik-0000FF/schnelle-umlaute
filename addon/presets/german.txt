@@ -1,0 +1,12 @@
+# Name: Deutsch
+# Description: ä ö ß ü
+# Category: language
+
+a=ä
+o=ö
+s=ß
+u=ü
+
+A=Ä
+O=Ö
+U=Ü

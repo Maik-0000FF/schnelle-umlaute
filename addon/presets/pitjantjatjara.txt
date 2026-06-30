@@ -1,0 +1,13 @@
+# Name: Pitjantjatjara
+# Description: ḻ ṉ ṟ ṯ
+# Category: language
+
+l=ḻ
+n=ṉ
+r=ṟ
+t=ṯ
+
+L=Ḻ
+N=Ṉ
+R=Ṟ
+T=Ṯ

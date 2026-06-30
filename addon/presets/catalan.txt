@@ -1,0 +1,19 @@
+# Name: Català
+# Description: à á ç é è í ì ï ñ ó ò ú ù ü
+# Category: language
+
+a=à,á
+c=ç
+e=é,è
+i=í,ì,ï
+n=ñ
+o=ó,ò
+u=ú,ù,ü
+
+A=À,Á
+C=Ç
+E=É,È
+I=Í,Ì,Ï
+N=Ñ
+O=Ó,Ò
+U=Ú,Ù,Ü
