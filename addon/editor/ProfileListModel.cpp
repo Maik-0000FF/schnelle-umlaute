@@ -362,6 +362,13 @@ bool ProfileListModel::addProfileFromPreset(const QString &presetFile) {
         Q_EMIT errorOccurred(tr("Could not copy the preset"));
         return false;
     }
+    // QFile::copy preserves the source's mode bits; a preset on a read-only
+    // install (e.g. the Nix store, where files are 0444) would otherwise leave
+    // the user's own copy read-only. Make it user-writable so editing it later
+    // behaves like any hand-created profile file.
+    QFile::setPermissions(dst, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                   QFileDevice::ReadGroup |
+                                   QFileDevice::ReadOther);
 
     int row = static_cast<int>(entries_.size());
     beginInsertRows(QModelIndex(), row, row);
