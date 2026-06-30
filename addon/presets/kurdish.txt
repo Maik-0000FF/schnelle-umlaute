@@ -1,23 +1,15 @@
 # Name: Kurdî
-# Description: ç ê î ö ô ł ň ř ş û ü
+# Description: ç ê î ş û
 # Category: language
 
 c=ç
 e=ê
 i=î
-o=ö,ô
-l=ł
-n=ň
-r=ř
 s=ş
-u=û,ü
+u=û
 
 C=Ç
 E=Ê
 I=Î
-O=Ö,Ô
-L=Ł
-N=Ň
-R=Ř
 S=Ş
-U=Û,Ü
+U=Û

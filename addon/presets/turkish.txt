@@ -1,21 +1,19 @@
 # Name: Türkçe
-# Description: â ç ë ğ ı İ î ö ô ş ü û
+# Description: â ç ğ ı î ö ş ü û
 # Category: language
 
 a=â
 c=ç
-e=ë
 g=ğ
-i=ı,İ,î
-o=ö,ô
+i=ı,î
+o=ö
 s=ş
 u=ü,û
 
 A=Â
 C=Ç
-E=Ë
 G=Ğ
-I=I,İ,Î
-O=Ö,Ô
+I=İ,Î
+O=Ö
 S=Ş
 U=Ü,Û

@@ -1,12 +1,11 @@
 # Name: Nederlands
-# Description: ä á à ç ë é è ê ï í î ñ ö ó ô ü ú û
+# Description: ä á à ç ë é è ê ï í î ö ó ô ü ú û
 # Category: language
 
 a=ä,á,à
 c=ç
 e=ë,é,è,ê
 i=ï,í,î
-n=ñ
 o=ö,ó,ô
 u=ü,ú,û
 
@@ -14,6 +13,5 @@ A=Ä,Á,À
 C=Ç
 E=Ë,É,È,Ê
 I=Ï,Í,Î
-N=Ñ
 O=Ö,Ó,Ô
 U=Ü,Ú,Û

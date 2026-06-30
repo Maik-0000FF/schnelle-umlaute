@@ -1,11 +1,11 @@
 # Name: Slovenščina
-# Description: č ć š ž
+# Description: č š ž
 # Category: language
 
-c=č,ć
+c=č
 s=š
 z=ž
 
-C=Č,Ć
+C=Č
 S=Š
 Z=Ž
