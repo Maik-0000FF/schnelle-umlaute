@@ -76,6 +76,16 @@ public:
     Q_INVOKABLE int progressBarLength(int totalMs, int screenWidth) const;
     Q_INVOKABLE int progressLeadLength(int barLen, int leadMs, int totalMs) const;
 
+    // Live elapsed time (ms) since the gesture start on the shared monotonic
+    // clock, clamped to [0, total]. The QML bar samples this every frame so it
+    // tracks the engine's real timeline instead of interpolating from a
+    // once-set, late-started animation clock — that clock starts a frame or two
+    // after SetProgress arrives but runs the full remaining duration, so it
+    // finishes late and leaves the window open by a sliver right at the closing
+    // edge. Sampling the real clock each frame keeps the error sub-frame and
+    // non-cumulative. progressStartUsec_ <= 0 falls back to the arrival snapshot.
+    Q_INVOKABLE int progressElapsedNowMs() const;
+
 Q_SIGNALS:
     void stateChanged();
     void themeChanged();
@@ -92,6 +102,9 @@ private:
     int progressLeadMs_ = 0;
     int progressWindowMs_ = 0;
     int progressElapsedMs_ = 0;
+    // Gesture start on the engine's CLOCK_MONOTONIC, kept so the live elapsed
+    // getter can recompute against the real clock every frame. <= 0 disables it.
+    qint64 progressStartUsec_ = 0;
     bool progressActive_ = false;
     bool progressFrozen_ = false;
 };

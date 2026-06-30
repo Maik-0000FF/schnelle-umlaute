@@ -129,8 +129,9 @@ QtObject {
     // green. In schnelle-umlaute green IS the signature/active colour, so the
     // window takes the green and the lead the accent there, keeping the active
     // part on the theme's identity colour like every other theme does. The
-    // overlay's progress bar keeps its own (unchanged) palette, so this swap is
-    // editor-slider only.
+    // overlay's progress bar (Overlay.qml barLead/barWindow) mirrors this same
+    // per-theme swap, so the editor slider and the overlay bar always agree on
+    // which segment is which colour.
     readonly property color sliderWindow:
         current === "schnelle-umlaute" ? brand : accent
     readonly property color sliderWindowHover:
