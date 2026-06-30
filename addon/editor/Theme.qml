@@ -17,6 +17,7 @@ QtObject {
             accentHover:  "#c084fc",
             accentSoft:   "#a855f733",
             brand:        "#4ade80",
+            brandHover:   "#86efac",
             brandSoft:    "#4ade8033",
             text:         "#f0fdf4",
             textMuted:    "#6b7280",
@@ -39,6 +40,7 @@ QtObject {
             accentHover:  "#93c5fd",
             accentSoft:   "#60a5fa33",
             brand:        "#4ade80",
+            brandHover:   "#86efac",
             brandSoft:    "#4ade8033",
             text:         "#e5e7eb",
             textMuted:    "#9ca3af",
@@ -61,6 +63,7 @@ QtObject {
             accentHover:  "#1d4ed8",
             accentSoft:   "#2563eb1a",
             brand:        "#16a34a",
+            brandHover:   "#15803d",
             brandSoft:    "#16a34a1a",
             text:         "#0f172a",
             textMuted:    "#52525b",
@@ -83,6 +86,7 @@ QtObject {
             accentHover:  "#ffeb3b",
             accentSoft:   "#ffd60a33",
             brand:        "#ffffff",
+            brandHover:   "#ffffff",
             brandSoft:    "#ffffff33",
             text:         "#ffffff",
             textMuted:    "#e5e5e5",
@@ -108,6 +112,7 @@ QtObject {
     readonly property color accentHover:  p.accentHover
     readonly property color accentSoft:   p.accentSoft
     readonly property color brand:        p.brand
+    readonly property color brandHover:   p.brandHover
     readonly property color brandSoft:    p.brandSoft
     readonly property color text:         p.text
     readonly property color textMuted:    p.textMuted

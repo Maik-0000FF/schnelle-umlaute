@@ -10,10 +10,11 @@ import SchnelleUmlaute
 // left, its end time on the right, and the computed window duration above the
 // track. Dragging the filled line between the handles moves the whole window.
 //
-// Both handles stay reachable even when they sit on top of each other: the
-// track captures the press, picks the lower handle on the left side of the
-// cluster and the upper on the right, and treats a press on the line between
-// them as a window move.
+// Both handles stay reachable even when they sit on top of each other: a
+// press on a stacked (or near-stacked) pair is resolved by the first drag
+// direction (drag left pulls the lower handle out, drag right the upper), so
+// neither handle gets buried under the other. A press on the line between
+// separated handles moves the whole window.
 RowLayout {
     id: root
     Layout.fillWidth: true
@@ -42,10 +43,11 @@ RowLayout {
         Layout.preferredWidth: 120
     }
 
-    // Window start (lower bound)
+    // Window start (lower bound). Coloured like its region and handle (the
+    // green dead-time/lead), so the number ties to the part it controls.
     Text {
         text: root.lowerValue + " " + root.suffix
-        color: Theme.textMuted
+        color: Theme.brand
         font.family: Theme.fontFamilyMono
         font.pixelSize: 12
         Layout.preferredWidth: 56
@@ -67,7 +69,8 @@ RowLayout {
         readonly property real lineY: rowY + rowH / 2
         readonly property real spanW: Math.max(1, width - handleW)
 
-        // 0 = none, 1 = lower handle, 2 = upper handle, 3 = move window.
+        // 0 = none, 1 = lower handle, 2 = upper handle, 3 = move window,
+        // 4 = stacked press pending its first-drag direction (→ 1 or 2).
         property int dragMode: 0
 
         function clamp(v, lo, hi) {
@@ -85,9 +88,16 @@ RowLayout {
             return snap(root.from + t * (root.to - root.from));
         }
 
-        // Computed window duration, centered above the track.
+        // Computed window duration, centered above the window itself (the
+        // midpoint between the two handles) so it tracks the window as it
+        // moves. Clamped to the track so a window pushed to either edge keeps
+        // the label fully visible instead of clipping off the side.
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
+            id: durationLabel
+            readonly property real mid:
+                (track.xForValue(root.lowerValue)
+                 + track.xForValue(root.upperValue)) / 2
+            x: Math.max(0, Math.min(track.width - width, mid - width / 2))
             y: 0
             text: (root.upperValue - root.lowerValue) + " " + root.suffix
             color: Theme.accent
@@ -103,6 +113,17 @@ RowLayout {
             radius: 2
             y: track.lineY - height / 2
             color: Theme.border
+        }
+        // Dead-time (lead) region [from … lower]: the minimum hold before the
+        // accent window opens. Green, mirroring the overlay progress bar's
+        // lead segment ("time elapsing"); the window fill below is the accent.
+        Rectangle {
+            x: 0
+            width: Math.max(0, track.xForValue(root.lowerValue))
+            height: 4
+            radius: 2
+            y: track.lineY - height / 2
+            color: Theme.brand
         }
         // Filled window between the two handles. Also the "move the window"
         // drag surface.
@@ -124,7 +145,11 @@ RowLayout {
             x: track.xForValue(root.lowerValue) - width / 2
             y: track.lineY - height / 2
             z: track.dragMode === 1 ? 2 : 1
-            color: track.dragMode === 1 ? Theme.accentHover : Theme.accent
+            // Lower handle is the dead-time (lead) bound, so it carries the
+            // same green as its region; the upper (window) handle stays accent.
+            // brandHover mirrors accentHover on the upper handle (one token per
+            // palette) instead of an inline lighten factor.
+            color: track.dragMode === 1 ? Theme.brandHover : Theme.brand
             border.color: Theme.background
             border.width: 2
         }
@@ -149,6 +174,7 @@ RowLayout {
             preventStealing: true
 
             property real moveStartX: 0
+            property real pressX: 0
             property int startLower: 0
             property int startUpper: 0
 
@@ -157,8 +183,16 @@ RowLayout {
                 var ux = track.xForValue(root.upperValue);
                 var dl = Math.abs(mouse.x - lx);
                 var du = Math.abs(mouse.x - ux);
-                if (dl <= track.hit && du <= track.hit) {
-                    // Overlapping handles: the side decides.
+                pressX = mouse.x;
+                // Handles on (or almost on) each other can't be told apart by
+                // position, so defer the choice: grab the cluster and let the
+                // first drag direction decide which handle moves. Nothing is
+                // edited until then, so a stacked pair never jumps on press.
+                var stacked = Math.abs(lx - ux) <= track.handleW;
+                if (stacked && dl <= track.hit) {
+                    track.dragMode = 4;
+                } else if (dl <= track.hit && du <= track.hit) {
+                    // Both reachable but with a gap: the side of the press picks.
                     track.dragMode = mouse.x <= lx ? 1 : 2;
                 } else if (dl <= track.hit) {
                     track.dragMode = 1;
@@ -182,6 +216,13 @@ RowLayout {
             }
 
             onPositionChanged: (mouse) => {
+                if (track.dragMode === 4) {
+                    // First clear movement resolves the stacked press into a
+                    // handle by direction (left → lower, right → upper).
+                    if (mouse.x < pressX) track.dragMode = 1;
+                    else if (mouse.x > pressX) track.dragMode = 2;
+                    else return;
+                }
                 if (track.dragMode === 1) {
                     root.lowerEdited(track.clamp(track.valueForX(mouse.x), root.from, root.upperValue));
                 } else if (track.dragMode === 2) {

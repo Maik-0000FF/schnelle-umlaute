@@ -218,10 +218,14 @@ Item {
                         // active and favorite stay visually distinct.
                         Text {
                             text: Theme.iconCheck
+                            // Inactive uses the shared muted base of every
+                            // unselected action icon (star, pencil, trash), not
+                            // the darker border, so the icon row reads uniform;
+                            // brightens to full text on hover, accent when active.
                             color: prow.isActive
                                    ? Theme.accent
-                                   : (activeMouse.containsMouse ? Theme.textMuted
-                                                                : Theme.border)
+                                   : (activeMouse.containsMouse ? Theme.text
+                                                                : Theme.textMuted)
                             font.pixelSize: 15
                             Layout.preferredWidth: 20
                             horizontalAlignment: Text.AlignHCenter
@@ -248,11 +252,15 @@ Item {
                         // Favorite toggle (★). When any profile is a favorite,
                         // the cycle shortcut steps through favorites only.
                         Text {
-                            text: prow.favorite ? Theme.iconStar : Theme.iconStarOutline
+                            // Always the filled glyph: the hollow outline read
+                            // as a barely-there speck in the inactive state.
+                            // Inactive instead reads as a muted (lighter) fill,
+                            // brightening to full text on hover; active is accent.
+                            text: Theme.iconStar
                             color: prow.favorite
                                    ? Theme.accent
-                                   : (favMouse.containsMouse ? Theme.textMuted
-                                                             : Theme.border)
+                                   : (favMouse.containsMouse ? Theme.text
+                                                             : Theme.textMuted)
                             font.pixelSize: 15
                             Layout.preferredWidth: 20
                             horizontalAlignment: Text.AlignHCenter
