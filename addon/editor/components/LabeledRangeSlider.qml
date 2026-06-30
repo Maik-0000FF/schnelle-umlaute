@@ -104,13 +104,24 @@ RowLayout {
         // Computed window duration, centered above the window itself (the
         // midpoint between the two handles) so it tracks the window as it
         // moves. Clamped to the track so a window pushed to either edge keeps
-        // the label fully visible instead of clipping off the side.
+        // the label fully visible instead of clipping off the side. When the
+        // lead label is shown at a small lead, both would otherwise crowd the
+        // left end, so this one is nudged right to clear it (rather than hiding
+        // either), so both stay readable.
         Text {
             id: durationLabel
             readonly property real mid:
                 (track.xForValue(root.lowerValue)
                  + track.xForValue(root.upperValue)) / 2
-            x: Math.max(0, Math.min(track.width - width, mid - width / 2))
+            x: {
+                var ideal = Math.max(0, Math.min(track.width - width,
+                                                 mid - width / 2));
+                if (leadLabel.visible) {
+                    var minX = leadLabel.x + leadLabel.width + Theme.spacingSm;
+                    return Math.min(track.width - width, Math.max(ideal, minX));
+                }
+                return ideal;
+            }
             y: 0
             text: (root.upperValue - root.lowerValue) + " " + root.suffix
             color: Theme.sliderWindow
