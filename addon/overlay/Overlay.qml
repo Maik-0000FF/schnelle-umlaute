@@ -50,8 +50,12 @@ Window {
     // total horizontal slack the glyph Text leaves inside the cell (half
     // per side); it bounds the Text width that Text.HorizontalFit fits to.
     readonly property int cellSize: 44
+    readonly property int cellRadius: 10
     readonly property int framePadding: 16
     readonly property int cellTextInset: 8
+    // Horizontal padding (per side) inside the profile-name pill, so the
+    // full-width name token has breathing room like a glyph cell does.
+    readonly property int labelPadding: 14
 
     // Progress bar (opt-in via [Overlay]/ProgressBar). It starts at the panel's
     // top-right corner and runs to the right. Its pixel length and the
@@ -273,7 +277,7 @@ Window {
         radius: 16
         border.color: win.p.border
         border.width: 1
-        implicitWidth: (OverlayController.label ? labelText.width
+        implicitWidth: (OverlayController.label ? labelPill.implicitWidth
                                                 : row.implicitWidth)
                        + 2 * win.framePadding
         implicitHeight: 64
@@ -281,27 +285,44 @@ Window {
         Behavior on color { ColorAnimation { duration: win.animationDuration } }
         Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
 
-        // Profile-switch name: one full-width label, not the per-glyph cells,
-        // so the name is shown completely instead of being squeezed into a
-        // 44 px accent cell.
-        Text {
-            id: labelText
+        // Profile-switch name: a single full-width token rendered in the same
+        // cell styling as the active mapped glyph (dark text on the bright
+        // active-cell colour), so it reads as one of the overlay's tokens
+        // rather than dark text floating on the panel background.
+        Rectangle {
+            id: labelPill
             visible: OverlayController.label
             anchors.centerIn: parent
-            text: OverlayController.variants.length
-                  ? OverlayController.variants[0] : ""
-            color: win.p.textActive
-            font.family: win.fontFamilyMono
-            font.pixelSize: win.pixelSizeSingle
-            font.weight: Font.Medium
-            // Full name; only a very long one elides to stay on screen.
-            width: Math.min(implicitWidth,
-                            Screen.width - 4 * win.framePadding)
-            elide: Text.ElideRight
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+            radius: win.cellRadius
+            color: win.p.cellActive
+            border.color: win.p.cellActiveBorder
+            border.width: 1
+            implicitWidth: labelText.width + 2 * win.labelPadding
+            implicitHeight: win.cellSize
 
             Behavior on color { ColorAnimation { duration: win.animationDuration } }
+            Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
+
+            Text {
+                id: labelText
+                anchors.centerIn: parent
+                text: OverlayController.variants.length
+                      ? OverlayController.variants[0] : ""
+                color: win.p.textActive
+                font.family: win.fontFamilyMono
+                font.pixelSize: win.pixelSizeSingle
+                font.weight: Font.Medium
+                // Full name; only a very long one elides so the pill (plus its
+                // padding and the frame padding) still fits the screen.
+                width: Math.min(implicitWidth,
+                                Screen.width - 4 * win.framePadding
+                                - 2 * win.labelPadding)
+                elide: Text.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+
+                Behavior on color { ColorAnimation { duration: win.animationDuration } }
+            }
         }
 
         RowLayout {
@@ -318,7 +339,7 @@ Window {
                     readonly property bool active: index === OverlayController.currentIndex
                     width: win.cellSize
                     height: win.cellSize
-                    radius: 10
+                    radius: win.cellRadius
                     color: active ? win.p.cellActive : win.p.cellInactive
                     border.color: active ? win.p.cellActiveBorder : win.p.cellInactiveBorder
                     border.width: 1
