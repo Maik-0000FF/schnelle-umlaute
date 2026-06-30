@@ -1,0 +1,13 @@
+# Name: Proto-Indo-European
+# Description: Proto-Indo-European notation
+# Category: symbols
+
+a=ā
+e=ē
+o=ō
+k=ḱ
+g=ǵ
+r=r̥
+l=l̥
+m=m̥
+n=n̥

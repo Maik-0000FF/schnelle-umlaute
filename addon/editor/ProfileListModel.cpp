@@ -154,7 +154,7 @@ ProfileListModel::ProfileListModel(QObject *parent)
 void ProfileListModel::onProfilesConfChanged() {
     // Both the engine and the editor rewrite profiles.conf via a temp-file
     // rename, which replaces the inode and drops the watch after one
-    // notification — re-add the path so later switches keep firing.
+    // notification. Re-add the path so later switches keep firing.
     const QString conf = profilesConfPath();
     if (confWatcher_ && QFile::exists(conf) &&
         !confWatcher_->files().contains(conf))

@@ -213,7 +213,13 @@ Item {
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: Theme.spacingSm
+                        // Reserve the scrollbar's width on the right while the
+                        // list is scrollable, so the overlay scrollbar never
+                        // sits on top of the trash (delete) button at the row's
+                        // right edge.
                         anchors.rightMargin: Theme.spacingXs
+                            + (list.contentHeight > list.height
+                               ? listScrollBar.width : 0)
                         spacing: Theme.spacingXs
 
                         // Active marker / toggle (checkmark). The star next to
@@ -403,7 +409,7 @@ Item {
                     }
                 }
 
-                ScrollBar.vertical: ScrollBar {}
+                ScrollBar.vertical: ScrollBar { id: listScrollBar }
             }
         }
     }
