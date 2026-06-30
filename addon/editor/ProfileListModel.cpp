@@ -1,12 +1,15 @@
 #include "ProfileListModel.h"
 #include "FcitxReload.h"
 #include "editor_paths.h"
+#include "preset_meta.h"
+#include "preset_paths.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
 #include <QTextStream>
+#include <QVariantMap>
 
 namespace {
 
@@ -212,7 +215,10 @@ bool ProfileListModel::fileExists(const QString &file, int excludeRow) const {
 // Build a unique "profiles/<slug>.txt" for a display name, suffixing -2, -3 …
 // if the base slug (or an existing file on disk) would collide.
 QString ProfileListModel::uniqueSlugFile(const QString &name) const {
-    QString base = slugify(name);
+    return uniqueFileForBase(slugify(name));
+}
+
+QString ProfileListModel::uniqueFileForBase(const QString &base) const {
     QDir dir(configDir() + QLatin1String(kProfilesSubdir));
     const QString prefix = QLatin1String(kProfilesSubdir) + QStringLiteral("/");
     int n = 1;
@@ -223,6 +229,16 @@ QString ProfileListModel::uniqueSlugFile(const QString &name) const {
         if (!fileExists(rel, -1) && !dir.exists(slug + QStringLiteral(".txt")))
             return rel;
         ++n;
+    }
+}
+
+QString ProfileListModel::uniqueName(const QString &base) const {
+    if (!nameExists(base, -1))
+        return base;
+    for (int n = 2;; ++n) {
+        QString cand = base + QChar(' ') + QString::number(n);
+        if (!nameExists(cand, -1))
+            return cand;
     }
 }
 
@@ -289,6 +305,69 @@ bool ProfileListModel::createProfile(const QString &name) {
     // defaults are seeded only for the Standard profile, in both the editor
     // model and the engine loader). The file is created on the first save once
     // the user adds mappings.
+    save();
+    return true;
+}
+
+QVariantList ProfileListModel::availablePresets() const {
+    QVariantList out;
+    const QString dirPath = schnelle_umlaute::presetsDir();
+    if (dirPath.isEmpty())
+        return out;
+    QDir dir(dirPath);
+    const QStringList files =
+        dir.entryList({QStringLiteral("*.txt")}, QDir::Files, QDir::Name);
+    for (const QString &fileName : files) {
+        const QString full = dir.filePath(fileName);
+        const QString base = QFileInfo(fileName).completeBaseName();
+        const schnelle_umlaute::PresetMeta meta =
+            schnelle_umlaute::readPresetMeta(full, base);
+        QVariantMap m;
+        m.insert(QStringLiteral("file"), full);
+        m.insert(QStringLiteral("name"), meta.name);
+        m.insert(QStringLiteral("description"), meta.description);
+        m.insert(QStringLiteral("count"), meta.mappingCount);
+        out.append(m);
+    }
+    return out;
+}
+
+bool ProfileListModel::addProfileFromPreset(const QString &presetFile) {
+    reloadActiveFromDisk();
+    // Defense in depth: only ever copy from inside the resolved presets dir,
+    // never an arbitrary path handed across the QML boundary.
+    const QString dirPath = schnelle_umlaute::presetsDir();
+    const QString canonDir = QFileInfo(dirPath).canonicalFilePath();
+    const QString canonSrc = QFileInfo(presetFile).canonicalFilePath();
+    if (canonDir.isEmpty() || canonSrc.isEmpty() ||
+        !canonSrc.startsWith(canonDir + QChar('/'))) {
+        Q_EMIT errorOccurred(tr("Unknown preset"));
+        return false;
+    }
+
+    const QString base = QFileInfo(canonSrc).completeBaseName();
+    const schnelle_umlaute::PresetMeta meta =
+        schnelle_umlaute::readPresetMeta(canonSrc, base);
+
+    Entry e;
+    e.name = uniqueName(meta.name);
+    e.file = uniqueFileForBase(slugify(base));
+
+    // Copy the preset's mappings into the user's writable config (verbatim, so a
+    // later re-read keeps the header). The unique name guarantees the
+    // destination does not yet exist; mkpath creates profiles/ on first use.
+    const QString dst = configDir() + e.file;
+    QDir().mkpath(QFileInfo(dst).absolutePath());
+    if (!QFile::copy(canonSrc, dst)) {
+        Q_EMIT errorOccurred(tr("Could not copy the preset"));
+        return false;
+    }
+
+    int row = static_cast<int>(entries_.size());
+    beginInsertRows(QModelIndex(), row, row);
+    entries_.push_back(e);
+    endInsertRows();
+    Q_EMIT countChanged();
     save();
     return true;
 }
@@ -498,6 +577,32 @@ void ProfileListModel::seedStandardIfEmpty(bool persist) {
         save();
 }
 
+int ProfileListModel::registerLooseProfiles() {
+    QDir dir(configDir() + QLatin1String(kProfilesSubdir));
+    if (!dir.exists())
+        return 0;
+    const QString prefix = QLatin1String(kProfilesSubdir) + QStringLiteral("/");
+    const QStringList files =
+        dir.entryList({QStringLiteral("*.txt")}, QDir::Files, QDir::Name);
+    int added = 0;
+    for (const QString &fileName : files) {
+        const QString rel = prefix + fileName;
+        // Skip files already registered in profiles.conf, and any name the
+        // shared rule rejects (keeps the editor and engine in agreement).
+        if (fileExists(rel, -1) || !isSafeProfileFile(rel))
+            continue;
+        const QString base = QFileInfo(fileName).completeBaseName();
+        const schnelle_umlaute::PresetMeta meta =
+            schnelle_umlaute::readPresetMeta(dir.filePath(fileName), base);
+        Entry e;
+        e.name = uniqueName(meta.name);
+        e.file = rel;
+        entries_.push_back(e);
+        ++added;
+    }
+    return added;
+}
+
 void ProfileListModel::load() {
     entries_.clear();
     active_.clear();
@@ -564,15 +669,25 @@ void ProfileListModel::load() {
 
     // Fresh install / pre-profiles upgrade: materialize the Standard profile
     // (pointing at the existing mappings.txt, which is never rewritten here).
+    bool dirty = false;
     if (entries_.empty()) {
         // Drop any dangling Active read from an otherwise-empty/corrupt file so
         // the seeded Standard becomes active.
         active_.clear();
-        seedStandardIfEmpty(/*persist=*/true);
-    } else if (active_.isEmpty() || activeRow() < 0) {
-        // Unknown/absent active falls back to the first profile.
-        active_ = entries_.front().name;
+        seedStandardIfEmpty(/*persist=*/false);
+        dirty = true;
     }
+    // Pick up loose profiles/*.txt the user dropped in (drop-in profiles) that
+    // profiles.conf does not list yet, and register them so they become usable.
+    if (registerLooseProfiles() > 0)
+        dirty = true;
+    // Unknown/absent active falls back to the first profile.
+    if (active_.isEmpty() || activeRow() < 0)
+        active_ = entries_.front().name;
+    // Persist once if the Standard was seeded or loose profiles were adopted;
+    // save() also fires the engine reload so the new entries take effect.
+    if (dirty)
+        save();
 }
 
 void ProfileListModel::reloadActiveFromDisk() {

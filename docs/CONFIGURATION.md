@@ -223,6 +223,32 @@ Cycling works with any Unicode characters — accents, emojis, symbols, Greek le
 
 ---
 
+## Profiles & ready-made libraries
+
+A **profile** is a named, switchable set of mappings. The protected **Standard** profile holds `mappings.txt`; every other profile lives in its own file under `profiles/` and is listed in `profiles.conf`:
+
+```
+# ~/.config/fcitx5/schnelle-umlaute/profiles.conf
+[Profiles/1]
+Name=Français
+File=profiles/francais.txt
+```
+
+Manage profiles from the dropdown at the top of the **Mappings** tab (add, rename, set active, assign switch shortcuts, mark favorites for cycling). There are two ways to get a ready-made profile in:
+
+**Add from library.** Expand **Add from library** in that dropdown to see the presets shipped with the app (e.g. *Français*, *Español*). Adding one **copies** it into your `profiles/` and registers it in one step — it appears immediately, no fcitx restart. Because it is a copy, your later edits to that profile are independent of the bundled template, so an app update never overwrites your customizations.
+
+**Drop a file in.** Copy any mapping `.txt` into `~/.config/fcitx5/schnelle-umlaute/profiles/` and reopen the editor: loose files there are auto-registered as profiles, so you can share and install profiles without hand-editing `profiles.conf`. A profile file may start with optional header comments that set its display name and description (otherwise the name is derived from the filename):
+
+```
+# Name: Français
+# Description: Accents français
+a=à,â,æ
+e=é,è,ê,ë
+```
+
+---
+
 ## Snippets (Text Expansion)
 
 Map a single key to an entire phrase or longer text. Useful for frequently typed words, signatures, or boilerplate text.

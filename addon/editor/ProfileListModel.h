@@ -6,6 +6,7 @@
 #include <QQmlEngine>
 #include <QString>
 #include <QStringList>
+#include <QVariantList>
 
 // Manages the mapping profiles stored in
 // ~/.config/fcitx5/schnelle-umlaute/profiles.conf. A profile maps a display
@@ -64,6 +65,13 @@ public:
     Q_INVOKABLE int activeRow() const;
 
     Q_INVOKABLE bool createProfile(const QString &name);
+    // Bundled-preset library: lists the read-only presets shipped with the app
+    // (each {file, name, description, count}) for the editor's "add from library"
+    // picker, and copies a chosen one into the user's profiles/<slug>.txt then
+    // registers it. The copy decouples the user's profile from the bundled
+    // template, so later customizations survive app updates.
+    Q_INVOKABLE QVariantList availablePresets() const;
+    Q_INVOKABLE bool addProfileFromPreset(const QString &presetFile);
     Q_INVOKABLE bool renameProfile(int row, const QString &name);
     Q_INVOKABLE bool removeProfile(int row);
     Q_INVOKABLE bool setActiveRow(int row);
@@ -112,6 +120,18 @@ private:
     // duplicate check treat "Alt+Control+j" and "Control+Alt+J" as the same.
     static QString canonicalCombo(const QString &combo);
     QString uniqueSlugFile(const QString &name) const;
+    // Like uniqueSlugFile but takes an already-slugified base (e.g. a preset's
+    // filename), suffixing -2, -3 … on collision. uniqueSlugFile slugifies a
+    // display name and delegates here.
+    QString uniqueFileForBase(const QString &base) const;
+    // A display name not yet taken, suffixing " 2", " 3" … on collision. Used
+    // when auto-registering a loose file whose derived name clashes.
+    QString uniqueName(const QString &base) const;
+    // Scans the user's profiles/ dir and appends an entry for every loose,
+    // not-yet-registered *.txt (drop-in profiles), deriving its name from the
+    // file. Returns how many were added; the caller persists if > 0. Mutates
+    // entries_ directly (called only from load(), before any view binds).
+    int registerLooseProfiles();
 
     static QString escapeValue(const QString &s);
     static QString unescapeValue(const QString &s);

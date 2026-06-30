@@ -180,6 +180,133 @@ Item {
                 color: Theme.border
             }
 
+            // Bundled-preset library: collapsed header that, when expanded,
+            // lists the presets shipped with the app. Adding one copies it into
+            // the user's profiles and registers it (model.addProfileFromPreset),
+            // so it appears in the list below and goes live immediately.
+            ColumnLayout {
+                id: library
+                Layout.fillWidth: true
+                spacing: Theme.spacingXs
+                visible: root.profilesModel
+
+                property var presets: []
+                property bool expanded: false
+                function toggle() {
+                    if (!expanded && root.profilesModel)
+                        presets = root.profilesModel.availablePresets();
+                    expanded = !expanded;
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 30
+                    radius: Theme.radiusSm
+                    color: libHover.hovered ? Theme.surfaceHover : "transparent"
+                    Text {
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.spacingSm
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: (library.expanded ? "▾  " : "▸  ")
+                              + qsTr("Add from library")
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                    }
+                    HoverHandler { id: libHover }
+                    TapHandler { onTapped: library.toggle() }
+                }
+
+                Text {
+                    visible: library.expanded && library.presets.length === 0
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Theme.spacingSm
+                    text: qsTr("No presets available")
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                }
+
+                Repeater {
+                    model: library.expanded ? library.presets : []
+                    delegate: Rectangle {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        implicitHeight: 38
+                        radius: Theme.radiusSm
+                        color: presetHover.hovered ? Theme.surfaceHover
+                                                   : "transparent"
+                        HoverHandler { id: presetHover }
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.spacingSm
+                            anchors.rightMargin: Theme.spacingXs
+                            spacing: Theme.spacingSm
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 0
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: modelData.name
+                                    color: Theme.text
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 13
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    visible: modelData.description.length > 0
+                                    text: modelData.description
+                                    color: Theme.textMuted
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 11
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            Rectangle {
+                                implicitHeight: 26
+                                implicitWidth: addPresetLabel.implicitWidth
+                                               + 2 * Theme.spacingMd
+                                radius: Theme.radiusSm
+                                color: addPresetMouse.containsMouse
+                                       ? Theme.accentHover : Theme.accent
+                                Behavior on color {
+                                    ColorAnimation { duration: Theme.animShort }
+                                }
+                                Text {
+                                    id: addPresetLabel
+                                    anchors.centerIn: parent
+                                    text: qsTr("Add")
+                                    color: Theme.onAccent
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 12
+                                    font.weight: Font.Medium
+                                }
+                                MouseArea {
+                                    id: addPresetMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.profilesModel.addProfileFromPreset(
+                                            modelData.file);
+                                        library.expanded = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: Theme.border
+            }
+
             ListView {
                 id: list
                 Layout.fillWidth: true
