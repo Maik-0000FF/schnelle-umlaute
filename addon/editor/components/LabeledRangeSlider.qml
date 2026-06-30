@@ -5,7 +5,7 @@ import SchnelleUmlaute
 
 // A two-handle range slider that defines an accent window [lower, upper] in
 // milliseconds. The lower handle is the minimum hold time (drag it up for a
-// PowerToys-style "hold first" feel); the upper handle is the latest moment a
+// "hold first" feel); the upper handle is the latest moment a
 // leader still triggers the accent. The lead (dead-time) duration is centered
 // above its own segment and the window duration above the window segment, each
 // in its region's colour; the window's end value sits neutral at the right.
@@ -81,18 +81,18 @@ RowLayout {
 
         // Lead (dead-time) duration, centered above its own segment
         // [from … lower] in the lead role colour, mirroring the window label
-        // below. Hidden when the segment is too narrow to host the number
-        // (including a zero lead), so it never collides with the window label.
+        // below. Shown for any non-zero lead and clamped to the track, so the
+        // value appears from the first step instead of staying hidden until the
+        // segment is wide enough to host it. At zero lead there is no segment,
+        // so it stays hidden (the value would be 0 and overlap the window label).
         Text {
             id: leadLabel
-            readonly property real segW:
-                track.xForValue(root.lowerValue) - track.xForValue(root.from)
             readonly property real mid:
                 (track.xForValue(root.from)
                  + track.xForValue(root.lowerValue)) / 2
             // width is 0 until the first text layout; require it so the label
             // doesn't flash for one frame before its real width is known.
-            visible: width > 0 && segW >= width
+            visible: width > 0 && root.lowerValue > root.from
             x: Math.max(0, Math.min(track.width - width, mid - width / 2))
             y: 0
             text: (root.lowerValue - root.from) + " " + root.suffix
