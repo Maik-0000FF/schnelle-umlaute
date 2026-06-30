@@ -362,16 +362,16 @@ Item {
                     }
 
                     Text {
-                        // Warning-coloured, not muted: this toggle has a global
-                        // side effect (it rewrites the shared classicui theme,
-                        // affecting other input methods), so it must read louder
-                        // than a plain field description.
+                        // Neutral (muted), like the other field descriptions:
+                        // it explains a global side effect (it rewrites the
+                        // shared classicui theme, affecting other input methods)
+                        // but the warning colour read as alarming for an opt-in.
                         visible: root.settingsModel
                             && root.settingsModel.overlayEnabled
                             && root.settingsModel.overlayPlacement === "TextCaret"
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        color: Theme.warning
+                        color: Theme.textMuted
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
                         text: qsTr("Styles fcitx5's candidate window globally (it affects other input methods too) and overrides your classicui theme while on. Turning it off restores your previous theme.")

@@ -127,21 +127,21 @@ Window {
             cellInactive: "#232832", cellInactiveBorder: "#2a2f3a",
             cellActive: "#60a5fa", cellActiveBorder: "#60a5fa",
             textInactive: "#e5e7eb", textActive: "#0f1115",
-            barLead: "#60a5fa", barWindow: "#f87171"
+            barLead: "#4ade80", barWindow: "#60a5fa"
         },
         "light": {
             frame: "#ffffff", border: "#d4d4d8",
             cellInactive: "#f4f4f5", cellInactiveBorder: "#d4d4d8",
             cellActive: "#2563eb", cellActiveBorder: "#2563eb",
             textInactive: "#0f172a", textActive: "#ffffff",
-            barLead: "#2563eb", barWindow: "#dc2626"
+            barLead: "#16a34a", barWindow: "#2563eb"
         },
         "contrast": {
             frame: "#000000", border: "#ffffff",
             cellInactive: "#0a0a0a", cellInactiveBorder: "#ffffff",
             cellActive: "#ffd60a", cellActiveBorder: "#ffd60a",
             textInactive: "#ffffff", textActive: "#000000",
-            barLead: "#ffd60a", barWindow: "#ffffff"
+            barLead: "#ffffff", barWindow: "#ffd60a"
         }
     })
     readonly property var p: palettes[OverlayController.theme]
