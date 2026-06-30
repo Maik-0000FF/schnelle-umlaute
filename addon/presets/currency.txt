@@ -1,0 +1,18 @@
+# Name: Currency
+# Description: Currency symbols (€ $ £ ¥ ₹ ₽ ₩ …)
+# Category: symbols
+
+b=฿
+c=¢,₡
+d=₫
+e=€
+f=ƒ
+h=₴
+k=₭
+m=₼
+p=£,₽,₱
+r=₹,៛,﷼
+s=$,₪
+t=₮,₺,₸
+w=₩
+y=¥
