@@ -4,7 +4,19 @@
 
 #include <QCoreApplication>
 
+#include <algorithm>
 #include <cstdio>
+#include <ctime>
+
+namespace {
+// Same monotonic clock the engine stamps the gesture start with (state.h's
+// nowUsec), so the two processes' timestamps are directly comparable.
+qint64 monotonicUsec() {
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return static_cast<qint64>(ts.tv_sec) * 1'000'000 + ts.tv_nsec / 1'000;
+}
+} // namespace
 
 OverlayController::OverlayController(QObject *parent) : QObject(parent) {}
 
@@ -60,9 +72,22 @@ void OverlayController::sendCursor(int x, int y) {
     Q_EMIT cursorReported(x, y);
 }
 
-void OverlayController::setProgress(int leadMs, int windowMs) {
+void OverlayController::setProgress(int leadMs, int windowMs, qint64 startUsec) {
     progressLeadMs_ = leadMs;
     progressWindowMs_ = windowMs;
+    // Measure how much of the gesture already elapsed by the time this message
+    // arrived, against the engine's start on the shared monotonic clock, and
+    // clamp into [0, total]. startUsec <= 0 (or a clock that ran backwards)
+    // disables the compensation. The QML bar starts pre-advanced by this so it
+    // closes in step with the engine's real window instead of latency-late.
+    const int total = std::max(0, leadMs) + std::max(0, windowMs);
+    if (startUsec > 0) {
+        const qint64 elapsedMs = (monotonicUsec() - startUsec) / 1'000;
+        progressElapsedMs_ =
+            static_cast<int>(std::clamp<qint64>(elapsedMs, 0, total));
+    } else {
+        progressElapsedMs_ = 0;
+    }
     progressActive_ = true;
     progressFrozen_ = false;
     Q_EMIT progressChanged();
@@ -109,8 +134,9 @@ void OverlayDBusAdaptor::SetTheme(const QString &theme) {
 // surface; revisit if the daemon ever gains a security boundary.
 void OverlayDBusAdaptor::SendCursor(int x, int y) { ctrl_->sendCursor(x, y); }
 
-void OverlayDBusAdaptor::SetProgress(int leadMs, int windowMs) {
-    ctrl_->setProgress(leadMs, windowMs);
+void OverlayDBusAdaptor::SetProgress(int leadMs, int windowMs,
+                                    qlonglong startUsec) {
+    ctrl_->setProgress(leadMs, windowMs, startUsec);
 }
 
 void OverlayDBusAdaptor::FreezeProgress() { ctrl_->freezeProgress(); }

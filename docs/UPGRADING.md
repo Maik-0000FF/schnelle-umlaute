@@ -1,5 +1,9 @@
 # Upgrading
 
+## Unreleased
+
+No config or mapping migration required. Pull / reinstall and restart fcitx5. If you have the overlay enabled, **restart the `schnelle-umlaute-overlay` daemon** (or toggle the overlay off and on in the editor) so the new build takes over. This release is the one where that restart matters functionally: the timing progress bar's update message gained a field, so an old daemon left running just won't draw the bar (cycling and the rest of the overlay are unaffected) until it restarts.
+
 ## Upgrading from v1.2.3 to v1.3.0
 
 `[Overlay] AtCursor` (added in 1.2.3) is replaced by `[Overlay] Placement` with three values: `Grid` (the fixed Row/Column position), `MouseCursor` (at the mouse pointer), and the new `TextCaret` (at the text input cursor, rendered through fcitx5's candidate window, so it needs no layer-shell and works on X11 too). The editor migrates an old `AtCursor=True` to `MouseCursor` automatically.

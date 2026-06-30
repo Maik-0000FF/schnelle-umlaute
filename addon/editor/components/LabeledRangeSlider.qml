@@ -44,10 +44,10 @@ RowLayout {
     }
 
     // Window start (lower bound). Coloured like its region and handle (the
-    // green dead-time/lead), so the number ties to the part it controls.
+    // dead-time/lead role colour), so the number ties to the part it controls.
     Text {
         text: root.lowerValue + " " + root.suffix
-        color: Theme.brand
+        color: Theme.sliderLead
         font.family: Theme.fontFamilyMono
         font.pixelSize: 12
         Layout.preferredWidth: 56
@@ -100,7 +100,7 @@ RowLayout {
             x: Math.max(0, Math.min(track.width - width, mid - width / 2))
             y: 0
             text: (root.upperValue - root.lowerValue) + " " + root.suffix
-            color: Theme.accent
+            color: Theme.sliderWindow
             font.family: Theme.fontFamilyMono
             font.pixelSize: 12
         }
@@ -115,15 +115,16 @@ RowLayout {
             color: Theme.border
         }
         // Dead-time (lead) region [from … lower]: the minimum hold before the
-        // accent window opens. Green, mirroring the overlay progress bar's
-        // lead segment ("time elapsing"); the window fill below is the accent.
+        // accent window opens, in the lead role colour (the overlay progress
+        // bar's "time elapsing" segment); the window fill below is the window
+        // role colour.
         Rectangle {
             x: 0
             width: Math.max(0, track.xForValue(root.lowerValue))
             height: 4
             radius: 2
             y: track.lineY - height / 2
-            color: Theme.brand
+            color: Theme.sliderLead
         }
         // Filled window between the two handles. Also the "move the window"
         // drag surface.
@@ -133,7 +134,8 @@ RowLayout {
             height: 4
             radius: 2
             y: track.lineY - height / 2
-            color: track.dragMode === 3 ? Theme.accentHover : Theme.accent
+            color: track.dragMode === 3 ? Theme.sliderWindowHover
+                                        : Theme.sliderWindow
         }
 
         // Handle visuals (input is handled by trackArea below so overlapping
@@ -146,10 +148,10 @@ RowLayout {
             y: track.lineY - height / 2
             z: track.dragMode === 1 ? 2 : 1
             // Lower handle is the dead-time (lead) bound, so it carries the
-            // same green as its region; the upper (window) handle stays accent.
-            // brandHover mirrors accentHover on the upper handle (one token per
-            // palette) instead of an inline lighten factor.
-            color: track.dragMode === 1 ? Theme.brandHover : Theme.brand
+            // lead role colour; the upper (window) handle carries the window
+            // role colour. The role tokens centralise the per-theme swap.
+            color: track.dragMode === 1 ? Theme.sliderLeadHover
+                                        : Theme.sliderLead
             border.color: Theme.background
             border.width: 2
         }
@@ -160,7 +162,8 @@ RowLayout {
             x: track.xForValue(root.upperValue) - width / 2
             y: track.lineY - height / 2
             z: track.dragMode === 2 ? 2 : 1
-            color: track.dragMode === 2 ? Theme.accentHover : Theme.accent
+            color: track.dragMode === 2 ? Theme.sliderWindowHover
+                                        : Theme.sliderWindow
             border.color: Theme.background
             border.width: 2
         }
@@ -244,10 +247,11 @@ RowLayout {
         }
     }
 
-    // Window end (upper bound)
+    // Window end (upper bound). Coloured in the window role, mirroring the
+    // lower-bound label's lead role, so both bound values match their region.
     Text {
         text: root.upperValue + " " + root.suffix
-        color: Theme.textMuted
+        color: Theme.sliderWindow
         font.family: Theme.fontFamilyMono
         font.pixelSize: 12
         Layout.preferredWidth: 60

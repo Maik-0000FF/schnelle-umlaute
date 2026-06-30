@@ -4,6 +4,7 @@
 #include "layer_shell_capability.h"
 #include "overlay_lifecycle.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -30,7 +31,9 @@ public:
     // Starts the timing progress bar: a lead-in segment of leadMs (the
     // min-hold) followed by a window segment of windowMs (max - min). The
     // daemon animates it; sent right before show() when the gesture begins.
-    void setProgress(int leadMs, int windowMs);
+    // startUsec is the gesture's start on CLOCK_MONOTONIC (state.h's nowUsec),
+    // so the daemon can pre-advance the bar by the delivery latency.
+    void setProgress(int leadMs, int windowMs, uint64_t startUsec);
     // Freezes the progress bar in place (called when a leader press starts
     // cycling, so the bar holds at the moment the window was caught).
     void freezeProgress();

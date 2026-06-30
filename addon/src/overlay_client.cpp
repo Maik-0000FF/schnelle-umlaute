@@ -49,14 +49,14 @@ void OverlayClient::hide() {
     bus_->flush();
 }
 
-void OverlayClient::setProgress(int leadMs, int windowMs) {
+void OverlayClient::setProgress(int leadMs, int windowMs, uint64_t startUsec) {
     if (!capability_.supported)
         return;
     if (!bus_ || !bus_->isOpen())
         return;
     auto msg =
         bus_->createMethodCall(kService, kPath, kInterface, "SetProgress");
-    msg << int32_t(leadMs) << int32_t(windowMs);
+    msg << int32_t(leadMs) << int32_t(windowMs) << int64_t(startUsec);
     msg.send();
     bus_->flush();
 }

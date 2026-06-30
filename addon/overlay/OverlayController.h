@@ -27,6 +27,12 @@ class OverlayController : public QObject {
         int progressWindowMs READ progressWindowMs NOTIFY progressChanged)
     Q_PROPERTY(bool progressActive READ progressActive NOTIFY progressChanged)
     Q_PROPERTY(bool progressFrozen READ progressFrozen NOTIFY progressChanged)
+    // How far the gesture had already elapsed (ms) when SetProgress arrived,
+    // measured against the engine's start timestamp on the shared monotonic
+    // clock. The QML bar starts pre-advanced by this so D-Bus delivery latency
+    // doesn't shift the visual window later than the engine's real one.
+    Q_PROPERTY(
+        int progressElapsedMs READ progressElapsedMs NOTIFY progressChanged)
 
 public:
     explicit OverlayController(QObject *parent = nullptr);
@@ -41,6 +47,7 @@ public:
     int progressWindowMs() const { return progressWindowMs_; }
     bool progressActive() const { return progressActive_; }
     bool progressFrozen() const { return progressFrozen_; }
+    int progressElapsedMs() const { return progressElapsedMs_; }
 
     // Called via DBus adapter
     void show(const QStringList &variants, int currentIndex,
@@ -53,8 +60,11 @@ public:
     // KWinCursorSource to it.
     void sendCursor(int x, int y);
     // Starts the progress timeline: leadMs lead-in then windowMs window. Marks
-    // it active and un-frozen.
-    void setProgress(int leadMs, int windowMs);
+    // it active and un-frozen. startUsec is the gesture's start on the engine's
+    // CLOCK_MONOTONIC clock; the elapsed offset since then (measured here on the
+    // same clock) is exposed as progressElapsedMs so the bar can compensate for
+    // delivery latency. startUsec <= 0 disables the compensation (elapsed 0).
+    void setProgress(int leadMs, int windowMs, qint64 startUsec);
     // Holds the bar at its current position (a leader caught the window).
     void freezeProgress();
 
@@ -81,6 +91,7 @@ private:
     QString theme_ = QStringLiteral("schnelle-umlaute");
     int progressLeadMs_ = 0;
     int progressWindowMs_ = 0;
+    int progressElapsedMs_ = 0;
     bool progressActive_ = false;
     bool progressFrozen_ = false;
 };
@@ -101,7 +112,7 @@ public Q_SLOTS:
     void SetTheme(const QString &theme);
     // Called by the KWin cursor script with the live global pointer pixel.
     void SendCursor(int x, int y);
-    void SetProgress(int leadMs, int windowMs);
+    void SetProgress(int leadMs, int windowMs, qlonglong startUsec);
     void FreezeProgress();
 
 private:

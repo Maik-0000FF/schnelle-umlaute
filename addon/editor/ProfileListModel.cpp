@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QSaveFile>
 #include <QTextStream>
 #include <QVariantMap>
@@ -121,8 +122,30 @@ bool ProfileListModel::isSafeProfileFile(const QString &file) {
 }
 
 ProfileListModel::ProfileListModel(QObject *parent)
-    : QAbstractListModel(parent) {
+    : QAbstractListModel(parent), confWatcher_(new QFileSystemWatcher(this)) {
     load();
+    // Watch profiles.conf so a runtime profile switch (the engine writes
+    // Active= on a shortcut) updates the active marker live, not just on the
+    // editor's own dropdown actions. load() above creates the file when it is
+    // missing, so the path exists to watch by now.
+    const QString conf = profilesConfPath();
+    if (QFile::exists(conf))
+        confWatcher_->addPath(conf);
+    connect(confWatcher_, &QFileSystemWatcher::fileChanged, this,
+            &ProfileListModel::onProfilesConfChanged);
+}
+
+void ProfileListModel::onProfilesConfChanged() {
+    // Both the engine and the editor rewrite profiles.conf via a temp-file
+    // rename, which replaces the inode and drops the watch after one
+    // notification — re-add the path so later switches keep firing.
+    const QString conf = profilesConfPath();
+    if (confWatcher_ && QFile::exists(conf) &&
+        !confWatcher_->files().contains(conf))
+        confWatcher_->addPath(conf);
+    // Adopt the active profile from disk and refresh the marker. This reads
+    // only the Active key, so the editor's own writes (same value) are a no-op.
+    reloadActiveFromDisk();
 }
 
 int ProfileListModel::rowCount(const QModelIndex &parent) const {
