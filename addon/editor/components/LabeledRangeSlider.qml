@@ -6,9 +6,10 @@ import SchnelleUmlaute
 // A two-handle range slider that defines an accent window [lower, upper] in
 // milliseconds. The lower handle is the minimum hold time (drag it up for a
 // PowerToys-style "hold first" feel); the upper handle is the latest moment a
-// leader still triggers the accent. The window's start time is shown on the
-// left, its end time on the right, and the computed window duration above the
-// track. Dragging the filled line between the handles moves the whole window.
+// leader still triggers the accent. The lead (dead-time) duration is centered
+// above its own segment and the window duration above the window segment, each
+// in its region's colour; the window's end value sits neutral at the right.
+// Dragging the filled line between the handles moves the whole window.
 //
 // Both handles stay reachable even when they sit on top of each other: a
 // press on a stacked (or near-stacked) pair is resolved by the first drag
@@ -43,17 +44,6 @@ RowLayout {
         Layout.preferredWidth: 120
     }
 
-    // Window start (lower bound). Coloured like its region and handle (the
-    // dead-time/lead role colour), so the number ties to the part it controls.
-    Text {
-        text: root.lowerValue + " " + root.suffix
-        color: Theme.sliderLead
-        font.family: Theme.fontFamilyMono
-        font.pixelSize: 12
-        Layout.preferredWidth: 56
-        horizontalAlignment: Text.AlignRight
-    }
-
     Item {
         id: track
         Layout.fillWidth: true
@@ -63,7 +53,8 @@ RowLayout {
         // Generous grab radius so either handle is easy to hit, including the
         // lower one when it sits at the far-left edge (value at "from").
         readonly property int hit: 22
-        // Top band holds the duration label, the lower band the track + handles.
+        // Top band holds the lead + window duration labels, the lower band the
+        // track + handles.
         readonly property int rowY: 16
         readonly property int rowH: implicitHeight - rowY
         readonly property real lineY: rowY + rowH / 2
@@ -86,6 +77,28 @@ RowLayout {
         function valueForX(px) {
             var t = clamp((px - handleW / 2) / spanW, 0, 1);
             return snap(root.from + t * (root.to - root.from));
+        }
+
+        // Lead (dead-time) duration, centered above its own segment
+        // [from … lower] in the lead role colour, mirroring the window label
+        // below. Hidden when the segment is too narrow to host the number
+        // (including a zero lead), so it never collides with the window label.
+        Text {
+            id: leadLabel
+            readonly property real segW:
+                track.xForValue(root.lowerValue) - track.xForValue(root.from)
+            readonly property real mid:
+                (track.xForValue(root.from)
+                 + track.xForValue(root.lowerValue)) / 2
+            // width is 0 until the first text layout; require it so the label
+            // doesn't flash for one frame before its real width is known.
+            visible: width > 0 && segW >= width
+            x: Math.max(0, Math.min(track.width - width, mid - width / 2))
+            y: 0
+            text: (root.lowerValue - root.from) + " " + root.suffix
+            color: Theme.sliderLead
+            font.family: Theme.fontFamilyMono
+            font.pixelSize: 12
         }
 
         // Computed window duration, centered above the window itself (the
@@ -247,11 +260,13 @@ RowLayout {
         }
     }
 
-    // Window end (upper bound). Coloured in the window role, mirroring the
-    // lower-bound label's lead role, so both bound values match their region.
+    // Window end (upper bound): the absolute end of the accent window. Kept
+    // neutral (muted) rather than in the window colour so it reads as a plain
+    // end-of-range readout, while the coloured in-track labels carry the
+    // lead/window roles.
     Text {
         text: root.upperValue + " " + root.suffix
-        color: Theme.sliderWindow
+        color: Theme.textMuted
         font.family: Theme.fontFamilyMono
         font.pixelSize: 12
         Layout.preferredWidth: 60

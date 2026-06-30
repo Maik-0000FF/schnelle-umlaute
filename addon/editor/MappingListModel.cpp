@@ -160,6 +160,13 @@ void MappingListModel::moveMapping(int from, int to) {
 void MappingListModel::setProfileFile(const QString &file) {
     QString f = file.isEmpty() ? QLatin1String(schnelle_umlaute::kMappingsFile)
                                : file;
+    // Defense in depth: profileFile is a writable property and resolveProfilePath
+    // just concatenates it onto the config dir. Every other profile path goes
+    // through the shared isSafeProfileFile rule; apply it here too so a relative
+    // or traversing value can never read or write outside the config dir. An
+    // unsafe value falls back to the Standard mappings file.
+    if (!schnelle_umlaute::isSafeProfileFile(f.toStdString()))
+        f = QLatin1String(schnelle_umlaute::kMappingsFile);
     if (f == profileFile_)
         return;
     profileFile_ = f;

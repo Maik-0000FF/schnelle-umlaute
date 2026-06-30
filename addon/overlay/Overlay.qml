@@ -77,11 +77,10 @@ Window {
     readonly property real progressWindowWidth:
         progressBarWidth - progressLeadWidth
     // Single time-based driver for the bar: the gesture's elapsed position in
-    // milliseconds across the whole [0, total] timeline. One NumberAnimation
-    // advances it; the lead/window fills derive their widths from it. Starting
-    // it at progressElapsedMs (the gesture's real age when SetProgress arrived)
-    // pre-advances the bar so delivery latency can't leave it open past the
-    // engine's real window.
+    // milliseconds across the whole [0, total] timeline. The FrameAnimation
+    // below re-samples it from the engine's monotonic clock every frame (see
+    // progressElapsedNowMs) so it can't drift from the real window; the
+    // lead/window fills derive their widths from it.
     property real progressNow: 0
     // True once the lead-in has elapsed and the leader window is open; drives
     // the panel reveal (the cells appear only when the window opens, not during
@@ -131,8 +130,13 @@ Window {
             frame: "#12101d", border: "#2a2640",
             cellInactive: "#1a1728", cellInactiveBorder: "#2a2640",
             cellActive: "#4ade80", cellActiveBorder: "#4ade80",
-            textInactive: "#f0fdf4", textActive: "#08060f",
-            barLead: "#4ade80", barWindow: "#a855f7"
+            // Green is this theme's signature/active colour (cellActive above),
+            // so the active leader window (barWindow) carries the green and the
+            // dead-time lead-in (barLead) the accent purple, the inverse of the
+            // other themes. This mirrors Theme.qml's sliderWindow/sliderLead swap
+            // so the editor slider and the overlay bar agree on which segment is
+            // which colour.
+            barLead: "#a855f7", barWindow: "#4ade80"
         },
         "dark": {
             frame: "#181b22", border: "#2a2f3a",
@@ -251,21 +255,33 @@ Window {
                          / Math.max(1, win.progressWindow)))
         }
 
-        // One linear driver across the whole timeline. It starts at the elapsed
-        // offset (the gesture's real age when this message arrived) and runs out
-        // the remaining time, so delivery latency shifts neither the window's
-        // open nor its close. paused holds it when a leader freezes the window.
-        NumberAnimation {
-            target: win
-            property: "progressNow"
+        // Sample the engine's real elapsed time every frame rather than letting
+        // one NumberAnimation interpolate the whole timeline. That animation
+        // began a render frame or two after SetProgress arrived yet ran the full
+        // remaining duration, so it finished late and left the window-fill open
+        // by a sliver right at the closing edge, the mismatch visible at the
+        // boundary. FrameAnimation ties the update to the render loop and reads
+        // progressElapsedNowMs() (the shared monotonic clock) each frame, so the
+        // bar tracks the real timeline with only sub-frame, non-cumulative
+        // error. Stopped while frozen so a caught window holds the bar in place.
+        FrameAnimation {
             running: OverlayController.progressActive
-            paused: OverlayController.progressFrozen
-            from: Math.min(win.progressTotal,
-                           OverlayController.progressElapsedMs)
-            to: win.progressTotal
-            duration: Math.max(0, win.progressTotal
-                                  - OverlayController.progressElapsedMs)
-            easing.type: Easing.Linear
+                     && !OverlayController.progressFrozen
+            onTriggered: win.progressNow =
+                OverlayController.progressElapsedNowMs()
+        }
+
+        // Snap to the arrival-time elapsed the instant a gesture starts, so the
+        // bar never shows one stale frame from the previous gesture before the
+        // FrameAnimation's first tick. Only on a fresh, unfrozen start; a freeze
+        // must leave progressNow where it is.
+        Connections {
+            target: OverlayController
+            function onProgressChanged() {
+                if (OverlayController.progressActive
+                    && !OverlayController.progressFrozen)
+                    win.progressNow = OverlayController.progressElapsedMs
+            }
         }
     }
 

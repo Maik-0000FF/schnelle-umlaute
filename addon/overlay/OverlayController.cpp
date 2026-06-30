@@ -81,6 +81,7 @@ void OverlayController::setProgress(int leadMs, int windowMs, qint64 startUsec) 
     // disables the compensation. The QML bar starts pre-advanced by this so it
     // closes in step with the engine's real window instead of latency-late.
     const int total = std::max(0, leadMs) + std::max(0, windowMs);
+    progressStartUsec_ = startUsec;
     if (startUsec > 0) {
         const qint64 elapsedMs = (monotonicUsec() - startUsec) / 1'000;
         progressElapsedMs_ =
@@ -107,6 +108,15 @@ int OverlayController::progressBarLength(int totalMs, int screenWidth) const {
 int OverlayController::progressLeadLength(int barLen, int leadMs,
                                           int totalMs) const {
     return schnelle_umlaute::progress::leadLength(barLen, leadMs, totalMs);
+}
+
+int OverlayController::progressElapsedNowMs() const {
+    const int total =
+        std::max(0, progressLeadMs_) + std::max(0, progressWindowMs_);
+    if (progressStartUsec_ <= 0)
+        return std::clamp(progressElapsedMs_, 0, total);
+    const qint64 elapsedMs = (monotonicUsec() - progressStartUsec_) / 1'000;
+    return static_cast<int>(std::clamp<qint64>(elapsedMs, 0, total));
 }
 
 OverlayDBusAdaptor::OverlayDBusAdaptor(OverlayController *ctrl)
