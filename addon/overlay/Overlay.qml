@@ -132,7 +132,7 @@ Window {
             cellActive: "#4ade80", cellActiveBorder: "#4ade80",
             // Green is this theme's signature/active colour (cellActive above),
             // so the active leader window (barWindow) carries the green and the
-            // dead-time lead-in (barLead) the accent purple — the inverse of the
+            // dead-time lead-in (barLead) the accent purple, the inverse of the
             // other themes. This mirrors Theme.qml's sliderWindow/sliderLead swap
             // so the editor slider and the overlay bar agree on which segment is
             // which colour.
@@ -259,7 +259,7 @@ Window {
         // one NumberAnimation interpolate the whole timeline. That animation
         // began a render frame or two after SetProgress arrived yet ran the full
         // remaining duration, so it finished late and left the window-fill open
-        // by a sliver right at the closing edge — the mismatch visible at the
+        // by a sliver right at the closing edge, the mismatch visible at the
         // boundary. FrameAnimation ties the update to the render loop and reads
         // progressElapsedNowMs() (the shared monotonic clock) each frame, so the
         // bar tracks the real timeline with only sub-frame, non-cumulative

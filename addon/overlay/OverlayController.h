@@ -79,7 +79,7 @@ public:
     // Live elapsed time (ms) since the gesture start on the shared monotonic
     // clock, clamped to [0, total]. The QML bar samples this every frame so it
     // tracks the engine's real timeline instead of interpolating from a
-    // once-set, late-started animation clock — that clock starts a frame or two
+    // once-set, late-started animation clock. That clock starts a frame or two
     // after SetProgress arrives but runs the full remaining duration, so it
     // finishes late and leaves the window open by a sliver right at the closing
     // edge. Sampling the real clock each frame keeps the error sub-frame and
