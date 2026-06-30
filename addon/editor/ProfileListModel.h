@@ -8,6 +8,8 @@
 #include <QStringList>
 #include <QVariantList>
 
+class QFileSystemWatcher;
+
 // Manages the mapping profiles stored in
 // ~/.config/fcitx5/schnelle-umlaute/profiles.conf. A profile maps a display
 // Name to a relative File ("mappings.txt" for the protected Standard profile,
@@ -143,12 +145,19 @@ private:
     // the editor's stale in-memory active_.
     void reloadActiveFromDisk();
     void seedStandardIfEmpty(bool persist);
+    // Re-read the active profile when profiles.conf changes on disk, so the
+    // active marker follows a runtime profile switch the engine made via a
+    // shortcut (not just the editor's own dropdown actions).
+    void onProfilesConfChanged();
 
     std::vector<Entry> entries_;
     QString active_;
     QString cycleNext_;
     QString cyclePrev_;
     int revision_ = 0;
+    // Watches profiles.conf for external writes (the engine persists Active=
+    // on every shortcut switch). Owned via the QObject parent.
+    QFileSystemWatcher *confWatcher_ = nullptr;
 };
 
 #endif
