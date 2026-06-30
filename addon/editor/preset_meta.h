@@ -20,6 +20,8 @@ namespace schnelle_umlaute {
 struct PresetMeta {
     QString name;        // display name (header "# Name:" or titleized base)
     QString description; // optional ("# Description:")
+    QString category;    // optional ("# Category:"), lowercased grouping key
+                         // ("language" / "symbols" / "emoji"); empty -> "other"
     int mappingCount = 0;
 };
 
@@ -74,6 +76,8 @@ inline PresetMeta readPresetMeta(const QString &path, const QString &baseName) {
                 meta.name = val;
             else if (key == QStringLiteral("description"))
                 meta.description = val;
+            else if (key == QStringLiteral("category"))
+                meta.category = val.toLower();
             continue;
         }
         // First non-comment line ends the header block; mappings have a '='.

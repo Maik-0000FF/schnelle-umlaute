@@ -34,21 +34,35 @@ Item {
         SettingsCard {
             titleText: qsTr("Profile")
 
-            ProfileSelector {
+            // Profile dropdown fills the row; the library is a compact button to
+            // its right, opening its own (wider) standalone menu so neither popup
+            // crowds the other.
+            RowLayout {
                 Layout.fillWidth: true
-                profilesModel: root.profilesModel
-                mappingsModel: root.mappingsModel
-                onRequestSnackbar: (msg, c) => root.requestSnackbar(msg, c)
-                onRequestDelete: (index, name) => {
-                    profileConfirm.messageText = qsTr(
-                        "Delete the profile “%1”? Its mappings file is removed."
-                    ).arg(name);
-                    profileConfirm.onConfirmed = () => {
-                        if (root.profilesModel.removeProfile(index))
-                            root.requestSnackbar(qsTr("Profile deleted"),
-                                                 Theme.textMuted);
-                    };
-                    profileConfirm.open();
+                spacing: Theme.spacingMd
+
+                ProfileSelector {
+                    Layout.fillWidth: true
+                    profilesModel: root.profilesModel
+                    mappingsModel: root.mappingsModel
+                    onRequestSnackbar: (msg, c) => root.requestSnackbar(msg, c)
+                    onRequestDelete: (index, name) => {
+                        profileConfirm.messageText = qsTr(
+                            "Delete the profile “%1”? Its mappings file is removed."
+                        ).arg(name);
+                        profileConfirm.onConfirmed = () => {
+                            if (root.profilesModel.removeProfile(index))
+                                root.requestSnackbar(qsTr("Profile deleted"),
+                                                     Theme.textMuted);
+                        };
+                        profileConfirm.open();
+                    }
+                }
+
+                LibrarySelector {
+                    Layout.alignment: Qt.AlignTop
+                    profilesModel: root.profilesModel
+                    onRequestSnackbar: (msg, c) => root.requestSnackbar(msg, c)
                 }
             }
 
