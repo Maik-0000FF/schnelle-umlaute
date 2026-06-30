@@ -1,0 +1,9 @@
+# Name: Dansk
+# Description: å æ ø
+# Category: language
+
+a=å,æ
+o=ø
+
+A=Å,Æ
+O=Ø

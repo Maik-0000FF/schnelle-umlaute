@@ -1,0 +1,9 @@
+# Name: Suomi
+# Description: ä å ö
+# Category: language
+
+a=ä,å
+o=ö
+
+A=Ä,Å
+O=Ö

@@ -1,0 +1,17 @@
+# Name: Português
+# Description: ã á à â ç é ê í ó õ ô ú
+# Category: language
+
+a=ã,á,à,â
+c=ç
+e=é,ê
+i=í
+o=ó,õ,ô
+u=ú
+
+A=Ã,Á,À,Â
+C=Ç
+E=É,Ê
+I=Í
+O=Ó,Õ,Ô
+U=Ú

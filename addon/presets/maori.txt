@@ -1,0 +1,15 @@
+# Name: Māori
+# Description: ā ē ī ō ū
+# Category: language
+
+a=ā
+e=ē
+i=ī
+o=ō
+u=ū
+
+A=Ā
+E=Ē
+I=Ī
+O=Ō
+U=Ū

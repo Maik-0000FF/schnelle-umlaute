@@ -1,0 +1,15 @@
+# Name: Gaeilge
+# Description: á é í ó ú
+# Category: language
+
+a=á
+e=é
+i=í
+o=ó
+u=ú
+
+A=Á
+E=É
+I=Í
+O=Ó
+U=Ú
