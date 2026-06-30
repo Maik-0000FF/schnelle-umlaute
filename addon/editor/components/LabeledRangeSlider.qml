@@ -247,10 +247,11 @@ RowLayout {
         }
     }
 
-    // Window end (upper bound)
+    // Window end (upper bound). Coloured in the window role, mirroring the
+    // lower-bound label's lead role, so both bound values match their region.
     Text {
         text: root.upperValue + " " + root.suffix
-        color: Theme.textMuted
+        color: Theme.sliderWindow
         font.family: Theme.fontFamilyMono
         font.pixelSize: 12
         Layout.preferredWidth: 60
