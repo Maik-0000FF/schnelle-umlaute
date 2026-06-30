@@ -124,6 +124,21 @@ QtObject {
     // textActive (the signature theme highlights in green, not the accent).
     readonly property color highlight:    p.highlight
     readonly property color onHighlight:  p.onHighlight
+    // Delay range slider role colours: the active window vs the dead-time
+    // (lead). Normally the window carries the accent and the lead the brand
+    // green. In schnelle-umlaute green IS the signature/active colour, so the
+    // window takes the green and the lead the accent there, keeping the active
+    // part on the theme's identity colour like every other theme does. The
+    // overlay's progress bar keeps its own (unchanged) palette, so this swap is
+    // editor-slider only.
+    readonly property color sliderWindow:
+        current === "schnelle-umlaute" ? brand : accent
+    readonly property color sliderWindowHover:
+        current === "schnelle-umlaute" ? brandHover : accentHover
+    readonly property color sliderLead:
+        current === "schnelle-umlaute" ? accent : brand
+    readonly property color sliderLeadHover:
+        current === "schnelle-umlaute" ? accentHover : brandHover
     readonly property color switchThumb:  p.switchThumb
     readonly property color scrim:        p.scrim
 
