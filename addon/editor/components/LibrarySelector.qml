@@ -67,7 +67,11 @@ Item {
     function openPopup() {
         if (root.profilesModel)
             root.allPresets = root.profilesModel.availablePresets();
-        root.query = "";
+        // Clear the source field, not just the derived query: the TextField
+        // survives the popup closing, so resetting only root.query would leave
+        // stale text in the box out of sync with the (empty) filter. Assigning
+        // text drives query via onTextChanged.
+        searchField.text = "";
         popup.open();
     }
 
@@ -266,13 +270,18 @@ Item {
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    if (root.profilesModel) {
-                                                        root.profilesModel.addProfileFromPreset(
-                                                            modelData.file);
+                                                    // Only confirm on success;
+                                                    // a failed add emits
+                                                    // errorOccurred (shown as an
+                                                    // error snackbar) and returns
+                                                    // false, so a green "Added"
+                                                    // toast would contradict it.
+                                                    if (root.profilesModel
+                                                        && root.profilesModel.addProfileFromPreset(
+                                                            modelData.file))
                                                         root.requestSnackbar(
                                                             qsTr("Added “%1”").arg(modelData.name),
                                                             Theme.success);
-                                                    }
                                                     popup.close();
                                                 }
                                             }
