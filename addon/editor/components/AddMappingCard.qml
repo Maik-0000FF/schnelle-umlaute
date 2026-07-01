@@ -109,7 +109,7 @@ Rectangle {
                 implicitHeight: Theme.controlHeightLg
                 contentItem: Text {
                     text: addBtn.text
-                    color: addBtn.enabled ? "#ffffff" : Theme.textMuted
+                    color: addBtn.enabled ? Theme.onAccent : Theme.textMuted
                     font.pixelSize: Theme.fontStrong
                     font.weight: Font.Medium
                     horizontalAlignment: Text.AlignHCenter
