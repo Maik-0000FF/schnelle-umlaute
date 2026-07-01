@@ -65,7 +65,7 @@ ColumnLayout {
 
     ColumnLayout {
         Layout.fillWidth: true
-        spacing: 2
+        spacing: Theme.spacingXxs
         visible: root.items.length > 0
 
         Repeater {

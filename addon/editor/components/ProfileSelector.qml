@@ -190,7 +190,7 @@ Item {
                 // popup cap so the add-row above never gets pushed off.
                 Layout.preferredHeight: Math.min(contentHeight, 240)
                 clip: true
-                spacing: 2
+                spacing: Theme.spacingXxs
                 model: root.profilesModel
                 boundsBehavior: Flickable.StopAtBounds
 

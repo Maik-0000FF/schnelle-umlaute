@@ -138,7 +138,7 @@ Item {
                 anchors.fill: parent
                 anchors.margins: Theme.spacingSm
                 clip: true
-                spacing: 2
+                spacing: Theme.spacingXxs
                 visible: root.mappingsModel && root.mappingsModel.count > 0
                 model: root.mappingsModel
                 boundsBehavior: Flickable.StopAtBounds

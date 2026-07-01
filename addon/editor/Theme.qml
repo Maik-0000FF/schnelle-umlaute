@@ -195,6 +195,7 @@ QtObject {
     // and the cycle fields.
     readonly property int shortcutFieldWidth: 184
 
+    readonly property int spacingXxs: 2
     readonly property int spacingXs: 4
     readonly property int spacingSm: 8
     readonly property int spacingMd: 12

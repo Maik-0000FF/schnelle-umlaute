@@ -107,7 +107,7 @@ ComboBox {
         // Cap the dropdown so very large models still fit on small
         // screens — 6 rows × 32 px + 2 × 4 px padding.
         implicitHeight: Math.min(contentItem.implicitHeight + 8, 6 * 32 + 8)
-        padding: 4
+        padding: Theme.spacingXs
 
         contentItem: ListView {
             clip: true

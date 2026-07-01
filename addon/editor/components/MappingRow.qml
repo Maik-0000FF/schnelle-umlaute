@@ -26,6 +26,10 @@ Rectangle {
     property var settingsModel: null
     property bool editing: false
 
+    // Read-only input cell width, shared with the error/warning rows below so
+    // their text lines up under the output column.
+    readonly property int inputCellWidth: 44
+
     signal removeRequested()
     signal editStartRequested()
     signal editEndRequested()
@@ -78,7 +82,7 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: Theme.spacingMd
         anchors.rightMargin: Theme.spacingSm
-        spacing: 2
+        spacing: Theme.spacingXxs
 
         RowLayout {
             Layout.fillWidth: true
@@ -136,7 +140,7 @@ Rectangle {
         }
 
         Rectangle {
-            width: 44
+            width: root.inputCellWidth
             height: Theme.controlHeight
             radius: Theme.radiusSm
             color: Theme.background
@@ -256,7 +260,7 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            Layout.leftMargin: 44 + Theme.spacingMd
+            Layout.leftMargin: root.inputCellWidth + Theme.spacingMd
             visible: root.editing && root.editInputError !== "" &&
                      inputEdit.text.length > 0
             text: root.editInputError
@@ -268,7 +272,7 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            Layout.leftMargin: 44 + Theme.spacingMd
+            Layout.leftMargin: root.inputCellWidth + Theme.spacingMd
             visible: root.staticLeaderConflict ||
                      (root.editing && root.editLeaderConflict &&
                       root.editInputError === "")
