@@ -56,6 +56,19 @@ Item {
         border.width: 1
         Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
+        // Reachable by Tab; Space/Enter/Down open the dropdown.
+        activeFocusOnTab: true
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter || event.key === Qt.Key_Down) {
+                if (!popup.visible)
+                    popup.open();
+                event.accepted = true;
+            }
+        }
+
+        FocusRing { visible: header.activeFocus }
+
         Text {
             anchors.left: parent.left
             anchors.leftMargin: Theme.spacingMd
@@ -78,7 +91,10 @@ Item {
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: popup.visible ? popup.close() : popup.open()
+            onClicked: {
+                header.forceActiveFocus();
+                popup.visible ? popup.close() : popup.open();
+            }
         }
     }
 
@@ -92,6 +108,22 @@ Item {
         // closing-then-reopening on the same click. A click anywhere else still
         // dismisses it.
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        // On open, move keyboard focus into the list and land the cursor on the
+        // current edit target; on close, hand focus back to the header.
+        onOpened: {
+            if (root.profilesModel && root.mappingsModel) {
+                let target = 0;
+                for (let i = 0; i < root.profilesModel.count; i++)
+                    if (root.profilesModel.fileForRow(i)
+                        === root.mappingsModel.profileFile) {
+                        target = i;
+                        break;
+                    }
+                list.currentIndex = target;
+            }
+            list.forceActiveFocus();
+        }
+        onClosed: header.forceActiveFocus()
         // Cap the whole popup so a long profile list still fits small editor
         // windows; the inner list gets its own (smaller) cap below so the
         // add-row and separator always stay visible above it.
@@ -194,6 +226,43 @@ Item {
                 model: root.profilesModel
                 boundsBehavior: Flickable.StopAtBounds
 
+                // Up/Down move the current row (keyNavigationEnabled); the keys
+                // below act on it: Enter selects the edit target, F2 renames,
+                // Delete removes, A sets active, F toggles favorite.
+                keyNavigationEnabled: true
+                Keys.onPressed: (event) => {
+                    const it = list.currentItem;
+                    if (!it)
+                        return;
+                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        if (root.profilesModel && root.mappingsModel) {
+                            root.mappingsModel.profileFile =
+                                root.profilesModel.fileForRow(it.index);
+                            popup.close();
+                        }
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_F2) {
+                        it.renaming = true;
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_Delete) {
+                        if (!it.isProtected) {
+                            popup.close();
+                            root.requestDelete(it.index, it.name);
+                        }
+                        event.accepted = true;
+                    } else if (event.text === "a") {
+                        if (root.profilesModel && !it.isActive
+                            && root.profilesModel.setActiveRow(it.index))
+                            root.requestSnackbar(
+                                qsTr("Switched to “%1”").arg(it.name), Theme.accent);
+                        event.accepted = true;
+                    } else if (event.text === "f") {
+                        if (root.profilesModel)
+                            root.profilesModel.setFavorite(it.index, !it.favorite);
+                        event.accepted = true;
+                    }
+                }
+
                 delegate: Rectangle {
                     id: prow
                     required property int index
@@ -205,10 +274,16 @@ Item {
                     width: ListView.view.width
                     height: Theme.rowHeight
                     radius: Theme.radiusSm
-                    color: prowHover.hovered ? Theme.surfaceHover : "transparent"
+                    color: (prow.ListView.isCurrentItem && list.activeFocus)
+                           || prowHover.hovered ? Theme.surfaceHover : "transparent"
                     property bool renaming: false
 
                     HoverHandler { id: prowHover }
+
+                    // Keyboard focus indicator for the current row.
+                    FocusRing {
+                        visible: prow.ListView.isCurrentItem && list.activeFocus
+                    }
 
                     RowLayout {
                         anchors.fill: parent
@@ -241,7 +316,7 @@ Item {
                             ThemedToolTip {
                                 visible: activeMouse.containsMouse
                                 text: prow.isActive ? qsTr("Active profile")
-                                                    : qsTr("Set as active")
+                                                    : qsTr("Set as active (A)")
                             }
                             MouseArea {
                                 id: activeMouse
@@ -277,7 +352,7 @@ Item {
                                 visible: favMouse.containsMouse
                                 text: prow.favorite
                                       ? qsTr("Favorite (in cycle)")
-                                      : qsTr("Add to cycle favorites")
+                                      : qsTr("Add to cycle favorites (F)")
                             }
                             MouseArea {
                                 id: favMouse
@@ -376,7 +451,7 @@ Item {
                             background: Rectangle { color: "transparent" }
                             ThemedToolTip {
                                 visible: parent.hovered
-                                text: qsTr("Rename profile")
+                                text: qsTr("Rename profile (F2)")
                             }
                             onClicked: prow.renaming = true
                         }
@@ -399,7 +474,7 @@ Item {
                             background: Rectangle { color: "transparent" }
                             ThemedToolTip {
                                 visible: parent.hovered
-                                text: qsTr("Delete profile")
+                                text: qsTr("Delete profile (Del)")
                             }
                             onClicked: {
                                 popup.close();
