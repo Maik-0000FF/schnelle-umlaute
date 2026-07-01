@@ -169,9 +169,10 @@ Window {
     // Cell-text colours read through accessors with a fallback to an always-
     // defined palette key, so a palette that omits textInactive/textActive
     // degrades to a visible on-theme colour instead of silently rendering
-    // black (undefined coerces to #000000). Inactive text falls back to the
-    // accent (visible on the dark inactive cell), active text to the frame
-    // (dark, visible on the bright active cell).
+    // black (undefined coerces to #000000). Inactive text falls back to
+    // cellActive (the active-cell colour, visible on the dark inactive cell),
+    // active text to frame (the panel colour, visible on the bright active
+    // cell).
     readonly property color textActiveColor: p.textActive || p.frame
     readonly property color textInactiveColor: p.textInactive || p.cellActive
 
