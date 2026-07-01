@@ -48,7 +48,7 @@ ColumnLayout {
             implicitHeight: Theme.controlHeight
             contentItem: Text {
                 text: addBtn.text
-                color: addBtn.enabled ? Theme.onAccent : Theme.textMuted
+                color: addBtn.enabled ? Theme.switchThumb : Theme.textMuted
                 font.pixelSize: Theme.fontStrong
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter

@@ -141,15 +141,15 @@ Item {
                     implicitHeight: Theme.controlHeightSm
                     implicitWidth: implicitHeight
                     radius: Theme.radiusSm
-                    opacity: ready ? 1.0 : 0.4
-                    color: addMouse.containsMouse && ready ? Theme.accentHover
-                                                           : Theme.accent
+                    color: ready
+                        ? (addMouse.containsMouse ? Theme.accentHover : Theme.accent)
+                        : Theme.surfaceHover
                     Behavior on color { ColorAnimation { duration: Theme.animShort } }
                     Text {
                         id: addLabel
                         anchors.centerIn: parent
                         text: Theme.iconAdd
-                        color: Theme.onAccent
+                        color: addBtn.ready ? Theme.switchThumb : Theme.textMuted
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontStrong
                         font.weight: Font.Medium

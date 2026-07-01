@@ -258,7 +258,7 @@ Item {
                                                 id: addLabel
                                                 anchors.centerIn: parent
                                                 text: Theme.iconAdd
-                                                color: Theme.onAccent
+                                                color: Theme.switchThumb
                                                 font.family: Theme.fontFamily
                                                 font.pixelSize: Theme.fontStrong
                                                 font.weight: Font.Medium
