@@ -143,6 +143,43 @@ Item {
                 model: root.mappingsModel
                 boundsBehavior: Flickable.StopAtBounds
 
+                // Reachable by Tab; Up/Down move the current row (shown with a
+                // ring), Alt+Up/Down reorder it, Enter/F2 edit it, Delete
+                // removes it. While a row is being edited the fields handle keys.
+                activeFocusOnTab: true
+                keyNavigationEnabled: true
+                Keys.onPressed: (event) => {
+                    if (listView.editingIndex !== -1 || !root.mappingsModel)
+                        return;
+                    const i = listView.currentIndex;
+                    if (i < 0)
+                        return;
+                    if ((event.modifiers & Qt.AltModifier)
+                        && event.key === Qt.Key_Up) {
+                        if (i > 0) {
+                            root.mappingsModel.moveMapping(i, i - 1);
+                            listView.currentIndex = i - 1;
+                        }
+                        event.accepted = true;
+                    } else if ((event.modifiers & Qt.AltModifier)
+                               && event.key === Qt.Key_Down) {
+                        if (i < root.mappingsModel.count - 1) {
+                            root.mappingsModel.moveMapping(i, i + 1);
+                            listView.currentIndex = i + 1;
+                        }
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_Return
+                               || event.key === Qt.Key_Enter
+                               || event.key === Qt.Key_F2) {
+                        listView.editingIndex = i;
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_Delete) {
+                        if (listView.currentItem)
+                            listView.currentItem.removeRequested();
+                        event.accepted = true;
+                    }
+                }
+
                 moveDisplaced: Transition {
                     NumberAnimation { properties: "y"; duration: 180; easing.type: Easing.OutCubic }
                 }

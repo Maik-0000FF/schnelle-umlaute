@@ -6,7 +6,10 @@ import SchnelleUmlaute
 Rectangle {
     id: root
     radius: Theme.radiusMd
-    color: hoverHandler.hovered ? Theme.surfaceHover : "transparent"
+    // Highlighted while it is the keyboard-current row of the list.
+    readonly property bool isCurrent:
+        ListView.isCurrentItem && ListView.view && ListView.view.activeFocus
+    color: (hoverHandler.hovered || isCurrent) ? Theme.surfaceHover : "transparent"
     border.color: editing ? Theme.borderFocus : "transparent"
     border.width: 1
     height: col.implicitHeight + 8
@@ -16,6 +19,10 @@ Rectangle {
     // (drag handle, buttons) — which otherwise stole hover and made the row
     // background flicker.
     HoverHandler { id: hoverHandler }
+
+    // Keyboard focus indicator for the current row (hidden while editing, where
+    // the input fields carry their own focus styling).
+    FocusRing { visible: root.isCurrent && !root.editing }
 
     Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
