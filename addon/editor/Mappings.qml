@@ -152,6 +152,15 @@ Item {
 
                 property int editingIndex: -1
 
+                // Switching the edit target reloads the model in place, but the
+                // row-index-keyed editingIndex would otherwise survive and reopen
+                // an unconfirmed edit at the same position in the new profile.
+                // Discard any open edit whenever the profile changes.
+                Connections {
+                    target: root.mappingsModel
+                    function onProfileFileChanged() { listView.editingIndex = -1; }
+                }
+
                 delegate: MappingRow {
                     required property int index
                     required property string input
