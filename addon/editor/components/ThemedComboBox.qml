@@ -68,7 +68,8 @@ ComboBox {
         required property var modelData
         width: combo.width
         // Custom contentItem supplies its own padding; clear the style's so
-        // row height is fixed at 32 regardless of style / Qt version.
+        // the row height is fixed at Theme.controlHeight regardless of style /
+        // Qt version.
         padding: 0
         implicitHeight: Theme.controlHeight
         readonly property bool current: combo.currentIndex === index
@@ -104,9 +105,10 @@ ComboBox {
     popup: Popup {
         y: combo.height + 2
         width: combo.width
-        // Cap the dropdown so very large models still fit on small
-        // screens — 6 rows × 32 px + 2 × 4 px padding.
-        implicitHeight: Math.min(contentItem.implicitHeight + 8, 6 * 32 + 8)
+        // Cap the dropdown so very large models still fit on small screens:
+        // 6 rows plus the popup's top and bottom padding.
+        implicitHeight: Math.min(contentItem.implicitHeight + 2 * Theme.spacingXs,
+                                 6 * Theme.controlHeight + 2 * Theme.spacingXs)
         padding: Theme.spacingXs
 
         contentItem: ListView {
