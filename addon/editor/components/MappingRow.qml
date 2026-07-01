@@ -192,6 +192,10 @@ Rectangle {
             font.family: Theme.fontFamilyMono
             font.pixelSize: Theme.fontStrong
             elide: Text.ElideRight
+            // Force left alignment: an output with a right-to-left symbol (e.g.
+            // the currency preset's rial ﷼) would otherwise flip the column to
+            // the right edge.
+            horizontalAlignment: Text.AlignLeft
         }
 
         ThemedTextField {
@@ -201,6 +205,7 @@ Rectangle {
             text: root.outputText
             font.family: Theme.fontFamilyMono
             font.pixelSize: Theme.fontStrong
+            horizontalAlignment: TextInput.AlignLeft
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background
