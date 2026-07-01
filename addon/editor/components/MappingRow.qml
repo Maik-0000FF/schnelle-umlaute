@@ -6,7 +6,10 @@ import SchnelleUmlaute
 Rectangle {
     id: root
     radius: Theme.radiusMd
-    color: hoverHandler.hovered ? Theme.surfaceHover : "transparent"
+    // Highlighted while it is the keyboard-current row of the list.
+    readonly property bool isCurrent:
+        ListView.isCurrentItem && ListView.view && ListView.view.activeFocus
+    color: (hoverHandler.hovered || isCurrent) ? Theme.surfaceHover : "transparent"
     border.color: editing ? Theme.borderFocus : "transparent"
     border.width: 1
     height: col.implicitHeight + 8
@@ -16,6 +19,10 @@ Rectangle {
     // (drag handle, buttons) — which otherwise stole hover and made the row
     // background flicker.
     HoverHandler { id: hoverHandler }
+
+    // Keyboard focus indicator for the current row (hidden while editing, where
+    // the input fields carry their own focus styling).
+    FocusRing { visible: root.isCurrent && !root.editing }
 
     Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
@@ -192,6 +199,10 @@ Rectangle {
             font.family: Theme.fontFamilyMono
             font.pixelSize: Theme.fontStrong
             elide: Text.ElideRight
+            // Force left alignment: an output with a right-to-left symbol (e.g.
+            // the currency preset's rial ﷼) would otherwise flip the column to
+            // the right edge.
+            horizontalAlignment: Text.AlignLeft
         }
 
         ThemedTextField {
@@ -201,6 +212,7 @@ Rectangle {
             text: root.outputText
             font.family: Theme.fontFamilyMono
             font.pixelSize: Theme.fontStrong
+            horizontalAlignment: TextInput.AlignLeft
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background
@@ -214,6 +226,9 @@ Rectangle {
 
         ToolButton {
             id: applyBtn
+            // Mouse affordance only: keyboard uses the roving list (Enter/F2),
+            // and grabbing focus on click would let Space re-fire the button.
+            focusPolicy: Qt.NoFocus
             text: root.editing ? Theme.iconCheck : Theme.iconEdit
             enabled: !root.editing || root.editValid
             ThemedToolTip {
@@ -238,6 +253,9 @@ Rectangle {
 
         ToolButton {
             id: deleteBtn
+            // Mouse affordance only: keyboard uses the roving list (Delete), and
+            // grabbing focus on click would let Space re-open the delete dialog.
+            focusPolicy: Qt.NoFocus
             text: root.editing ? Theme.iconCancel : Theme.iconTrash
             ThemedToolTip {
                 visible: deleteBtn.hovered

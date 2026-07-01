@@ -56,6 +56,21 @@ Item {
         border.width: 1
         Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
+        // Reachable by Tab; Space/Enter/Down open the dropdown.
+        activeFocusOnTab: true
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter || event.key === Qt.Key_Down) {
+                if (!popup.visible) {
+                    popup.keyboardSession = true;
+                    popup.open();
+                }
+                event.accepted = true;
+            }
+        }
+
+        FocusRing { visible: header.activeFocus }
+
         Text {
             anchors.left: parent.left
             anchors.leftMargin: Theme.spacingMd
@@ -78,7 +93,14 @@ Item {
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: popup.visible ? popup.close() : popup.open()
+            onClicked: {
+                if (popup.visible) {
+                    popup.close();
+                } else {
+                    popup.keyboardSession = false;
+                    popup.open();
+                }
+            }
         }
     }
 
@@ -92,6 +114,31 @@ Item {
         // closing-then-reopening on the same click. A click anywhere else still
         // dismisses it.
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        // True only when the popup was opened via the keyboard, so the focus
+        // ring appears for keyboard use but not when driving with the mouse.
+        property bool keyboardSession: false
+        // On open, land the cursor on the current edit target and (for keyboard
+        // sessions) move focus into the list; on close, hand focus back to the
+        // header only if it was a keyboard session.
+        onOpened: {
+            if (root.profilesModel && root.mappingsModel) {
+                let target = 0;
+                for (let i = 0; i < root.profilesModel.count; i++)
+                    if (root.profilesModel.fileForRow(i)
+                        === root.mappingsModel.profileFile) {
+                        target = i;
+                        break;
+                    }
+                list.currentIndex = target;
+            }
+            if (keyboardSession)
+                list.forceActiveFocus();
+        }
+        onClosed: {
+            if (keyboardSession)
+                header.forceActiveFocus();
+            keyboardSession = false;
+        }
         // Cap the whole popup so a long profile list still fits small editor
         // windows; the inner list gets its own (smaller) cap below so the
         // add-row and separator always stay visible above it.
@@ -194,6 +241,43 @@ Item {
                 model: root.profilesModel
                 boundsBehavior: Flickable.StopAtBounds
 
+                // Up/Down move the current row (keyNavigationEnabled); the keys
+                // below act on it: Enter selects the edit target, F2 renames,
+                // Delete removes, A sets active, F toggles favorite.
+                keyNavigationEnabled: true
+                Keys.onPressed: (event) => {
+                    const it = list.currentItem;
+                    if (!it)
+                        return;
+                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        if (root.profilesModel && root.mappingsModel) {
+                            root.mappingsModel.profileFile =
+                                root.profilesModel.fileForRow(it.index);
+                            popup.close();
+                        }
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_F2) {
+                        it.renaming = true;
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_Delete) {
+                        if (!it.isProtected) {
+                            popup.close();
+                            root.requestDelete(it.index, it.name);
+                        }
+                        event.accepted = true;
+                    } else if (event.text.toLowerCase() === "a") {
+                        if (root.profilesModel && !it.isActive
+                            && root.profilesModel.setActiveRow(it.index))
+                            root.requestSnackbar(
+                                qsTr("Switched to “%1”").arg(it.name), Theme.accent);
+                        event.accepted = true;
+                    } else if (event.text.toLowerCase() === "f") {
+                        if (root.profilesModel)
+                            root.profilesModel.setFavorite(it.index, !it.favorite);
+                        event.accepted = true;
+                    }
+                }
+
                 delegate: Rectangle {
                     id: prow
                     required property int index
@@ -205,10 +289,16 @@ Item {
                     width: ListView.view.width
                     height: Theme.rowHeight
                     radius: Theme.radiusSm
-                    color: prowHover.hovered ? Theme.surfaceHover : "transparent"
+                    color: (prow.ListView.isCurrentItem && list.activeFocus)
+                           || prowHover.hovered ? Theme.surfaceHover : "transparent"
                     property bool renaming: false
 
                     HoverHandler { id: prowHover }
+
+                    // Keyboard focus indicator for the current row.
+                    FocusRing {
+                        visible: prow.ListView.isCurrentItem && list.activeFocus
+                    }
 
                     RowLayout {
                         anchors.fill: parent
@@ -241,7 +331,7 @@ Item {
                             ThemedToolTip {
                                 visible: activeMouse.containsMouse
                                 text: prow.isActive ? qsTr("Active profile")
-                                                    : qsTr("Set as active")
+                                                    : qsTr("Set as active (A)")
                             }
                             MouseArea {
                                 id: activeMouse
@@ -277,7 +367,7 @@ Item {
                                 visible: favMouse.containsMouse
                                 text: prow.favorite
                                       ? qsTr("Favorite (in cycle)")
-                                      : qsTr("Add to cycle favorites")
+                                      : qsTr("Add to cycle favorites (F)")
                             }
                             MouseArea {
                                 id: favMouse
@@ -364,6 +454,9 @@ Item {
                         // edit pencil in MappingRow (Theme.brand is the constant
                         // green; Theme.accent varies per theme).
                         ToolButton {
+                            // Mouse affordance; keyboard renames via F2 on the
+                            // roving list, so it must not grab focus on click.
+                            focusPolicy: Qt.NoFocus
                             text: Theme.iconEdit
                             implicitWidth: 28
                             contentItem: Text {
@@ -376,7 +469,7 @@ Item {
                             background: Rectangle { color: "transparent" }
                             ThemedToolTip {
                                 visible: parent.hovered
-                                text: qsTr("Rename profile")
+                                text: qsTr("Rename profile (F2)")
                             }
                             onClicked: prow.renaming = true
                         }
@@ -385,6 +478,9 @@ Item {
                         // last) it is disabled but keeps its slot, so the
                         // action columns stay aligned across all rows.
                         ToolButton {
+                            // Mouse affordance; keyboard deletes via Delete on
+                            // the roving list, so it must not grab focus on click.
+                            focusPolicy: Qt.NoFocus
                             enabled: !prow.isProtected
                             opacity: prow.isProtected ? 0 : 1
                             text: Theme.iconTrash
@@ -399,7 +495,7 @@ Item {
                             background: Rectangle { color: "transparent" }
                             ThemedToolTip {
                                 visible: parent.hovered
-                                text: qsTr("Delete profile")
+                                text: qsTr("Delete profile (Del)")
                             }
                             onClicked: {
                                 popup.close();

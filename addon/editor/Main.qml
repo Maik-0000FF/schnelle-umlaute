@@ -215,13 +215,38 @@ ApplicationWindow {
                 property int currentIndex: 0
 
                 Repeater {
+                    id: tabRepeater
                     model: [qsTr("Settings"), qsTr("Mappings")]
                     delegate: Item {
+                        id: tabItem
                         required property int index
                         required property string modelData
                         Layout.preferredWidth: tabLabel.implicitWidth + Theme.spacingLg * 2
                         Layout.preferredHeight: 36
                         readonly property bool active: tabRow.currentIndex === index
+
+                        // Reachable by Tab; Left/Right move between tabs and
+                        // select, Space/Enter select the focused tab.
+                        activeFocusOnTab: true
+                        Keys.onPressed: (event) => {
+                            if (event.key === Qt.Key_Left
+                                || event.key === Qt.Key_Right) {
+                                const dir = event.key === Qt.Key_Right ? 1 : -1;
+                                const n = (index + dir + tabRepeater.count)
+                                          % tabRepeater.count;
+                                tabRow.currentIndex = n;
+                                tabRepeater.itemAt(n).forceActiveFocus(
+                                    Qt.TabFocusReason);
+                                event.accepted = true;
+                            } else if (event.key === Qt.Key_Space
+                                       || event.key === Qt.Key_Return
+                                       || event.key === Qt.Key_Enter) {
+                                tabRow.currentIndex = index;
+                                event.accepted = true;
+                            }
+                        }
+
+                        FocusRing { visible: tabItem.activeFocus }
 
                         // Underline strip — sits over the row separator's
                         // 1 px border at the bottom of the tab strip and
@@ -356,6 +381,8 @@ ApplicationWindow {
 
             Button {
                 id: undoButton
+                // Keyboard-reachable via Tab, but must not grab focus on click.
+                focusPolicy: Qt.TabFocus
                 text: qsTr("Undo")
                 flat: true
                 visible: false
@@ -390,8 +417,45 @@ ApplicationWindow {
         sequence: "Ctrl+2"
         onActivated: tabRow.currentIndex = 1
     }
+    // Step through the tabs like a typical multi-document editor.
+    Shortcut {
+        sequence: "Ctrl+Tab"
+        onActivated: tabRow.currentIndex =
+            (tabRow.currentIndex + 1) % tabRepeater.count
+    }
+    Shortcut {
+        sequence: "Ctrl+Shift+Tab"
+        onActivated: tabRow.currentIndex =
+            (tabRow.currentIndex - 1 + tabRepeater.count) % tabRepeater.count
+    }
+    // Switch the Mappings edit-target profile with the conventional
+    // next/previous-document keys, kept distinct from the global cycle keys.
+    Shortcut {
+        sequence: "Ctrl+PgDown"
+        onActivated: root.cycleEditTarget(1)
+    }
+    Shortcut {
+        sequence: "Ctrl+PgUp"
+        onActivated: root.cycleEditTarget(-1)
+    }
     Shortcut {
         sequence: "Esc"
         onActivated: root.close()
+    }
+
+    // Move the Mappings edit target to the next/previous profile (dir = +1/-1),
+    // wrapping around, and reveal it on the Mappings tab.
+    function cycleEditTarget(dir) {
+        const n = profiles.count;
+        if (n <= 1)
+            return;
+        let cur = 0;
+        for (let i = 0; i < n; i++)
+            if (profiles.fileForRow(i) === mappings.profileFile) {
+                cur = i;
+                break;
+            }
+        mappings.profileFile = profiles.fileForRow((cur + dir + n) % n);
+        tabRow.currentIndex = 1;
     }
 }

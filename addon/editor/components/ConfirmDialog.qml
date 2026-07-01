@@ -92,11 +92,14 @@ Popup {
                 implicitHeight: Theme.controlHeight
                 implicitWidth: cancelLabel.implicitWidth + 2 * Theme.spacingMd
                 radius: Theme.radiusSm
-                color: cancelMouse.containsMouse ? Theme.surfaceHover
-                                                 : Theme.background
+                color: (cancelMouse.containsMouse || cancelBtn.activeFocus)
+                       ? Theme.surfaceHover : Theme.background
                 border.color: Theme.border
                 border.width: 1
+                activeFocusOnTab: true
                 Behavior on color { ColorAnimation { duration: Theme.animShort } }
+
+                FocusRing { visible: cancelBtn.activeFocus }
 
                 Text {
                     id: cancelLabel
@@ -113,6 +116,14 @@ Popup {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.close()
                 }
+                Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                        || event.key === Qt.Key_Enter) {
+                        root.close();
+                        event.accepted = true;
+                    }
+                }
+                Keys.onEscapePressed: root.close()
             }
 
             Rectangle {
@@ -120,9 +131,12 @@ Popup {
                 implicitHeight: Theme.controlHeight
                 implicitWidth: confirmLabel.implicitWidth + 2 * Theme.spacingMd
                 radius: Theme.radiusSm
-                color: confirmMouse.containsMouse ? root._confirmHover
-                                                  : root._confirmBase
+                color: (confirmMouse.containsMouse || confirmBtn.activeFocus)
+                       ? root._confirmHover : root._confirmBase
+                activeFocusOnTab: true
                 Behavior on color { ColorAnimation { duration: Theme.animShort } }
+
+                FocusRing { visible: confirmBtn.activeFocus }
 
                 Text {
                     id: confirmLabel
@@ -143,10 +157,19 @@ Popup {
                         root.close();
                     }
                 }
-                Keys.onReturnPressed: {
-                    if (root.onConfirmed) root.onConfirmed();
+                function trigger() {
+                    if (root.onConfirmed)
+                        root.onConfirmed();
                     root.close();
                 }
+                Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                        || event.key === Qt.Key_Enter) {
+                        confirmBtn.trigger();
+                        event.accepted = true;
+                    }
+                }
+                Keys.onEscapePressed: root.close()
             }
         }
     }
