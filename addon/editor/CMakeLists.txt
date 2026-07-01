@@ -47,6 +47,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         Settings.qml
         Theme.qml
         components/Header.qml
+        components/FocusRing.qml
         components/AddMappingCard.qml
         components/MappingRow.qml
         components/EmptyState.qml
