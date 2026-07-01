@@ -204,7 +204,7 @@ Item {
                                 delegate: Rectangle {
                                     required property var modelData
                                     Layout.fillWidth: true
-                                    implicitHeight: 40
+                                    implicitHeight: Theme.controlHeightLg
                                     radius: Theme.radiusSm
                                     color: presetHover.hovered ? Theme.surfaceHover
                                                                : "transparent"
@@ -246,7 +246,7 @@ Item {
                                         }
 
                                         Rectangle {
-                                            implicitHeight: 26
+                                            implicitHeight: Theme.controlHeightSm
                                             implicitWidth: addLabel.implicitWidth
                                                            + 2 * Theme.spacingMd
                                             radius: Theme.radiusSm

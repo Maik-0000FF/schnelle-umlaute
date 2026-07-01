@@ -86,7 +86,7 @@ Rectangle {
 
         Item {
             width: 16
-            height: 32
+            height: Theme.controlHeight
             visible: !root.editing
 
             Text {
@@ -137,7 +137,7 @@ Rectangle {
 
         Rectangle {
             width: 44
-            height: 32
+            height: Theme.controlHeight
             radius: Theme.radiusSm
             color: Theme.background
             border.color: root.staticLeaderConflict ? Theme.warning : Theme.border

@@ -89,7 +89,7 @@ Popup {
             Rectangle {
                 id: cancelBtn
                 visible: !root.singleButton
-                implicitHeight: 34
+                implicitHeight: Theme.controlHeight
                 implicitWidth: cancelLabel.implicitWidth + 2 * Theme.spacingMd
                 radius: Theme.radiusSm
                 color: cancelMouse.containsMouse ? Theme.surfaceHover
@@ -117,7 +117,7 @@ Popup {
 
             Rectangle {
                 id: confirmBtn
-                implicitHeight: 34
+                implicitHeight: Theme.controlHeight
                 implicitWidth: confirmLabel.implicitWidth + 2 * Theme.spacingMd
                 radius: Theme.radiusSm
                 color: confirmMouse.containsMouse ? root._confirmHover

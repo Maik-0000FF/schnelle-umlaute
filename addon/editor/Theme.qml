@@ -179,9 +179,15 @@ QtObject {
     readonly property int radiusMd: 10
     readonly property int radiusLg: 14
 
-    // Height of single-line interactive controls (combo box, dropdown header)
-    // so they line up across the editor.
-    readonly property int controlHeight: 34
+    // Control-height ladder: one source so buttons, fields and rows line up.
+    // controlHeight is the standard single-line control (combo box, dropdown
+    // header, standard buttons, input cells); Sm for compact buttons, Lg for
+    // the primary action button and tall two-line rows, rowHeight for the
+    // selectable list rows (profile / app-list entries).
+    readonly property int controlHeightSm: 30
+    readonly property int controlHeight:   34
+    readonly property int rowHeight:       36
+    readonly property int controlHeightLg: 40
 
     // Width of a shortcut-capture field, wide enough to show a longer combo
     // (e.g. "Control+Alt+Super+J") without eliding, including the always-

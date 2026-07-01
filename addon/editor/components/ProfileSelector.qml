@@ -138,7 +138,7 @@ Item {
                     readonly property bool ready:
                         root.profilesModel && newName.text.length > 0
                         && root.profilesModel.nameErrorFor(newName.text, -1) === ""
-                    implicitHeight: 30
+                    implicitHeight: Theme.controlHeightSm
                     implicitWidth: addLabel.implicitWidth + 2 * Theme.spacingMd
                     radius: Theme.radiusSm
                     opacity: ready ? 1.0 : 0.4
@@ -203,7 +203,7 @@ Item {
                     required property bool favorite
                     required property string selectKey
                     width: ListView.view.width
-                    height: 36
+                    height: Theme.rowHeight
                     radius: Theme.radiusSm
                     color: prowHover.hovered ? Theme.surfaceHover : "transparent"
                     property bool renaming: false

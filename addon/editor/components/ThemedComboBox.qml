@@ -70,7 +70,7 @@ ComboBox {
         // Custom contentItem supplies its own padding; clear the style's so
         // row height is fixed at 32 regardless of style / Qt version.
         padding: 0
-        implicitHeight: 32
+        implicitHeight: Theme.controlHeight
         readonly property bool current: combo.currentIndex === index
         readonly property string itemLabel:
             combo.textRole && modelData && typeof modelData === "object"

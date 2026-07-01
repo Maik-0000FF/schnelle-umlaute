@@ -45,7 +45,7 @@ ColumnLayout {
             text: "+"
             enabled: inputField.text.trim().length > 0
             implicitWidth: 36
-            implicitHeight: 34
+            implicitHeight: Theme.controlHeight
             contentItem: Text {
                 text: addBtn.text
                 color: addBtn.enabled ? "#ffffff" : Theme.textMuted
@@ -74,7 +74,7 @@ ColumnLayout {
                 required property int index
                 required property string modelData
                 Layout.fillWidth: true
-                height: 36
+                height: Theme.rowHeight
                 radius: Theme.radiusSm
                 color: Theme.background
                 border.color: Theme.border

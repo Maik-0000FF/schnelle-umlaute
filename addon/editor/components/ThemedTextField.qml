@@ -22,7 +22,7 @@ TextField {
     // are set on the MenuEntry uses themselves.
     component MenuEntry: MenuItem {
         id: entry
-        implicitHeight: 32
+        implicitHeight: Theme.controlHeight
         implicitWidth: 160
         contentItem: Text {
             text: entry.text

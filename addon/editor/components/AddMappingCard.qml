@@ -106,7 +106,7 @@ Rectangle {
                 text: "+"
                 enabled: root.canAdd
                 implicitWidth: 44
-                implicitHeight: 40
+                implicitHeight: Theme.controlHeightLg
                 contentItem: Text {
                     text: addBtn.text
                     color: addBtn.enabled ? "#ffffff" : Theme.textMuted
