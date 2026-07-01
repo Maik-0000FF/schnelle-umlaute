@@ -153,7 +153,6 @@ ColumnLayout {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                previewFrame.forceActiveFocus();
                                 root.focusIndex = cell.index;
                                 if (root.value !== cell.pos)
                                     root.edited(cell.pos);

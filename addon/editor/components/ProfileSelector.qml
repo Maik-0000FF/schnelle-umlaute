@@ -61,8 +61,10 @@ Item {
         Keys.onPressed: (event) => {
             if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
                 || event.key === Qt.Key_Enter || event.key === Qt.Key_Down) {
-                if (!popup.visible)
+                if (!popup.visible) {
+                    popup.keyboardSession = true;
                     popup.open();
+                }
                 event.accepted = true;
             }
         }
@@ -92,8 +94,12 @@ Item {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-                header.forceActiveFocus();
-                popup.visible ? popup.close() : popup.open();
+                if (popup.visible) {
+                    popup.close();
+                } else {
+                    popup.keyboardSession = false;
+                    popup.open();
+                }
             }
         }
     }
@@ -108,8 +114,12 @@ Item {
         // closing-then-reopening on the same click. A click anywhere else still
         // dismisses it.
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        // On open, move keyboard focus into the list and land the cursor on the
-        // current edit target; on close, hand focus back to the header.
+        // True only when the popup was opened via the keyboard, so the focus
+        // ring appears for keyboard use but not when driving with the mouse.
+        property bool keyboardSession: false
+        // On open, land the cursor on the current edit target and (for keyboard
+        // sessions) move focus into the list; on close, hand focus back to the
+        // header only if it was a keyboard session.
         onOpened: {
             if (root.profilesModel && root.mappingsModel) {
                 let target = 0;
@@ -121,9 +131,14 @@ Item {
                     }
                 list.currentIndex = target;
             }
-            list.forceActiveFocus();
+            if (keyboardSession)
+                list.forceActiveFocus();
         }
-        onClosed: header.forceActiveFocus()
+        onClosed: {
+            if (keyboardSession)
+                header.forceActiveFocus();
+            keyboardSession = false;
+        }
         // Cap the whole popup so a long profile list still fits small editor
         // windows; the inner list gets its own (smaller) cap below so the
         // add-row and separator always stay visible above it.

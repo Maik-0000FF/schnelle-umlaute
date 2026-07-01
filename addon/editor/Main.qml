@@ -283,10 +283,7 @@ ApplicationWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                tabRow.currentIndex = index;
-                                tabItem.forceActiveFocus();
-                            }
+                            onClicked: tabRow.currentIndex = index
                         }
                     }
                 }

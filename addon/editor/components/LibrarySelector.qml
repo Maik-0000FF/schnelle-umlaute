@@ -120,10 +120,7 @@ Item {
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: {
-                header.forceActiveFocus();
-                popup.visible ? popup.close() : root.openPopup();
-            }
+            onClicked: popup.visible ? popup.close() : root.openPopup()
         }
     }
 

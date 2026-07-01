@@ -184,8 +184,8 @@ QtObject {
     readonly property int radiusMd: 10
     readonly property int radiusLg: 14
 
-    // Keyboard-focus ring thickness, drawn just outside a focused control.
-    readonly property int focusRingWidth: 2
+    // Keyboard-focus ring thickness, drawn just inside a focused control.
+    readonly property int focusRingWidth: 1
 
     // Control-height ladder: one source so buttons, fields and rows line up.
     // controlHeight is the standard single-line control (combo box, dropdown
