@@ -64,6 +64,13 @@ RowLayout {
             color: slider.pressed ? Theme.accentHover : Theme.accent
             border.color: Theme.background
             border.width: 2
+
+            // Keyboard-only focus ring (the slider takes focus on click too).
+            FocusRing {
+                visible: slider.activeFocus
+                         && slider.focusReason !== Qt.MouseFocusReason
+                radius: width / 2
+            }
         }
 
         onValueChanged: {

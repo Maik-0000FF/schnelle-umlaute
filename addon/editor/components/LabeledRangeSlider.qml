@@ -165,12 +165,13 @@ RowLayout {
         // Handle visuals (input is handled by trackArea below so overlapping
         // handles never fight over the press).
         Rectangle {
+            id: lowerHandle
             width: track.handleW
             height: track.handleW
             radius: width / 2
             x: track.xForValue(root.lowerValue) - width / 2
             y: track.lineY - height / 2
-            z: track.dragMode === 1 ? 2 : 1
+            z: (track.dragMode === 1 || lowerHandle.activeFocus) ? 2 : 1
             // Lower handle is the dead-time (lead) bound, so it carries the
             // lead role colour; the upper (window) handle carries the window
             // role colour. The role tokens centralise the per-theme swap.
@@ -178,18 +179,51 @@ RowLayout {
                                         : Theme.sliderLead
             border.color: Theme.background
             border.width: 2
+
+            // Reachable by Tab; Left/Right nudge the lead bound by one step.
+            activeFocusOnTab: true
+            Keys.onPressed: (event) => {
+                if (event.key === Qt.Key_Left) {
+                    root.lowerEdited(track.clamp(root.lowerValue - root.step,
+                                                 root.from, root.upperValue));
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_Right) {
+                    root.lowerEdited(track.clamp(root.lowerValue + root.step,
+                                                 root.from, root.upperValue));
+                    event.accepted = true;
+                }
+            }
+            FocusRing { visible: lowerHandle.activeFocus; radius: width / 2 }
         }
         Rectangle {
+            id: upperHandle
             width: track.handleW
             height: track.handleW
             radius: width / 2
             x: track.xForValue(root.upperValue) - width / 2
             y: track.lineY - height / 2
-            z: track.dragMode === 2 ? 2 : 1
+            z: (track.dragMode === 2 || upperHandle.activeFocus) ? 2 : 1
             color: track.dragMode === 2 ? Theme.sliderWindowHover
                                         : Theme.sliderWindow
             border.color: Theme.background
             border.width: 2
+
+            // Reachable by Tab; Left/Right nudge the window's upper bound.
+            activeFocusOnTab: true
+            Keys.onPressed: (event) => {
+                if (event.key === Qt.Key_Left) {
+                    root.upperEdited(track.clamp(
+                        root.upperValue - root.step,
+                        Math.max(root.lowerValue, root.upperMin), root.to));
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_Right) {
+                    root.upperEdited(track.clamp(
+                        root.upperValue + root.step,
+                        Math.max(root.lowerValue, root.upperMin), root.to));
+                    event.accepted = true;
+                }
+            }
+            FocusRing { visible: upperHandle.activeFocus; radius: width / 2 }
         }
 
         MouseArea {
