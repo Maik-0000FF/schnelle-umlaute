@@ -29,7 +29,7 @@ Popup {
     readonly property color _confirmBase: confirmStyle === "primary"
                                           ? Theme.accent : Theme.error
     readonly property color _confirmHover: confirmStyle === "primary"
-                                           ? Theme.accentHover : "#ef4444"
+                                           ? Theme.accentHover : Theme.errorHover
 
     // When true, the cancel button is hidden and only the confirm button
     // is shown. Use for informational dialogs where there is no
