@@ -212,7 +212,13 @@ Item {
                                     RowLayout {
                                         anchors.fill: parent
                                         anchors.leftMargin: Theme.spacingSm
+                                        // Reserve the scrollbar's width while the
+                                        // list is scrollable, so the overlay
+                                        // scrollbar never sits on top of the add
+                                        // (+) button at the row's right edge.
                                         anchors.rightMargin: Theme.spacingXs
+                                            + (scroller.ScrollBar.vertical.size < 1
+                                               ? scroller.ScrollBar.vertical.width : 0)
                                         spacing: Theme.spacingSm
 
                                         ColumnLayout {
