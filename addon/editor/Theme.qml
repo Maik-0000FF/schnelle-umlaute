@@ -214,7 +214,7 @@ QtObject {
     readonly property string iconCancel:      "✗"
     readonly property string iconClear:       "✕"
     readonly property string iconStar:        "★"
-    readonly property string iconStarOutline: "☆"
+    readonly property string iconAdd:         "+"
 
     function setCurrent(name) {
         if (palettes[name] !== undefined && current !== name) {

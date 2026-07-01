@@ -103,7 +103,7 @@ Rectangle {
 
             Button {
                 id: addBtn
-                text: "+"
+                text: Theme.iconAdd
                 enabled: root.canAdd
                 implicitWidth: 44
                 implicitHeight: Theme.controlHeightLg

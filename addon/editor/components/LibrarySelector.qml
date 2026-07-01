@@ -247,8 +247,7 @@ Item {
 
                                         Rectangle {
                                             implicitHeight: Theme.controlHeightSm
-                                            implicitWidth: addLabel.implicitWidth
-                                                           + 2 * Theme.spacingMd
+                                            implicitWidth: implicitHeight
                                             radius: Theme.radiusSm
                                             color: addMouse.containsMouse
                                                    ? Theme.accentHover : Theme.accent
@@ -258,10 +257,10 @@ Item {
                                             Text {
                                                 id: addLabel
                                                 anchors.centerIn: parent
-                                                text: qsTr("Add")
+                                                text: Theme.iconAdd
                                                 color: Theme.onAccent
                                                 font.family: Theme.fontFamily
-                                                font.pixelSize: Theme.fontCaption
+                                                font.pixelSize: Theme.fontStrong
                                                 font.weight: Font.Medium
                                             }
                                             MouseArea {

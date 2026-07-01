@@ -42,7 +42,7 @@ ColumnLayout {
 
         Button {
             id: addBtn
-            text: "+"
+            text: Theme.iconAdd
             enabled: inputField.text.trim().length > 0
             implicitWidth: 36
             implicitHeight: Theme.controlHeight

@@ -139,7 +139,7 @@ Item {
                         root.profilesModel && newName.text.length > 0
                         && root.profilesModel.nameErrorFor(newName.text, -1) === ""
                     implicitHeight: Theme.controlHeightSm
-                    implicitWidth: addLabel.implicitWidth + 2 * Theme.spacingMd
+                    implicitWidth: implicitHeight
                     radius: Theme.radiusSm
                     opacity: ready ? 1.0 : 0.4
                     color: addMouse.containsMouse && ready ? Theme.accentHover
@@ -148,10 +148,10 @@ Item {
                     Text {
                         id: addLabel
                         anchors.centerIn: parent
-                        text: qsTr("Add")
+                        text: Theme.iconAdd
                         color: Theme.onAccent
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontBody
+                        font.pixelSize: Theme.fontStrong
                         font.weight: Font.Medium
                     }
                     MouseArea {
