@@ -65,7 +65,7 @@ Item {
             text: root.editTargetName
             color: Theme.text
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
             elide: Text.ElideRight
         }
         DropdownIndicator {
@@ -122,7 +122,7 @@ Item {
                     Layout.fillWidth: true
                     placeholderText: qsTr("New profile name")
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontBody
                     background: Rectangle {
                         radius: Theme.radiusSm
                         color: Theme.background
@@ -151,7 +151,7 @@ Item {
                         text: qsTr("Add")
                         color: Theme.onAccent
                         font.family: Theme.fontFamily
-                        font.pixelSize: 13
+                        font.pixelSize: Theme.fontBody
                         font.weight: Font.Medium
                     }
                     MouseArea {
@@ -173,7 +173,7 @@ Item {
                       ? root.profilesModel.nameErrorFor(newName.text, -1) : ""
                 color: Theme.error
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontCaption
                 wrapMode: Text.WordWrap
             }
 
@@ -235,7 +235,7 @@ Item {
                                    ? Theme.accent
                                    : (activeMouse.containsMouse ? Theme.text
                                                                 : Theme.textMuted)
-                            font.pixelSize: 15
+                            font.pixelSize: Theme.fontIcon
                             Layout.preferredWidth: 20
                             horizontalAlignment: Text.AlignHCenter
                             ThemedToolTip {
@@ -270,7 +270,7 @@ Item {
                                    ? Theme.accent
                                    : (favMouse.containsMouse ? Theme.text
                                                              : Theme.textMuted)
-                            font.pixelSize: 15
+                            font.pixelSize: Theme.fontIcon
                             Layout.preferredWidth: 20
                             horizontalAlignment: Text.AlignHCenter
                             ThemedToolTip {
@@ -297,7 +297,7 @@ Item {
                             text: prow.name
                             color: Theme.text
                             font.family: Theme.fontFamily
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.fontBody
                             elide: Text.ElideRight
                             verticalAlignment: Text.AlignVCenter
                             MouseArea {
@@ -318,7 +318,7 @@ Item {
                             Layout.fillWidth: true
                             text: prow.name
                             font.family: Theme.fontFamily
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.fontBody
                             background: Rectangle {
                                 radius: Theme.radiusSm
                                 color: Theme.background
@@ -369,7 +369,7 @@ Item {
                             contentItem: Text {
                                 text: parent.text
                                 color: parent.hovered ? Theme.brand : Theme.textMuted
-                                font.pixelSize: 14
+                                font.pixelSize: Theme.fontIcon
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }
@@ -392,7 +392,7 @@ Item {
                             contentItem: Text {
                                 text: parent.text
                                 color: parent.hovered ? Theme.error : Theme.textMuted
-                                font.pixelSize: 14
+                                font.pixelSize: Theme.fontIcon
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }

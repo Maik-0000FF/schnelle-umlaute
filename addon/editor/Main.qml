@@ -248,7 +248,7 @@ ApplicationWindow {
                                 : (tabMouse.containsMouse ? Theme.text
                                                           : Theme.textMuted)
                             font.family: Theme.fontFamily
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.fontBody
                             font.weight: parent.active ? Font.Medium : Font.Normal
                             Behavior on color { ColorAnimation { duration: Theme.animShort } }
                         }
@@ -351,7 +351,7 @@ ApplicationWindow {
                 id: text
                 color: Theme.text
                 font.family: Theme.fontFamily
-                font.pixelSize: 13
+                font.pixelSize: Theme.fontBody
             }
 
             Button {
@@ -363,7 +363,7 @@ ApplicationWindow {
                     text: undoButton.text
                     color: Theme.accent
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontBody
                     font.weight: Font.Medium
                 }
                 background: Rectangle { color: "transparent" }

@@ -165,6 +165,16 @@ QtObject {
     readonly property string fontFamilyMono: pickFamily(
         ["JetBrains Mono", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "monospace"])
 
+    // Type scale: the single source for every text size in the editor. Roles,
+    // not raw pixels, so a size change is one edit here. Glyphs get their own
+    // token (fontIcon) so action icons can be rescaled independently of text.
+    readonly property int fontCaption: 11  // hints, descriptions, status, small labels
+    readonly property int fontBody:    12  // body text, control labels, input fields
+    readonly property int fontIcon:    14  // action-glyph size (✎ ✗ 🗑 ✓ ★ ✕ ⠿ →)
+    readonly property int fontStrong:  15  // mono mapping cells, dialog/app titles
+    readonly property int fontDisplay: 18  // large add-card display elements
+    readonly property int fontHero:    28  // empty-state hero glyph
+
     readonly property int radiusSm: 6
     readonly property int radiusMd: 10
     readonly property int radiusLg: 14

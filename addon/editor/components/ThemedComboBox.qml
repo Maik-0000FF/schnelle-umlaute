@@ -15,7 +15,7 @@ ComboBox {
     id: combo
     implicitHeight: Theme.controlHeight
     font.family: Theme.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: Theme.fontBody
 
     // The custom contentItem/indicator handle their own insets, so drop the
     // control's style-supplied padding/spacing. Without this the box height
@@ -89,7 +89,7 @@ ComboBox {
             color: item.itemUnavailable ? Theme.textMuted
                    : item.current ? Theme.accent : Theme.text
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
             font.weight: item.current ? Font.Medium : Font.Normal
             leftPadding: Theme.spacingMd
             rightPadding: Theme.spacingMd

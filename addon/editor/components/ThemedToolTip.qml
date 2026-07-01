@@ -10,7 +10,7 @@ import SchnelleUmlaute
 ToolTip {
     id: tip
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: Theme.fontCaption
     padding: Theme.spacingSm
 
     contentItem: Text {

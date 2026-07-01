@@ -32,14 +32,14 @@ Rectangle {
                 text: "Schnelle"
                 color: Theme.text
                 font.family: Theme.fontFamily
-                font.pixelSize: 16
+                font.pixelSize: Theme.fontStrong
                 font.weight: Font.Medium
             }
             Text {
                 text: "Umlaute"
                 color: Theme.brand
                 font.family: Theme.fontFamily
-                font.pixelSize: 16
+                font.pixelSize: Theme.fontStrong
                 font.weight: Font.Medium
             }
         }
@@ -59,7 +59,7 @@ Rectangle {
                 text: qsTr("%1 mappings").arg(root.mappingCount)
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontCaption
             }
         }
 

@@ -57,7 +57,7 @@ Popup {
             text: root.titleText
             color: Theme.text
             font.family: Theme.fontFamily
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             font.weight: Font.Medium
         }
 
@@ -68,7 +68,7 @@ Popup {
             text: root.messageText
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
 
@@ -104,7 +104,7 @@ Popup {
                     text: root.cancelText
                     color: Theme.text
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontBody
                 }
                 MouseArea {
                     id: cancelMouse
@@ -130,7 +130,7 @@ Popup {
                     text: root.confirmText
                     color: Theme.switchThumb
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontBody
                     font.weight: Font.Medium
                 }
                 MouseArea {

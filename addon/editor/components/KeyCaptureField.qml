@@ -54,7 +54,7 @@ Item {
                        : (root.capturing ? Theme.accent
                           : (root.value.length ? Theme.text : Theme.textMuted))
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontCaption
                 elide: Text.ElideRight
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -88,7 +88,7 @@ Item {
             contentItem: Text {
                 text: parent.text
                 color: parent.hovered ? Theme.error : Theme.textMuted
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontIcon
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }

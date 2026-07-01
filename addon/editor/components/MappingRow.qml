@@ -94,7 +94,7 @@ Rectangle {
                 text: "⠿"
                 color: dragArea.containsMouse || dragArea.pressed
                     ? Theme.text : Theme.textMuted
-                font.pixelSize: 14
+                font.pixelSize: Theme.fontIcon
                 Behavior on color { ColorAnimation { duration: Theme.animShort } }
             }
 
@@ -150,7 +150,7 @@ Rectangle {
                 text: root.inputText
                 color: Theme.text
                 font.family: Theme.fontFamilyMono
-                font.pixelSize: 15
+                font.pixelSize: Theme.fontStrong
             }
         }
 
@@ -161,7 +161,7 @@ Rectangle {
             text: root.inputText
             maximumLength: 4
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             horizontalAlignment: TextInput.AlignHCenter
             background: Rectangle {
                 radius: Theme.radiusSm
@@ -177,7 +177,7 @@ Rectangle {
         Text {
             text: "→"
             color: Theme.textMuted
-            font.pixelSize: 14
+            font.pixelSize: Theme.fontIcon
         }
 
         Text {
@@ -186,7 +186,7 @@ Rectangle {
             text: root.outputText
             color: Theme.text
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             elide: Text.ElideRight
         }
 
@@ -196,7 +196,7 @@ Rectangle {
             Layout.fillWidth: true
             text: root.outputText
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background
@@ -221,7 +221,7 @@ Rectangle {
                 color: !applyBtn.enabled
                     ? Theme.border
                     : (applyBtn.hovered ? Theme.brand : Theme.textMuted)
-                font.pixelSize: 14
+                font.pixelSize: Theme.fontIcon
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -242,7 +242,7 @@ Rectangle {
             contentItem: Text {
                 text: parent.text
                 color: parent.hovered ? Theme.error : Theme.textMuted
-                font.pixelSize: 14
+                font.pixelSize: Theme.fontIcon
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -262,7 +262,7 @@ Rectangle {
             text: root.editInputError
             color: Theme.error
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontCaption
             wrapMode: Text.WordWrap
         }
 
@@ -275,7 +275,7 @@ Rectangle {
             text: qsTr("This key is configured as a Leader — mapping will not work")
             color: Theme.warning
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontCaption
             wrapMode: Text.WordWrap
         }
     }

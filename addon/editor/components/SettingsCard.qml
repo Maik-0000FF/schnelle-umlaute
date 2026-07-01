@@ -24,7 +24,7 @@ Rectangle {
             text: root.titleText
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontCaption
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 1
         }

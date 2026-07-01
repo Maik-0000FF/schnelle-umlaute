@@ -21,11 +21,10 @@ ColumnLayout {
 
     // Caption font, declared once so the reserved two-line height below tracks
     // it instead of a hardcoded pixel count.
-    readonly property int captionFontSize: 11
     FontMetrics {
         id: captionMetrics
         font.family: Theme.fontFamily
-        font.pixelSize: root.captionFontSize
+        font.pixelSize: Theme.fontCaption
         font.italic: true
     }
     // Fixed slot for two lines so swapping the caption text never reflows the
@@ -92,7 +91,7 @@ ColumnLayout {
                             visible: parent.parent.active
                             text: Theme.iconCheck
                             color: Theme.switchThumb
-                            font.pixelSize: 14
+                            font.pixelSize: Theme.fontIcon
                             font.weight: Font.Bold
                         }
 
@@ -184,7 +183,7 @@ ColumnLayout {
             : qsTr("Click on the monitor to choose overlay position")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: root.captionFontSize
+        font.pixelSize: Theme.fontCaption
         font.italic: true
     }
 }

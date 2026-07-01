@@ -28,7 +28,7 @@ TextField {
             text: entry.text
             color: entry.enabled ? Theme.text : Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
             verticalAlignment: Text.AlignVCenter
             leftPadding: Theme.spacingMd
             rightPadding: Theme.spacingMd

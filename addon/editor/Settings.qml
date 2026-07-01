@@ -51,7 +51,7 @@ Item {
                             text: qsTr("Theme")
                             color: Theme.text
                             font.family: Theme.fontFamily
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.fontBody
                             Layout.preferredWidth: 120
                         }
 
@@ -87,7 +87,7 @@ Item {
                         text: qsTr("Applies to the editor and the cycle overlay. \"Contrast\" meets WCAG AAA (7:1).")
                         color: Theme.textMuted
                         font.family: Theme.fontFamily
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontCaption
                         wrapMode: Text.WordWrap
                     }
                 }
@@ -126,7 +126,7 @@ Item {
                         text: qsTr("The accent fires only while the mapped key is held and the leader (e.g. Space) arrives inside the window. Raise the minimum to avoid accidental accents when typing fast; lower it to 0 for the classic timeout-only behavior.")
                         color: Theme.textMuted
                         font.family: Theme.fontFamily
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontCaption
                         wrapMode: Text.WordWrap
                     }
                 }
@@ -223,7 +223,7 @@ Item {
                             text: qsTr("Placement")
                             color: Theme.text
                             font.family: Theme.fontFamily
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.fontBody
                             Layout.preferredWidth: 120
                         }
 
@@ -298,7 +298,7 @@ Item {
                         wrapMode: Text.WordWrap
                         color: Theme.textMuted
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontCaption
                         text: {
                             if (!root.settingsModel)
                                 return "";
@@ -373,7 +373,7 @@ Item {
                         wrapMode: Text.WordWrap
                         color: Theme.textMuted
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontCaption
                         text: qsTr("Styles fcitx5's candidate window globally (it affects other input methods too) and overrides your classicui theme while on. Turning it off restores your previous theme.")
                     }
 
@@ -400,7 +400,7 @@ Item {
                         wrapMode: Text.WordWrap
                         color: Theme.textMuted
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontCaption
                         text: qsTr("Shows the available accents as soon as you hold a mapped key, before pressing a leader. It is also the only way single-accent keys, which never cycle, get an overlay.")
                     }
 
@@ -428,7 +428,7 @@ Item {
                             text: qsTr("Mode")
                             color: Theme.text
                             font.family: Theme.fontFamily
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.fontBody
                             Layout.preferredWidth: 120
                         }
 
@@ -476,7 +476,7 @@ Item {
                         text: qsTr("Case-sensitive substring match against the program identifier fcitx5 reports. Some apps report their GUI library instead of their name (e.g. Kitty → GLFW_Application).")
                         color: Theme.textMuted
                         font.family: Theme.fontFamily
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontCaption
                         wrapMode: Text.WordWrap
                     }
                 }

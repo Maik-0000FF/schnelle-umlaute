@@ -17,7 +17,7 @@ ColumnLayout {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
-        font.pixelSize: 13
+        font.pixelSize: Theme.fontBody
         font.weight: Font.Medium
     }
 
@@ -30,7 +30,7 @@ ColumnLayout {
             Layout.fillWidth: true
             placeholderText: qsTr("e.g. firefox or libreoffice")
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background
@@ -49,7 +49,7 @@ ColumnLayout {
             contentItem: Text {
                 text: addBtn.text
                 color: addBtn.enabled ? "#ffffff" : Theme.textMuted
-                font.pixelSize: 16
+                font.pixelSize: Theme.fontStrong
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -91,7 +91,7 @@ ColumnLayout {
                         text: modelData
                         color: Theme.text
                         font.family: Theme.fontFamilyMono
-                        font.pixelSize: 13
+                        font.pixelSize: Theme.fontBody
                         elide: Text.ElideRight
                     }
 
@@ -100,7 +100,7 @@ ColumnLayout {
                         contentItem: Text {
                             text: parent.text
                             color: parent.hovered ? Theme.error : Theme.textMuted
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.fontIcon
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -125,7 +125,7 @@ ColumnLayout {
         text: qsTr("No entries")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: 11
+        font.pixelSize: Theme.fontCaption
         font.italic: true
     }
 

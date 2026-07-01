@@ -95,7 +95,7 @@ Item {
             text: qsTr("Library")
             color: Theme.text
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
         }
         DropdownIndicator {
             id: chevron
@@ -143,7 +143,7 @@ Item {
                 Layout.fillWidth: true
                 placeholderText: qsTr("Search presets…")
                 font.family: Theme.fontFamily
-                font.pixelSize: 13
+                font.pixelSize: Theme.fontBody
                 onTextChanged: root.query = text
                 background: Rectangle {
                     radius: Theme.radiusSm
@@ -163,7 +163,7 @@ Item {
                       : qsTr("No presets match your search")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontCaption
             }
 
             ScrollView {
@@ -195,7 +195,7 @@ Item {
                                 text: root.categoryTitle(modelData)
                                 color: Theme.textMuted
                                 font.family: Theme.fontFamily
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontCaption
                                 font.weight: Font.Medium
                             }
 
@@ -223,7 +223,7 @@ Item {
                                                 text: modelData.name
                                                 color: Theme.text
                                                 font.family: Theme.fontFamily
-                                                font.pixelSize: 13
+                                                font.pixelSize: Theme.fontBody
                                                 elide: Text.ElideRight
                                             }
                                             Text {
@@ -232,7 +232,7 @@ Item {
                                                 text: modelData.description
                                                 color: Theme.textMuted
                                                 font.family: Theme.fontFamily
-                                                font.pixelSize: 11
+                                                font.pixelSize: Theme.fontCaption
                                                 elide: Text.ElideRight
                                             }
                                         }
@@ -241,7 +241,7 @@ Item {
                                             text: modelData.count + ""
                                             color: Theme.textMuted
                                             font.family: Theme.fontFamilyMono
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontCaption
                                             Layout.rightMargin: Theme.spacingXs
                                         }
 
@@ -261,7 +261,7 @@ Item {
                                                 text: qsTr("Add")
                                                 color: Theme.onAccent
                                                 font.family: Theme.fontFamily
-                                                font.pixelSize: 12
+                                                font.pixelSize: Theme.fontCaption
                                                 font.weight: Font.Medium
                                             }
                                             MouseArea {

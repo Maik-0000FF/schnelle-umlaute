@@ -21,7 +21,7 @@ RowLayout {
         text: row.labelText
         color: Theme.text
         font.family: Theme.fontFamily
-        font.pixelSize: 13
+        font.pixelSize: Theme.fontBody
         Layout.preferredWidth: row.labelWidth
     }
     KeyCaptureField {
@@ -34,7 +34,7 @@ RowLayout {
         text: row.description
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: 12
+        font.pixelSize: Theme.fontCaption
         wrapMode: Text.WordWrap
     }
 }

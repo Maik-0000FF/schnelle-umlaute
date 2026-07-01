@@ -61,7 +61,7 @@ ColumnLayout {
             text: qsTr("Key")
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontCaption
             Layout.preferredWidth: 40
         }
 
@@ -72,7 +72,7 @@ ColumnLayout {
             placeholderText: root.placeholderHint
             maximumLength: 4
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 14
+            font.pixelSize: Theme.fontStrong
             horizontalAlignment: TextInput.AlignHCenter
             background: Rectangle {
                 radius: Theme.radiusSm
@@ -98,7 +98,7 @@ ColumnLayout {
             text: qsTr("Must be a single non-whitespace character")
             color: Theme.error
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontCaption
             wrapMode: Text.WordWrap
         }
 
@@ -108,7 +108,7 @@ ColumnLayout {
             text: qsTr("Warning: this key is already a mapping input")
             color: Theme.warning
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontCaption
             wrapMode: Text.WordWrap
         }
     }
