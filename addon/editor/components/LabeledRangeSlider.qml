@@ -40,7 +40,7 @@ RowLayout {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
-        font.pixelSize: 13
+        font.pixelSize: Theme.fontBody
         Layout.preferredWidth: 120
     }
 
@@ -98,7 +98,7 @@ RowLayout {
             text: (root.lowerValue - root.from) + " " + root.suffix
             color: Theme.sliderLead
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontBody
         }
 
         // Computed window duration, centered above the window itself (the
@@ -126,7 +126,7 @@ RowLayout {
             text: (root.upperValue - root.lowerValue) + " " + root.suffix
             color: Theme.sliderWindow
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontBody
         }
 
         // Track line
@@ -279,7 +279,7 @@ RowLayout {
         text: root.upperValue + " " + root.suffix
         color: Theme.textMuted
         font.family: Theme.fontFamilyMono
-        font.pixelSize: 12
+        font.pixelSize: Theme.fontBody
         Layout.preferredWidth: 60
         horizontalAlignment: Text.AlignRight
     }

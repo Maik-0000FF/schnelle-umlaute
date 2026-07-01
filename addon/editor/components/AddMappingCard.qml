@@ -48,7 +48,7 @@ Rectangle {
             text: qsTr("New mapping")
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontBody
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 1
         }
@@ -63,7 +63,7 @@ Rectangle {
                 placeholderText: qsTr("Key")
                 maximumLength: 4
                 font.family: Theme.fontFamilyMono
-                font.pixelSize: 16
+                font.pixelSize: Theme.fontStrong
                 horizontalAlignment: TextInput.AlignHCenter
                 background: Rectangle {
                     radius: Theme.radiusSm
@@ -82,7 +82,7 @@ Rectangle {
             Text {
                 text: "→"
                 color: Theme.textMuted
-                font.pixelSize: 18
+                font.pixelSize: Theme.fontStrong
             }
 
             ThemedTextField {
@@ -90,7 +90,7 @@ Rectangle {
                 Layout.fillWidth: true
                 placeholderText: qsTr("Output (e.g. ä or é,è,ê,ë)")
                 font.family: Theme.fontFamilyMono
-                font.pixelSize: 15
+                font.pixelSize: Theme.fontStrong
                 background: Rectangle {
                     radius: Theme.radiusSm
                     color: Theme.background
@@ -103,14 +103,14 @@ Rectangle {
 
             Button {
                 id: addBtn
-                text: "+"
+                text: Theme.iconAdd
                 enabled: root.canAdd
                 implicitWidth: 44
-                implicitHeight: 40
+                implicitHeight: Theme.controlHeightLg
                 contentItem: Text {
                     text: addBtn.text
-                    color: addBtn.enabled ? "#ffffff" : Theme.textMuted
-                    font.pixelSize: 20
+                    color: addBtn.enabled ? Theme.switchThumb : Theme.textMuted
+                    font.pixelSize: Theme.fontStrong
                     font.weight: Font.Medium
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
@@ -137,7 +137,7 @@ Rectangle {
                 ? Theme.error
                 : (root.leaderConflict ? Theme.warning : Theme.textMuted)
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
             Behavior on color { ColorAnimation { duration: Theme.animShort } }
         }

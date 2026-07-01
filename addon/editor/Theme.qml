@@ -24,6 +24,7 @@ QtObject {
             success:      "#4ade80",
             warning:      "#fbbf24",
             error:        "#f87171",
+            errorHover:   "#ef4444",
             onAccent:     "#ffffff",
             highlight:    "#4ade80",
             onHighlight:  "#08060f",
@@ -47,6 +48,7 @@ QtObject {
             success:      "#4ade80",
             warning:      "#fbbf24",
             error:        "#f87171",
+            errorHover:   "#ef4444",
             onAccent:     "#ffffff",
             highlight:    "#60a5fa",
             onHighlight:  "#0f1115",
@@ -70,6 +72,7 @@ QtObject {
             success:      "#16a34a",
             warning:      "#d97706",
             error:        "#dc2626",
+            errorHover:   "#b91c1c",
             onAccent:     "#ffffff",
             highlight:    "#2563eb",
             onHighlight:  "#ffffff",
@@ -93,6 +96,7 @@ QtObject {
             success:      "#ffffff",
             warning:      "#ffd60a",
             error:        "#ffd60a",
+            errorHover:   "#ffeb3b",
             onAccent:     "#000000",
             highlight:    "#ffd60a",
             onHighlight:  "#000000",
@@ -119,6 +123,7 @@ QtObject {
     readonly property color success:      p.success
     readonly property color warning:      p.warning
     readonly property color error:        p.error
+    readonly property color errorHover:   p.errorHover
     readonly property color onAccent:     p.onAccent
     // Active-selection colours, mirrored from the overlay's cellActive /
     // textActive (the signature theme highlights in green, not the accent).
@@ -165,13 +170,27 @@ QtObject {
     readonly property string fontFamilyMono: pickFamily(
         ["JetBrains Mono", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "monospace"])
 
+    // Type scale: the single source for every text size in the editor. Roles,
+    // not raw pixels, so a size change is one edit here. Glyphs get their own
+    // token (fontIcon) so action icons can be rescaled independently of text.
+    readonly property int fontBody:   12  // body, hints, labels, errors (hierarchy via colour/weight)
+    readonly property int fontIcon:   14  // action-glyph size (✎ ✗ 🗑 ✓ ★ ✕ ⠿ →)
+    readonly property int fontStrong: 16  // mono mapping cells, titles, add-card display
+    readonly property int fontHero:   28  // empty-state hero glyph
+
     readonly property int radiusSm: 6
     readonly property int radiusMd: 10
     readonly property int radiusLg: 14
 
-    // Height of single-line interactive controls (combo box, dropdown header)
-    // so they line up across the editor.
-    readonly property int controlHeight: 34
+    // Control-height ladder: one source so buttons, fields and rows line up.
+    // controlHeight is the standard single-line control (combo box, dropdown
+    // header, standard buttons, input cells); Sm for compact buttons, Lg for
+    // the primary action button and tall two-line rows, rowHeight for the
+    // selectable list rows (profile / app-list entries).
+    readonly property int controlHeightSm: 30
+    readonly property int controlHeight:   34
+    readonly property int rowHeight:       36
+    readonly property int controlHeightLg: 40
 
     // Width of a shortcut-capture field, wide enough to show a longer combo
     // (e.g. "Control+Alt+Super+J") without eliding, including the always-
@@ -179,6 +198,7 @@ QtObject {
     // and the cycle fields.
     readonly property int shortcutFieldWidth: 184
 
+    readonly property int spacingXxs: 2
     readonly property int spacingXs: 4
     readonly property int spacingSm: 8
     readonly property int spacingMd: 12
@@ -197,7 +217,7 @@ QtObject {
     readonly property string iconCancel:      "✗"
     readonly property string iconClear:       "✕"
     readonly property string iconStar:        "★"
-    readonly property string iconStarOutline: "☆"
+    readonly property string iconAdd:         "+"
 
     function setCurrent(name) {
         if (palettes[name] !== undefined && current !== name) {

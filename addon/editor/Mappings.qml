@@ -71,7 +71,7 @@ Item {
                 wrapMode: Text.WordWrap
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontBody
                 text: {
                     if (!root.profilesModel || !root.mappingsModel) return "";
                     root.profilesModel.revision; // refresh on active/edit change
@@ -138,7 +138,7 @@ Item {
                 anchors.fill: parent
                 anchors.margins: Theme.spacingSm
                 clip: true
-                spacing: 2
+                spacing: Theme.spacingXxs
                 visible: root.mappingsModel && root.mappingsModel.count > 0
                 model: root.mappingsModel
                 boundsBehavior: Flickable.StopAtBounds

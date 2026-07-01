@@ -95,7 +95,7 @@ Item {
             text: qsTr("Library")
             color: Theme.text
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
         }
         DropdownIndicator {
             id: chevron
@@ -143,7 +143,7 @@ Item {
                 Layout.fillWidth: true
                 placeholderText: qsTr("Search presets…")
                 font.family: Theme.fontFamily
-                font.pixelSize: 13
+                font.pixelSize: Theme.fontBody
                 onTextChanged: root.query = text
                 background: Rectangle {
                     radius: Theme.radiusSm
@@ -163,7 +163,7 @@ Item {
                       : qsTr("No presets match your search")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontBody
             }
 
             ScrollView {
@@ -195,7 +195,7 @@ Item {
                                 text: root.categoryTitle(modelData)
                                 color: Theme.textMuted
                                 font.family: Theme.fontFamily
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontBody
                                 font.weight: Font.Medium
                             }
 
@@ -204,7 +204,7 @@ Item {
                                 delegate: Rectangle {
                                     required property var modelData
                                     Layout.fillWidth: true
-                                    implicitHeight: 40
+                                    implicitHeight: Theme.controlHeightLg
                                     radius: Theme.radiusSm
                                     color: presetHover.hovered ? Theme.surfaceHover
                                                                : "transparent"
@@ -212,7 +212,13 @@ Item {
                                     RowLayout {
                                         anchors.fill: parent
                                         anchors.leftMargin: Theme.spacingSm
+                                        // Reserve the scrollbar's width while the
+                                        // list is scrollable, so the overlay
+                                        // scrollbar never sits on top of the add
+                                        // (+) button at the row's right edge.
                                         anchors.rightMargin: Theme.spacingXs
+                                            + (scroller.ScrollBar.vertical.size < 1
+                                               ? scroller.ScrollBar.vertical.width : 0)
                                         spacing: Theme.spacingSm
 
                                         ColumnLayout {
@@ -223,7 +229,7 @@ Item {
                                                 text: modelData.name
                                                 color: Theme.text
                                                 font.family: Theme.fontFamily
-                                                font.pixelSize: 13
+                                                font.pixelSize: Theme.fontBody
                                                 elide: Text.ElideRight
                                             }
                                             Text {
@@ -232,7 +238,7 @@ Item {
                                                 text: modelData.description
                                                 color: Theme.textMuted
                                                 font.family: Theme.fontFamily
-                                                font.pixelSize: 11
+                                                font.pixelSize: Theme.fontBody
                                                 elide: Text.ElideRight
                                             }
                                         }
@@ -241,14 +247,13 @@ Item {
                                             text: modelData.count + ""
                                             color: Theme.textMuted
                                             font.family: Theme.fontFamilyMono
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontBody
                                             Layout.rightMargin: Theme.spacingXs
                                         }
 
                                         Rectangle {
-                                            implicitHeight: 26
-                                            implicitWidth: addLabel.implicitWidth
-                                                           + 2 * Theme.spacingMd
+                                            implicitHeight: Theme.controlHeightSm
+                                            implicitWidth: implicitHeight
                                             radius: Theme.radiusSm
                                             color: addMouse.containsMouse
                                                    ? Theme.accentHover : Theme.accent
@@ -258,10 +263,10 @@ Item {
                                             Text {
                                                 id: addLabel
                                                 anchors.centerIn: parent
-                                                text: qsTr("Add")
-                                                color: Theme.onAccent
+                                                text: Theme.iconAdd
+                                                color: Theme.switchThumb
                                                 font.family: Theme.fontFamily
-                                                font.pixelSize: 12
+                                                font.pixelSize: Theme.fontStrong
                                                 font.weight: Font.Medium
                                             }
                                             MouseArea {

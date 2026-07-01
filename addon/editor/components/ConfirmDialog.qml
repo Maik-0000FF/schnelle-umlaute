@@ -29,7 +29,7 @@ Popup {
     readonly property color _confirmBase: confirmStyle === "primary"
                                           ? Theme.accent : Theme.error
     readonly property color _confirmHover: confirmStyle === "primary"
-                                           ? Theme.accentHover : "#ef4444"
+                                           ? Theme.accentHover : Theme.errorHover
 
     // When true, the cancel button is hidden and only the confirm button
     // is shown. Use for informational dialogs where there is no
@@ -57,7 +57,7 @@ Popup {
             text: root.titleText
             color: Theme.text
             font.family: Theme.fontFamily
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             font.weight: Font.Medium
         }
 
@@ -68,7 +68,7 @@ Popup {
             text: root.messageText
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
 
@@ -89,7 +89,7 @@ Popup {
             Rectangle {
                 id: cancelBtn
                 visible: !root.singleButton
-                implicitHeight: 34
+                implicitHeight: Theme.controlHeight
                 implicitWidth: cancelLabel.implicitWidth + 2 * Theme.spacingMd
                 radius: Theme.radiusSm
                 color: cancelMouse.containsMouse ? Theme.surfaceHover
@@ -104,7 +104,7 @@ Popup {
                     text: root.cancelText
                     color: Theme.text
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontBody
                 }
                 MouseArea {
                     id: cancelMouse
@@ -117,7 +117,7 @@ Popup {
 
             Rectangle {
                 id: confirmBtn
-                implicitHeight: 34
+                implicitHeight: Theme.controlHeight
                 implicitWidth: confirmLabel.implicitWidth + 2 * Theme.spacingMd
                 radius: Theme.radiusSm
                 color: confirmMouse.containsMouse ? root._confirmHover
@@ -130,7 +130,7 @@ Popup {
                     text: root.confirmText
                     color: Theme.switchThumb
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontBody
                     font.weight: Font.Medium
                 }
                 MouseArea {

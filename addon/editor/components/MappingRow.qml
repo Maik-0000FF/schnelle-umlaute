@@ -26,6 +26,10 @@ Rectangle {
     property var settingsModel: null
     property bool editing: false
 
+    // Read-only input cell width, shared with the error/warning rows below so
+    // their text lines up under the output column.
+    readonly property int inputCellWidth: 44
+
     signal removeRequested()
     signal editStartRequested()
     signal editEndRequested()
@@ -78,7 +82,7 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: Theme.spacingMd
         anchors.rightMargin: Theme.spacingSm
-        spacing: 2
+        spacing: Theme.spacingXxs
 
         RowLayout {
             Layout.fillWidth: true
@@ -86,7 +90,7 @@ Rectangle {
 
         Item {
             width: 16
-            height: 32
+            height: Theme.controlHeight
             visible: !root.editing
 
             Text {
@@ -94,7 +98,7 @@ Rectangle {
                 text: "⠿"
                 color: dragArea.containsMouse || dragArea.pressed
                     ? Theme.text : Theme.textMuted
-                font.pixelSize: 14
+                font.pixelSize: Theme.fontIcon
                 Behavior on color { ColorAnimation { duration: Theme.animShort } }
             }
 
@@ -136,8 +140,8 @@ Rectangle {
         }
 
         Rectangle {
-            width: 44
-            height: 32
+            width: root.inputCellWidth
+            height: Theme.controlHeight
             radius: Theme.radiusSm
             color: Theme.background
             border.color: root.staticLeaderConflict ? Theme.warning : Theme.border
@@ -150,7 +154,7 @@ Rectangle {
                 text: root.inputText
                 color: Theme.text
                 font.family: Theme.fontFamilyMono
-                font.pixelSize: 15
+                font.pixelSize: Theme.fontStrong
             }
         }
 
@@ -161,7 +165,7 @@ Rectangle {
             text: root.inputText
             maximumLength: 4
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             horizontalAlignment: TextInput.AlignHCenter
             background: Rectangle {
                 radius: Theme.radiusSm
@@ -177,7 +181,7 @@ Rectangle {
         Text {
             text: "→"
             color: Theme.textMuted
-            font.pixelSize: 14
+            font.pixelSize: Theme.fontIcon
         }
 
         Text {
@@ -186,7 +190,7 @@ Rectangle {
             text: root.outputText
             color: Theme.text
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             elide: Text.ElideRight
         }
 
@@ -196,7 +200,7 @@ Rectangle {
             Layout.fillWidth: true
             text: root.outputText
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background
@@ -221,7 +225,7 @@ Rectangle {
                 color: !applyBtn.enabled
                     ? Theme.border
                     : (applyBtn.hovered ? Theme.brand : Theme.textMuted)
-                font.pixelSize: 14
+                font.pixelSize: Theme.fontIcon
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -242,7 +246,7 @@ Rectangle {
             contentItem: Text {
                 text: parent.text
                 color: parent.hovered ? Theme.error : Theme.textMuted
-                font.pixelSize: 14
+                font.pixelSize: Theme.fontIcon
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -256,26 +260,26 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            Layout.leftMargin: 44 + Theme.spacingMd
+            Layout.leftMargin: root.inputCellWidth + Theme.spacingMd
             visible: root.editing && root.editInputError !== "" &&
                      inputEdit.text.length > 0
             text: root.editInputError
             color: Theme.error
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
 
         Text {
             Layout.fillWidth: true
-            Layout.leftMargin: 44 + Theme.spacingMd
+            Layout.leftMargin: root.inputCellWidth + Theme.spacingMd
             visible: root.staticLeaderConflict ||
                      (root.editing && root.editLeaderConflict &&
                       root.editInputError === "")
             text: qsTr("This key is configured as a Leader — mapping will not work")
             color: Theme.warning
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
     }

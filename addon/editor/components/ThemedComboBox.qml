@@ -15,7 +15,7 @@ ComboBox {
     id: combo
     implicitHeight: Theme.controlHeight
     font.family: Theme.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: Theme.fontBody
 
     // The custom contentItem/indicator handle their own insets, so drop the
     // control's style-supplied padding/spacing. Without this the box height
@@ -68,9 +68,10 @@ ComboBox {
         required property var modelData
         width: combo.width
         // Custom contentItem supplies its own padding; clear the style's so
-        // row height is fixed at 32 regardless of style / Qt version.
+        // the row height is fixed at Theme.controlHeight regardless of style /
+        // Qt version.
         padding: 0
-        implicitHeight: 32
+        implicitHeight: Theme.controlHeight
         readonly property bool current: combo.currentIndex === index
         readonly property string itemLabel:
             combo.textRole && modelData && typeof modelData === "object"
@@ -89,7 +90,7 @@ ComboBox {
             color: item.itemUnavailable ? Theme.textMuted
                    : item.current ? Theme.accent : Theme.text
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
             font.weight: item.current ? Font.Medium : Font.Normal
             leftPadding: Theme.spacingMd
             rightPadding: Theme.spacingMd
@@ -104,10 +105,11 @@ ComboBox {
     popup: Popup {
         y: combo.height + 2
         width: combo.width
-        // Cap the dropdown so very large models still fit on small
-        // screens — 6 rows × 32 px + 2 × 4 px padding.
-        implicitHeight: Math.min(contentItem.implicitHeight + 8, 6 * 32 + 8)
-        padding: 4
+        // Cap the dropdown so very large models still fit on small screens:
+        // 6 rows plus the popup's top and bottom padding.
+        implicitHeight: Math.min(contentItem.implicitHeight + 2 * Theme.spacingXs,
+                                 6 * Theme.controlHeight + 2 * Theme.spacingXs)
+        padding: Theme.spacingXs
 
         contentItem: ListView {
             clip: true

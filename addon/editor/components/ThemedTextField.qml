@@ -13,6 +13,10 @@ import SchnelleUmlaute
 TextField {
     id: control
 
+    // Pin every field to the shared control height so inputs, dropdown headers
+    // and shortcut fields all line up; centre the text within it.
+    implicitHeight: Theme.controlHeight
+    verticalAlignment: TextInput.AlignVCenter
     color: Theme.text
     placeholderTextColor: Theme.textMuted
     selectByMouse: true
@@ -22,13 +26,13 @@ TextField {
     // are set on the MenuEntry uses themselves.
     component MenuEntry: MenuItem {
         id: entry
-        implicitHeight: 32
+        implicitHeight: Theme.controlHeight
         implicitWidth: 160
         contentItem: Text {
             text: entry.text
             color: entry.enabled ? Theme.text : Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
             verticalAlignment: Text.AlignVCenter
             leftPadding: Theme.spacingMd
             rightPadding: Theme.spacingMd
