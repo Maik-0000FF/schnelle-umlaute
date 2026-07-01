@@ -128,8 +128,11 @@ Window {
     readonly property var palettes: ({
         "schnelle-umlaute": {
             frame: "#12101d", border: "#2a2640",
-            cellInactive: "#1a1728", cellInactiveBorder: "#2a2640",
+            cellInactive: "#241f38", cellInactiveBorder: "#2a2640",
             cellActive: "#4ade80", cellActiveBorder: "#4ade80",
+            // Inactive cell text carries the theme's signature green; the active
+            // cell keeps dark text on the green fill.
+            textInactive: "#4ade80", textActive: "#08060f",
             // Green is this theme's signature/active colour (cellActive above),
             // so the active leader window (barWindow) carries the green and the
             // dead-time lead-in (barLead) the accent purple, the inverse of the
