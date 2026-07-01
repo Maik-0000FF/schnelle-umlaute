@@ -226,6 +226,9 @@ Rectangle {
 
         ToolButton {
             id: applyBtn
+            // Mouse affordance only: keyboard uses the roving list (Enter/F2),
+            // and grabbing focus on click would let Space re-fire the button.
+            focusPolicy: Qt.NoFocus
             text: root.editing ? Theme.iconCheck : Theme.iconEdit
             enabled: !root.editing || root.editValid
             ThemedToolTip {
@@ -250,6 +253,9 @@ Rectangle {
 
         ToolButton {
             id: deleteBtn
+            // Mouse affordance only: keyboard uses the roving list (Delete), and
+            // grabbing focus on click would let Space re-open the delete dialog.
+            focusPolicy: Qt.NoFocus
             text: root.editing ? Theme.iconCancel : Theme.iconTrash
             ThemedToolTip {
                 visible: deleteBtn.hovered

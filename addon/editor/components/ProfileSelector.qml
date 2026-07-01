@@ -454,6 +454,9 @@ Item {
                         // edit pencil in MappingRow (Theme.brand is the constant
                         // green; Theme.accent varies per theme).
                         ToolButton {
+                            // Mouse affordance; keyboard renames via F2 on the
+                            // roving list, so it must not grab focus on click.
+                            focusPolicy: Qt.NoFocus
                             text: Theme.iconEdit
                             implicitWidth: 28
                             contentItem: Text {
@@ -475,6 +478,9 @@ Item {
                         // last) it is disabled but keeps its slot, so the
                         // action columns stay aligned across all rows.
                         ToolButton {
+                            // Mouse affordance; keyboard deletes via Delete on
+                            // the roving list, so it must not grab focus on click.
+                            focusPolicy: Qt.NoFocus
                             enabled: !prow.isProtected
                             opacity: prow.isProtected ? 0 : 1
                             text: Theme.iconTrash

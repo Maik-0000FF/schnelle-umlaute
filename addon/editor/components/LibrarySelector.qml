@@ -92,8 +92,10 @@ Item {
         Keys.onPressed: (event) => {
             if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
                 || event.key === Qt.Key_Enter || event.key === Qt.Key_Down) {
-                if (!popup.visible)
+                if (!popup.visible) {
+                    popup.keyboardSession = true;
                     root.openPopup();
+                }
                 event.accepted = true;
             }
         }
@@ -120,7 +122,14 @@ Item {
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: popup.visible ? popup.close() : root.openPopup()
+            onClicked: {
+                if (popup.visible) {
+                    popup.close();
+                } else {
+                    popup.keyboardSession = false;
+                    root.openPopup();
+                }
+            }
         }
     }
 
@@ -144,8 +153,15 @@ Item {
             border.width: 1
         }
 
+        // Focus returns to the header only for keyboard sessions, so a mouse
+        // open/close never leaves a keyboard focus ring behind.
+        property bool keyboardSession: false
         onOpened: searchField.forceActiveFocus()
-        onClosed: header.forceActiveFocus()
+        onClosed: {
+            if (keyboardSession)
+                header.forceActiveFocus();
+            keyboardSession = false;
+        }
 
         ColumnLayout {
             id: popupCol

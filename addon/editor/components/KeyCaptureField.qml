@@ -76,6 +76,8 @@ Item {
 
         ToolButton {
             id: clearBtn
+            // Mouse affordance; must not grab keyboard focus on click.
+            focusPolicy: Qt.NoFocus
             // Only acts when a value is set and not capturing, but the slot is
             // always reserved (opacity, not visible) so the pill width is
             // stable and the field does not resize/jump when the clear button

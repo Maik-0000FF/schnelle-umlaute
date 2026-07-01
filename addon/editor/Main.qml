@@ -381,6 +381,8 @@ ApplicationWindow {
 
             Button {
                 id: undoButton
+                // Keyboard-reachable via Tab, but must not grab focus on click.
+                focusPolicy: Qt.TabFocus
                 text: qsTr("Undo")
                 flat: true
                 visible: false

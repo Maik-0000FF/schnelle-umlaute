@@ -42,6 +42,8 @@ ColumnLayout {
 
         Button {
             id: addBtn
+            // Keyboard-reachable via Tab, but must not grab focus on click.
+            focusPolicy: Qt.TabFocus
             text: Theme.iconAdd
             enabled: inputField.text.trim().length > 0
             implicitWidth: 36
@@ -96,6 +98,9 @@ ColumnLayout {
                     }
 
                     ToolButton {
+                        // Keyboard-reachable via Tab, but must not grab focus
+                        // on click.
+                        focusPolicy: Qt.TabFocus
                         text: Theme.iconTrash
                         contentItem: Text {
                             text: parent.text

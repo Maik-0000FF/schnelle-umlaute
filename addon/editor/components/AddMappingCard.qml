@@ -103,6 +103,8 @@ Rectangle {
 
             Button {
                 id: addBtn
+                // Keyboard-reachable via Tab, but must not grab focus on click.
+                focusPolicy: Qt.TabFocus
                 text: Theme.iconAdd
                 enabled: root.canAdd
                 implicitWidth: 44
