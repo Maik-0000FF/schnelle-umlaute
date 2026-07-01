@@ -20,10 +20,10 @@ Item {
     property bool capturing: false
     property bool invalid: false // last press lacked a usable modifier
 
-    // Slightly shorter than a full control so it sits inside list rows; wide
-    // enough to read a typical combo before it elides.
+    // Full control height so the shortcut fields line up with the input fields
+    // and dropdown headers; wide enough to read a typical combo before it elides.
     readonly property int minWidth: 110
-    implicitHeight: Theme.controlHeight - 6
+    implicitHeight: Theme.controlHeight
     implicitWidth: Math.max(minWidth, rowL.implicitWidth)
 
     RowLayout {

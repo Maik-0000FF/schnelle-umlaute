@@ -13,6 +13,10 @@ import SchnelleUmlaute
 TextField {
     id: control
 
+    // Pin every field to the shared control height so inputs, dropdown headers
+    // and shortcut fields all line up; centre the text within it.
+    implicitHeight: Theme.controlHeight
+    verticalAlignment: TextInput.AlignVCenter
     color: Theme.text
     placeholderTextColor: Theme.textMuted
     selectByMouse: true
