@@ -128,8 +128,11 @@ Window {
     readonly property var palettes: ({
         "schnelle-umlaute": {
             frame: "#12101d", border: "#2a2640",
-            cellInactive: "#1a1728", cellInactiveBorder: "#2a2640",
+            cellInactive: "#241f38", cellInactiveBorder: "#2a2640",
             cellActive: "#4ade80", cellActiveBorder: "#4ade80",
+            // Inactive cell text carries the theme's signature green; the active
+            // cell keeps dark text on the green fill.
+            textInactive: "#4ade80", textActive: "#08060f",
             // Green is this theme's signature/active colour (cellActive above),
             // so the active leader window (barWindow) carries the green and the
             // dead-time lead-in (barLead) the accent purple, the inverse of the
@@ -162,6 +165,16 @@ Window {
     })
     readonly property var p: palettes[OverlayController.theme]
                              || palettes["schnelle-umlaute"]
+
+    // Cell-text colours read through accessors with a fallback to an always-
+    // defined palette key, so a palette that omits textInactive/textActive
+    // degrades to a visible on-theme colour instead of silently rendering
+    // black (undefined coerces to #000000). Inactive text falls back to
+    // cellActive (the active-cell colour, visible on the dark inactive cell),
+    // active text to frame (the panel colour, visible on the bright active
+    // cell).
+    readonly property color textActiveColor: p.textActive || p.frame
+    readonly property color textInactiveColor: p.textInactive || p.cellActive
 
     // Count Unicode codepoints, not UTF-16 code units. Without this,
     // surrogate-pair emojis (😊 et al.) report length 2 and fall into
@@ -331,7 +344,7 @@ Window {
                 anchors.centerIn: parent
                 text: OverlayController.variants.length
                       ? OverlayController.variants[0] : ""
-                color: win.p.textActive
+                color: win.textActiveColor
                 font.family: win.fontFamilyMono
                 font.pixelSize: win.pixelSizeSingle
                 font.weight: Font.Medium
@@ -382,7 +395,7 @@ Window {
                         verticalAlignment: Text.AlignVCenter
                         fontSizeMode: Text.HorizontalFit
                         text: win.truncateDisplay(modelData)
-                        color: active ? win.p.textActive : win.p.textInactive
+                        color: active ? win.textActiveColor : win.textInactiveColor
                         font.family: win.fontFamilyMono
                         font.pixelSize: {
                             if (win.codepointCount(modelData) > 1) return win.pixelSizeMulti
