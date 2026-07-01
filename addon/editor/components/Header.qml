@@ -59,7 +59,7 @@ Rectangle {
                 text: qsTr("%1 mappings").arg(root.mappingCount)
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontCaption
+                font.pixelSize: Theme.fontBody
             }
         }
 

@@ -173,7 +173,7 @@ Item {
                       ? root.profilesModel.nameErrorFor(newName.text, -1) : ""
                 color: Theme.error
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontCaption
+                font.pixelSize: Theme.fontBody
                 wrapMode: Text.WordWrap
             }
 

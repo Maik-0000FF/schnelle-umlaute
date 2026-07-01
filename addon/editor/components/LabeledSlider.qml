@@ -75,7 +75,7 @@ RowLayout {
         text: slider.value + " " + root.suffix
         color: Theme.textMuted
         font.family: Theme.fontFamilyMono
-        font.pixelSize: Theme.fontCaption
+        font.pixelSize: Theme.fontBody
         Layout.preferredWidth: 70
         horizontalAlignment: Text.AlignRight
     }

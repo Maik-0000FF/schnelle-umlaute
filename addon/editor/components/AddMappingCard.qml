@@ -48,7 +48,7 @@ Rectangle {
             text: qsTr("New mapping")
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
+            font.pixelSize: Theme.fontBody
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 1
         }
@@ -82,7 +82,7 @@ Rectangle {
             Text {
                 text: "→"
                 color: Theme.textMuted
-                font.pixelSize: Theme.fontDisplay
+                font.pixelSize: Theme.fontStrong
             }
 
             ThemedTextField {
@@ -110,7 +110,7 @@ Rectangle {
                 contentItem: Text {
                     text: addBtn.text
                     color: addBtn.enabled ? "#ffffff" : Theme.textMuted
-                    font.pixelSize: Theme.fontDisplay
+                    font.pixelSize: Theme.fontStrong
                     font.weight: Font.Medium
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
@@ -137,7 +137,7 @@ Rectangle {
                 ? Theme.error
                 : (root.leaderConflict ? Theme.warning : Theme.textMuted)
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
             Behavior on color { ColorAnimation { duration: Theme.animShort } }
         }

@@ -34,7 +34,7 @@ RowLayout {
         text: row.description
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontCaption
+        font.pixelSize: Theme.fontBody
         wrapMode: Text.WordWrap
     }
 }

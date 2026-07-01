@@ -266,7 +266,7 @@ Rectangle {
             text: root.editInputError
             color: Theme.error
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
 
@@ -279,7 +279,7 @@ Rectangle {
             text: qsTr("This key is configured as a Leader — mapping will not work")
             color: Theme.warning
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
     }

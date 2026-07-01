@@ -71,7 +71,7 @@ Item {
                 wrapMode: Text.WordWrap
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontCaption
+                font.pixelSize: Theme.fontBody
                 text: {
                     if (!root.profilesModel || !root.mappingsModel) return "";
                     root.profilesModel.revision; // refresh on active/edit change

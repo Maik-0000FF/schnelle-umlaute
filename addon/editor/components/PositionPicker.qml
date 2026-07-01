@@ -24,7 +24,7 @@ ColumnLayout {
     FontMetrics {
         id: captionMetrics
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontCaption
+        font.pixelSize: Theme.fontBody
         font.italic: true
     }
     // Fixed slot for two lines so swapping the caption text never reflows the
@@ -183,7 +183,7 @@ ColumnLayout {
             : qsTr("Click on the monitor to choose overlay position")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontCaption
+        font.pixelSize: Theme.fontBody
         font.italic: true
     }
 }

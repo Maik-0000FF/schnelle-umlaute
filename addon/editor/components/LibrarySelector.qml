@@ -163,7 +163,7 @@ Item {
                       : qsTr("No presets match your search")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontCaption
+                font.pixelSize: Theme.fontBody
             }
 
             ScrollView {
@@ -195,7 +195,7 @@ Item {
                                 text: root.categoryTitle(modelData)
                                 color: Theme.textMuted
                                 font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontCaption
+                                font.pixelSize: Theme.fontBody
                                 font.weight: Font.Medium
                             }
 
@@ -232,7 +232,7 @@ Item {
                                                 text: modelData.description
                                                 color: Theme.textMuted
                                                 font.family: Theme.fontFamily
-                                                font.pixelSize: Theme.fontCaption
+                                                font.pixelSize: Theme.fontBody
                                                 elide: Text.ElideRight
                                             }
                                         }
@@ -241,7 +241,7 @@ Item {
                                             text: modelData.count + ""
                                             color: Theme.textMuted
                                             font.family: Theme.fontFamilyMono
-                                            font.pixelSize: Theme.fontCaption
+                                            font.pixelSize: Theme.fontBody
                                             Layout.rightMargin: Theme.spacingXs
                                         }
 

@@ -125,7 +125,7 @@ ColumnLayout {
         text: qsTr("No entries")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontCaption
+        font.pixelSize: Theme.fontBody
         font.italic: true
     }
 

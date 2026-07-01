@@ -33,6 +33,6 @@ ColumnLayout {
         text: qsTr("Add your first mapping above")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontCaption
+        font.pixelSize: Theme.fontBody
     }
 }

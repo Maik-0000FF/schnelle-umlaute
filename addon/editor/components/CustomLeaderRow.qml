@@ -61,7 +61,7 @@ ColumnLayout {
             text: qsTr("Key")
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
+            font.pixelSize: Theme.fontBody
             Layout.preferredWidth: 40
         }
 
@@ -98,7 +98,7 @@ ColumnLayout {
             text: qsTr("Must be a single non-whitespace character")
             color: Theme.error
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
 
@@ -108,7 +108,7 @@ ColumnLayout {
             text: qsTr("Warning: this key is already a mapping input")
             color: Theme.warning
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
     }

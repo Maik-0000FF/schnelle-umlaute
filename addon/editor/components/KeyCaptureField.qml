@@ -54,7 +54,7 @@ Item {
                        : (root.capturing ? Theme.accent
                           : (root.value.length ? Theme.text : Theme.textMuted))
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontCaption
+                font.pixelSize: Theme.fontBody
                 elide: Text.ElideRight
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter

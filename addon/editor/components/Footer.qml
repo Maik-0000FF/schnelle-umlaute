@@ -31,7 +31,7 @@ Rectangle {
             text: saveStatus
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
+            font.pixelSize: Theme.fontBody
         }
 
         Item { Layout.fillWidth: true }
@@ -40,7 +40,7 @@ Rectangle {
             text: qsTr("Changes are saved automatically")
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontCaption
+            font.pixelSize: Theme.fontBody
             font.italic: true
         }
     }
