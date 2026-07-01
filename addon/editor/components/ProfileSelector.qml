@@ -265,13 +265,13 @@ Item {
                             root.requestDelete(it.index, it.name);
                         }
                         event.accepted = true;
-                    } else if (event.text === "a") {
+                    } else if (event.text.toLowerCase() === "a") {
                         if (root.profilesModel && !it.isActive
                             && root.profilesModel.setActiveRow(it.index))
                             root.requestSnackbar(
                                 qsTr("Switched to “%1”").arg(it.name), Theme.accent);
                         event.accepted = true;
-                    } else if (event.text === "f") {
+                    } else if (event.text.toLowerCase() === "f") {
                         if (root.profilesModel)
                             root.profilesModel.setFavorite(it.index, !it.favorite);
                         event.accepted = true;

@@ -184,11 +184,11 @@ RowLayout {
             activeFocusOnTab: true
             Keys.onPressed: (event) => {
                 if (event.key === Qt.Key_Left) {
-                    root.lowerEdited(track.clamp(root.lowerValue - root.step,
+                    root.lowerEdited(track.clamp(track.snap(root.lowerValue - root.step),
                                                  root.from, root.upperValue));
                     event.accepted = true;
                 } else if (event.key === Qt.Key_Right) {
-                    root.lowerEdited(track.clamp(root.lowerValue + root.step,
+                    root.lowerEdited(track.clamp(track.snap(root.lowerValue + root.step),
                                                  root.from, root.upperValue));
                     event.accepted = true;
                 }
@@ -213,12 +213,12 @@ RowLayout {
             Keys.onPressed: (event) => {
                 if (event.key === Qt.Key_Left) {
                     root.upperEdited(track.clamp(
-                        root.upperValue - root.step,
+                        track.snap(root.upperValue - root.step),
                         Math.max(root.lowerValue, root.upperMin), root.to));
                     event.accepted = true;
                 } else if (event.key === Qt.Key_Right) {
                     root.upperEdited(track.clamp(
-                        root.upperValue + root.step,
+                        track.snap(root.upperValue + root.step),
                         Math.max(root.lowerValue, root.upperMin), root.to));
                     event.accepted = true;
                 }
