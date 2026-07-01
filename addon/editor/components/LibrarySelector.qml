@@ -87,6 +87,19 @@ Item {
         border.width: 1
         Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
+        // Reachable by Tab; Space/Enter/Down open the library dropdown.
+        activeFocusOnTab: true
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                || event.key === Qt.Key_Enter || event.key === Qt.Key_Down) {
+                if (!popup.visible)
+                    root.openPopup();
+                event.accepted = true;
+            }
+        }
+
+        FocusRing { visible: header.activeFocus }
+
         Text {
             id: libLabel
             anchors.left: parent.left
@@ -107,7 +120,10 @@ Item {
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: popup.visible ? popup.close() : root.openPopup()
+            onClicked: {
+                header.forceActiveFocus();
+                popup.visible ? popup.close() : root.openPopup();
+            }
         }
     }
 
@@ -132,6 +148,7 @@ Item {
         }
 
         onOpened: searchField.forceActiveFocus()
+        onClosed: header.forceActiveFocus()
 
         ColumnLayout {
             id: popupCol
@@ -145,6 +162,9 @@ Item {
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBody
                 onTextChanged: root.query = text
+                // Down moves into the preset list (the next focusable).
+                Keys.onDownPressed: searchField.nextItemInFocusChain(true)
+                                              .forceActiveFocus(Qt.TabFocusReason)
                 background: Rectangle {
                     radius: Theme.radiusSm
                     color: Theme.surface
@@ -252,14 +272,57 @@ Item {
                                         }
 
                                         Rectangle {
+                                            id: addPresetBtn
+                                            // Reachable by Tab; Space/Enter add
+                                            // this preset, Up/Down step through
+                                            // the list (the focusables in order).
+                                            activeFocusOnTab: true
                                             implicitHeight: Theme.controlHeightSm
                                             implicitWidth: implicitHeight
                                             radius: Theme.radiusSm
-                                            color: addMouse.containsMouse
+                                            color: (addMouse.containsMouse
+                                                    || addPresetBtn.activeFocus)
                                                    ? Theme.accentHover : Theme.accent
                                             Behavior on color {
                                                 ColorAnimation { duration: Theme.animShort }
                                             }
+
+                                            // Only confirm on success; a failed
+                                            // add emits errorOccurred (shown as an
+                                            // error snackbar) and returns false, so
+                                            // a green "Added" toast would contradict
+                                            // it.
+                                            function addPreset() {
+                                                if (root.profilesModel
+                                                    && root.profilesModel.addProfileFromPreset(
+                                                        modelData.file))
+                                                    root.requestSnackbar(
+                                                        qsTr("Added “%1”").arg(modelData.name),
+                                                        Theme.success);
+                                                popup.close();
+                                            }
+
+                                            FocusRing {
+                                                visible: addPresetBtn.activeFocus
+                                            }
+
+                                            Keys.onPressed: (event) => {
+                                                if (event.key === Qt.Key_Space
+                                                    || event.key === Qt.Key_Return
+                                                    || event.key === Qt.Key_Enter) {
+                                                    addPresetBtn.addPreset();
+                                                    event.accepted = true;
+                                                } else if (event.key === Qt.Key_Down) {
+                                                    addPresetBtn.nextItemInFocusChain(true)
+                                                        .forceActiveFocus(Qt.TabFocusReason);
+                                                    event.accepted = true;
+                                                } else if (event.key === Qt.Key_Up) {
+                                                    addPresetBtn.nextItemInFocusChain(false)
+                                                        .forceActiveFocus(Qt.BacktabFocusReason);
+                                                    event.accepted = true;
+                                                }
+                                            }
+
                                             Text {
                                                 id: addLabel
                                                 anchors.centerIn: parent
@@ -274,21 +337,7 @@ Item {
                                                 anchors.fill: parent
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    // Only confirm on success;
-                                                    // a failed add emits
-                                                    // errorOccurred (shown as an
-                                                    // error snackbar) and returns
-                                                    // false, so a green "Added"
-                                                    // toast would contradict it.
-                                                    if (root.profilesModel
-                                                        && root.profilesModel.addProfileFromPreset(
-                                                            modelData.file))
-                                                        root.requestSnackbar(
-                                                            qsTr("Added “%1”").arg(modelData.name),
-                                                            Theme.success);
-                                                    popup.close();
-                                                }
+                                                onClicked: addPresetBtn.addPreset()
                                             }
                                         }
                                     }
