@@ -49,8 +49,9 @@ public:
 
     // Called each time the config is (re)loaded. Compares against the
     // last known enabled value and starts/stops the daemon accordingly.
-    // The first call after construction is a no-op so the daemon isn't
-    // eagerly spawned at fcitx5 startup.
+    // The first call after construction starts the daemon when the overlay is
+    // enabled (eager, so it's ready before the first cycling event) and is a
+    // no-op when disabled.
     void applyEnabledTransition(bool enabled);
 
 private:
