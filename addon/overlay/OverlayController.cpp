@@ -9,12 +9,22 @@
 #include <ctime>
 
 namespace {
+// Time-unit conversions, named to mirror the engine (state.h defines the same
+// values for its side of the SetProgress D-Bus protocol, which carries
+// CLOCK_MONOTONIC microseconds). The overlay is a separate Qt binary and cannot
+// include the fcitx-tied engine header, so the units are named here too rather
+// than left as bare literals on the daemon side of the boundary.
+constexpr qint64 kMicrosecondsPerSecond = 1'000'000;
+constexpr qint64 kNanosecondsPerMicrosecond = 1'000;
+constexpr qint64 kMicrosecondsPerMillisecond = 1'000;
+
 // Same monotonic clock the engine stamps the gesture start with (state.h's
 // nowUsec), so the two processes' timestamps are directly comparable.
 qint64 monotonicUsec() {
     timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return static_cast<qint64>(ts.tv_sec) * 1'000'000 + ts.tv_nsec / 1'000;
+    return static_cast<qint64>(ts.tv_sec) * kMicrosecondsPerSecond +
+           ts.tv_nsec / kNanosecondsPerMicrosecond;
 }
 } // namespace
 
@@ -83,7 +93,8 @@ void OverlayController::setProgress(int leadMs, int windowMs, qint64 startUsec) 
     const int total = std::max(0, leadMs) + std::max(0, windowMs);
     progressStartUsec_ = startUsec;
     if (startUsec > 0) {
-        const qint64 elapsedMs = (monotonicUsec() - startUsec) / 1'000;
+        const qint64 elapsedMs =
+            (monotonicUsec() - startUsec) / kMicrosecondsPerMillisecond;
         progressElapsedMs_ =
             static_cast<int>(std::clamp<qint64>(elapsedMs, 0, total));
     } else {
@@ -115,7 +126,8 @@ int OverlayController::progressElapsedNowMs() const {
         std::max(0, progressLeadMs_) + std::max(0, progressWindowMs_);
     if (progressStartUsec_ <= 0)
         return std::clamp(progressElapsedMs_, 0, total);
-    const qint64 elapsedMs = (monotonicUsec() - progressStartUsec_) / 1'000;
+    const qint64 elapsedMs =
+        (monotonicUsec() - progressStartUsec_) / kMicrosecondsPerMillisecond;
     return static_cast<int>(std::clamp<qint64>(elapsedMs, 0, total));
 }
 
