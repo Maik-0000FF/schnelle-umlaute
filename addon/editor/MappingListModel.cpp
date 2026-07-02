@@ -112,6 +112,21 @@ QString MappingListModel::inputErrorFor(const QString &input,
     return {};
 }
 
+// Mirror of inputErrorFor for the output field: empty is not an error (the
+// Add/Apply button just stays disabled), otherwise explain each way an output
+// is rejected so the reason shows live in the editor instead of a generic toast.
+QString MappingListModel::outputErrorFor(const QString &output) const {
+    if (output.isEmpty())
+        return {};
+    if (!isValidOutputChar(output)) {
+        return tr("Output must not contain line breaks");
+    }
+    if (schnelle_umlaute::splitOutputs(output.toStdString()).empty()) {
+        return tr("Output must have at least one variant (a lone \",\" is empty)");
+    }
+    return {};
+}
+
 bool MappingListModel::addMapping(const QString &input, const QString &output) {
     if (!validateInput(input) || !validateOutput(output)) {
         Q_EMIT errorOccurred(tr("Invalid entry"));
@@ -145,7 +160,7 @@ bool MappingListModel::updateMapping(int row, const QString &input,
         return false;
     }
     if (!validateOutput(output)) {
-        Q_EMIT errorOccurred(tr("Output must not contain line breaks"));
+        Q_EMIT errorOccurred(outputErrorFor(output));
         return false;
     }
     entries_[row].input = input;

@@ -32,6 +32,8 @@ Rectangle {
         return inputField.text.length > 0 && settingsModel &&
             settingsModel.isActiveLeaderKey(inputField.text);
     }
+    readonly property string outputError:
+        modelRef ? modelRef.outputErrorFor(outputField.text) : ""
     readonly property bool outputValid:
         modelRef && outputField.text.length > 0 &&
         modelRef.validateOutput(outputField.text)
@@ -132,10 +134,13 @@ Rectangle {
             Layout.fillWidth: true
             text: (root.inputError !== "" && inputField.text.length > 0)
                 ? root.inputError
-                : (root.leaderConflict
-                    ? qsTr("This key is configured as a Leader — mapping will not work")
-                    : qsTr("Key: a single character. Output: text or comma-separated variants for cycling."))
-            color: (root.inputError !== "" && inputField.text.length > 0)
+                : (root.outputError !== "" && outputField.text.length > 0)
+                    ? root.outputError
+                    : (root.leaderConflict
+                        ? qsTr("This key is configured as a Leader — mapping will not work")
+                        : qsTr("Key: a single character. Output: text or comma-separated variants for cycling."))
+            color: ((root.inputError !== "" && inputField.text.length > 0)
+                    || (root.outputError !== "" && outputField.text.length > 0))
                 ? Theme.error
                 : (root.leaderConflict ? Theme.warning : Theme.textMuted)
             font.family: Theme.fontFamily
