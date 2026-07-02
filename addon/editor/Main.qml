@@ -295,7 +295,20 @@ ApplicationWindow {
             Layout.fillHeight: true
             currentIndex: tabRow.currentIndex
 
+            // Move keyboard focus into the newly shown panel on every tab
+            // switch (mouse, Space/Enter, Left/Right, or a Ctrl shortcut all
+            // funnel through currentIndex). Without this, a control on the
+            // now-hidden page keeps active focus and still eats keys — e.g. the
+            // theme combo would turn arrow presses into theme changes after you
+            // switch to Mappings. Keyboard tab-nav re-grabs focus onto the tab
+            // itself right after (Keys.onPressed above), so Left/Right cycling
+            // is unaffected.
+            onCurrentIndexChanged: currentIndex === 0
+                ? settingsPanel.focusPanel()
+                : mappingsPanel.focusPanel()
+
             Settings {
+                id: settingsPanel
                 settingsModel: settings
                 mappingsModel: mappings
             }

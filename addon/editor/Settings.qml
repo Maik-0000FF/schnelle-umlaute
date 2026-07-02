@@ -9,6 +9,11 @@ Item {
     property var settingsModel: null
     property var mappingsModel: null
 
+    // Called when this tab becomes visible: take focus onto the panel root so
+    // no control left focused on a previously shown tab keeps intercepting
+    // keys. Tab then walks into the controls from here as usual.
+    function focusPanel() { root.forceActiveFocus(); }
+
     // Push the active editor palette into the caret candidate-window theme.
     // One place to keep the colour-argument list in sync across the toggle,
     // the placement selector and the theme-change handler.
