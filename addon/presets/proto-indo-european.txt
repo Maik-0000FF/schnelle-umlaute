@@ -2,12 +2,19 @@
 # Description: Proto-Indo-European notation
 # Category: symbols
 
-a=ā
-e=ē
-o=ō
-k=ḱ
-g=ǵ
-r=r̥
-l=l̥
-m=m̥
-n=n̥
+a=ā,á
+e=ē,é
+i=ī,í,i̯
+o=ō,ó
+u=ū,ú,u̯
+b=bʰ
+d=dʰ
+g=ǵ,gʰ,gʷ,gʷʰ,ǵʰ
+h=h₁,h₂,h₃
+k=ḱ,kʷ
+l=l̥,l̥̄
+m=m̥,m̥̄
+n=n̥,n̥̄
+r=r̥,r̥̄
+w=u̯
+y=i̯

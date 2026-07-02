@@ -48,6 +48,7 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)**
 - **[Architecture](docs/ARCHITECTURE.md)**
 - **[Upgrading](docs/UPGRADING.md)**
+- **[Contributing](CONTRIBUTING.md)**
 
 ## What Makes This Special?
 
@@ -147,6 +148,10 @@ All mappings are fully customizable, add French, Spanish, Emoji, Braille, or any
 ```
 
 See [Installation Guide](docs/INSTALLATION.md#uninstallation) for manual uninstallation.
+
+## Contributing
+
+Contributions are welcome, especially improving the **character presets**. If you are a **native speaker**, your help making your language's preset complete and correct is greatly appreciated. The presets are plain text files that are quick to edit, no build required. See the [Contributing guide](CONTRIBUTING.md) for the preset format and how to submit a change.
 
 ## Feedback
 
