@@ -777,6 +777,16 @@ public:
             state->overlayHideEvent_ = std::move(flash);
             return;
         }
+        // A profile-name flash lives on the engine-level profileFlashHideEvent_
+        // (kept off the per-IC timer so a later gesture's cancelOverlayHide
+        // can't kill it), so the commit-flash restore above never sees it. Leave
+        // it up for the same reason and let its own timer hide it after the
+        // readable delay. clearAllState() is per-IC and leaves that engine timer
+        // running; a gesture overlay resets it (overlayShow), so a non-null
+        // timer with a visible overlay uniquely means a live flash, not a spent
+        // one (the flash callback clears overlayVisible_ when it fires).
+        if (profileFlashHideEvent_ && overlayVisible_)
+            return;
         // Route through hideTriggerOverlay (not a bare overlayHide) so the
         // DBus Hide is suppressed when ShowOnTrigger is off. Apps like Chromium
         // and Neovide call reset() after every commit; cycling holds
