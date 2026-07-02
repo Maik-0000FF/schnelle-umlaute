@@ -64,7 +64,7 @@ void testDisabledStaysDisabledNoOp() {
 // binary on the next call. The version args are irrelevant here.
 void testNoOwnerIsNeverStale() {
     EXPECT(!overlayDaemonIsStale(/*hasOwner=*/false, /*gotVersion=*/false,
-                                 /*reported=*/-1, /*expected=*/1));
+                                 /*reportedVersion=*/-1, /*expectedVersion=*/1));
     EXPECT(!overlayDaemonIsStale(false, true, 1, 1));
 }
 
@@ -72,19 +72,19 @@ void testNoOwnerIsNeverStale() {
 // version query fails: treat it as stale and restart it.
 void testOwnerWithoutVersionIsStale() {
     EXPECT(overlayDaemonIsStale(/*hasOwner=*/true, /*gotVersion=*/false,
-                                /*reported=*/-1, /*expected=*/1));
+                                /*reportedVersion=*/-1, /*expectedVersion=*/1));
 }
 
 // A running daemon reporting a different protocol version is a stale in-place
 // upgrade leftover whose calls would be dropped.
 void testOwnerVersionMismatchIsStale() {
-    EXPECT(overlayDaemonIsStale(true, true, /*reported=*/1, /*expected=*/2));
-    EXPECT(overlayDaemonIsStale(true, true, /*reported=*/3, /*expected=*/2));
+    EXPECT(overlayDaemonIsStale(true, true, /*reportedVersion=*/1, /*expectedVersion=*/2));
+    EXPECT(overlayDaemonIsStale(true, true, /*reportedVersion=*/3, /*expectedVersion=*/2));
 }
 
 // A running daemon on the same protocol version is fine: leave it alone.
 void testOwnerVersionMatchIsNotStale() {
-    EXPECT(!overlayDaemonIsStale(true, true, /*reported=*/2, /*expected=*/2));
+    EXPECT(!overlayDaemonIsStale(true, true, /*reportedVersion=*/2, /*expectedVersion=*/2));
 }
 
 int main() {
