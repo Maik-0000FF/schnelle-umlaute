@@ -1,8 +1,26 @@
 # Upgrading
 
-## Unreleased
+## Upgrading from v1.3.0 to v1.4.0
 
-No config or mapping migration required. Pull / reinstall and restart fcitx5. If you have the overlay enabled, **restart the `schnelle-umlaute-overlay` daemon** (or toggle the overlay off and on in the editor) so the new build takes over. This release is the one where that restart matters functionally: the timing progress bar's update message gained a field, so an old daemon left running just won't draw the bar (cycling and the rest of the overlay are unaffected) until it restarts.
+Your existing mappings and config carry over unchanged. On the first editor launch, v1.4.0 seeds a "Standard" profile that points at your current `mappings.txt` (the file is left exactly as it is, never rewritten) and records it in a new `profiles.conf`. The engine also falls back to `mappings.txt` when no profiles are configured, so nothing breaks even if you never open the editor. No manual config or mapping migration is required.
+
+Pull / reinstall and restart fcitx5. If you have the overlay enabled, **restart the `schnelle-umlaute-overlay` daemon** (or toggle the overlay off and on in the editor) so the new build takes over: the timing progress bar's update message gained a field in this cycle, so an old daemon left running just won't draw the bar (cycling and the rest of the overlay are unaffected) until it restarts.
+
+### New files
+
+Two new items appear next to your mappings, both managed from the editor (no need to edit them by hand):
+
+- `~/.config/fcitx5/schnelle-umlaute/profiles.conf`: the profile list, the active profile, and the switch/cycle shortcuts.
+- `~/.config/fcitx5/schnelle-umlaute/profiles/`: the mapping files of the extra profiles (the Standard profile keeps using `mappings.txt`).
+
+`schnelle-umlaute.conf` is unchanged: this release only adds config elsewhere, nothing is renamed or removed.
+
+### What changed
+
+- **Mapping profiles.** Keep several independent mapping sets and switch between them. Manage them on the Mappings tab (create, rename, delete, mark favorites, assign a per-profile switch shortcut). Switch at runtime with a profile's own shortcut, or step through them with configurable cycle-next / cycle-previous shortcuts (these walk the favorites if you marked any, otherwise every profile); the active profile's name flashes briefly on switch. Your previous single mapping set becomes the "Standard" profile automatically.
+- **Preset library.** A new Library dropdown beside the profile selector bundles ready-made mapping sets: 36 language presets (for example Français, Español, Polski, Türkçe, Ελληνικά, Tiếng Việt, Pīnyīn) plus symbol/math, currency, IPA, polytonic Greek and romanization sets, and an emoji set. Search or browse by category and add one with a click; it is copied into your own profiles and goes live immediately.
+- **Editor design and keyboard operability.** A unified type scale and control sizing, full keyboard navigation (tab bar, list navigation, shortcuts), and a single, consistent focus/selection highlight that follows whichever input (mouse or keyboard) you are currently using.
+- **Overlay accuracy and colours.** A frame-accurate timing progress bar, more accurate gesture timing, a live marker when the profile switches, and per-theme overlay and slider colours with label fixes.
 
 ## Upgrading from v1.2.3 to v1.3.0
 
