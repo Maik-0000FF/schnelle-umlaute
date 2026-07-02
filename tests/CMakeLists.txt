@@ -226,7 +226,8 @@ target_compile_definitions(testprofilelistmodel PRIVATE QT_NO_KEYWORDS)
 target_link_libraries(testprofilelistmodel
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
-    Qt${QT_MAJOR_VERSION}::Qml)
+    Qt${QT_MAJOR_VERSION}::Qml
+    Fcitx5::Core)
 add_test(NAME testprofilelistmodel COMMAND testprofilelistmodel)
 set_tests_properties(testprofilelistmodel PROPERTIES TIMEOUT 10)
 
