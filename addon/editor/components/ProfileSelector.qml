@@ -307,6 +307,11 @@ Item {
                         anchors.fill: parent
                         acceptedButtons: Qt.LeftButton
                         onClicked: {
+                            // Don't steal focus from the inline rename field on
+                            // a click on bare row padding: it cancels on focus
+                            // loss, so this would silently abort the rename.
+                            if (prow.renaming)
+                                return;
                             list.currentIndex = prow.index;
                             list.forceActiveFocus();
                         }
