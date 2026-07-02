@@ -33,9 +33,9 @@ schnelle-umlaute-setup
 
 Then logout and login. The `-git` package follows the `dev` branch and ships features ahead of the latest tagged release. A stable AUR package (`fcitx5-schnelle-umlaute`) tracking tagged releases will be added later.
 
-> If you skip `schnelle-umlaute-setup` and launch `schnelle-umlaute-editor`, the editor detects the missing environment variables on startup and offers to create the same `environment.d/fcitx5.conf` file. This is a safety net — the editor does not set up autostart, so the standalone helper is still the complete path.
+> If you skip `schnelle-umlaute-setup` and launch `schnelle-umlaute-editor`, the editor detects the missing environment variables on startup and offers to create the same `environment.d/fcitx5.conf` file. This is a safety net, the editor does not set up autostart, so the standalone helper is still the complete path.
 
-> **wlroots compositors (Hyprland, sway, …):** A compositor started straight from a TTY (`exec Hyprland`) does not import `environment.d`, so the steps above won't activate the variables on their own. Either launch your session through a display manager or [uwsm](https://github.com/Vladimir-csp/uwsm) (then `environment.d` is honored normally), or put the variables in the compositor config — on Hyprland the editor offers an **Add to config** button for `~/.config/hypr/hyprland.conf`. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#editor-shows-an-activation-pending-dialog-hyprland--sway--other-wlroots).
+> **wlroots compositors (Hyprland, sway, …):** A compositor started straight from a TTY (`exec Hyprland`) does not import `environment.d`, so the steps above won't activate the variables on their own. Either launch your session through a display manager or [uwsm](https://github.com/Vladimir-csp/uwsm) (then `environment.d` is honored normally), or put the variables in the compositor config, on Hyprland the editor offers an **Add to config** button for `~/.config/hypr/hyprland.conf`. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#editor-shows-an-activation-pending-dialog-hyprland--sway--other-wlroots).
 
 ---
 
@@ -88,7 +88,7 @@ sudo cmake --install .
 schnelle-umlaute-setup
 ```
 
-Writes `~/.config/environment.d/fcitx5.conf` (env-vars: GTK/Qt/X11) and configures autostart for your session (KDE Wayland gets `Hidden=true` because KWin handles startup; other sessions get a regular XDG autostart entry). Idempotent — safe to re-run.
+Writes `~/.config/environment.d/fcitx5.conf` (env-vars: GTK/Qt/X11) and configures autostart for your session (KDE Wayland gets `Hidden=true` because KWin handles startup; other sessions get a regular XDG autostart entry). Idempotent, safe to re-run.
 
 **5. Logout and Login**
 
@@ -288,7 +288,7 @@ sudo rm /usr/share/icons/hicolor/scalable/apps/schnelle-umlaute-editor.svg
 sudo rm /usr/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
 
 # Legacy fcitx5-configtool Qt plugin (only present on installs from
-# versions before 1.2.0 — ignore "No such file or directory" otherwise):
+# versions before 1.2.0, ignore "No such file or directory" otherwise):
 sudo rm /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so 2>/dev/null
 
 # Common data files (all distributions)

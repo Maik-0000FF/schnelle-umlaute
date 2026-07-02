@@ -24,9 +24,9 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã)
 - Snippets: Map single keys to entire text phrases
 - Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
-- Configurable leader keys (Space, Arrow ←→↑↓, Alt/AltGr, or custom keys with hand-split) — keep Space free for normal typing
+- Configurable leader keys (Space, Arrow ←→↑↓, Alt/AltGr, or custom keys with hand-split), keep Space free for normal typing
 - Unlimited mapping slots
-- App blacklist/whitelist — disable in games, password managers, or apps with conflicting shortcuts
+- App blacklist/whitelist, disable in games, password managers, or apps with conflicting shortcuts
 - Standalone QML editor (`schnelle-umlaute-editor`) for managing mappings, leader keys, app filter, and the cycle overlay
 - Optional cycle overlay daemon (Wayland with wlr-layer-shell) showing accent variants on-screen
 - No clipboard interference, no root permissions
@@ -112,9 +112,9 @@ The version from before the cycle overlay and the standalone editor is kept on t
 
 ## Usage
 
-1. **Switch to Schnelle Umlaute** input method (<kbd>Ctrl</kbd> + <kbd>Space</kbd>) — tray icon shows **"Ää"**
+1. **Switch to Schnelle Umlaute** input method (<kbd>Ctrl</kbd> + <kbd>Space</kbd>), tray icon shows **"Ää"**
 2. **Type umlauts:** Hold a mapped key, then press <kbd>Space</kbd> within the time window
-3. **Type normally:** Release the key without pressing <kbd>Space</kbd> — the normal letter appears
+3. **Type normally:** Release the key without pressing <kbd>Space</kbd>, the normal letter appears
 
 ### Default Mappings
 
@@ -128,9 +128,9 @@ The version from before the cycle overlay and the standalone editor is kept on t
 | <kbd>Shift</kbd>+<kbd>o</kbd> | + | <kbd>Space</kbd> | = | Ö |
 | <kbd>Shift</kbd>+<kbd>u</kbd> | + | <kbd>Space</kbd> | = | Ü |
 
-All mappings are fully customizable — add French, Spanish, Emoji, Braille, or any Unicode character. See [Configuration](docs/CONFIGURATION.md).
+All mappings are fully customizable, add French, Spanish, Emoji, Braille, or any Unicode character. See [Configuration](docs/CONFIGURATION.md).
 
-> **Tip:** When typing fast, Space as leader key can cause accidental accents at word boundaries — e.g. "une pomme chaque" becomes "une pomméchaque" (the `e` is still held when Space is pressed, so Space gets consumed as the leader and the word separator is lost). Switch to an arrow key, Alt, or a custom leader (e.g. `f`, `j`) to keep Space free for normal typing. See [Configuration → Leader Key](docs/CONFIGURATION.md#leader-key) and [Troubleshooting](docs/TROUBLESHOOTING.md#accidental-accents-when-typing-fast).
+> **Tip:** When typing fast, Space as leader key can cause accidental accents at word boundaries, e.g. "une pomme chaque" becomes "une pomméchaque" (the `e` is still held when Space is pressed, so Space gets consumed as the leader and the word separator is lost). Switch to an arrow key, Alt, or a custom leader (e.g. `f`, `j`) to keep Space free for normal typing. See [Configuration → Leader Key](docs/CONFIGURATION.md#leader-key) and [Troubleshooting](docs/TROUBLESHOOTING.md#accidental-accents-when-typing-fast).
 
 > **Optional:** An on-screen cycling indicator is available on Wayland compositors with wlr-layer-shell support (KDE Plasma, sway, Hyprland, …). See [Configuration → Cycle Overlay](docs/CONFIGURATION.md#cycle-overlay).
 
@@ -164,7 +164,7 @@ Found a bug or have a feature idea? Open an [issue](https://github.com/Maik-0000
 >   <img src="https://img.shields.io/badge/Ko--fi-Buy_me_a_coffee-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi">
 > </a>
 >
-> A star also helps — it makes this project easier to discover.
+> A star also helps, it makes this project easier to discover.
 
 ## License
 

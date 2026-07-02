@@ -12,22 +12,22 @@
 | French | Je mange une pomme chaque jour. | Je mange une pomméchaque jour. | `e` still held when Space is pressed → é, Space consumed as leader |
 | Spanish | El tren sale a las ocho. | El treñsale a las ocho. | `n` still held when Space is pressed → ñ, Space consumed as leader |
 
-**Cause:** Space serves as both word separator and leader key. When typing quickly, the mapped key at the end of a word hasn't been released yet when Space is pressed — the addon interprets this as a hold+space gesture, outputs the accent, and consumes the Space as the leader trigger, so no word separator is emitted.
+**Cause:** Space serves as both word separator and leader key. When typing quickly, the mapped key at the end of a word hasn't been released yet when Space is pressed, the addon interprets this as a hold+space gesture, outputs the accent, and consumes the Space as the leader trigger, so no word separator is emitted.
 
 **Solution:** Switch to a leader key that doesn't conflict with normal typing:
 
-- **Arrow keys** (<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>) — dedicated, no conflict
-- **Alt / AltGr** — dedicated, no conflict
-- **Custom keys** (e.g. `f`, `j`) — tested across multiple languages with few conflicts
-- **Dual custom leaders** (hand-split) — one leader per keyboard half, near-zero conflicts
+- **Arrow keys** (<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>), dedicated, no conflict
+- **Alt / AltGr**, dedicated, no conflict
+- **Custom keys** (e.g. `f`, `j`), tested across multiple languages with few conflicts
+- **Dual custom leaders** (hand-split), one leader per keyboard half, near-zero conflicts
 
 See [Configuration → Leader Key](CONFIGURATION.md#leader-key) for setup instructions.
 
-**Alternative solution (keep Space as leader):** Reduce the **Lowercase Delay** in `schnelle-umlaute-editor` → Settings (default 400 ms). Start with **200 ms** and only go lower (down to the 50 ms minimum) if accidental accents still occur. With a shorter window the mapped key times out before you reach Space, so the addon falls back to the "normal letter + space" path — no accidental accent, word separator preserved. Trade-off: you have less time to press Space when you actually want the accent.
+**Alternative solution (keep Space as leader):** Reduce the **Lowercase Delay** in `schnelle-umlaute-editor` → Settings (default 400 ms). Start with **200 ms** and only go lower (down to the 50 ms minimum) if accidental accents still occur. With a shorter window the mapped key times out before you reach Space, so the addon falls back to the "normal letter + space" path, no accidental accent, word separator preserved. Trade-off: you have less time to press Space when you actually want the accent.
 
 ## Addon stops working after moving/switching windows (fcitx5 5.1.18+)
 
-KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) can interfere with the addon — mapped keys stop producing output. Disable the tiling script to fix this.
+KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) can interfere with the addon, mapped keys stop producing output. Disable the tiling script to fix this.
 
 ## Uppercase mappings not working (Shift trigger conflict)
 
@@ -80,8 +80,8 @@ Then **logout and login again** for changes to take effect.
 1. Make sure you're switched to "Schnelle Umlaute" input method (<kbd>Ctrl</kbd> + <kbd>Space</kbd>)
 2. Check Fcitx5 is running: `ps aux | grep fcitx5`
 3. Try holding the key longer before pressing Space
-4. Verify environment variables are set: `echo $GTK_IM_MODULE` (should output "fcitx") — if not, run `schnelle-umlaute-setup` and logout/login
-5. Check the **App Filter** isn't blocking the current app — see next section
+4. Verify environment variables are set: `echo $GTK_IM_MODULE` (should output "fcitx"), if not, run `schnelle-umlaute-setup` and logout/login
+5. Check the **App Filter** isn't blocking the current app, see next section
 
 ## Addon doesn't work in a specific app (works elsewhere)
 
@@ -97,36 +97,36 @@ Setting the mode back to **Disabled** turns the filter off entirely. See [Config
 
 1. **Missing QML controls module.** The editor needs Qt 6 Quick Controls. On Debian/Ubuntu/Kali, that's `qml6-module-qtquick-controls`; on Arch it's part of `qt6-declarative` (already a dependency). On Fedora/openSUSE, it's part of `qt6-qtdeclarative-devel` / `qt6-quickcontrols2-devel`. Re-run the install dependency line for your distro from [INSTALLATION.md](INSTALLATION.md).
 2. **Binary missing or in wrong location.** Verify with `which schnelle-umlaute-editor` (expect `/usr/bin/...` or `/usr/local/bin/...`). If absent, reinstall.
-3. **Run from a TTY without a Wayland/X session.** The editor needs a graphical session to draw — login to your usual session first.
+3. **Run from a TTY without a Wayland/X session.** The editor needs a graphical session to draw, login to your usual session first.
 
 ## Editor shows a "Setup required" dialog on every start
 
 **Symptom:** Each time you launch `schnelle-umlaute-editor`, a modal dialog appears warning that input-method environment variables are not set and offering to create `~/.config/environment.d/fcitx5.conf`.
 
-**Cause:** The dialog runs whenever `GTK_IM_MODULE`, `QT_IM_MODULE` or `XMODIFIERS` are not present (or not `fcitx`) in the running session. Without them the addon does not hook into any application and every setting changed in the editor would silently have no effect — so the editor prompts on every start, not just first run.
+**Cause:** The dialog runs whenever `GTK_IM_MODULE`, `QT_IM_MODULE` or `XMODIFIERS` are not present (or not `fcitx`) in the running session. Without them the addon does not hook into any application and every setting changed in the editor would silently have no effect, so the editor prompts on every start, not just first run.
 
 **Fix:**
 
 - Click **Set up now** in the dialog, then log out and back in. The dialog will not return on the next start.
-- Or run the standalone helper instead — it writes the same file *and* sets up autostart:
+- Or run the standalone helper instead, it writes the same file *and* sets up autostart:
   ```bash
   schnelle-umlaute-setup
   ```
-- If you have already logged out / in and the dialog still appears, the variables are not reaching your session. Check with `echo $GTK_IM_MODULE` from a fresh terminal in your graphical session. If empty, your login flow may not read `environment.d` — see the **"Activation pending" dialog** section below for compositor-launched sessions, or the `schnelle-umlaute-setup` section for other non-systemd-login workarounds.
+- If you have already logged out / in and the dialog still appears, the variables are not reaching your session. Check with `echo $GTK_IM_MODULE` from a fresh terminal in your graphical session. If empty, your login flow may not read `environment.d`, see the **"Activation pending" dialog** section below for compositor-launched sessions, or the `schnelle-umlaute-setup` section for other non-systemd-login workarounds.
 
 ## Editor shows an "Activation pending" dialog (Hyprland / sway / other wlroots)
 
-**Symptom:** The dialog is titled *"Activation pending — Hyprland (Wayland)"* (or your compositor), says the variables were written but logging out will not activate them, and shows three `env =` lines.
+**Symptom:** The dialog is titled *"Activation pending, Hyprland (Wayland)"* (or your compositor), says the variables were written but logging out will not activate them, and shows three `env =` lines.
 
-**Cause:** A compositor started straight from a TTY (e.g. `exec Hyprland` from a login shell, or a `~/.config/hypr/hyprland.conf` that does `exec-once = fcitx5`) is **not** part of the systemd graphical session, so it never imports `~/.config/environment.d/`. The setup file is written correctly, but the variables never become active — which is also why apps like Spotify/Discord (Electron → `GTK_IM_MODULE`) and Telegram (Qt → `QT_IM_MODULE`) get no input method while the browser and terminal work.
+**Cause:** A compositor started straight from a TTY (e.g. `exec Hyprland` from a login shell, or a `~/.config/hypr/hyprland.conf` that does `exec-once = fcitx5`) is **not** part of the systemd graphical session, so it never imports `~/.config/environment.d/`. The setup file is written correctly, but the variables never become active, which is also why apps like Spotify/Discord (Electron → `GTK_IM_MODULE`) and Telegram (Qt → `QT_IM_MODULE`) get no input method while the browser and terminal work.
 
-**Fix (Hyprland):** Click **Add to config** in the dialog — the editor appends the lines to `~/.config/hypr/hyprland.conf` (idempotently; it never rewrites your existing config). Then fully restart your Hyprland session — log out and back into the compositor, **not** `hyprctl reload`, which does not re-export environment variables. Verify afterwards:
+**Fix (Hyprland):** Click **Add to config** in the dialog, the editor appends the lines to `~/.config/hypr/hyprland.conf` (idempotently; it never rewrites your existing config). Then fully restart your Hyprland session, log out and back into the compositor, **not** `hyprctl reload`, which does not re-export environment variables. Verify afterwards:
 
 ```bash
 echo "$GTK_IM_MODULE | $QT_IM_MODULE | $XMODIFIERS"   # → fcitx | fcitx | @im=fcitx
 ```
 
-**Fix (sway / river / niri / other wlroots):** There is no single config syntax, so the dialog shows the variables for you to place yourself — export them before the compositor starts (in the script that launches it) and restart the session.
+**Fix (sway / river / niri / other wlroots):** There is no single config syntax, so the dialog shows the variables for you to place yourself, export them before the compositor starts (in the script that launches it) and restart the session.
 
 **Universal alternative:** Launch your compositor through a display manager or [uwsm](https://github.com/Vladimir-csp/uwsm) instead of `exec`-ing it from a TTY. Then the session imports `environment.d` like KDE/GNOME do, the standard `schnelle-umlaute-setup` path works, and this dialog never appears.
 
@@ -145,7 +145,7 @@ echo "$GTK_IM_MODULE | $QT_IM_MODULE | $XMODIFIERS"   # → fcitx | fcitx | @im=
 
 The overlay is **Wayland-only**, requires `wlr-layer-shell` (KDE Plasma, sway, Hyprland), and is **disabled by default**.
 
-1. **Check session.** Run `echo $XDG_SESSION_TYPE` — must be `wayland`. The overlay does nothing on X11 / XWayland.
+1. **Check session.** Run `echo $XDG_SESSION_TYPE`, must be `wayland`. The overlay does nothing on X11 / XWayland.
 2. **Check compositor.** GNOME/Mutter does not support `wlr-layer-shell`. The editor greys out the Overlay toggle on unsupported compositors; if you manually edited `Enabled=True` in `~/.config/fcitx5/conf/schnelle-umlaute.conf` on such a system, the addon will simply not call the daemon.
 3. **Check enabled state.** Open `schnelle-umlaute-editor` → Settings → Overlay must be On.
 4. **Check that the daemon can launch.** Run `/usr/bin/schnelle-umlaute-overlay --help 2>&1 | head -3` (the binary should at least start without missing-library errors). DBus auto-activation logs go to `journalctl --user`.
@@ -155,9 +155,9 @@ The overlay is **Wayland-only**, requires `wlr-layer-shell` (KDE Plasma, sway, H
 
 **Symptom:** The setup helper exits with an error when you run it.
 
-- *"Error: do not run as root"* — the helper writes to your `$HOME` on purpose. Run it without `sudo`.
-- *Existing config at `~/.config/environment.d/fcitx5.conf`* — the helper detects an unrelated config and asks before overwriting. Answer `N` to keep yours, then ensure `GTK_IM_MODULE`, `QT_IM_MODULE`, and `XMODIFIERS=@im=fcitx` are present in some startup file.
-- *Autostart copy fails* — only matters off KDE Wayland. Install the fcitx5 package so `/usr/share/applications/org.fcitx.Fcitx5.desktop` exists.
+- *"Error: do not run as root"*, the helper writes to your `$HOME` on purpose. Run it without `sudo`.
+- *Existing config at `~/.config/environment.d/fcitx5.conf`*, the helper detects an unrelated config and asks before overwriting. Answer `N` to keep yours, then ensure `GTK_IM_MODULE`, `QT_IM_MODULE`, and `XMODIFIERS=@im=fcitx` are present in some startup file.
+- *Autostart copy fails*, only matters off KDE Wayland. Install the fcitx5 package so `/usr/share/applications/org.fcitx.Fcitx5.desktop` exists.
 
 ## Addon is visible but not activatable / Fcitx5 not responding
 
@@ -222,7 +222,7 @@ These issues do not occur in Kitty, which uses a more robust IME integration.
 
 ## XWayland mixed mode: addon stops working globally
 
-**Symptom:** After opening an X11 application from a Wayland session (e.g. via `--ozone-platform=x11` or native X11 apps like `xterm`), the addon stops working — not only in the X11 app, but in **all** applications. Mapped keys are swallowed with no output. The addon does not recover after closing the X11 app.
+**Symptom:** After opening an X11 application from a Wayland session (e.g. via `--ozone-platform=x11` or native X11 apps like `xterm`), the addon stops working, not only in the X11 app, but in **all** applications. Mapped keys are swallowed with no output. The addon does not recover after closing the X11 app.
 
 **Affected applications:**
 | Application | Status after XWayland app opened |
@@ -237,7 +237,7 @@ These issues do not occur in Kitty, which uses a more robust IME integration.
 
 **Recovery:** Restarting fcitx5 alone does not fix the affected apps. A re-login is not always sufficient either. A full system reboot reliably restores functionality.
 
-**Note:** This is not a bug in the addon — it is caused by the interaction between XWayland focus handling and the affected applications' input method implementations. In a pure X11 or pure Wayland session, this does not occur.
+**Note:** This is not a bug in the addon, it is caused by the interaction between XWayland focus handling and the affected applications' input method implementations. In a pure X11 or pure Wayland session, this does not occur.
 
 ## Build errors
 
