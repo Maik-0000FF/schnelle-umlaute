@@ -86,6 +86,18 @@ void testOutputAcceptsTabs(MappingListModel &m) {
 void testOutputAcceptsCommas(MappingListModel &m) {
     EXPECT(m.validateOutput(QStringLiteral("ä,à,á,â")));
 }
+// A lone "," (or any all-separator output) splits into zero cycling variants,
+// which the engine drops as "no valid outputs", so reject it instead of losing
+// the mapping. Escaped as ",," it is a literal comma and stays valid.
+void testOutputRejectsOnlyComma(MappingListModel &m) {
+    EXPECT(!m.validateOutput(QStringLiteral(",")));
+    EXPECT(m.validateOutput(QStringLiteral(",,")));
+}
+// A single space is a real one-character variant (mapping a key to " "), so it
+// passes even though it is "just whitespace": it survives the split.
+void testOutputAcceptsSingleSpace(MappingListModel &m) {
+    EXPECT(m.validateOutput(QStringLiteral(" ")));
+}
 void testOutputAcceptsEmoji(MappingListModel &m) {
     EXPECT(m.validateOutput(QString::fromUtf8("😀")));
     EXPECT(m.validateOutput(QString::fromUtf8("hi 😀 bye")));
@@ -109,10 +121,16 @@ void testInputRejectsControlChars(MappingListModel &m) {
     // '\n' is not printable.
     EXPECT(!m.validateInput(QStringLiteral("\n")));
 }
+// '#' at the start of a line marks a comment in mappings.txt, so accepting it
+// as an input key would write a line the parser drops on reload (silent data
+// loss). It must be rejected with an explanatory error.
+void testInputRejectsCommentMarker(MappingListModel &m) {
+    EXPECT(!m.validateInput(QStringLiteral("#")));
+    EXPECT(!m.inputErrorFor(QStringLiteral("#")).isEmpty());
+}
 void testInputAcceptsSinglePrintable(MappingListModel &m) {
     EXPECT(m.validateInput(QStringLiteral("a")));
     EXPECT(m.validateInput(QStringLiteral(";")));
-    EXPECT(m.validateInput(QStringLiteral("#")));
 }
 // One Unicode codepoint = one character from the user's perspective, even if
 // stored as a surrogate pair in UTF-16.
@@ -199,11 +217,14 @@ const TestCase kTests[] = {
      testOutputAcceptsLeadingAndTrailingSpace},
     {"testOutputAcceptsTabs", testOutputAcceptsTabs},
     {"testOutputAcceptsCommas", testOutputAcceptsCommas},
+    {"testOutputRejectsOnlyComma", testOutputRejectsOnlyComma},
+    {"testOutputAcceptsSingleSpace", testOutputAcceptsSingleSpace},
     {"testOutputAcceptsEmoji", testOutputAcceptsEmoji},
     {"testInputRejectsEmpty", testInputRejectsEmpty},
     {"testInputRejectsMultipleChars", testInputRejectsMultipleChars},
     {"testInputRejectsWhitespace", testInputRejectsWhitespace},
     {"testInputRejectsControlChars", testInputRejectsControlChars},
+    {"testInputRejectsCommentMarker", testInputRejectsCommentMarker},
     {"testInputAcceptsSinglePrintable", testInputAcceptsSinglePrintable},
     {"testInputAcceptsSingleUtf8Codepoint",
      testInputAcceptsSingleUtf8Codepoint},
