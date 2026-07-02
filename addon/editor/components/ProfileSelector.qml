@@ -143,6 +143,10 @@ Item {
             // Clear any open rename so reopening the popup starts clean (the
             // state now lives on the persistent list, not a recycled delegate).
             list.renamingIndex = -1;
+            // Re-arm "ignore first acquisition": lastPos lives on the persistent
+            // popup content, so reset it here, otherwise a later keyboard reopen
+            // with the cursor now at a new spot would flip to mouse mode.
+            modeHover.lastPos = Qt.point(-1, -1);
         }
         // Cap the whole popup so a long profile list still fits small editor
         // windows; the inner list gets its own (smaller) cap below so the
@@ -169,6 +173,7 @@ Item {
             // while the profile list scrolls under a still cursor; only real
             // mouse movement flips keyboardActive.
             HoverHandler {
+                id: modeHover
                 property point lastPos: Qt.point(-1, -1)
                 onPointChanged: {
                     // Ignore the first point acquisition (sentinel -> real
