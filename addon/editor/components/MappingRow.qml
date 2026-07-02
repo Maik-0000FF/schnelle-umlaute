@@ -24,12 +24,11 @@ Rectangle {
     // it stays "hovered" while the cursor is over child pointer handlers
     // (drag handle, buttons) — which otherwise stole hover and made the row
     // background flicker.
-    HoverHandler {
-        id: hoverHandler
-        // Any mouse hover switches the list to mouse mode, so the hovered row
-        // becomes the single highlight and the keyboard one is hidden.
-        onHoveredChanged: if (hovered && root.view) root.view.keyboardActive = false
-    }
+    // Only reports which row the pointer is over (for the mouse-mode
+    // highlight). The mode switch itself is driven by genuine pointer movement
+    // on the non-scrolling list card (see Mappings.qml), not by hover changes,
+    // which also fire when rows scroll under a still cursor.
+    HoverHandler { id: hoverHandler }
 
     // Clicking anywhere on the row (outside the action buttons / drag handle)
     // makes it the current row and moves keyboard focus to the list, so arrow

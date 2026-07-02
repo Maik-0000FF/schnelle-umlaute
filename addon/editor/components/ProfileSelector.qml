@@ -164,6 +164,21 @@ Item {
             width: parent.width
             spacing: Theme.spacingSm
 
+            // Switch to mouse mode only on genuine pointer movement. Sits on the
+            // non-scrolling popup content, so its point.position stays stable
+            // while the profile list scrolls under a still cursor; only real
+            // mouse movement flips keyboardActive.
+            HoverHandler {
+                property point lastPos: Qt.point(-1, -1)
+                onPointChanged: {
+                    if (point.position.x !== lastPos.x
+                        || point.position.y !== lastPos.y) {
+                        lastPos = point.position;
+                        list.keyboardActive = false;
+                    }
+                }
+            }
+
             // Add-new row.
             RowLayout {
                 Layout.fillWidth: true
@@ -325,10 +340,11 @@ Item {
                            ? Theme.surfaceHover : "transparent"
                     readonly property bool renaming: list.renamingIndex === prow.index
 
-                    HoverHandler {
-                        id: prowHover
-                        onHoveredChanged: if (hovered) list.keyboardActive = false
-                    }
+                    // Only reports which row the pointer is over; the mouse-mode
+                    // switch is driven by genuine movement on the non-scrolling
+                    // popup content (see popupCol), not by hover changes that
+                    // also fire when rows scroll under a still cursor.
+                    HoverHandler { id: prowHover }
 
                     // Clicking the row (outside the action icons) makes it the
                     // current row and focuses the list, so keyboard actions

@@ -128,6 +128,23 @@ Item {
             border.color: Theme.border
             border.width: 1
 
+            // Switch to mouse mode only on genuine pointer movement. This
+            // handler sits on the non-scrolling card, so its point.position is
+            // stable while the list scrolls under a still cursor (keyboard
+            // paging or Alt-reorder); only real mouse movement changes it, so
+            // keyboard navigation keeps its highlight instead of jumping to
+            // whatever row slid under the pointer.
+            HoverHandler {
+                property point lastPos: Qt.point(-1, -1)
+                onPointChanged: {
+                    if (point.position.x !== lastPos.x
+                        || point.position.y !== lastPos.y) {
+                        lastPos = point.position;
+                        listView.keyboardActive = false;
+                    }
+                }
+            }
+
             EmptyState {
                 anchors.centerIn: parent
                 visible: root.mappingsModel && root.mappingsModel.count === 0
