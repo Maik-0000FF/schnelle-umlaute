@@ -175,6 +175,26 @@ void testAddMappingAppends() {
     EXPECT(outputAt(m, 0) == QString::fromUtf8("ä"));
 }
 
+// '#' and '\' are valid input keys: save() escapes them on disk ("\#=..." /
+// "\\=...") so a fresh model reloads them as the literal keys, instead of the
+// '#' line being dropped as a comment. Exercised end-to-end through the file.
+void testEscapedInputKeysRoundTrip() {
+    resetTempdir();
+    seedEmptyMappings();
+    {
+        MappingListModel m;
+        drainDefaults(m);
+        EXPECT(m.addMapping(QStringLiteral("#"), QString::fromUtf8("§")));
+        EXPECT(m.addMapping(QStringLiteral("\\"), QString::fromUtf8("¥")));
+    }
+    MappingListModel m2; // reloads the persisted file
+    EXPECT(m2.rowCount() == 2);
+    EXPECT(inputAt(m2, 0) == QStringLiteral("#"));
+    EXPECT(outputAt(m2, 0) == QString::fromUtf8("§"));
+    EXPECT(inputAt(m2, 1) == QStringLiteral("\\"));
+    EXPECT(outputAt(m2, 1) == QString::fromUtf8("¥"));
+}
+
 void testAddMappingRejectsInvalidInput() {
     resetTempdir();
     seedEmptyMappings();
@@ -395,6 +415,7 @@ const TestCase kTests[] = {
      testExistingFileIsPreferredOverDefaults},
     {"testNonStandardProfileLoadsEmpty", testNonStandardProfileLoadsEmpty},
     {"testAddMappingAppends", testAddMappingAppends},
+    {"testEscapedInputKeysRoundTrip", testEscapedInputKeysRoundTrip},
     {"testAddMappingRejectsInvalidInput", testAddMappingRejectsInvalidInput},
     {"testAddMappingRejectsInvalidOutput", testAddMappingRejectsInvalidOutput},
     {"testAddMappingRejectsDuplicateInput",

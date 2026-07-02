@@ -57,11 +57,8 @@ bool MappingListModel::isValidInputChar(const QString &input) {
     if (ucs4.size() != 1)
         return false;
     uint cp = ucs4[0];
-    // '#' starts a comment line in the mappings file, so an input of '#' would
-    // be silently dropped by the parser (both the engine and the editor's own
-    // reload). Reject it here instead of accepting a mapping that never fires.
-    if (cp == '#')
-        return false;
+    // '#' (comment marker) and '\' (escape character) are written escaped by
+    // save(), so both round-trip as real input keys and need no rejection here.
     return QChar::isPrint(cp) && !QChar::isSpace(cp);
 }
 
@@ -100,9 +97,6 @@ QString MappingListModel::inputErrorFor(const QString &input,
                                         int excludeRow) const {
     if (input.isEmpty())
         return {};
-    if (input == QStringLiteral("#")) {
-        return tr("\"#\" starts a comment line and can't be used as a key");
-    }
     if (!isValidInputChar(input)) {
         return tr("Must be a single printable character");
     }
@@ -245,6 +239,11 @@ bool MappingListModel::save() {
     }
     QByteArray buf;
     for (const auto &e : entries_) {
+        // Escape an input the plain parser would otherwise misread: '#' starts a
+        // comment line, '\' is the escape character itself. parseMappings reads
+        // "\#=..." / "\\=..." back to the literal key.
+        if (e.input == QStringLiteral("#") || e.input == QStringLiteral("\\"))
+            buf += '\\';
         buf += e.input.toUtf8();
         buf += '=';
         buf += e.output.toUtf8();

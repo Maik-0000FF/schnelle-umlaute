@@ -177,6 +177,8 @@ n=ñ
 
 > **Note:** Only the first `=` is used as separator, output values can contain `=` characters.
 
+> **Note:** A line starting with `#` is a comment. To map `#` itself as an input key, escape it with a leading backslash: `\#=output`. To map a literal backslash, double it: `\\=output`. The editor writes these escapes automatically; you only need them when editing `mappings.txt` by hand.
+
 **Quick examples:** Any Unicode character works as output, French accents (é, è, ê), Spanish (ñ, á), Greek letters (π, Ω, Δ), emojis (❤️, 👍, 😊), Braille (⠁⠃⠉), math symbols (±, ≠, ∞). See [Accent Cycling](#accent-cycling) for multi-variant mappings and [Snippets](#snippets-text-expansion) for text expansion.
 
 ---

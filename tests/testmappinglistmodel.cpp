@@ -121,16 +121,15 @@ void testInputRejectsControlChars(MappingListModel &m) {
     // '\n' is not printable.
     EXPECT(!m.validateInput(QStringLiteral("\n")));
 }
-// '#' at the start of a line marks a comment in mappings.txt, so accepting it
-// as an input key would write a line the parser drops on reload (silent data
-// loss). It must be rejected with an explanatory error.
-void testInputRejectsCommentMarker(MappingListModel &m) {
-    EXPECT(!m.validateInput(QStringLiteral("#")));
-    EXPECT(!m.inputErrorFor(QStringLiteral("#")).isEmpty());
-}
 void testInputAcceptsSinglePrintable(MappingListModel &m) {
     EXPECT(m.validateInput(QStringLiteral("a")));
     EXPECT(m.validateInput(QStringLiteral(";")));
+    // '#' (comment marker) and '\' (escape character) are valid input keys:
+    // save() writes them escaped ("\#=..." / "\\=...") so they round-trip on
+    // reload instead of being dropped, so no error is reported for them.
+    EXPECT(m.validateInput(QStringLiteral("#")));
+    EXPECT(m.validateInput(QStringLiteral("\\")));
+    EXPECT(m.inputErrorFor(QStringLiteral("#")).isEmpty());
 }
 // One Unicode codepoint = one character from the user's perspective, even if
 // stored as a surrogate pair in UTF-16.
@@ -254,7 +253,6 @@ const TestCase kTests[] = {
     {"testInputRejectsMultipleChars", testInputRejectsMultipleChars},
     {"testInputRejectsWhitespace", testInputRejectsWhitespace},
     {"testInputRejectsControlChars", testInputRejectsControlChars},
-    {"testInputRejectsCommentMarker", testInputRejectsCommentMarker},
     {"testInputAcceptsSinglePrintable", testInputAcceptsSinglePrintable},
     {"testInputAcceptsSingleUtf8Codepoint",
      testInputAcceptsSingleUtf8Codepoint},

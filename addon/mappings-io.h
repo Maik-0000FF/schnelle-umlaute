@@ -108,7 +108,25 @@ inline std::vector<RawMapping> parseMappings(FILE *fp) {
             // c == '\n' → the line just happened to end on the buffer
             // boundary. It is complete; proceed with normal parsing.
         }
-        if (line.empty() || line[0] == '#')
+        if (line.empty())
+            continue;
+        // A leading backslash escapes an input key that the plain parse would
+        // otherwise misread: "\#=x" maps '#' (which starts a comment line when
+        // unescaped) and "\\=x" maps '\' itself. The escaped byte is always
+        // ASCII ('#' or '\') followed by '='. Any other leading backslash falls
+        // through to the plain parse, so an old "\=x" (a bare '\' key written
+        // before this escape existed) still reads as '\', and comments and
+        // normal lines stay untouched.
+        if (line.size() >= 3 && line[0] == '\\' &&
+            (line[1] == '#' || line[1] == '\\') && line[2] == '=') {
+            std::string input(1, line[1]);
+            std::string output = line.substr(3);
+            if (!output.empty()) {
+                entries.push_back({std::move(input), std::move(output)});
+            }
+            continue;
+        }
+        if (line[0] == '#') // comment
             continue;
         size_t inputLen = utf8FirstCharBytes(line.data(), line.size());
         if (inputLen == 0 || line.size() <= inputLen || line[inputLen] != '=') {
