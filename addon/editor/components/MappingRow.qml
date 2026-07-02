@@ -6,13 +6,16 @@ import SchnelleUmlaute
 Rectangle {
     id: root
     radius: Theme.radiusMd
-    // Highlighted while it is the keyboard-current row of the list.
-    readonly property bool isCurrent:
-        ListView.isCurrentItem && ListView.view && ListView.view.activeFocus
-    // The current row gets a filled accent-tinted highlight (the conventional
-    // list-selection look); plain hover stays subtle.
-    color: isCurrent ? Theme.accentSoft
-           : (hoverHandler.hovered ? Theme.surfaceHover : "transparent")
+    readonly property var view: ListView.view
+    // Exactly one highlight at a time, following the list's active input mode
+    // (view.keyboardActive): the keyboard-current row while navigating by
+    // keyboard, otherwise the mouse-hovered row. Both use the same surfaceHover
+    // tone, so switching input never shows two competing highlights.
+    readonly property bool highlighted:
+        view && (view.keyboardActive
+                 ? (ListView.isCurrentItem && view.activeFocus)
+                 : hoverHandler.hovered)
+    color: highlighted ? Theme.surfaceHover : "transparent"
     border.color: editing ? Theme.borderFocus : "transparent"
     border.width: 1
     height: col.implicitHeight + 8
@@ -21,7 +24,12 @@ Rectangle {
     // it stays "hovered" while the cursor is over child pointer handlers
     // (drag handle, buttons) — which otherwise stole hover and made the row
     // background flicker.
-    HoverHandler { id: hoverHandler }
+    HoverHandler {
+        id: hoverHandler
+        // Any mouse hover switches the list to mouse mode, so the hovered row
+        // becomes the single highlight and the keyboard one is hidden.
+        onHoveredChanged: if (hovered && root.view) root.view.keyboardActive = false
+    }
 
     // Clicking anywhere on the row (outside the action buttons / drag handle)
     // makes it the current row and moves keyboard focus to the list, so arrow
@@ -39,13 +47,16 @@ Rectangle {
             // ListView holds the single list-wide editingIndex.
             if (view.editingIndex !== -1)
                 return;
+            // A click is mouse input: keep the hover look on this row rather
+            // than the keyboard highlight, even though we also set current+focus
+            // so arrow keys can continue from here.
+            view.keyboardActive = false;
             view.currentIndex = root.rowIndex;
             view.forceActiveFocus();
         }
     }
 
     Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
-    Behavior on color { ColorAnimation { duration: Theme.animShort } }
 
     property int rowIndex: -1
     property string inputText: ""

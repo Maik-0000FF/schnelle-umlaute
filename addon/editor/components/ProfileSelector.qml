@@ -132,6 +132,9 @@ Item {
             }
             if (keyboardSession)
                 list.forceActiveFocus();
+            // Start in the mode the popup was opened with, so the single row
+            // highlight follows keyboard vs mouse from the first frame.
+            list.keyboardActive = keyboardSession;
         }
         onClosed: {
             if (keyboardSession)
@@ -263,7 +266,12 @@ Item {
                 // below act on it: Enter selects the edit target, F2 renames,
                 // Delete removes, A sets active, F toggles favorite.
                 keyNavigationEnabled: true
+                // Active input mode for the single-highlight rule (mirrors the
+                // mapping list): a key press means keyboard, a row hover/click
+                // means mouse.
+                property bool keyboardActive: false
                 Keys.onPressed: (event) => {
+                    list.keyboardActive = true;
                     const it = list.currentItem;
                     if (!it)
                         return;
@@ -307,17 +315,20 @@ Item {
                     width: ListView.view.width
                     height: Theme.rowHeight
                     radius: Theme.radiusSm
-                    // Current row (keyboard) gets the filled accent-tinted
-                    // selection; plain hover stays subtle.
-                    color: (prow.ListView.isCurrentItem && list.activeFocus)
-                           ? Theme.accentSoft
-                           : (prowHover.hovered ? Theme.surfaceHover
-                                                : "transparent")
+                    // Exactly one highlight at a time, following the list's
+                    // active input mode: the keyboard-current row while
+                    // navigating by keyboard, otherwise the mouse-hovered row.
+                    // Both use surfaceHover so switching input never shows two.
+                    color: (list.keyboardActive
+                            ? (prow.ListView.isCurrentItem && list.activeFocus)
+                            : prowHover.hovered)
+                           ? Theme.surfaceHover : "transparent"
                     readonly property bool renaming: list.renamingIndex === prow.index
 
-                    Behavior on color { ColorAnimation { duration: Theme.animShort } }
-
-                    HoverHandler { id: prowHover }
+                    HoverHandler {
+                        id: prowHover
+                        onHoveredChanged: if (hovered) list.keyboardActive = false
+                    }
 
                     // Clicking the row (outside the action icons) makes it the
                     // current row and focuses the list, so keyboard actions
@@ -332,6 +343,9 @@ Item {
                             // the rename.
                             if (list.renamingIndex !== -1)
                                 return;
+                            // A click is mouse input: show the hover look here,
+                            // not the keyboard highlight.
+                            list.keyboardActive = false;
                             list.currentIndex = prow.index;
                             list.forceActiveFocus();
                         }

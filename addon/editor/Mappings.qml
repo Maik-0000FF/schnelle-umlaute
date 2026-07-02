@@ -148,7 +148,13 @@ Item {
                 // removes it. While a row is being edited the fields handle keys.
                 activeFocusOnTab: true
                 keyNavigationEnabled: true
+                // Which input last drove the selection, so rows show exactly one
+                // highlight (see MappingRow): true after any key press here,
+                // flipped back to false by a row hover/click. Arrow keys are not
+                // accepted below, so navigation still works while this flips.
+                property bool keyboardActive: false
                 Keys.onPressed: (event) => {
+                    listView.keyboardActive = true;
                     if (listView.editingIndex !== -1 || !root.mappingsModel)
                         return;
                     const i = listView.currentIndex;
