@@ -341,7 +341,7 @@ Rectangle {
             visible: root.staticLeaderConflict ||
                      (root.editing && root.editLeaderConflict &&
                       root.editInputError === "")
-            text: qsTr("This key is configured as a Leader — mapping will not work")
+            text: qsTr("This key is configured as a Leader: mapping will not work")
             color: Theme.warning
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody

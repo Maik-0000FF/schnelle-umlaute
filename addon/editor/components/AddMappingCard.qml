@@ -137,7 +137,7 @@ Rectangle {
                 : (root.outputError !== "" && outputField.text.length > 0)
                     ? root.outputError
                     : (root.leaderConflict
-                        ? qsTr("This key is configured as a Leader — mapping will not work")
+                        ? qsTr("This key is configured as a Leader: mapping will not work")
                         : qsTr("Key: a single character. Output: text or comma-separated variants for cycling."))
             color: ((root.inputError !== "" && inputField.text.length > 0)
                     || (root.outputError !== "" && outputField.text.length > 0))

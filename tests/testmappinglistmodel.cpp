@@ -200,7 +200,7 @@ void testInputErrorExcludeRowSuppressesSelfDuplicate(MappingListModel &m) {
 
 // -- outputErrorFor: the localized string shown under the output field ------
 
-// Empty output is not an error per se — the Add/Apply button just stays
+// Empty output is not an error per se: the Add/Apply button just stays
 // disabled, so no message is shown.
 void testOutputErrorEmptyReturnsEmpty(MappingListModel &m) {
     EXPECT(m.outputErrorFor(QString()).isEmpty());
