@@ -137,11 +137,15 @@ Item {
             HoverHandler {
                 property point lastPos: Qt.point(-1, -1)
                 onPointChanged: {
-                    if (point.position.x !== lastPos.x
-                        || point.position.y !== lastPos.y) {
-                        lastPos = point.position;
+                    // Ignore the first point acquisition (sentinel -> real
+                    // position): a keyboard-opened list with the cursor already
+                    // resting over it must not be knocked into mouse mode. Only
+                    // genuine follow-up movement flips.
+                    if (lastPos.x >= 0
+                        && (point.position.x !== lastPos.x
+                            || point.position.y !== lastPos.y))
                         listView.keyboardActive = false;
-                    }
+                    lastPos = point.position;
                 }
             }
 

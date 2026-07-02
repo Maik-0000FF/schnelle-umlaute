@@ -171,11 +171,15 @@ Item {
             HoverHandler {
                 property point lastPos: Qt.point(-1, -1)
                 onPointChanged: {
-                    if (point.position.x !== lastPos.x
-                        || point.position.y !== lastPos.y) {
-                        lastPos = point.position;
+                    // Ignore the first point acquisition (sentinel -> real
+                    // position) so opening the popup by keyboard with the cursor
+                    // already over it stays in keyboard mode. Only genuine
+                    // follow-up movement flips.
+                    if (lastPos.x >= 0
+                        && (point.position.x !== lastPos.x
+                            || point.position.y !== lastPos.y))
                         list.keyboardActive = false;
-                    }
+                    lastPos = point.position;
                 }
             }
 
