@@ -127,6 +127,10 @@ public Q_SLOTS:
     void SendCursor(int x, int y);
     void SetProgress(int leadMs, int windowMs, qlonglong startUsec);
     void FreezeProgress();
+    // Wire-protocol version, so the engine can detect and restart a stale daemon
+    // left over from an in-place upgrade. A daemon predating this method replies
+    // UnknownMethod, which the engine reads as "stale".
+    int GetProtocolVersion();
 
 private:
     OverlayController *ctrl_;
