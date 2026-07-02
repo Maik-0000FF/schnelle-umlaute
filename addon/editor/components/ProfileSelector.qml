@@ -132,6 +132,9 @@ Item {
             }
             if (keyboardSession)
                 list.forceActiveFocus();
+            // Start in the mode the popup was opened with, so the single row
+            // highlight follows keyboard vs mouse from the first frame.
+            list.keyboardActive = keyboardSession;
         }
         onClosed: {
             if (keyboardSession)
@@ -140,6 +143,10 @@ Item {
             // Clear any open rename so reopening the popup starts clean (the
             // state now lives on the persistent list, not a recycled delegate).
             list.renamingIndex = -1;
+            // Re-arm "ignore first acquisition": lastPos lives on the persistent
+            // popup content, so reset it here, otherwise a later keyboard reopen
+            // with the cursor now at a new spot would flip to mouse mode.
+            modeHover.lastPos = Qt.point(-1, -1);
         }
         // Cap the whole popup so a long profile list still fits small editor
         // windows; the inner list gets its own (smaller) cap below so the
@@ -160,6 +167,26 @@ Item {
             id: popupCol
             width: parent.width
             spacing: Theme.spacingSm
+
+            // Switch to mouse mode only on genuine pointer movement. Sits on the
+            // non-scrolling popup content, so its point.position stays stable
+            // while the profile list scrolls under a still cursor; only real
+            // mouse movement flips keyboardActive.
+            HoverHandler {
+                id: modeHover
+                property point lastPos: Qt.point(-1, -1)
+                onPointChanged: {
+                    // Ignore the first point acquisition (sentinel -> real
+                    // position) so opening the popup by keyboard with the cursor
+                    // already over it stays in keyboard mode. Only genuine
+                    // follow-up movement flips.
+                    if (lastPos.x >= 0
+                        && (point.position.x !== lastPos.x
+                            || point.position.y !== lastPos.y))
+                        list.keyboardActive = false;
+                    lastPos = point.position;
+                }
+            }
 
             // Add-new row.
             RowLayout {
@@ -263,7 +290,12 @@ Item {
                 // below act on it: Enter selects the edit target, F2 renames,
                 // Delete removes, A sets active, F toggles favorite.
                 keyNavigationEnabled: true
+                // Active input mode for the single-highlight rule (mirrors the
+                // mapping list): a key press means keyboard, a row hover/click
+                // means mouse.
+                property bool keyboardActive: false
                 Keys.onPressed: (event) => {
+                    list.keyboardActive = true;
                     const it = list.currentItem;
                     if (!it)
                         return;
@@ -307,16 +339,20 @@ Item {
                     width: ListView.view.width
                     height: Theme.rowHeight
                     radius: Theme.radiusSm
-                    // Current row (keyboard) gets the filled accent-tinted
-                    // selection; plain hover stays subtle.
-                    color: (prow.ListView.isCurrentItem && list.activeFocus)
-                           ? Theme.accentSoft
-                           : (prowHover.hovered ? Theme.surfaceHover
-                                                : "transparent")
+                    // Exactly one highlight at a time, following the list's
+                    // active input mode: the keyboard-current row while
+                    // navigating by keyboard, otherwise the mouse-hovered row.
+                    // Both use surfaceHover so switching input never shows two.
+                    color: (list.keyboardActive
+                            ? (prow.ListView.isCurrentItem && list.activeFocus)
+                            : prowHover.hovered)
+                           ? Theme.surfaceHover : "transparent"
                     readonly property bool renaming: list.renamingIndex === prow.index
 
-                    Behavior on color { ColorAnimation { duration: Theme.animShort } }
-
+                    // Only reports which row the pointer is over; the mouse-mode
+                    // switch is driven by genuine movement on the non-scrolling
+                    // popup content (see popupCol), not by hover changes that
+                    // also fire when rows scroll under a still cursor.
                     HoverHandler { id: prowHover }
 
                     // Clicking the row (outside the action icons) makes it the
@@ -332,6 +368,9 @@ Item {
                             // the rename.
                             if (list.renamingIndex !== -1)
                                 return;
+                            // A click is mouse input: show the hover look here,
+                            // not the keyboard highlight.
+                            list.keyboardActive = false;
                             list.currentIndex = prow.index;
                             list.forceActiveFocus();
                         }
