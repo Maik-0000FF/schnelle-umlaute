@@ -6,7 +6,16 @@ import SchnelleUmlaute
 Rectangle {
     id: root
     radius: Theme.radiusMd
-    color: hoverHandler.hovered ? Theme.surfaceHover : "transparent"
+    readonly property var view: ListView.view
+    // Exactly one highlight at a time, following the list's active input mode
+    // (view.keyboardActive): the keyboard-current row while navigating by
+    // keyboard, otherwise the mouse-hovered row. Both use the same surfaceHover
+    // tone, so switching input never shows two competing highlights.
+    readonly property bool highlighted:
+        view && (view.keyboardActive
+                 ? (ListView.isCurrentItem && view.activeFocus)
+                 : hoverHandler.hovered)
+    color: highlighted ? Theme.surfaceHover : "transparent"
     border.color: editing ? Theme.borderFocus : "transparent"
     border.width: 1
     height: col.implicitHeight + 8
@@ -15,7 +24,36 @@ Rectangle {
     // it stays "hovered" while the cursor is over child pointer handlers
     // (drag handle, buttons) — which otherwise stole hover and made the row
     // background flicker.
+    // Only reports which row the pointer is over (for the mouse-mode
+    // highlight). The mode switch itself is driven by genuine pointer movement
+    // on the non-scrolling list card (see Mappings.qml), not by hover changes,
+    // which also fire when rows scroll under a still cursor.
     HoverHandler { id: hoverHandler }
+
+    // Clicking anywhere on the row (outside the action buttons / drag handle)
+    // makes it the current row and moves keyboard focus to the list, so arrow
+    // keys continue from where the mouse landed. Declared before the content so
+    // the buttons and drag handle on top still receive their own clicks.
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton
+        onClicked: {
+            const view = root.ListView.view;
+            if (!view)
+                return;
+            // Any open edit in the list (this row or another) owns focus; a
+            // background click must not pull it away and strand the edit. The
+            // ListView holds the single list-wide editingIndex.
+            if (view.editingIndex !== -1)
+                return;
+            // A click is mouse input: keep the hover look on this row rather
+            // than the keyboard highlight, even though we also set current+focus
+            // so arrow keys can continue from here.
+            view.keyboardActive = false;
+            view.currentIndex = root.rowIndex;
+            view.forceActiveFocus();
+        }
+    }
 
     Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
@@ -25,6 +63,10 @@ Rectangle {
     property var modelRef: null
     property var settingsModel: null
     property bool editing: false
+
+    // Read-only input cell width, shared with the error/warning rows below so
+    // their text lines up under the output column.
+    readonly property int inputCellWidth: 44
 
     signal removeRequested()
     signal editStartRequested()
@@ -51,6 +93,8 @@ Rectangle {
         modelRef && editing
             ? modelRef.inputErrorFor(inputEdit.text, rowIndex)
             : ""
+    readonly property string editOutputError:
+        modelRef && editing ? modelRef.outputErrorFor(outputEdit.text) : ""
     readonly property bool editLeaderConflict: {
         leadersTick; // establish dependency
         return editing && inputEdit.text.length > 0 && settingsModel &&
@@ -78,7 +122,7 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: Theme.spacingMd
         anchors.rightMargin: Theme.spacingSm
-        spacing: 2
+        spacing: Theme.spacingXxs
 
         RowLayout {
             Layout.fillWidth: true
@@ -86,7 +130,7 @@ Rectangle {
 
         Item {
             width: 16
-            height: 32
+            height: Theme.controlHeight
             visible: !root.editing
 
             Text {
@@ -94,7 +138,7 @@ Rectangle {
                 text: "⠿"
                 color: dragArea.containsMouse || dragArea.pressed
                     ? Theme.text : Theme.textMuted
-                font.pixelSize: 14
+                font.pixelSize: Theme.fontIcon
                 Behavior on color { ColorAnimation { duration: Theme.animShort } }
             }
 
@@ -136,8 +180,8 @@ Rectangle {
         }
 
         Rectangle {
-            width: 44
-            height: 32
+            width: root.inputCellWidth
+            height: Theme.controlHeight
             radius: Theme.radiusSm
             color: Theme.background
             border.color: root.staticLeaderConflict ? Theme.warning : Theme.border
@@ -150,7 +194,7 @@ Rectangle {
                 text: root.inputText
                 color: Theme.text
                 font.family: Theme.fontFamilyMono
-                font.pixelSize: 15
+                font.pixelSize: Theme.fontStrong
             }
         }
 
@@ -161,7 +205,7 @@ Rectangle {
             text: root.inputText
             maximumLength: 4
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             horizontalAlignment: TextInput.AlignHCenter
             background: Rectangle {
                 radius: Theme.radiusSm
@@ -172,12 +216,19 @@ Rectangle {
                 border.width: 1
                 Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
             }
+            Keys.onEscapePressed: cancelEdit()
+            // Handle Escape locally (cancel the edit) instead of letting the
+            // window-level Esc shortcut close the whole editor.
+            Keys.onShortcutOverride: (event) => {
+                if (event.key === Qt.Key_Escape)
+                    event.accepted = true;
+            }
         }
 
         Text {
             text: "→"
             color: Theme.textMuted
-            font.pixelSize: 14
+            font.pixelSize: Theme.fontIcon
         }
 
         Text {
@@ -186,8 +237,12 @@ Rectangle {
             text: root.outputText
             color: Theme.text
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             elide: Text.ElideRight
+            // Force left alignment: an output with a right-to-left symbol (e.g.
+            // the currency preset's rial ﷼) would otherwise flip the column to
+            // the right edge.
+            horizontalAlignment: Text.AlignLeft
         }
 
         ThemedTextField {
@@ -196,7 +251,8 @@ Rectangle {
             Layout.fillWidth: true
             text: root.outputText
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
+            horizontalAlignment: TextInput.AlignLeft
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background
@@ -206,11 +262,20 @@ Rectangle {
             }
             onAccepted: if (root.editValid) confirmEdit()
             Keys.onEscapePressed: cancelEdit()
+            // Handle Escape locally (cancel the edit) instead of letting the
+            // window-level Esc shortcut close the whole editor.
+            Keys.onShortcutOverride: (event) => {
+                if (event.key === Qt.Key_Escape)
+                    event.accepted = true;
+            }
         }
 
         ToolButton {
             id: applyBtn
-            text: root.editing ? "✓" : "✎"
+            // Mouse affordance only: keyboard uses the roving list (Enter/F2),
+            // and grabbing focus on click would let Space re-fire the button.
+            focusPolicy: Qt.NoFocus
+            text: root.editing ? Theme.iconCheck : Theme.iconEdit
             enabled: !root.editing || root.editValid
             ThemedToolTip {
                 visible: applyBtn.hovered
@@ -221,7 +286,7 @@ Rectangle {
                 color: !applyBtn.enabled
                     ? Theme.border
                     : (applyBtn.hovered ? Theme.brand : Theme.textMuted)
-                font.pixelSize: 14
+                font.pixelSize: Theme.fontIcon
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -234,7 +299,10 @@ Rectangle {
 
         ToolButton {
             id: deleteBtn
-            text: root.editing ? "✗" : "🗑"
+            // Mouse affordance only: keyboard uses the roving list (Delete), and
+            // grabbing focus on click would let Space re-open the delete dialog.
+            focusPolicy: Qt.NoFocus
+            text: root.editing ? Theme.iconCancel : Theme.iconTrash
             ThemedToolTip {
                 visible: deleteBtn.hovered
                 text: root.editing ? qsTr("Cancel") : qsTr("Delete")
@@ -242,7 +310,7 @@ Rectangle {
             contentItem: Text {
                 text: parent.text
                 color: parent.hovered ? Theme.error : Theme.textMuted
-                font.pixelSize: 14
+                font.pixelSize: Theme.fontIcon
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -256,26 +324,40 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            Layout.leftMargin: 44 + Theme.spacingMd
+            Layout.leftMargin: root.inputCellWidth + Theme.spacingMd
             visible: root.editing && root.editInputError !== "" &&
                      inputEdit.text.length > 0
             text: root.editInputError
             color: Theme.error
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontBody
+            wrapMode: Text.WordWrap
+        }
+
+        // Output error (e.g. a lone "," with no variants), shown only when the
+        // input is otherwise fine so the two error lines don't stack.
+        Text {
+            Layout.fillWidth: true
+            Layout.leftMargin: root.inputCellWidth + Theme.spacingMd
+            visible: root.editing && root.editOutputError !== "" &&
+                     outputEdit.text.length > 0 && root.editInputError === ""
+            text: root.editOutputError
+            color: Theme.error
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
 
         Text {
             Layout.fillWidth: true
-            Layout.leftMargin: 44 + Theme.spacingMd
+            Layout.leftMargin: root.inputCellWidth + Theme.spacingMd
             visible: root.staticLeaderConflict ||
                      (root.editing && root.editLeaderConflict &&
                       root.editInputError === "")
-            text: qsTr("This key is configured as a Leader — mapping will not work")
+            text: qsTr("This key is configured as a Leader: mapping will not work")
             color: Theme.warning
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
     }

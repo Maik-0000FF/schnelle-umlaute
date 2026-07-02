@@ -5,15 +5,17 @@ import SchnelleUmlaute
 
 // A two-handle range slider that defines an accent window [lower, upper] in
 // milliseconds. The lower handle is the minimum hold time (drag it up for a
-// PowerToys-style "hold first" feel); the upper handle is the latest moment a
-// leader still triggers the accent. The window's start time is shown on the
-// left, its end time on the right, and the computed window duration above the
-// track. Dragging the filled line between the handles moves the whole window.
+// "hold first" feel); the upper handle is the latest moment a
+// leader still triggers the accent. The lead (dead-time) duration is centered
+// above its own segment and the window duration above the window segment, each
+// in its region's colour; the window's end value sits neutral at the right.
+// Dragging the filled line between the handles moves the whole window.
 //
-// Both handles stay reachable even when they sit on top of each other: the
-// track captures the press, picks the lower handle on the left side of the
-// cluster and the upper on the right, and treats a press on the line between
-// them as a window move.
+// Both handles stay reachable even when they sit on top of each other: a
+// press on a stacked (or near-stacked) pair is resolved by the first drag
+// direction (drag left pulls the lower handle out, drag right the upper), so
+// neither handle gets buried under the other. A press on the line between
+// separated handles moves the whole window.
 RowLayout {
     id: root
     Layout.fillWidth: true
@@ -38,18 +40,8 @@ RowLayout {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
-        font.pixelSize: 13
+        font.pixelSize: Theme.fontBody
         Layout.preferredWidth: 120
-    }
-
-    // Window start (lower bound)
-    Text {
-        text: root.lowerValue + " " + root.suffix
-        color: Theme.textMuted
-        font.family: Theme.fontFamilyMono
-        font.pixelSize: 12
-        Layout.preferredWidth: 56
-        horizontalAlignment: Text.AlignRight
     }
 
     Item {
@@ -61,13 +53,15 @@ RowLayout {
         // Generous grab radius so either handle is easy to hit, including the
         // lower one when it sits at the far-left edge (value at "from").
         readonly property int hit: 22
-        // Top band holds the duration label, the lower band the track + handles.
+        // Top band holds the lead + window duration labels, the lower band the
+        // track + handles.
         readonly property int rowY: 16
         readonly property int rowH: implicitHeight - rowY
         readonly property real lineY: rowY + rowH / 2
         readonly property real spanW: Math.max(1, width - handleW)
 
-        // 0 = none, 1 = lower handle, 2 = upper handle, 3 = move window.
+        // 0 = none, 1 = lower handle, 2 = upper handle, 3 = move window,
+        // 4 = stacked press pending its first-drag direction (→ 1 or 2).
         property int dragMode: 0
 
         function clamp(v, lo, hi) {
@@ -85,14 +79,56 @@ RowLayout {
             return snap(root.from + t * (root.to - root.from));
         }
 
-        // Computed window duration, centered above the track.
+        // Lead (dead-time) duration, centered above its own segment
+        // [from … lower] in the lead role colour, mirroring the window label
+        // below. Always shown, including at zero: the settings copy explicitly
+        // tells the user they can lower the minimum to 0, so the "0 ms" readout
+        // must be visible there too. At zero the label sits at the left edge
+        // above the lower handle; the window label's collision logic below
+        // nudges it right so the two never overlap.
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
+            id: leadLabel
+            readonly property real mid:
+                (track.xForValue(root.from)
+                 + track.xForValue(root.lowerValue)) / 2
+            // width is 0 until the first text layout; require it so the label
+            // doesn't flash for one frame before its real width is known.
+            // lowerValue is always >= from, so this shows every value incl. 0.
+            visible: width > 0
+            x: Math.max(0, Math.min(track.width - width, mid - width / 2))
+            y: 0
+            text: (root.lowerValue - root.from) + " " + root.suffix
+            color: Theme.sliderLead
+            font.family: Theme.fontFamilyMono
+            font.pixelSize: Theme.fontBody
+        }
+
+        // Computed window duration, centered above the window itself (the
+        // midpoint between the two handles) so it tracks the window as it
+        // moves. Clamped to the track so a window pushed to either edge keeps
+        // the label fully visible instead of clipping off the side. When the
+        // lead label is shown at a small lead, both would otherwise crowd the
+        // left end, so this one is nudged right to clear it (rather than hiding
+        // either), so both stay readable.
+        Text {
+            id: durationLabel
+            readonly property real mid:
+                (track.xForValue(root.lowerValue)
+                 + track.xForValue(root.upperValue)) / 2
+            x: {
+                var ideal = Math.max(0, Math.min(track.width - width,
+                                                 mid - width / 2));
+                if (leadLabel.visible) {
+                    var minX = leadLabel.x + leadLabel.width + Theme.spacingSm;
+                    return Math.min(track.width - width, Math.max(ideal, minX));
+                }
+                return ideal;
+            }
             y: 0
             text: (root.upperValue - root.lowerValue) + " " + root.suffix
-            color: Theme.accent
+            color: Theme.sliderWindow
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontBody
         }
 
         // Track line
@@ -104,6 +140,18 @@ RowLayout {
             y: track.lineY - height / 2
             color: Theme.border
         }
+        // Dead-time (lead) region [from … lower]: the minimum hold before the
+        // accent window opens, in the lead role colour (the overlay progress
+        // bar's "time elapsing" segment); the window fill below is the window
+        // role colour.
+        Rectangle {
+            x: 0
+            width: Math.max(0, track.xForValue(root.lowerValue))
+            height: 4
+            radius: 2
+            y: track.lineY - height / 2
+            color: Theme.sliderLead
+        }
         // Filled window between the two handles. Also the "move the window"
         // drag surface.
         Rectangle {
@@ -112,32 +160,77 @@ RowLayout {
             height: 4
             radius: 2
             y: track.lineY - height / 2
-            color: track.dragMode === 3 ? Theme.accentHover : Theme.accent
+            color: track.dragMode === 3 ? Theme.sliderWindowHover
+                                        : Theme.sliderWindow
         }
 
         // Handle visuals (input is handled by trackArea below so overlapping
         // handles never fight over the press).
         Rectangle {
+            id: lowerHandle
             width: track.handleW
             height: track.handleW
             radius: width / 2
             x: track.xForValue(root.lowerValue) - width / 2
             y: track.lineY - height / 2
-            z: track.dragMode === 1 ? 2 : 1
-            color: track.dragMode === 1 ? Theme.accentHover : Theme.accent
-            border.color: Theme.background
+            z: (track.dragMode === 1 || lowerHandle.activeFocus) ? 2 : 1
+            // Lower handle is the dead-time (lead) bound, so it carries the
+            // lead role colour; the upper (window) handle carries the window
+            // role colour. The role tokens centralise the per-theme swap.
+            color: track.dragMode === 1 ? Theme.sliderLeadHover
+                                        : Theme.sliderLead
+            // Keyboard focus shows as an accent handle border (the handles only
+            // take focus via Tab; dragging is handled by trackArea below).
+            border.color: lowerHandle.activeFocus ? Theme.accent
+                                                  : Theme.background
             border.width: 2
+            Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
+
+            // Reachable by Tab; Left/Right nudge the lead bound by one step.
+            activeFocusOnTab: true
+            Keys.onPressed: (event) => {
+                if (event.key === Qt.Key_Left) {
+                    root.lowerEdited(track.clamp(track.snap(root.lowerValue - root.step),
+                                                 root.from, root.upperValue));
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_Right) {
+                    root.lowerEdited(track.clamp(track.snap(root.lowerValue + root.step),
+                                                 root.from, root.upperValue));
+                    event.accepted = true;
+                }
+            }
         }
         Rectangle {
+            id: upperHandle
             width: track.handleW
             height: track.handleW
             radius: width / 2
             x: track.xForValue(root.upperValue) - width / 2
             y: track.lineY - height / 2
-            z: track.dragMode === 2 ? 2 : 1
-            color: track.dragMode === 2 ? Theme.accentHover : Theme.accent
-            border.color: Theme.background
+            z: (track.dragMode === 2 || upperHandle.activeFocus) ? 2 : 1
+            color: track.dragMode === 2 ? Theme.sliderWindowHover
+                                        : Theme.sliderWindow
+            // Keyboard focus shows as an accent handle border.
+            border.color: upperHandle.activeFocus ? Theme.accent
+                                                   : Theme.background
             border.width: 2
+            Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
+
+            // Reachable by Tab; Left/Right nudge the window's upper bound.
+            activeFocusOnTab: true
+            Keys.onPressed: (event) => {
+                if (event.key === Qt.Key_Left) {
+                    root.upperEdited(track.clamp(
+                        track.snap(root.upperValue - root.step),
+                        Math.max(root.lowerValue, root.upperMin), root.to));
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_Right) {
+                    root.upperEdited(track.clamp(
+                        track.snap(root.upperValue + root.step),
+                        Math.max(root.lowerValue, root.upperMin), root.to));
+                    event.accepted = true;
+                }
+            }
         }
 
         MouseArea {
@@ -149,6 +242,7 @@ RowLayout {
             preventStealing: true
 
             property real moveStartX: 0
+            property real pressX: 0
             property int startLower: 0
             property int startUpper: 0
 
@@ -157,8 +251,16 @@ RowLayout {
                 var ux = track.xForValue(root.upperValue);
                 var dl = Math.abs(mouse.x - lx);
                 var du = Math.abs(mouse.x - ux);
-                if (dl <= track.hit && du <= track.hit) {
-                    // Overlapping handles: the side decides.
+                pressX = mouse.x;
+                // Handles on (or almost on) each other can't be told apart by
+                // position, so defer the choice: grab the cluster and let the
+                // first drag direction decide which handle moves. Nothing is
+                // edited until then, so a stacked pair never jumps on press.
+                var stacked = Math.abs(lx - ux) <= track.handleW;
+                if (stacked && dl <= track.hit) {
+                    track.dragMode = 4;
+                } else if (dl <= track.hit && du <= track.hit) {
+                    // Both reachable but with a gap: the side of the press picks.
                     track.dragMode = mouse.x <= lx ? 1 : 2;
                 } else if (dl <= track.hit) {
                     track.dragMode = 1;
@@ -182,6 +284,13 @@ RowLayout {
             }
 
             onPositionChanged: (mouse) => {
+                if (track.dragMode === 4) {
+                    // First clear movement resolves the stacked press into a
+                    // handle by direction (left → lower, right → upper).
+                    if (mouse.x < pressX) track.dragMode = 1;
+                    else if (mouse.x > pressX) track.dragMode = 2;
+                    else return;
+                }
                 if (track.dragMode === 1) {
                     root.lowerEdited(track.clamp(track.valueForX(mouse.x), root.from, root.upperValue));
                 } else if (track.dragMode === 2) {
@@ -203,12 +312,15 @@ RowLayout {
         }
     }
 
-    // Window end (upper bound)
+    // Window end (upper bound): the absolute end of the accent window. Kept
+    // neutral (muted) rather than in the window colour so it reads as a plain
+    // end-of-range readout, while the coloured in-track labels carry the
+    // lead/window roles.
     Text {
         text: root.upperValue + " " + root.suffix
         color: Theme.textMuted
         font.family: Theme.fontFamilyMono
-        font.pixelSize: 12
+        font.pixelSize: Theme.fontBody
         Layout.preferredWidth: 60
         horizontalAlignment: Text.AlignRight
     }

@@ -25,8 +25,23 @@ ApplicationWindow {
         onThemeChanged: Theme.setCurrent(theme)
     }
 
+    ProfileListModel {
+        id: profiles
+        onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
+        // If the deleted profile was the Mappings edit target, fall back to the
+        // active profile so the tab never keeps editing an orphaned file.
+        onProfileRemoved: (file) => {
+            if (mappings.profileFile === file)
+                mappings.profileFile = profiles.fileForRow(profiles.activeRow());
+        }
+    }
+
     Component.onCompleted: {
         Theme.setCurrent(settings.theme);
+        // Default the Mappings edit target to the active profile (the two are
+        // otherwise independent: you can switch the edit target without
+        // changing which profile is active at runtime).
+        mappings.profileFile = profiles.fileForRow(profiles.activeRow());
         // States for the IM environment (checked only when the variables
         // are not already active):
         //   1) env.d not imported          → TTY-launched compositor
@@ -200,13 +215,47 @@ ApplicationWindow {
                 property int currentIndex: 0
 
                 Repeater {
+                    id: tabRepeater
                     model: [qsTr("Settings"), qsTr("Mappings")]
                     delegate: Item {
+                        id: tabItem
                         required property int index
                         required property string modelData
                         Layout.preferredWidth: tabLabel.implicitWidth + Theme.spacingLg * 2
                         Layout.preferredHeight: 36
                         readonly property bool active: tabRow.currentIndex === index
+
+                        // Reachable by Tab; Left/Right move between tabs and
+                        // select, Space/Enter select the focused tab.
+                        activeFocusOnTab: true
+                        Keys.onPressed: (event) => {
+                            if (event.key === Qt.Key_Left
+                                || event.key === Qt.Key_Right) {
+                                const dir = event.key === Qt.Key_Right ? 1 : -1;
+                                const n = (index + dir + tabRepeater.count)
+                                          % tabRepeater.count;
+                                // Focus follows the switch centrally
+                                // (StackLayout.onCurrentIndexChanged).
+                                tabRow.currentIndex = n;
+                                event.accepted = true;
+                            } else if (event.key === Qt.Key_Space
+                                       || event.key === Qt.Key_Return
+                                       || event.key === Qt.Key_Enter) {
+                                tabRow.currentIndex = index;
+                                event.accepted = true;
+                            }
+                        }
+
+                        // Keyboard-focus highlight: a subtle filled background
+                        // so a Tab-focused (or just-clicked) tab reads as
+                        // focused without an inset ring. The active tab also
+                        // shows the accent underline below.
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: Theme.radiusSm
+                            color: Theme.surfaceHover
+                            visible: tabItem.activeFocus
+                        }
 
                         // Underline strip — sits over the row separator's
                         // 1 px border at the bottom of the tab strip and
@@ -233,7 +282,7 @@ ApplicationWindow {
                                 : (tabMouse.containsMouse ? Theme.text
                                                           : Theme.textMuted)
                             font.family: Theme.fontFamily
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.fontBody
                             font.weight: parent.active ? Font.Medium : Font.Normal
                             Behavior on color { ColorAnimation { duration: Theme.animShort } }
                         }
@@ -243,7 +292,13 @@ ApplicationWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: tabRow.currentIndex = index
+                            // Focus the clicked tab so Left/Right keep cycling
+                            // from here; re-clicking the current tab (no index
+                            // change) still pulls focus back onto it.
+                            onClicked: {
+                                tabRow.currentIndex = index;
+                                tabItem.forceActiveFocus(Qt.MouseFocusReason);
+                            }
                         }
                     }
                 }
@@ -255,6 +310,19 @@ ApplicationWindow {
             Layout.fillHeight: true
             currentIndex: tabRow.currentIndex
 
+            // Move keyboard focus onto the newly selected tab on every switch
+            // (mouse, Space/Enter, Left/Right and the Ctrl shortcuts all funnel
+            // through currentIndex). Without this a control on the now-hidden
+            // page keeps focus and still eats keys, e.g. the theme combo would
+            // turn arrow presses into theme changes after switching to Mappings.
+            // From the tab, Left/Right keep cycling tabs; a click or Tab drops
+            // into the panel content.
+            onCurrentIndexChanged: {
+                const t = tabRepeater.itemAt(currentIndex);
+                if (t)
+                    t.forceActiveFocus();
+            }
+
             Settings {
                 settingsModel: settings
                 mappingsModel: mappings
@@ -264,6 +332,7 @@ ApplicationWindow {
                 id: mappingsPanel
                 mappingsModel: mappings
                 settingsModel: settings
+                profilesModel: profiles
                 onRequestSnackbar: (msg, c) => snackbar.show(msg, c)
                 onRequestUndoSnackbar: (msg, cb) => snackbar.showUndo(msg, cb)
             }
@@ -335,11 +404,13 @@ ApplicationWindow {
                 id: text
                 color: Theme.text
                 font.family: Theme.fontFamily
-                font.pixelSize: 13
+                font.pixelSize: Theme.fontBody
             }
 
             Button {
                 id: undoButton
+                // Keyboard-reachable via Tab, but must not grab focus on click.
+                focusPolicy: Qt.TabFocus
                 text: qsTr("Undo")
                 flat: true
                 visible: false
@@ -347,7 +418,7 @@ ApplicationWindow {
                     text: undoButton.text
                     color: Theme.accent
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontBody
                     font.weight: Font.Medium
                 }
                 background: Rectangle { color: "transparent" }
@@ -374,8 +445,45 @@ ApplicationWindow {
         sequence: "Ctrl+2"
         onActivated: tabRow.currentIndex = 1
     }
+    // Step through the tabs like a typical multi-document editor.
+    Shortcut {
+        sequence: "Ctrl+Tab"
+        onActivated: tabRow.currentIndex =
+            (tabRow.currentIndex + 1) % tabRepeater.count
+    }
+    Shortcut {
+        sequence: "Ctrl+Shift+Tab"
+        onActivated: tabRow.currentIndex =
+            (tabRow.currentIndex - 1 + tabRepeater.count) % tabRepeater.count
+    }
+    // Switch the Mappings edit-target profile with the conventional
+    // next/previous-document keys, kept distinct from the global cycle keys.
+    Shortcut {
+        sequence: "Ctrl+PgDown"
+        onActivated: root.cycleEditTarget(1)
+    }
+    Shortcut {
+        sequence: "Ctrl+PgUp"
+        onActivated: root.cycleEditTarget(-1)
+    }
     Shortcut {
         sequence: "Esc"
         onActivated: root.close()
+    }
+
+    // Move the Mappings edit target to the next/previous profile (dir = +1/-1),
+    // wrapping around, and reveal it on the Mappings tab.
+    function cycleEditTarget(dir) {
+        const n = profiles.count;
+        if (n <= 1)
+            return;
+        let cur = 0;
+        for (let i = 0; i < n; i++)
+            if (profiles.fileForRow(i) === mappings.profileFile) {
+                cur = i;
+                break;
+            }
+        mappings.profileFile = profiles.fileForRow((cur + dir + n) % n);
+        tabRow.currentIndex = 1;
     }
 }

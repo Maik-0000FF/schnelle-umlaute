@@ -15,17 +15,19 @@ ColumnLayout {
     property bool atCursorMode: false
     signal edited(string newValue)
 
+    // Cell currently highlighted for keyboard navigation (0..cols*rows-1).
+    property int focusIndex: 0
+
     readonly property int cols: 7
     readonly property int rows: 3
     readonly property var rowPrefixes: ["Top", "Center", "Bottom"]
 
     // Caption font, declared once so the reserved two-line height below tracks
     // it instead of a hardcoded pixel count.
-    readonly property int captionFontSize: 11
     FontMetrics {
         id: captionMetrics
         font.family: Theme.fontFamily
-        font.pixelSize: root.captionFontSize
+        font.pixelSize: Theme.fontBody
         font.italic: true
     }
     // Fixed slot for two lines so swapping the caption text never reflows the
@@ -36,14 +38,52 @@ ColumnLayout {
         return root.rowPrefixes[r] + "Col" + (c + 1)
     }
 
+    // Move the keyboard highlight onto the currently selected cell.
+    function syncFocusIndex() {
+        for (let i = 0; i < root.cols * root.rows; i++)
+            if (positionFor(Math.floor(i / root.cols), i % root.cols) === root.value) {
+                root.focusIndex = i;
+                return;
+            }
+    }
+
     Rectangle {
+        id: previewFrame
         Layout.alignment: Qt.AlignHCenter
         width: 420
         height: 180
         radius: Theme.radiusMd
         color: Theme.background
-        border.color: Theme.border
+        border.color: previewFrame.activeFocus ? Theme.borderFocus : Theme.border
         border.width: 1
+
+        // Reachable by Tab; arrow keys move the highlighted cell, Space/Enter
+        // choose it. On focus, the highlight starts on the current selection.
+        activeFocusOnTab: true
+        onActiveFocusChanged: if (activeFocus) root.syncFocusIndex()
+        Keys.onPressed: (event) => {
+            const r = Math.floor(root.focusIndex / root.cols);
+            const c = root.focusIndex % root.cols;
+            if (event.key === Qt.Key_Left) {
+                root.focusIndex = r * root.cols + Math.max(0, c - 1);
+                event.accepted = true;
+            } else if (event.key === Qt.Key_Right) {
+                root.focusIndex = r * root.cols + Math.min(root.cols - 1, c + 1);
+                event.accepted = true;
+            } else if (event.key === Qt.Key_Up) {
+                root.focusIndex = Math.max(0, r - 1) * root.cols + c;
+                event.accepted = true;
+            } else if (event.key === Qt.Key_Down) {
+                root.focusIndex = Math.min(root.rows - 1, r + 1) * root.cols + c;
+                event.accepted = true;
+            } else if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                       || event.key === Qt.Key_Enter) {
+                const p = root.positionFor(r, c);
+                if (root.value !== p)
+                    root.edited(p);
+                event.accepted = true;
+            }
+        }
 
         GridLayout {
             anchors.fill: parent
@@ -75,10 +115,18 @@ ColumnLayout {
                         radius: Theme.radiusSm
                         anchors.centerIn: parent
 
+                        // Keyboard-highlighted cell (arrow-key navigation on the
+                        // focused grid) gets an accent-tinted fill + accent
+                        // border instead of an inset ring.
+                        readonly property bool focused:
+                            previewFrame.activeFocus
+                            && cell.index === root.focusIndex
                         color: parent.active
                             ? Theme.accent
+                            : focused ? Theme.accentSoft
                             : (mouse.containsMouse ? Theme.surfaceHover : Theme.surface)
-                        border.color: parent.active ? Theme.accent : Theme.border
+                        border.color: (parent.active || focused) ? Theme.accent
+                                                                 : Theme.border
                         border.width: 1
                         // In cursor mode the active cell is only the fallback —
                         // keep it marked but dimmed so the pointer marker reads
@@ -90,9 +138,9 @@ ColumnLayout {
                         Text {
                             anchors.centerIn: parent
                             visible: parent.parent.active
-                            text: "✓"
+                            text: Theme.iconCheck
                             color: Theme.switchThumb
-                            font.pixelSize: 14
+                            font.pixelSize: Theme.fontIcon
                             font.weight: Font.Bold
                         }
 
@@ -107,9 +155,9 @@ ColumnLayout {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                if (root.value !== parent.parent.pos) {
-                                    root.edited(parent.parent.pos);
-                                }
+                                root.focusIndex = cell.index;
+                                if (root.value !== cell.pos)
+                                    root.edited(cell.pos);
                             }
                         }
                     }
@@ -184,7 +232,7 @@ ColumnLayout {
             : qsTr("Click on the monitor to choose overlay position")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: root.captionFontSize
+        font.pixelSize: Theme.fontBody
         font.italic: true
     }
 }

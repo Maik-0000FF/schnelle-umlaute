@@ -1,0 +1,13 @@
+# Name: Română
+# Description: ă â î ș ț
+# Category: language
+
+a=ă,â
+i=î
+s=ș
+t=ț
+
+A=Ă,Â
+I=Î
+S=Ș
+T=Ț

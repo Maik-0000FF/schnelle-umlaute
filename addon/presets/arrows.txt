@@ -1,0 +1,18 @@
+# Name: Arrows
+# Description: Arrow symbols (directional, double, harpoons, rotation)
+# Category: symbols
+
+l=←,⇐,↞,↢,↤,⟵,↩
+r=→,⇒,↠,↣,↦,⟶,↪
+u=↑,⇑,↟,↥,⇧
+d=↓,⇓,↡,↧,⇩
+h=↔,⇔,⟷
+v=↕,⇕
+x=↗,↖,↘,↙,⤢,⤡
+e=⇌,⇋,⇀,⇁,↼,↽
+p=⇄,⇆,⇅,⇉,⇇,⇊,⇈
+t=↺,↻,⟲,⟳
+z=↯,↝,↭,⇝,⤳
+<=←,⇐,↞
+>=→,⇒,↠
+^=↑,⇑,↟

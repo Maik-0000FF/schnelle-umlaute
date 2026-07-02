@@ -1,0 +1,31 @@
+# Name: Čeština
+# Description: á č ď ě é í ň ó ř š ť ů ú ý ž
+# Category: language
+
+a=á
+c=č
+d=ď
+e=ě,é
+i=í
+n=ň
+o=ó
+r=ř
+s=š
+t=ť
+u=ů,ú
+y=ý
+z=ž
+
+A=Á
+C=Č
+D=Ď
+E=Ě,É
+I=Í
+N=Ň
+O=Ó
+R=Ř
+S=Š
+T=Ť
+U=Ů,Ú
+Y=Ý
+Z=Ž

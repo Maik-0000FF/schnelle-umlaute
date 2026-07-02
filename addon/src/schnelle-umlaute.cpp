@@ -24,6 +24,9 @@
 #include "config.h"
 #include "hand_classifier.h"
 #include "mappings_loader.h"
+#include "profile_cycle.h"
+#include "profile_paths.h"
+#include <fcitx-utils/key.h>
 #include "overlay/cursor_overlay_geometry.h"
 #include "overlay_client.h"
 #include "state.h"
@@ -98,6 +101,12 @@ public:
     void reloadConfig() override {
         readAsIni(config_, "conf/schnelle-umlaute.conf");
         normalizeCustomLeaders();
+        // Profiles live in a separate file owned by the editor's
+        // ProfileListModel (kept out of schnelle-umlaute.conf, which the editor
+        // fully rewrites). An absent/empty list is the pre-profiles state;
+        // activeProfileFile() then falls back to the legacy mappings.txt.
+        readAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
+                                 "/" + schnelle_umlaute::kProfilesConf);
         applyConfig();
     }
 
@@ -112,14 +121,7 @@ public:
             // the rebuild keeps those reads consistent. Also avoids leaving
             // ICs in a cycling state that references a now-removed entry
             // (e.g. mapping shortened from "ä,ae" to "ä" while held).
-            instance_->inputContextManager().foreach([this](InputContext *ic) {
-                auto *s = ic->propertyFor(&factory_);
-                s->clearAllState();
-                s->recentlyCommitted_ = false;
-                ic->inputPanel().reset();
-                ic->updatePreedit();
-                return true;
-            });
+            wipeAllGestureState();
             // If RawConfig contains mapping data, use it directly.
             // Otherwise, reload from file (normal configtool path).
             umlautMap_.clear();
@@ -140,7 +142,8 @@ public:
                 }
             }
             if (umlautMap_.empty()) {
-                umlautMap_ = schnelle_umlaute::loadMappingsFromFile();
+                umlautMap_ =
+                    schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
             }
             FCITX_INFO() << "Schnelle: Mappings reloaded, count="
                          << umlautMap_.size();
@@ -195,6 +198,34 @@ public:
                 // may still be ongoing. Cleared via clearAllState() or when
                 // a non-gesture key is pressed.
                 return;
+            }
+        }
+
+        // Profile-switch shortcuts (user-configurable, e.g. Ctrl+Alt+1 or
+        // Ctrl+Alt+J/K). Matched on a fresh press only (no auto-repeat) and
+        // before gesture handling so the combo is intercepted rather than
+        // leaking to the app. switchToProfileName/cycleProfile clear gesture
+        // state, swap the active profile's mappings, and flash the name.
+        if (isPress && isNewKeyPress) {
+            // Normalize the event key to match the normalized stored combos
+            // (case-insensitive letters, see parseShortcut).
+            Key nkey = key.normalize();
+            if (cycleNextKey_.isValid() && nkey.check(cycleNextKey_)) {
+                cycleProfile(ic, +1);
+                keyEvent.filterAndAccept();
+                return;
+            }
+            if (cyclePrevKey_.isValid() && nkey.check(cyclePrevKey_)) {
+                cycleProfile(ic, -1);
+                keyEvent.filterAndAccept();
+                return;
+            }
+            for (const auto &s : profileSelectShortcuts_) {
+                if (nkey.check(s.key)) {
+                    switchToProfileName(ic, s.name);
+                    keyEvent.filterAndAccept();
+                    return;
+                }
             }
         }
 
@@ -746,6 +777,16 @@ public:
             state->overlayHideEvent_ = std::move(flash);
             return;
         }
+        // A profile-name flash lives on the engine-level profileFlashHideEvent_
+        // (kept off the per-IC timer so a later gesture's cancelOverlayHide
+        // can't kill it), so the commit-flash restore above never sees it. Leave
+        // it up for the same reason and let its own timer hide it after the
+        // readable delay. clearAllState() is per-IC and leaves that engine timer
+        // running; a gesture overlay resets it (overlayShow), so a non-null
+        // timer with a visible overlay uniquely means a live flash, not a spent
+        // one (the flash callback clears overlayVisible_ when it fires).
+        if (profileFlashHideEvent_ && overlayVisible_)
+            return;
         // Route through hideTriggerOverlay (not a bare overlayHide) so the
         // DBus Hide is suppressed when ShowOnTrigger is off. Apps like Chromium
         // and Neovide call reset() after every commit; cycling holds
@@ -755,11 +796,179 @@ public:
     }
 
 private:
+    // Map a profile's stored File ("mappings.txt" or "profiles/<slug>.txt") to
+    // the loader path relative to the addon config dir. Empty File defaults to
+    // the legacy Standard mappings.txt.
+    static std::string profileRelPath(const std::string &file) {
+        const std::string base =
+            std::string(schnelle_umlaute::kConfigSubdir) + "/";
+        // Guard against a hand-edited profiles.conf with a traversal/absolute
+        // File=: fall back to the Standard mappings rather than read outside
+        // the config dir. Single choke point for every engine path build.
+        if (file.empty() || !schnelle_umlaute::isSafeProfileFile(file))
+            return base + schnelle_umlaute::kMappingsFile;
+        return base + file;
+    }
+
+    // Relative mappings path of the active profile. Falls back to the first
+    // profile, then to the legacy mappings.txt, so a missing/unknown active
+    // name never leaves the engine without mappings. An empty profile list is
+    // the pre-profiles / fresh-install state and maps to mappings.txt, keeping
+    // behavior unchanged until the editor seeds profiles.conf.
+    std::string activeProfileFile() const {
+        const auto &profs = *profiles_.profiles;
+        if (profs.empty())
+            return profileRelPath(schnelle_umlaute::kMappingsFile);
+        const std::string &active = *profiles_.active;
+        for (const auto &p : profs) {
+            if (*p.name == active)
+                return profileRelPath(*p.file);
+        }
+        return profileRelPath(*profs.front().file);
+    }
+
+    // Parse a combo string to a Key, or an invalid Key if it is empty or
+    // carries no real (non-Shift) modifier. The modifier requirement stops a
+    // bare key like "1" from matching and swallowing every plain press of it.
+    static Key parseShortcut(const std::string &combo) {
+        if (combo.empty())
+            return Key();
+        Key k(combo);
+        if (!k.isValid() || !hasModifiers(k))
+            return Key();
+        // Normalize so matching is case-insensitive for letters: a
+        // "Control+Alt+J" binding and a Ctrl+Alt+j press normalize to the same
+        // sym/states (Key::check does no case folding). The event key is
+        // normalized too at the match site.
+        return k.normalize();
+    }
+
+    // Parse the configured combo strings into fcitx Keys once per config load,
+    // so keyEvent only does Key::check (no per-keystroke string parsing).
+    void rebuildProfileShortcuts() {
+        profileSelectShortcuts_.clear();
+        for (const auto &p : *profiles_.profiles) {
+            Key k = parseShortcut(*p.selectKey);
+            if (k.isValid())
+                profileSelectShortcuts_.push_back({k, *p.name});
+        }
+        cycleNextKey_ = parseShortcut(*profiles_.cycleNext);
+        cyclePrevKey_ = parseShortcut(*profiles_.cyclePrev);
+    }
+
+    // Cancel any active gesture on every IC before swapping umlautMap_, so no
+    // cycling state references a now-removed entry. Mirrors setSubConfig.
+    void wipeAllGestureState() {
+        instance_->inputContextManager().foreach([this](InputContext *c) {
+            auto *s = c->propertyFor(&factory_);
+            s->clearAllState();
+            s->recentlyCommitted_ = false;
+            c->inputPanel().reset();
+            c->updatePreedit();
+            return true;
+        });
+    }
+
+    // Switch the active profile by name: wipe gesture state, load its mappings,
+    // persist the choice, flash the name. No-op if already active or unknown.
+    void switchToProfileName(InputContext *ic, const std::string &name) {
+        if (name.empty() || name == *profiles_.active)
+            return;
+        bool known = false;
+        for (const auto &p : *profiles_.profiles) {
+            if (*p.name == name) {
+                known = true;
+                break;
+            }
+        }
+        if (!known)
+            return;
+        auto *st = ic->propertyFor(&factory_);
+        // Commit any in-flight character on this IC before wiping, so switching
+        // mid-input commits the pending char (like a release would) instead of
+        // dropping it. cyclingInput_ (an accent variant) and waitingKey_ (the
+        // pre-leader base char) are mutually exclusive: cycling resets
+        // waitingKey_. Cycling uses the OLD umlautMap_, since the pending char
+        // belongs to the profile being left.
+        if (st->cyclingInput_) {
+            auto it = umlautMap_.find(*st->cyclingInput_);
+            if (it != umlautMap_.end() &&
+                st->cyclingIndex_ < it->second.size()) {
+                ic->inputPanel().reset();
+                ic->updatePreedit();
+                ic->commitString(it->second[st->cyclingIndex_]);
+            }
+        } else if (st->waitingKey_) {
+            commitPendingKey(ic, st);
+        }
+        // Preserve this IC's held-key set across the wipe: clearAllState() would
+        // clear it, so the still-held switch combo's next auto-repeat would
+        // re-qualify as a fresh press and cycle again per repeat tick (each a
+        // disk write). Keeping it marks the combo as held, suppressing repeats
+        // until real release.
+        auto heldKeys = st->heldRawCodes_;
+        wipeAllGestureState();
+        st->heldRawCodes_ = std::move(heldKeys);
+        profiles_.active.setValue(name);
+        umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
+        safeSaveAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
+                                     "/" + schnelle_umlaute::kProfilesConf);
+        flashProfileName(ic, name);
+        FCITX_INFO() << "Schnelle: Switched to profile '" << name
+                     << "', Mappings=" << umlautMap_.size();
+    }
+
+    // Cycle the active profile by delta (+1 next, -1 previous) through the
+    // favorites (or all profiles when none are marked favorite).
+    void cycleProfile(InputContext *ic, int delta) {
+        std::vector<schnelle_umlaute::CycleEntry> entries;
+        for (const auto &p : *profiles_.profiles)
+            entries.push_back({*p.name, *p.favorite});
+        switchToProfileName(
+            ic, schnelle_umlaute::cycleTarget(
+                    schnelle_umlaute::cycleNames(entries), *profiles_.active,
+                    delta));
+    }
+
+    // Brief on-switch feedback: show the new profile name where output is
+    // visible (the daemon overlay when enabled and not in caret placement,
+    // otherwise the caret candidate window), then auto-hide after a readable
+    // delay (longer than the commit flash), like the input-method-switch popup.
+    static constexpr int kProfileFlashMs = 1500;
+    void flashProfileName(InputContext *ic, const std::string &name) {
+        profileFlashHideEvent_.reset(); // supersede any in-flight flash
+        const bool useDaemon = *config_.overlay->enabled && !overlayAtCaret();
+        if (useDaemon) {
+            overlayClient_.show({name}, kPreviewNoHighlight,
+                                overlayPositionString(), /*label=*/true);
+            overlayVisible_ = true;
+        } else {
+            showCaretOverlay(ic, {name}, kPreviewNoHighlight);
+        }
+        auto savedRef = ic->watch();
+        uint64_t target = SchnelleUmlauteState::nowUsec() +
+                          static_cast<uint64_t>(kProfileFlashMs) *
+                              kMicrosecondsPerMillisecond;
+        profileFlashHideEvent_ = instance_->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [this, savedRef, useDaemon](EventSourceTime *, uint64_t) {
+                if (savedRef.get()) {
+                    if (useDaemon)
+                        overlayClient_.hide();
+                    else
+                        hideCaretOverlay();
+                    overlayVisible_ = false;
+                }
+                return false;
+            });
+    }
+
     // Apply in-memory config: rebuild mappings, sanitize custom key, log.
     // Shared by setConfig (values already loaded) and reloadConfig (read from
     // disk).
     void applyConfig() {
-        umlautMap_ = schnelle_umlaute::loadMappingsFromFile();
+        umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
+        rebuildProfileShortcuts();
 
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
@@ -831,6 +1040,7 @@ private:
                      << *config_.delay->lowercase << "]ms, DelayUppercase=["
                      << *config_.delay->uppercaseMin << ","
                      << *config_.delay->uppercase << "]ms, Leaders=" << leaders
+                     << ", Profile=" << *profiles_.active
                      << ", Mappings=" << umlautMap_.size();
 
         // Daemon lifecycle follows the enable flag only, not the placement. On
@@ -1186,6 +1396,25 @@ private:
     ExternalEditorConfig externalConfig_;
     FactoryFor<SchnelleUmlauteState> factory_;
 
+    // Mapping profiles, read from schnelle-umlaute/profiles.conf (separate
+    // from config_; the editor owns that file). The active profile's mappings
+    // file feeds umlautMap_ via activeProfileFile(). An empty list is the
+    // pre-profiles / fresh-install state and falls back to mappings.txt.
+    ProfilesConfig profiles_;
+    // Parsed profile-switch shortcuts, cached from profiles_ in applyConfig so
+    // keyEvent only does Key::check, no per-keystroke string parsing.
+    struct ProfileShortcut {
+        Key key;
+        std::string name;
+    };
+    std::vector<ProfileShortcut> profileSelectShortcuts_;
+    Key cycleNextKey_;
+    Key cyclePrevKey_;
+    // Dedicated timer for the profile-name flash auto-hide, kept off the per-IC
+    // overlayHideEvent_ so a following gesture's cancelOverlayHide() cannot
+    // cancel it and leave the name stuck on screen.
+    std::unique_ptr<EventSourceTime> profileFlashHideEvent_;
+
     // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
     // Sanitized custom leader keys (trimmed, single UTF-8 char each)
@@ -1227,27 +1456,34 @@ private:
         return *config_.overlay->placement == OverlayPlacement::TextCaret;
     }
 
-    void overlayShow(InputContext *ic, const std::vector<std::string> &variants,
-                     int index) {
-        if (!*config_.overlay->enabled)
-            return;
-        if (overlayAtCaret()) {
-            showCaretOverlay(ic, variants, index);
-            return;
-        }
-        // Combine the two enum halves into the single "<Row><Col>" string
-        // the overlay daemon expects (e.g. "TopCol4", "CenterCol7"). In
-        // MouseCursor placement, prefix the shared cursor marker so the daemon
-        // anchors the overlay's lower-left corner at the pointer; the grid
-        // string that follows is the fallback the daemon uses when the
-        // compositor can't report the cursor position. The prefix is the same
-        // constant the daemon parses with, so writer and reader can't drift.
+    // The single "<Row><Col>" position string the overlay daemon expects (e.g.
+    // "TopCol4"). In MouseCursor placement the shared cursor marker is
+    // prefixed so the daemon anchors at the pointer, with the grid string as
+    // the fallback when the compositor can't report it. Shared by overlayShow
+    // and flashProfileName so the assembly lives in one place.
+    std::string overlayPositionString() const {
         std::string position;
         if (*config_.overlay->placement == OverlayPlacement::MouseCursor)
             position = schnelle_umlaute::cursorPositionPrefix();
         position += OverlayRowToString(*config_.overlay->row);
         position += OverlayColumnToString(*config_.overlay->column);
-        overlayClient_.show(variants, index, position);
+        return position;
+    }
+
+    void overlayShow(InputContext *ic, const std::vector<std::string> &variants,
+                     int index) {
+        if (!*config_.overlay->enabled)
+            return;
+        // A real overlay (a gesture preview) supersedes a profile-name flash:
+        // cancel the pending flash auto-hide so it can't later hide this
+        // overlay. The gesture's own overlayHideEvent_ takes over hiding. All
+        // gesture overlays (daemon and caret) route through here.
+        profileFlashHideEvent_.reset();
+        if (overlayAtCaret()) {
+            showCaretOverlay(ic, variants, index);
+            return;
+        }
+        overlayClient_.show(variants, index, overlayPositionString());
         overlayVisible_ = true;
     }
     void overlayHide() {
@@ -1302,7 +1538,9 @@ private:
         // max), so window is >= 0 today. Clamp anyway so a future config/logic
         // change can never feed a negative duration to the QML bar animation.
         const int window = std::max(0, getEffectiveDelay(state) - lead);
-        overlayClient_.setProgress(lead, window);
+        // Pass the gesture start so the daemon can pre-advance the bar by the
+        // D-Bus delivery latency and stay in step with the real accent window.
+        overlayClient_.setProgress(lead, window, state->startTimeUsec_);
         overlayShow(ic, it->second, kPreviewNoHighlight);
     }
     void freezeProgressOverlay() {

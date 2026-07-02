@@ -175,6 +175,84 @@ target_link_libraries(testsettingsmodel
 add_test(NAME testsettingsmodel COMMAND testsettingsmodel)
 set_tests_properties(testsettingsmodel PROPERTIES TIMEOUT 10)
 
+# Pure profile-cycle logic (profile_cycle.h): favorites-vs-all selection and
+# the wrapping next/previous step. No fcitx/Qt runtime needed.
+add_executable(testprofilecycle testprofilecycle.cpp)
+target_include_directories(testprofilecycle PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testprofilecycle PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testprofilecycle COMMAND testprofilecycle)
+set_tests_properties(testprofilecycle PROPERTIES TIMEOUT 10)
+
+# Engine-side loader: per-profile defaults rule (only the Standard profile
+# seeds the German defaults; other profiles load empty). Links mappings_loader
+# + Fcitx5::Core (StandardPaths); no Qt.
+add_executable(testprofilesloader
+    testprofilesloader.cpp
+    ${PROJECT_SOURCE_DIR}/src/mappings_loader.cpp)
+target_include_directories(testprofilesloader PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/src)
+target_compile_options(testprofilesloader PRIVATE ${SU_TEST_WARN_FLAGS})
+target_link_libraries(testprofilesloader Fcitx5::Core)
+add_test(NAME testprofilesloader COMMAND testprofilesloader)
+set_tests_properties(testprofilesloader PROPERTIES TIMEOUT 10)
+
+# Editor Qt-to-fcitx combo conversion round-trip: the captured-combo strings
+# must parse with fcitx Key() and match a real press after normalization.
+# Links keycombo.cpp (pure, no QML) + Fcitx5::Core (Key) + Qt Core (QString).
+add_executable(testkeycombo
+    testkeycombo.cpp
+    ${PROJECT_SOURCE_DIR}/editor/keycombo.cpp)
+target_include_directories(testkeycombo PRIVATE ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testkeycombo PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testkeycombo PRIVATE QT_NO_KEYWORDS)
+target_link_libraries(testkeycombo Qt${QT_MAJOR_VERSION}::Core Fcitx5::Core)
+add_test(NAME testkeycombo COMMAND testkeycombo)
+set_tests_properties(testkeycombo PROPERTIES TIMEOUT 10)
+
+# Standalone editor: ProfileListModel CRUD, name + slug uniqueness,
+# Standard/last-profile protection, active reassignment on delete, first-run
+# seeding, and the editor's own profiles.conf write/read round-trip. Same
+# XDG_CONFIG_HOME redirect + DBus-no-op pattern as testmappinglistmodel.
+add_executable(testprofilelistmodel
+    testprofilelistmodel.cpp
+    ${PROJECT_SOURCE_DIR}/editor/ProfileListModel.cpp)
+set_target_properties(testprofilelistmodel PROPERTIES AUTOMOC ON)
+target_include_directories(testprofilelistmodel PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testprofilelistmodel PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testprofilelistmodel PRIVATE QT_NO_KEYWORDS)
+target_link_libraries(testprofilelistmodel
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Qml
+    Fcitx5::Core)
+add_test(NAME testprofilelistmodel COMMAND testprofilelistmodel)
+set_tests_properties(testprofilelistmodel PROPERTIES TIMEOUT 10)
+
+# Cross-component round-trip: the editor's ProfileListModel writer and the
+# engine's ProfilesConfig (config.h) reader must agree on the profiles.conf
+# INI format. Links both ProfileListModel.cpp (Qt) and Fcitx5::Core (readAsIni
+# / safeSaveAsIni); QT_NO_KEYWORDS keeps the fcitx headers safe under Qt.
+add_executable(testprofilesconf
+    testprofilesconf.cpp
+    ${PROJECT_SOURCE_DIR}/editor/ProfileListModel.cpp)
+set_target_properties(testprofilesconf PROPERTIES AUTOMOC ON)
+target_include_directories(testprofilesconf PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testprofilesconf PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testprofilesconf PRIVATE QT_NO_KEYWORDS)
+target_link_libraries(testprofilesconf
+    Fcitx5::Core
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Qml)
+add_test(NAME testprofilesconf COMMAND testprofilesconf)
+set_tests_properties(testprofilesconf PROPERTIES TIMEOUT 10)
+
 # Unit test for the pure caret-theme helpers (editor/caret_theme.h): colour
 # normalisation, the classicui.conf parse/patch round-trip, and the generated
 # theme.conf colour-role mapping. Pure QString logic — only Qt6::Core, no

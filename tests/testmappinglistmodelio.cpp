@@ -147,6 +147,21 @@ void testExistingFileIsPreferredOverDefaults() {
     EXPECT(outputAt(m, 1) == QString::fromUtf8("ñ"));
 }
 
+// A non-Standard profile (profiles/<slug>.txt) does NOT inherit the German
+// defaults: a freshly created profile must start empty. Only the Standard
+// mappings.txt keeps the defaults fallback (covered above).
+void testNonStandardProfileLoadsEmpty() {
+    resetTempdir();
+    MappingListModel m; // edit target defaults to mappings.txt -> defaults
+    EXPECT(m.rowCount() > 0);
+    // Switch the edit target to a non-existent, non-Standard profile.
+    m.setProfileFile(QStringLiteral("profiles/leer.txt"));
+    EXPECT(m.rowCount() == 0); // empty, no defaults
+    // Back to Standard -> defaults again.
+    m.setProfileFile(QStringLiteral("mappings.txt"));
+    EXPECT(m.rowCount() > 0);
+}
+
 // -- addMapping --------------------------------------------------------------
 
 void testAddMappingAppends() {
@@ -158,6 +173,26 @@ void testAddMappingAppends() {
     EXPECT(m.rowCount() == 1);
     EXPECT(inputAt(m, 0) == QStringLiteral("a"));
     EXPECT(outputAt(m, 0) == QString::fromUtf8("ä"));
+}
+
+// '#' and '\' are valid input keys: save() escapes them on disk ("\#=..." /
+// "\\=...") so a fresh model reloads them as the literal keys, instead of the
+// '#' line being dropped as a comment. Exercised end-to-end through the file.
+void testEscapedInputKeysRoundTrip() {
+    resetTempdir();
+    seedEmptyMappings();
+    {
+        MappingListModel m;
+        drainDefaults(m);
+        EXPECT(m.addMapping(QStringLiteral("#"), QString::fromUtf8("§")));
+        EXPECT(m.addMapping(QStringLiteral("\\"), QString::fromUtf8("¥")));
+    }
+    MappingListModel m2; // reloads the persisted file
+    EXPECT(m2.rowCount() == 2);
+    EXPECT(inputAt(m2, 0) == QStringLiteral("#"));
+    EXPECT(outputAt(m2, 0) == QString::fromUtf8("§"));
+    EXPECT(inputAt(m2, 1) == QStringLiteral("\\"));
+    EXPECT(outputAt(m2, 1) == QString::fromUtf8("¥"));
 }
 
 void testAddMappingRejectsInvalidInput() {
@@ -378,7 +413,9 @@ const TestCase kTests[] = {
     {"testExplicitEmptyFileLoadsDefaults", testExplicitEmptyFileLoadsDefaults},
     {"testExistingFileIsPreferredOverDefaults",
      testExistingFileIsPreferredOverDefaults},
+    {"testNonStandardProfileLoadsEmpty", testNonStandardProfileLoadsEmpty},
     {"testAddMappingAppends", testAddMappingAppends},
+    {"testEscapedInputKeysRoundTrip", testEscapedInputKeysRoundTrip},
     {"testAddMappingRejectsInvalidInput", testAddMappingRejectsInvalidInput},
     {"testAddMappingRejectsInvalidOutput", testAddMappingRejectsInvalidOutput},
     {"testAddMappingRejectsDuplicateInput",

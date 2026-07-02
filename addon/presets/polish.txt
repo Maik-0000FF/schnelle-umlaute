@@ -1,0 +1,21 @@
+# Name: Polski
+# Description: ą ć ę ł ń ó ś ż ź
+# Category: language
+
+a=ą
+c=ć
+e=ę
+l=ł
+n=ń
+o=ó
+s=ś
+z=ż,ź
+
+A=Ą
+C=Ć
+E=Ę
+L=Ł
+N=Ń
+O=Ó
+S=Ś
+Z=Ż,Ź

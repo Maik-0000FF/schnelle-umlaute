@@ -1,0 +1,21 @@
+# Name: Qırımtatarca
+# Description: â ç ğ ı ñ ö ş ü
+# Category: language
+
+a=â
+c=ç
+g=ğ
+i=ı
+n=ñ
+o=ö
+s=ş
+u=ü
+
+A=Â
+C=Ç
+G=Ğ
+I=İ
+N=Ñ
+O=Ö
+S=Ş
+U=Ü

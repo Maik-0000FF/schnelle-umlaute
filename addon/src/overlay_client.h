@@ -4,6 +4,7 @@
 #include "layer_shell_capability.h"
 #include "overlay_lifecycle.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -21,14 +22,18 @@ public:
     OverlayClient();
     ~OverlayClient();
 
+    // label=true renders variants[0] as one full-width text (a profile-switch
+    // name) instead of single-glyph accent cells.
     void show(const std::vector<std::string> &variants, int currentIndex,
-              const std::string &position);
+              const std::string &position, bool label = false);
     void hide();
 
     // Starts the timing progress bar: a lead-in segment of leadMs (the
     // min-hold) followed by a window segment of windowMs (max - min). The
     // daemon animates it; sent right before show() when the gesture begins.
-    void setProgress(int leadMs, int windowMs);
+    // startUsec is the gesture's start on CLOCK_MONOTONIC (state.h's nowUsec),
+    // so the daemon can pre-advance the bar by the delivery latency.
+    void setProgress(int leadMs, int windowMs, uint64_t startUsec);
     // Freezes the progress bar in place (called when a leader press starts
     // cycling, so the bar holds at the moment the window was caught).
     void freezeProgress();
@@ -44,11 +49,19 @@ public:
 
     // Called each time the config is (re)loaded. Compares against the
     // last known enabled value and starts/stops the daemon accordingly.
-    // The first call after construction is a no-op so the daemon isn't
-    // eagerly spawned at fcitx5 startup.
+    // The first call after construction starts the daemon when the overlay is
+    // enabled (eager, so it's ready before the first cycling event) and is a
+    // no-op when disabled.
     void applyEnabledTransition(bool enabled);
 
 private:
+    // If a daemon already owns the bus name, ask it for its wire-protocol
+    // version and quit it when it doesn't match ours (a stale leftover from an
+    // in-place upgrade whose new-signature calls would be silently dropped).
+    // No-op when no daemon is running. Called from start() before the
+    // activation poke.
+    void quitStaleDaemon();
+
     std::unique_ptr<dbus::Bus> bus_;
     std::optional<bool> lastEnabled_;
     // Compositor check sampled once at construction. On sessions without

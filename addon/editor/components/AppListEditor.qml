@@ -17,7 +17,7 @@ ColumnLayout {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
-        font.pixelSize: 13
+        font.pixelSize: Theme.fontBody
         font.weight: Font.Medium
     }
 
@@ -30,7 +30,7 @@ ColumnLayout {
             Layout.fillWidth: true
             placeholderText: qsTr("e.g. firefox or libreoffice")
             font.family: Theme.fontFamilyMono
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
             background: Rectangle {
                 radius: Theme.radiusSm
                 color: Theme.background
@@ -42,14 +42,16 @@ ColumnLayout {
 
         Button {
             id: addBtn
-            text: "+"
+            // Keyboard-reachable via Tab, but must not grab focus on click.
+            focusPolicy: Qt.TabFocus
+            text: Theme.iconAdd
             enabled: inputField.text.trim().length > 0
             implicitWidth: 36
-            implicitHeight: 34
+            implicitHeight: Theme.controlHeight
             contentItem: Text {
                 text: addBtn.text
-                color: addBtn.enabled ? "#ffffff" : Theme.textMuted
-                font.pixelSize: 16
+                color: addBtn.enabled ? Theme.switchThumb : Theme.textMuted
+                font.pixelSize: Theme.fontStrong
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -65,7 +67,7 @@ ColumnLayout {
 
     ColumnLayout {
         Layout.fillWidth: true
-        spacing: 2
+        spacing: Theme.spacingXxs
         visible: root.items.length > 0
 
         Repeater {
@@ -74,7 +76,7 @@ ColumnLayout {
                 required property int index
                 required property string modelData
                 Layout.fillWidth: true
-                height: 36
+                height: Theme.rowHeight
                 radius: Theme.radiusSm
                 color: Theme.background
                 border.color: Theme.border
@@ -91,16 +93,19 @@ ColumnLayout {
                         text: modelData
                         color: Theme.text
                         font.family: Theme.fontFamilyMono
-                        font.pixelSize: 13
+                        font.pixelSize: Theme.fontBody
                         elide: Text.ElideRight
                     }
 
                     ToolButton {
-                        text: "🗑"
+                        // Keyboard-reachable via Tab, but must not grab focus
+                        // on click.
+                        focusPolicy: Qt.TabFocus
+                        text: Theme.iconTrash
                         contentItem: Text {
                             text: parent.text
                             color: parent.hovered ? Theme.error : Theme.textMuted
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.fontIcon
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -125,7 +130,7 @@ ColumnLayout {
         text: qsTr("No entries")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: 11
+        font.pixelSize: Theme.fontBody
         font.italic: true
     }
 

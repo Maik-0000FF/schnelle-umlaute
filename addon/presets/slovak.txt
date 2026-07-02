@@ -1,0 +1,33 @@
+# Name: Slovenčina
+# Description: á ä č ď é í ľ ĺ ň ô ó ŕ š ť ú ý ž
+# Category: language
+
+a=á,ä
+c=č
+d=ď
+e=é
+i=í
+l=ľ,ĺ
+n=ň
+o=ô,ó
+r=ŕ
+s=š
+t=ť
+u=ú
+y=ý
+z=ž
+
+A=Á,Ä
+C=Č
+D=Ď
+E=É
+I=Í
+L=Ľ,Ĺ
+N=Ň
+O=Ô,Ó
+R=Ŕ
+S=Š
+T=Ť
+U=Ú
+Y=Ý
+Z=Ž

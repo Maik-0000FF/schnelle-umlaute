@@ -1,0 +1,15 @@
+# Name: Gàidhlig
+# Description: à è ì ò ù
+# Category: language
+
+a=à
+e=è
+i=ì
+o=ò
+u=ù
+
+A=À
+E=È
+I=Ì
+O=Ò
+U=Ù

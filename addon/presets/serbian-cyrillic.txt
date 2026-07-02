@@ -1,0 +1,15 @@
+# Name: Српски (ћирилица)
+# Description: ј ђ џ љ њ ћ
+# Category: language
+
+j=ј
+d=ђ,џ
+l=љ
+n=њ
+c=ћ
+
+J=Ј
+D=Ђ,Џ
+L=Љ
+N=Њ
+C=Ћ

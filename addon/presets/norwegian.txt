@@ -1,0 +1,11 @@
+# Name: Norsk
+# Description: å æ é ø
+# Category: language
+
+a=å,æ
+e=é
+o=ø
+
+A=Å,Æ
+E=É
+O=Ø

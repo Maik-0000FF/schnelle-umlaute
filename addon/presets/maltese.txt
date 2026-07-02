@@ -1,0 +1,23 @@
+# Name: Malti
+# Description: à ċ è ġ ħ ì ò ù ż
+# Category: language
+
+a=à
+c=ċ
+e=è
+g=ġ
+h=ħ
+i=ì
+o=ò
+u=ù
+z=ż
+
+A=À
+C=Ċ
+E=È
+G=Ġ
+H=Ħ
+I=Ì
+O=Ò
+U=Ù
+Z=Ż

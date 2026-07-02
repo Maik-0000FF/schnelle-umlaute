@@ -2,17 +2,17 @@
 
 ## How does this compare to other accent input methods?
 
-Typing accented characters on Linux has long been possible — but every existing method breaks the touch-typing flow somewhere. This addon was built to fill that gap.
+Typing accented characters on Linux has long been possible, but every existing method breaks the touch-typing flow somewhere. This addon was built to fill that gap.
 
 | Method | Rhythm break? | Mode switch? | Layout switch? | Learning curve |
 |---|---|---|---|---|
 | Compose key | Yes (syntax `" a`) | Yes | No | Medium |
 | Dead keys | Yes (dedicated key) | Yes | No | Small |
 | AltGr layouts (Neo, US-Intl) | No | No | **Yes** (entire layout) | High |
-| Mobile long-press (Android/iOS) | Yes (popup wait) | Yes | — | Small |
+| Mobile long-press (Android/iOS) | Yes (popup wait) | Yes | N/A | Small |
 | **Schnelle Umlaute** | **No** | **No** | **No** | Small |
 
-**Not a mobile long-press on the desktop.** On a phone you press a key and *wait* 200–500 ms for a popup to appear, then tap or swipe to pick a variant. This addon has **no wait**: you press the mapped key and the leader key in the natural rhythm of touch typing — both keypresses can overlap, exactly as they already do while typing any two adjacent letters quickly.
+**Not a mobile long-press on the desktop.** On a phone you press a key and *wait* 200-500 ms for a popup to appear, then tap or swipe to pick a variant. This addon has **no wait**: you press the mapped key and the leader key in the natural rhythm of touch typing, both keypresses can overlap, exactly as they already do while typing any two adjacent letters quickly.
 
 **Why this matters for touch typists.** The *hold-letter-then-press-leader* pattern is not a new motor skill. A touch typist already produces small timing overlaps between neighbouring finger movements all day long. The addon gives that existing overlap a meaning; it does not ask the typist to slow down, switch modes, or relearn a keyboard layout.
 
@@ -29,7 +29,7 @@ stateDiagram-v2
 
 **Note:** Leader key is <kbd>Space</kbd> by default. You can configure it to Arrow keys (<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>), <kbd>Alt</kbd>/<kbd>AltGr</kbd>, or custom keys in the standalone editor (`schnelle-umlaute-editor`, also reachable via the gear button next to the addon in `fcitx5-config-qt`).
 
-**App Filter:** The gestures described below only fire in apps that are not excluded by the App Filter. By default the addon is active everywhere; you can blacklist specific apps (or whitelist only selected apps) — see [Configuration → App Filter](CONFIGURATION.md#app-filter).
+**App Filter:** The gestures described below only fire in apps that are not excluded by the App Filter. By default the addon is active everywhere; you can blacklist specific apps (or whitelist only selected apps), see [Configuration → App Filter](CONFIGURATION.md#app-filter).
 
 ## Why Does Typing Feel Different?
 
@@ -118,7 +118,7 @@ sequenceDiagram
 
 ### Scenario 3: Mapped Letter → Next Key (Fast Typing Shortcut)
 
-When you type the next character before releasing the mapped key, the addon doesn't wait — it commits the mapped letter **immediately** and lets the next key through. This avoids the release delay entirely:
+When you type the next character before releasing the mapped key, the addon doesn't wait, it commits the mapped letter **immediately** and lets the next key through. This avoids the release delay entirely:
 
 ```mermaid
 graph TD
@@ -134,7 +134,7 @@ graph TD
     style B5 fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
 ```
 
-**Timing:** Near-instant — no need to wait for release or timeout. The next key press resolves the decision immediately. This means fast typists rarely notice the delay: as long as you keep typing, mapped letters flow through without any perceivable lag.
+**Timing:** Near-instant, no need to wait for release or timeout. The next key press resolves the decision immediately. This means fast typists rarely notice the delay: as long as you keep typing, mapped letters flow through without any perceivable lag.
 
 ---
 
@@ -160,7 +160,7 @@ sequenceDiagram
     Addon->>Screen: Commit: á ✓
 ```
 
-The preview updates in the preedit area — nothing is committed until you release the input key. You can cycle as many times as you want.
+The preview updates in the preedit area, nothing is committed until you release the input key. You can cycle as many times as you want.
 
 ---
 
@@ -186,4 +186,4 @@ graph TD
     style C7 fill:#ffccbc,stroke:#d84315,stroke-width:3px,color:#000
 ```
 
-This means typing `a` `s` quickly just outputs "as" — you'd have to deliberately hold `a` and press Space to get "ä".
+This means typing `a` `s` quickly just outputs "as", you'd have to deliberately hold `a` and press Space to get "ä".

@@ -13,9 +13,9 @@ ColumnLayout {
         color: Theme.accentSoft
         Text {
             anchors.centerIn: parent
-            text: "✎"
+            text: Theme.iconEdit
             color: Theme.accent
-            font.pixelSize: 28
+            font.pixelSize: Theme.fontHero
         }
     }
 
@@ -24,7 +24,7 @@ ColumnLayout {
         text: qsTr("No mappings yet")
         color: Theme.text
         font.family: Theme.fontFamily
-        font.pixelSize: 15
+        font.pixelSize: Theme.fontStrong
         font.weight: Font.Medium
     }
 
@@ -33,6 +33,6 @@ ColumnLayout {
         text: qsTr("Add your first mapping above")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: 12
+        font.pixelSize: Theme.fontBody
     }
 }

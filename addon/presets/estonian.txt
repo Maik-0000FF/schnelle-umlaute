@@ -1,0 +1,15 @@
+# Name: Eesti
+# Description: ä ö õ ü ž š
+# Category: language
+
+a=ä
+o=ö,õ
+u=ü
+z=ž
+s=š
+
+A=Ä
+O=Ö,Õ
+U=Ü
+Z=Ž
+S=Š

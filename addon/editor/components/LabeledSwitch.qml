@@ -19,7 +19,7 @@ RowLayout {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
-        font.pixelSize: 13
+        font.pixelSize: Theme.fontBody
         Layout.fillWidth: true
     }
 

@@ -20,7 +20,7 @@ RowLayout {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
-        font.pixelSize: 13
+        font.pixelSize: Theme.fontBody
         Layout.preferredWidth: 120
     }
 
@@ -62,8 +62,13 @@ RowLayout {
             height: 16
             radius: 8
             color: slider.pressed ? Theme.accentHover : Theme.accent
-            border.color: Theme.background
+            // Keyboard focus shows as an accent handle border (the slider also
+            // takes focus on click, where the drag colour already signals it).
+            border.color: (slider.activeFocus
+                           && slider.focusReason !== Qt.MouseFocusReason)
+                          ? Theme.accent : Theme.background
             border.width: 2
+            Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
         }
 
         onValueChanged: {
@@ -75,7 +80,7 @@ RowLayout {
         text: slider.value + " " + root.suffix
         color: Theme.textMuted
         font.family: Theme.fontFamilyMono
-        font.pixelSize: 12
+        font.pixelSize: Theme.fontBody
         Layout.preferredWidth: 70
         horizontalAlignment: Text.AlignRight
     }

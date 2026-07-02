@@ -11,10 +11,13 @@ endif()
 set(EDITOR_SRCS
     main.cpp
     EnvSetup.cpp
+    KeyComboUtil.cpp
     MappingListModel.cpp
     OverlayDBusClient.cpp
+    ProfileListModel.cpp
     SettingsModel.cpp
     SingleInstance.cpp
+    keycombo.cpp
 )
 
 qt_add_executable(schnelle-umlaute-editor ${EDITOR_SRCS})
@@ -53,9 +56,14 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/LabeledRangeSlider.qml
         components/LabeledSwitch.qml
         components/CustomLeaderRow.qml
+        components/CycleShortcutRow.qml
         components/AppListEditor.qml
         components/ConfirmDialog.qml
+        components/DropdownIndicator.qml
+        components/KeyCaptureField.qml
+        components/LibrarySelector.qml
         components/PositionPicker.qml
+        components/ProfileSelector.qml
         components/ThemedComboBox.qml
         components/ThemedTextField.qml
         components/ThemedToolTip.qml
@@ -70,6 +78,9 @@ target_link_libraries(schnelle-umlaute-editor PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
+    # Fcitx5::Core provides fcitx::Key, so ProfileListModel's duplicate-shortcut
+    # check normalizes combos exactly like the engine's runtime matcher.
+    Fcitx5::Core
 )
 
 target_compile_options(schnelle-umlaute-editor PRIVATE -Wall -Wextra -Wpedantic)
@@ -84,6 +95,14 @@ target_compile_options(schnelle-umlaute-editor PRIVATE -Wall -Wextra -Wpedantic)
 # so future editor refactors don't run into a preprocessor wall.
 target_compile_definitions(schnelle-umlaute-editor PRIVATE QT_NO_KEYWORDS)
 
+# Absolute install path of the bundled presets, baked in as the last-resort
+# fallback for preset_paths.h::presetsDir() when neither the binary-relative
+# path nor XDG resolves (e.g. an unusual prefix). The primary resolution stays
+# runtime (binary-relative + XDG), so this only needs to be correct, not the
+# only source.
+target_compile_definitions(schnelle-umlaute-editor PRIVATE
+    SCHNELLE_UMLAUTE_PRESETS_DIR="${CMAKE_INSTALL_FULL_DATADIR}/schnelle-umlaute/presets")
+
 install(TARGETS schnelle-umlaute-editor
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
@@ -93,3 +112,11 @@ install(FILES schnelle-umlaute-editor.desktop
 install(FILES ${CMAKE_SOURCE_DIR}/../docs/assets/schnelle-umlaute-icon.svg
         DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps"
         RENAME schnelle-umlaute-editor.svg)
+
+# Bundled preset profiles, read at runtime by the editor's "add from library"
+# picker (see preset_paths.h). Installed next to the editor's other share files
+# so the binary-relative resolution (<prefix>/bin -> <prefix>/share/...) finds
+# them on every prefix-based layout, including the Nix store.
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/presets/
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/schnelle-umlaute/presets"
+        FILES_MATCHING PATTERN "*.txt")

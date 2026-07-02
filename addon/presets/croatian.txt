@@ -1,0 +1,13 @@
+# Name: Hrvatski
+# Description: ć č đ š ž
+# Category: language
+
+c=ć,č
+d=đ
+s=š
+z=ž
+
+C=Ć,Č
+D=Đ
+S=Š
+Z=Ž

@@ -146,6 +146,43 @@ void testEqualsAsInputKey() {
     EXPECT(r[0].output == "bang");
 }
 
+// A leading backslash escapes an input key: "\#=..." maps '#' (which would
+// otherwise start a comment) and "\\=..." maps '\' itself.
+void testEscapedHashInputKey() {
+    auto r = parseString("\\#=hash\n");
+    EXPECT(r.size() == 1);
+    EXPECT(r[0].input == "#");
+    EXPECT(r[0].output == "hash");
+}
+void testEscapedBackslashInputKey() {
+    auto r = parseString("\\\\=slash\n");
+    EXPECT(r.size() == 1);
+    EXPECT(r[0].input == "\\");
+    EXPECT(r[0].output == "slash");
+}
+
+// A bare "#=..." stays a comment (only the escaped form maps '#'), and an
+// escaped line with no output is skipped like any other empty-output line.
+void testBareHashStillComment() {
+    auto r = parseString("#=notamapping\n"
+                         "a=eins\n");
+    EXPECT(r.size() == 1);
+    EXPECT(r[0].input == "a");
+}
+void testEscapedInputEmptyOutputSkipped() {
+    auto r = parseString("\\#=\n");
+    EXPECT(r.empty());
+}
+
+// Backward compatibility: a bare "\=..." (a '\' key written before the escape
+// existed) still parses as '\', since only "\#"/"\\" are treated as escapes.
+void testLegacyBareBackslashInputKey() {
+    auto r = parseString("\\=legacy\n");
+    EXPECT(r.size() == 1);
+    EXPECT(r[0].input == "\\");
+    EXPECT(r[0].output == "legacy");
+}
+
 // '=' embedded in the output must round-trip verbatim: the delimiter is the
 // FIRST '=' after the leading UTF-8 char, every later '=' is data. Pinning
 // this guards against a "split on '='" refactor that would silently truncate
@@ -261,6 +298,11 @@ int main() {
 
     testCommentAndEmptyLinesSkipped();
     testEqualsAsInputKey();
+    testEscapedHashInputKey();
+    testEscapedBackslashInputKey();
+    testBareHashStillComment();
+    testEscapedInputEmptyOutputSkipped();
+    testLegacyBareBackslashInputKey();
     testEqualsInOutput();
     testMissingEqualsSkipped();
     testEmptyOutputSkipped();

@@ -1,0 +1,15 @@
+# Name: Magyar
+# Description: á é í ó ö ő ü ú ű
+# Category: language
+
+a=á
+e=é
+i=í
+o=ó,ö,ő
+u=ü,ú,ű
+
+A=Á
+E=É
+I=Í
+O=Ó,Ö,Ő
+U=Ü,Ú,Ű

@@ -108,7 +108,25 @@ inline std::vector<RawMapping> parseMappings(FILE *fp) {
             // c == '\n' → the line just happened to end on the buffer
             // boundary. It is complete; proceed with normal parsing.
         }
-        if (line.empty() || line[0] == '#')
+        if (line.empty())
+            continue;
+        // A leading backslash escapes an input key that the plain parse would
+        // otherwise misread: "\#=x" maps '#' (which starts a comment line when
+        // unescaped) and "\\=x" maps '\' itself. The escaped byte is always
+        // ASCII ('#' or '\') followed by '='. Any other leading backslash falls
+        // through to the plain parse, so an old "\=x" (a bare '\' key written
+        // before this escape existed) still reads as '\', and comments and
+        // normal lines stay untouched.
+        if (line.size() >= 3 && line[0] == '\\' &&
+            (line[1] == '#' || line[1] == '\\') && line[2] == '=') {
+            std::string input(1, line[1]);
+            std::string output = line.substr(3);
+            if (!output.empty()) {
+                entries.push_back({std::move(input), std::move(output)});
+            }
+            continue;
+        }
+        if (line[0] == '#') // comment
             continue;
         size_t inputLen = utf8FirstCharBytes(line.data(), line.size());
         if (inputLen == 0 || line.size() <= inputLen || line[inputLen] != '=') {
@@ -121,6 +139,42 @@ inline std::vector<RawMapping> parseMappings(FILE *fp) {
         }
     }
     return entries;
+}
+
+// Split a raw output string into cycling variants.
+// Comma separates variants: "a,b" → ["a", "b"].
+// Double comma escapes a literal comma: "a,,b" → ["a,b"].
+// Empty segments are skipped: "a,,,b" → ["a,", "b"] (greedy from left).
+// A lone "," (or any all-separator string) yields an empty list, which callers
+// treat as "no valid outputs". Lives here, next to the parser, so the engine
+// and the editor's validation agree on what the output field means.
+inline std::vector<std::string> splitOutputs(const std::string &output) {
+    std::vector<std::string> outputs;
+    if (output.empty())
+        return outputs;
+
+    std::string current;
+    for (size_t i = 0; i < output.length(); ++i) {
+        if (output[i] == ',') {
+            if (i + 1 < output.length() && output[i + 1] == ',') {
+                current += ',';
+                ++i;
+            } else {
+                if (!current.empty()) {
+                    outputs.push_back(std::move(current));
+                    current.clear();
+                }
+            }
+        } else {
+            current += output[i];
+        }
+    }
+    // Trailing comma produces an empty segment which is intentionally
+    // skipped (an empty cycling variant would be useless).
+    if (!current.empty()) {
+        outputs.push_back(std::move(current));
+    }
+    return outputs;
 }
 
 } // namespace schnelle_umlaute

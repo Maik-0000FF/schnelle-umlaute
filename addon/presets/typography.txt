@@ -1,0 +1,24 @@
+# Name: Typography
+# Description: Typographic punctuation, dashes, quotes and marks
+# Category: symbols
+
+-=–,—,‒,―,‐,‑
+.=…,·,•,‥,‧
+,=‚,„
+'=’,‘,‛,ʼ,′
+"=“,”,„,‟,″
+<=«,‹
+>=»,›
+*=※,‽,⁂
+d=†,‡
+b=•,◦,‣,⁃
+s=§
+p=¶
+n=№
+c=©
+r=®
+t=™
+!=¡,‼
+?=¿,‽,⸘
+%=‰,‱
+o=°,º,ª

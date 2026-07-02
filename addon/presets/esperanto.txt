@@ -1,0 +1,17 @@
+# Name: Esperanto
+# Description: ĉ ĝ ĥ ĵ ŝ ŭ
+# Category: language
+
+c=ĉ
+g=ĝ
+h=ĥ
+j=ĵ
+s=ŝ
+u=ŭ
+
+C=Ĉ
+G=Ĝ
+H=Ĥ
+J=Ĵ
+S=Ŝ
+U=Ŭ

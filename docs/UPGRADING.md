@@ -1,5 +1,29 @@
 # Upgrading
 
+## Upgrading from v1.3.0 to v1.4.0
+
+Your existing mappings and config carry over unchanged. On the first editor launch, v1.4.0 seeds a "Standard" profile that points at your current `mappings.txt` (the file is left exactly as it is, never rewritten) and records it in a new `profiles.conf`. The engine also falls back to `mappings.txt` when no profiles are configured, so nothing breaks even if you never open the editor. No manual config or mapping migration is required.
+
+Pull / reinstall and restart fcitx5. If you have the overlay enabled, the engine now detects an overlay daemon left running from the old build (its wire protocol changed this cycle) and restarts it automatically, so the timing progress bar and the rest of the overlay come up on the new build with no manual step. Toggling the overlay off and on in the editor still works if you want to force it.
+
+### New files
+
+Two new items appear next to your mappings, both managed from the editor (no need to edit them by hand):
+
+- `~/.config/fcitx5/schnelle-umlaute/profiles.conf`: the profile list, the active profile, and the switch/cycle shortcuts.
+- `~/.config/fcitx5/schnelle-umlaute/profiles/`: the mapping files of the extra profiles (the Standard profile keeps using `mappings.txt`).
+
+`schnelle-umlaute.conf` is unchanged: this release only adds config elsewhere, nothing is renamed or removed.
+
+### What changed
+
+- **Mapping profiles.** Keep several independent mapping sets and switch between them. Manage them on the Mappings tab (create, rename, delete, mark favorites, assign a per-profile switch shortcut). Switch at runtime with a profile's own shortcut, or step through them with configurable cycle-next / cycle-previous shortcuts (these walk the favorites if you marked any, otherwise every profile); the active profile's name flashes briefly on switch. Your previous single mapping set becomes the "Standard" profile automatically.
+- **Preset library.** A Library dropdown beside the profile selector bundles ready-made mapping sets you can add with a click (copied into your own profiles, live immediately). It covers 36 language presets (for example Français, Español, Polski, Türkçe, Ελληνικά, Tiếng Việt, Pīnyīn) and a set of symbol presets: Math & Symbols, Currency, IPA, polytonic Greek, Romanization, Proto-Indo-European, Arrows, Typography, LaTeX/Typst, Braille, and an emoji set. Many presets use the full keyboard, including uppercase and symbol keys.
+- **`#` and `\` as input keys.** These can now be mapped as input keys (previously a leading `#` began a comment line); the editor writes them with a backslash escape so they round-trip.
+- **Editor design and keyboard operability.** A unified type scale and control sizing, full keyboard navigation (tab bar, list navigation, shortcuts), and a single, consistent focus/selection highlight that follows whichever input (mouse or keyboard) you are currently using.
+- **Overlay accuracy, colours and self-healing.** A frame-accurate timing progress bar, more accurate gesture timing, a live marker when the profile switches, per-theme overlay and slider colours with label fixes, and automatic restart of a stale overlay daemon after an in-place upgrade.
+- **Robustness fixes.** A round of fixes across the editor and engine: input and output data-loss edge cases, profile-switch rendering, editor keyboard handling, and overlay lifecycle.
+
 ## Upgrading from v1.2.3 to v1.3.0
 
 `[Overlay] AtCursor` (added in 1.2.3) is replaced by `[Overlay] Placement` with three values: `Grid` (the fixed Row/Column position), `MouseCursor` (at the mouse pointer), and the new `TextCaret` (at the text input cursor, rendered through fcitx5's candidate window, so it needs no layer-shell and works on X11 too). The editor migrates an old `AtCursor=True` to `MouseCursor` automatically.
@@ -37,22 +61,22 @@ No mapping or config migration required. v1.2.1 is config-compatible with v1.2.0
 
 ### What changed
 
-- **Editor prompts for missing environment setup.** When `schnelle-umlaute-editor` starts and detects that `GTK_IM_MODULE`, `QT_IM_MODULE` or `XMODIFIERS` are not set to `fcitx`, it shows a modal dialog offering to create `~/.config/environment.d/fcitx5.conf`. The check runs on every start, not just first run, so users who skipped `schnelle-umlaute-setup` reach a working install without consulting the docs. The dialog does *not* configure autostart — `schnelle-umlaute-setup` remains the complete path.
+- **Editor prompts for missing environment setup.** When `schnelle-umlaute-editor` starts and detects that `GTK_IM_MODULE`, `QT_IM_MODULE` or `XMODIFIERS` are not set to `fcitx`, it shows a modal dialog offering to create `~/.config/environment.d/fcitx5.conf`. The check runs on every start, not just first run, so users who skipped `schnelle-umlaute-setup` reach a working install without consulting the docs. The dialog does *not* configure autostart, `schnelle-umlaute-setup` remains the complete path.
 - **Theme-aware dropdowns.** Both pickers in the editor's Settings tab (theme, app-filter mode) now render their popup, item delegates and indicator from the active theme palette instead of the system default. The active row uses the theme's accent colour (violet / blue / blue / yellow per theme) instead of a constant green.
 - **Underline-style main tabs.** The Settings/Mappings tab strip switches from a pill-button look to plain underline tabs. The active tab is marked by a 2 px accent-coloured underline; inactive tabs lift to full text colour on hover.
 
-No action required for either of the visual changes — they apply on first launch of the updated editor.
+No action required for either of the visual changes, they apply on first launch of the updated editor.
 
 ## Upgrading from v1.1.x to v1.2.0
 
-No mapping or config migration required. v1.2.0 is config-compatible with v1.1.x — your existing `mappings.txt` and `schnelle-umlaute.conf` continue to work unchanged. The settings file gains optional `[Overlay]` and `[AppFilter]` sections; their defaults are safe (overlay disabled, filter mode `Disabled`), so no action is needed unless you want to use those features.
+No mapping or config migration required. v1.2.0 is config-compatible with v1.1.x, your existing `mappings.txt` and `schnelle-umlaute.conf` continue to work unchanged. The settings file gains optional `[Overlay]` and `[AppFilter]` sections; their defaults are safe (overlay disabled, filter mode `Disabled`), so no action is needed unless you want to use those features.
 
 ### What changed
 
 - **Editor moved to a standalone application.** The Qt Widgets plugin `libschnelle-umlaute-config-editor.so` (loaded by `fcitx5-config-qt` from inside its own window) is **removed**. It is replaced by a standalone QML application: `schnelle-umlaute-editor`. fcitx5-config-qt's gear/Configure button now launches this binary instead (same entry point, separate window). You can also start it directly from the command line, an application launcher, or its desktop entry.
-- **New cycle overlay daemon.** A new binary `schnelle-umlaute-overlay` provides an on-screen overlay during accent cycling. It is DBus-activated (no autostart entry) and only available on Wayland compositors with `wlr-layer-shell` (KDE Plasma, sway, Hyprland, …). Disabled by default — enable in the editor's Settings tab.
+- **New cycle overlay daemon.** A new binary `schnelle-umlaute-overlay` provides an on-screen overlay during accent cycling. It is DBus-activated (no autostart entry) and only available on Wayland compositors with `wlr-layer-shell` (KDE Plasma, sway, Hyprland, …). Disabled by default, enable in the editor's Settings tab.
 - **New per-user setup helper.** A small script `schnelle-umlaute-setup` ships in `/usr/bin/`. Run once after install/upgrade to write your fcitx5 environment variables into `~/.config/environment.d/fcitx5.conf` and the autostart entry. Idempotent, refuses to run as root.
-- **Engine decomposed.** The addon source is now split across several modules (`app_filter`, `hand_classifier`, `mappings_loader`, `overlay_client`, `state.h`, `config.h`, …). No user-visible behavior change — see [ARCHITECTURE.md](ARCHITECTURE.md).
+- **Engine decomposed.** The addon source is now split across several modules (`app_filter`, `hand_classifier`, `mappings_loader`, `overlay_client`, `state.h`, `config.h`, …). No user-visible behavior change, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ### Recommended upgrade path
 
@@ -85,7 +109,7 @@ If either still exists after upgrade, remove it with `sudo rm`.
 
 ## Upgrading from v1.0.0 to v1.1.0
 
-No migration required. v1.1.0 is fully config-compatible with v1.0.0 — your existing `mappings.txt` and `schnelle-umlaute.conf` continue to work unchanged.
+No migration required. v1.1.0 is fully config-compatible with v1.0.0, your existing `mappings.txt` and `schnelle-umlaute.conf` continue to work unchanged.
 
 New in v1.1.0: an optional **App Filter** that can disable the addon in selected applications (or restrict it to a whitelist). See [Configuration → App Filter](CONFIGURATION.md#app-filter).
 
@@ -100,4 +124,4 @@ Version 1.0.0 introduced a new configuration format that is **not compatible** w
 
 ### Recommended upgrade path
 
-Run `./uninstall.sh` first (choose "y" to remove user configuration), then `./install.sh`. Your mappings will be reset to defaults — reconfigure them via `schnelle-umlaute-editor` or edit `mappings.txt` manually.
+Run `./uninstall.sh` first (choose "y" to remove user configuration), then `./install.sh`. Your mappings will be reset to defaults, reconfigure them via `schnelle-umlaute-editor` or edit `mappings.txt` manually.

@@ -1,0 +1,30 @@
+# Name: Romanization
+# Description: Romanization / transliteration letters
+# Category: symbols
+
+a=á,â,ă,ā
+b=ḇ
+c=č,ç
+d=ḑ,ḍ,ḏ,ḏ̣
+e=ê,ě,ĕ,ē,é,ə
+f=ḟ
+g=ġ,ǧ,ğ,ḡ,g̃,g̱
+h=ḧ,ḩ,ḥ,ḫ,ẖ
+i=í,ı,î,ī,ı̇̄
+j=ǰ,j̱
+k=ḳ,ḵ
+l=ł
+m=ṁ,ṃ
+n=ⁿ,ñ
+o=ó,ô,ö,ŏ,ō,ȫ
+p=p̄
+r=ṙ,ṛ
+s=ś,š,ş,ṣ,s̱,ṣ̄
+t=ẗ,ţ,ṭ,ṯ
+u=ú,û,ü,ū,ǖ
+v=v̇,ṿ,ᵛ
+w=ẇ,ẉ
+x=ẋ,ẍ
+y=ý,ŷ,ȳ,ẏ
+z=ż,ž,z̄,z̧,ẓ,z̤,ẕ
+.=’,ʾ,ʿ,′,…

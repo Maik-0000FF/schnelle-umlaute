@@ -32,6 +32,8 @@ Rectangle {
         return inputField.text.length > 0 && settingsModel &&
             settingsModel.isActiveLeaderKey(inputField.text);
     }
+    readonly property string outputError:
+        modelRef ? modelRef.outputErrorFor(outputField.text) : ""
     readonly property bool outputValid:
         modelRef && outputField.text.length > 0 &&
         modelRef.validateOutput(outputField.text)
@@ -48,7 +50,7 @@ Rectangle {
             text: qsTr("New mapping")
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontBody
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 1
         }
@@ -63,7 +65,7 @@ Rectangle {
                 placeholderText: qsTr("Key")
                 maximumLength: 4
                 font.family: Theme.fontFamilyMono
-                font.pixelSize: 16
+                font.pixelSize: Theme.fontStrong
                 horizontalAlignment: TextInput.AlignHCenter
                 background: Rectangle {
                     radius: Theme.radiusSm
@@ -82,7 +84,7 @@ Rectangle {
             Text {
                 text: "→"
                 color: Theme.textMuted
-                font.pixelSize: 18
+                font.pixelSize: Theme.fontStrong
             }
 
             ThemedTextField {
@@ -90,7 +92,7 @@ Rectangle {
                 Layout.fillWidth: true
                 placeholderText: qsTr("Output (e.g. ä or é,è,ê,ë)")
                 font.family: Theme.fontFamilyMono
-                font.pixelSize: 15
+                font.pixelSize: Theme.fontStrong
                 background: Rectangle {
                     radius: Theme.radiusSm
                     color: Theme.background
@@ -103,14 +105,16 @@ Rectangle {
 
             Button {
                 id: addBtn
-                text: "+"
+                // Keyboard-reachable via Tab, but must not grab focus on click.
+                focusPolicy: Qt.TabFocus
+                text: Theme.iconAdd
                 enabled: root.canAdd
                 implicitWidth: 44
-                implicitHeight: 40
+                implicitHeight: Theme.controlHeightLg
                 contentItem: Text {
                     text: addBtn.text
-                    color: addBtn.enabled ? "#ffffff" : Theme.textMuted
-                    font.pixelSize: 20
+                    color: addBtn.enabled ? Theme.switchThumb : Theme.textMuted
+                    font.pixelSize: Theme.fontStrong
                     font.weight: Font.Medium
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
@@ -130,14 +134,17 @@ Rectangle {
             Layout.fillWidth: true
             text: (root.inputError !== "" && inputField.text.length > 0)
                 ? root.inputError
-                : (root.leaderConflict
-                    ? qsTr("This key is configured as a Leader — mapping will not work")
-                    : qsTr("Key: a single character. Output: text or comma-separated variants for cycling."))
-            color: (root.inputError !== "" && inputField.text.length > 0)
+                : (root.outputError !== "" && outputField.text.length > 0)
+                    ? root.outputError
+                    : (root.leaderConflict
+                        ? qsTr("This key is configured as a Leader: mapping will not work")
+                        : qsTr("Key: a single character. Output: text or comma-separated variants for cycling."))
+            color: ((root.inputError !== "" && inputField.text.length > 0)
+                    || (root.outputError !== "" && outputField.text.length > 0))
                 ? Theme.error
                 : (root.leaderConflict ? Theme.warning : Theme.textMuted)
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
             Behavior on color { ColorAnimation { duration: Theme.animShort } }
         }

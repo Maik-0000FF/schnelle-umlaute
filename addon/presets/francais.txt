@@ -1,0 +1,17 @@
+# Name: Français
+# Description: Accents français (à â æ ç é è ê ë î ï ô œ ù û ü ÿ)
+# Category: language
+a=à,â,æ
+c=ç
+e=é,è,ê,ë
+i=î,ï
+o=ô,œ
+u=ù,û,ü
+y=ÿ
+A=À,Â,Æ
+C=Ç
+E=É,È,Ê,Ë
+I=Î,Ï
+O=Ô,Œ
+U=Ù,Û,Ü
+Y=Ÿ

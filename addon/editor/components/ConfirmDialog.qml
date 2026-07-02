@@ -29,7 +29,7 @@ Popup {
     readonly property color _confirmBase: confirmStyle === "primary"
                                           ? Theme.accent : Theme.error
     readonly property color _confirmHover: confirmStyle === "primary"
-                                           ? Theme.accentHover : "#ef4444"
+                                           ? Theme.accentHover : Theme.errorHover
 
     // When true, the cancel button is hidden and only the confirm button
     // is shown. Use for informational dialogs where there is no
@@ -57,7 +57,7 @@ Popup {
             text: root.titleText
             color: Theme.text
             font.family: Theme.fontFamily
-            font.pixelSize: 15
+            font.pixelSize: Theme.fontStrong
             font.weight: Font.Medium
         }
 
@@ -68,7 +68,7 @@ Popup {
             text: root.messageText
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
 
@@ -89,14 +89,18 @@ Popup {
             Rectangle {
                 id: cancelBtn
                 visible: !root.singleButton
-                implicitHeight: 34
+                implicitHeight: Theme.controlHeight
                 implicitWidth: cancelLabel.implicitWidth + 2 * Theme.spacingMd
                 radius: Theme.radiusSm
-                color: cancelMouse.containsMouse ? Theme.surfaceHover
-                                                 : Theme.background
-                border.color: Theme.border
+                color: (cancelMouse.containsMouse || cancelBtn.activeFocus)
+                       ? Theme.surfaceHover : Theme.background
+                // Keyboard focus adds an accent border on top of the hover fill.
+                border.color: cancelBtn.activeFocus ? Theme.borderFocus
+                                                    : Theme.border
                 border.width: 1
+                activeFocusOnTab: true
                 Behavior on color { ColorAnimation { duration: Theme.animShort } }
+                Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
                 Text {
                     id: cancelLabel
@@ -104,7 +108,7 @@ Popup {
                     text: root.cancelText
                     color: Theme.text
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontBody
                 }
                 MouseArea {
                     id: cancelMouse
@@ -113,15 +117,26 @@ Popup {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.close()
                 }
+                Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                        || event.key === Qt.Key_Enter) {
+                        root.close();
+                        event.accepted = true;
+                    }
+                }
+                Keys.onEscapePressed: root.close()
             }
 
             Rectangle {
                 id: confirmBtn
-                implicitHeight: 34
+                implicitHeight: Theme.controlHeight
                 implicitWidth: confirmLabel.implicitWidth + 2 * Theme.spacingMd
                 radius: Theme.radiusSm
-                color: confirmMouse.containsMouse ? root._confirmHover
-                                                  : root._confirmBase
+                // Filled button: keyboard focus (and hover) show as the hover
+                // shade of the fill, no separate ring.
+                color: (confirmMouse.containsMouse || confirmBtn.activeFocus)
+                       ? root._confirmHover : root._confirmBase
+                activeFocusOnTab: true
                 Behavior on color { ColorAnimation { duration: Theme.animShort } }
 
                 Text {
@@ -130,7 +145,7 @@ Popup {
                     text: root.confirmText
                     color: Theme.switchThumb
                     font.family: Theme.fontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontBody
                     font.weight: Font.Medium
                 }
                 MouseArea {
@@ -143,10 +158,19 @@ Popup {
                         root.close();
                     }
                 }
-                Keys.onReturnPressed: {
-                    if (root.onConfirmed) root.onConfirmed();
+                function trigger() {
+                    if (root.onConfirmed)
+                        root.onConfirmed();
                     root.close();
                 }
+                Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                        || event.key === Qt.Key_Enter) {
+                        confirmBtn.trigger();
+                        event.accepted = true;
+                    }
+                }
+                Keys.onEscapePressed: root.close()
             }
         }
     }

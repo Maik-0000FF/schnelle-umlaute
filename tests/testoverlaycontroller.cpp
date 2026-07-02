@@ -11,6 +11,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 
 #define EXPECT(cond)                                                           \
     do {                                                                       \
@@ -76,6 +77,38 @@ void testShowWithEmptyPositionPreservesPrevious() {
     EXPECT(ctrl.position() == QStringLiteral("Center"));
 }
 
+// label defaults off for accent cycling and turns on for a profile-name flash,
+// so the renderer knows to draw one full-width label instead of glyph cells.
+void testLabelModeFlag() {
+    OverlayController ctrl;
+    ctrl.show({"ä", "Ä"}, 0, QStringLiteral("TopCenter"));
+    EXPECT(!ctrl.label());
+
+    ctrl.show({"Mathematik"}, -1, QStringLiteral("TopCenter"), true);
+    EXPECT(ctrl.label());
+    EXPECT(ctrl.variants().at(0) == QStringLiteral("Mathematik"));
+
+    // Falls back to cell mode on the next accent show.
+    ctrl.show({"ö"}, 0, QStringLiteral("TopCenter"));
+    EXPECT(!ctrl.label());
+}
+
+// The DBus adaptor's Show slot forwards every arg, including the new label
+// bool, to the controller. Pins the receiver-side signature the engine
+// marshals against (asisb); exercised directly, without a bus.
+void testAdaptorShowForwardsLabel() {
+    OverlayController ctrl;
+    OverlayDBusAdaptor adaptor(&ctrl);
+
+    adaptor.Show({"Mathematik"}, -1, QStringLiteral("TopCenter"), true);
+    EXPECT(ctrl.visible());
+    EXPECT(ctrl.label());
+    EXPECT(ctrl.variants().at(0) == QStringLiteral("Mathematik"));
+
+    adaptor.Show({"ä", "Ä"}, 0, QStringLiteral("TopCenter"), false);
+    EXPECT(!ctrl.label());
+}
+
 // quit() schedules a QCoreApplication::quit via QueuedConnection. Verify
 // that running exec() after calling quit() returns cleanly — a missing
 // or broken schedule would hang the event loop (caught by the timeout).
@@ -97,14 +130,77 @@ void testQuitSchedulesAppExit() {
     EXPECT(rc == 0);
 }
 
+// setProgress stores lead/window and computes the elapsed offset against the
+// engine's start on the shared monotonic clock, clamped to [0, total], so the
+// daemon can pre-advance the bar past D-Bus delivery latency.
+void testSetProgressElapsedCompensation() {
+    auto nowUsec = []() {
+        timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return static_cast<qint64>(ts.tv_sec) * 1'000'000 + ts.tv_nsec / 1'000;
+    };
+
+    OverlayController ctrl;
+
+    // A start 100 ms ago yields ~100 ms elapsed (the daemon reads the clock
+    // just after, so it is >= 100 plus only microseconds of call overhead).
+    ctrl.setProgress(50, 350, nowUsec() - 100'000);
+    EXPECT(ctrl.progressLeadMs() == 50);
+    EXPECT(ctrl.progressWindowMs() == 350);
+    EXPECT(ctrl.progressActive());
+    EXPECT(ctrl.progressElapsedMs() >= 100 && ctrl.progressElapsedMs() <= 150);
+
+    // Elapsed beyond the total clamps to total (lead + window).
+    ctrl.setProgress(50, 350, nowUsec() - 10'000'000);
+    EXPECT(ctrl.progressElapsedMs() == 400);
+
+    // A future start (or a clock that ran backwards) clamps to 0.
+    ctrl.setProgress(50, 350, nowUsec() + 1'000'000);
+    EXPECT(ctrl.progressElapsedMs() == 0);
+
+    // startUsec <= 0 disables the compensation entirely.
+    ctrl.setProgress(50, 350, 0);
+    EXPECT(ctrl.progressElapsedMs() == 0);
+}
+
+// A profile-name (label) show clears a running or frozen progress bar so the
+// name pill can't render over a leftover bar (hold a mapped key, then trigger a
+// profile switch before releasing).
+void testLabelShowClearsProgressBar() {
+    OverlayController ctrl;
+    ctrl.setProgress(100, 200, 0);
+    EXPECT(ctrl.progressActive());
+    ctrl.show({"French"}, 0, QStringLiteral("BottomCenter"), true);
+    EXPECT(!ctrl.progressActive());
+    EXPECT(!ctrl.progressFrozen());
+}
+
+// A plain accent show (label off) leaves the bar alone, so the frozen cycling
+// bar keeps showing while the user steps through variants.
+void testPlainShowKeepsProgressBar() {
+    OverlayController ctrl;
+    ctrl.setProgress(100, 200, 0);
+    ctrl.freezeProgress();
+    EXPECT(ctrl.progressActive());
+    EXPECT(ctrl.progressFrozen());
+    ctrl.show({"ä", "Ä"}, 0, QStringLiteral("BottomCenter"), false);
+    EXPECT(ctrl.progressActive());
+    EXPECT(ctrl.progressFrozen());
+}
+
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     testShowPopulatesStateAndEmits();
+    testSetProgressElapsedCompensation();
     testShowEmptyVariantsHides();
     testHideClearsVisibleKeepsPosition();
     testShowWithEmptyPositionPreservesPrevious();
+    testLabelModeFlag();
+    testAdaptorShowForwardsLabel();
     testQuitSchedulesAppExit();
+    testLabelShowClearsProgressBar();
+    testPlainShowKeepsProgressBar();
 
     std::fprintf(stderr, "testoverlaycontroller: all tests passed\n");
     return 0;

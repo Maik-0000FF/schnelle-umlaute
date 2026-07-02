@@ -1,0 +1,15 @@
+# Name: Italiano
+# Description: à è é ì ò ó ù
+# Category: language
+
+a=à
+e=è,é
+i=ì
+o=ò,ó
+u=ù
+
+A=À
+E=È,É
+I=Ì
+O=Ò,Ó
+U=Ù

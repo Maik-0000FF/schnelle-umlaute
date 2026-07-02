@@ -1,18 +1,18 @@
 #include "MappingListModel.h"
 #include "FcitxReload.h"
+#include "editor_paths.h"
 #include "mappings-io.h"
 
 #include <QDir>
 #include <QFile>
 #include <QSaveFile>
-#include <QStandardPaths>
 
 namespace {
 
-QString mappingsFilePath() {
-    auto base =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    return base + QStringLiteral("/fcitx5/schnelle-umlaute/mappings.txt");
+// Resolve a profile-relative file ("mappings.txt" / "profiles/<slug>.txt") to
+// an absolute path under ~/.config/fcitx5/<config subdir>/.
+QString resolveProfilePath(const QString &relFile) {
+    return schnelle_umlaute::configDirPath() + relFile;
 }
 
 } // namespace
@@ -57,6 +57,8 @@ bool MappingListModel::isValidInputChar(const QString &input) {
     if (ucs4.size() != 1)
         return false;
     uint cp = ucs4[0];
+    // '#' (comment marker) and '\' (escape character) are written escaped by
+    // save(), so both round-trip as real input keys and need no rejection here.
     return QChar::isPrint(cp) && !QChar::isSpace(cp);
 }
 
@@ -80,7 +82,15 @@ bool MappingListModel::validateInput(const QString &input,
 }
 
 bool MappingListModel::validateOutput(const QString &output) const {
-    return !output.isEmpty() && isValidOutputChar(output);
+    if (output.isEmpty() || !isValidOutputChar(output))
+        return false;
+    // Reject an output that splits into zero cycling variants (e.g. a lone
+    // ","), which the engine would otherwise drop as "no valid outputs",
+    // losing the mapping silently. A space is a valid output on purpose (e.g.
+    // mapping a key to " " so terminal commands skip shell history), so it
+    // survives the split as a one-character variant and stays allowed;
+    // whitespace is never trimmed, here or in the engine.
+    return !schnelle_umlaute::splitOutputs(output.toStdString()).empty();
 }
 
 QString MappingListModel::inputErrorFor(const QString &input,
@@ -92,6 +102,21 @@ QString MappingListModel::inputErrorFor(const QString &input,
     }
     if (hasInput(input, excludeRow)) {
         return tr("This key is already mapped");
+    }
+    return {};
+}
+
+// Mirror of inputErrorFor for the output field: empty is not an error (the
+// Add/Apply button just stays disabled), otherwise explain each way an output
+// is rejected so the reason shows live in the editor instead of a generic toast.
+QString MappingListModel::outputErrorFor(const QString &output) const {
+    if (output.isEmpty())
+        return {};
+    if (!isValidOutputChar(output)) {
+        return tr("Output must not contain line breaks");
+    }
+    if (schnelle_umlaute::splitOutputs(output.toStdString()).empty()) {
+        return tr("Output must have at least one variant (a lone \",\" is empty)");
     }
     return {};
 }
@@ -128,8 +153,8 @@ bool MappingListModel::updateMapping(int row, const QString &input,
         Q_EMIT errorOccurred(inputErrorFor(input, row));
         return false;
     }
-    if (!isValidOutputChar(output) || output.isEmpty()) {
-        Q_EMIT errorOccurred(tr("Output must not contain line breaks"));
+    if (!validateOutput(output)) {
+        Q_EMIT errorOccurred(outputErrorFor(output));
         return false;
     }
     entries_[row].input = input;
@@ -157,9 +182,31 @@ void MappingListModel::moveMapping(int from, int to) {
     save();
 }
 
+void MappingListModel::setProfileFile(const QString &file) {
+    QString f = file.isEmpty() ? QLatin1String(schnelle_umlaute::kMappingsFile)
+                               : file;
+    // Defense in depth: profileFile is a writable property and resolveProfilePath
+    // just concatenates it onto the config dir. Every other profile path goes
+    // through the shared isSafeProfileFile rule; apply it here too so a relative
+    // or traversing value can never read or write outside the config dir. An
+    // unsafe value falls back to the Standard mappings file.
+    if (!schnelle_umlaute::isSafeProfileFile(f.toStdString()))
+        f = QLatin1String(schnelle_umlaute::kMappingsFile);
+    if (f == profileFile_)
+        return;
+    profileFile_ = f;
+    Q_EMIT profileFileChanged();
+    // Reload the model from the newly selected edit target. Wrapped in
+    // begin/endResetModel so the QML view rebinds to the new rows.
+    beginResetModel();
+    load();
+    endResetModel();
+    Q_EMIT countChanged();
+}
+
 void MappingListModel::load() {
     entries_.clear();
-    QString path = mappingsFilePath();
+    QString path = resolveProfilePath(profileFile_);
     if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
         for (const auto &m : schnelle_umlaute::parseMappings(fp)) {
             entries_.push_back({QString::fromStdString(m.input),
@@ -167,7 +214,12 @@ void MappingListModel::load() {
         }
         std::fclose(fp);
     }
-    if (entries_.empty()) {
+    // The German defaults are seeded only for the Standard profile (the
+    // first-install convenience). A freshly created profile loads empty, so the
+    // user fills it from scratch instead of inheriting the umlaut set. Mirrors
+    // the engine loader's fallback rule.
+    if (entries_.empty() &&
+        schnelle_umlaute::isStandardProfile(profileFile_.toStdString())) {
         for (const auto &m : schnelle_umlaute::defaultMappings()) {
             entries_.push_back({QString::fromStdString(m.input),
                                 QString::fromStdString(m.output)});
@@ -177,7 +229,7 @@ void MappingListModel::load() {
 }
 
 bool MappingListModel::save() {
-    QString path = mappingsFilePath();
+    QString path = resolveProfilePath(profileFile_);
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
@@ -187,6 +239,11 @@ bool MappingListModel::save() {
     }
     QByteArray buf;
     for (const auto &e : entries_) {
+        // Escape an input the plain parser would otherwise misread: '#' starts a
+        // comment line, '\' is the escape character itself. parseMappings reads
+        // "\#=..." / "\\=..." back to the literal key.
+        if (e.input == QStringLiteral("#") || e.input == QStringLiteral("\\"))
+            buf += '\\';
         buf += e.input.toUtf8();
         buf += '=';
         buf += e.output.toUtf8();

@@ -50,8 +50,12 @@ Window {
     // total horizontal slack the glyph Text leaves inside the cell (half
     // per side); it bounds the Text width that Text.HorizontalFit fits to.
     readonly property int cellSize: 44
+    readonly property int cellRadius: 10
     readonly property int framePadding: 16
     readonly property int cellTextInset: 8
+    // Horizontal padding (per side) inside the profile-name pill, so the
+    // full-width name token has breathing room like a glyph cell does.
+    readonly property int labelPadding: 14
 
     // Progress bar (opt-in via [Overlay]/ProgressBar). It starts at the panel's
     // top-right corner and runs to the right. Its pixel length and the
@@ -72,10 +76,17 @@ Window {
                                              progressTotal)
     readonly property real progressWindowWidth:
         progressBarWidth - progressLeadWidth
-    // True once the lead-in has elapsed and the leader window is open; drives the
-    // panel reveal (the cells appear only when the window opens, not during the
-    // lead-in). Reset at the start of each gesture's animation.
-    property bool progressWindowPhase: false
+    // Single time-based driver for the bar: the gesture's elapsed position in
+    // milliseconds across the whole [0, total] timeline. The FrameAnimation
+    // below re-samples it from the engine's monotonic clock every frame (see
+    // progressElapsedNowMs) so it can't drift from the real window; the
+    // lead/window fills derive their widths from it.
+    property real progressNow: 0
+    // True once the lead-in has elapsed and the leader window is open; drives
+    // the panel reveal (the cells appear only when the window opens, not during
+    // the lead-in). Derived from progressNow so a latency-skipped lead reveals
+    // the panel immediately instead of replaying the lead.
+    readonly property bool progressWindowPhase: progressNow >= progressLead
 
     // Font sizes per variant glyph type. Color-emoji fonts occupy a
     // smaller fraction of the em-box than JetBrains Mono at the same
@@ -117,35 +128,53 @@ Window {
     readonly property var palettes: ({
         "schnelle-umlaute": {
             frame: "#12101d", border: "#2a2640",
-            cellInactive: "#1a1728", cellInactiveBorder: "#2a2640",
+            cellInactive: "#241f38", cellInactiveBorder: "#2a2640",
             cellActive: "#4ade80", cellActiveBorder: "#4ade80",
-            textInactive: "#f0fdf4", textActive: "#08060f",
-            barLead: "#4ade80", barWindow: "#a855f7"
+            // Inactive cell text carries the theme's signature green; the active
+            // cell keeps dark text on the green fill.
+            textInactive: "#4ade80", textActive: "#08060f",
+            // Green is this theme's signature/active colour (cellActive above),
+            // so the active leader window (barWindow) carries the green and the
+            // dead-time lead-in (barLead) the accent purple, the inverse of the
+            // other themes. This mirrors Theme.qml's sliderWindow/sliderLead swap
+            // so the editor slider and the overlay bar agree on which segment is
+            // which colour.
+            barLead: "#a855f7", barWindow: "#4ade80"
         },
         "dark": {
             frame: "#181b22", border: "#2a2f3a",
             cellInactive: "#232832", cellInactiveBorder: "#2a2f3a",
             cellActive: "#60a5fa", cellActiveBorder: "#60a5fa",
             textInactive: "#e5e7eb", textActive: "#0f1115",
-            barLead: "#60a5fa", barWindow: "#f87171"
+            barLead: "#4ade80", barWindow: "#60a5fa"
         },
         "light": {
             frame: "#ffffff", border: "#d4d4d8",
             cellInactive: "#f4f4f5", cellInactiveBorder: "#d4d4d8",
             cellActive: "#2563eb", cellActiveBorder: "#2563eb",
             textInactive: "#0f172a", textActive: "#ffffff",
-            barLead: "#2563eb", barWindow: "#dc2626"
+            barLead: "#16a34a", barWindow: "#2563eb"
         },
         "contrast": {
             frame: "#000000", border: "#ffffff",
             cellInactive: "#0a0a0a", cellInactiveBorder: "#ffffff",
             cellActive: "#ffd60a", cellActiveBorder: "#ffd60a",
             textInactive: "#ffffff", textActive: "#000000",
-            barLead: "#ffd60a", barWindow: "#ffffff"
+            barLead: "#ffffff", barWindow: "#ffd60a"
         }
     })
     readonly property var p: palettes[OverlayController.theme]
                              || palettes["schnelle-umlaute"]
+
+    // Cell-text colours read through accessors with a fallback to an always-
+    // defined palette key, so a palette that omits textInactive/textActive
+    // degrades to a visible on-theme colour instead of silently rendering
+    // black (undefined coerces to #000000). Inactive text falls back to
+    // cellActive (the active-cell colour, visible on the dark inactive cell),
+    // active text to frame (the panel colour, visible on the bright active
+    // cell).
+    readonly property color textActiveColor: p.textActive || p.frame
+    readonly property color textInactiveColor: p.textInactive || p.cellActive
 
     // Count Unicode codepoints, not UTF-16 code units. Without this,
     // surrogate-pair emojis (😊 et al.) report length 2 and fall into
@@ -217,9 +246,11 @@ Window {
             height: parent.height
             radius: win.progressBarRadius
             color: win.p.barLead
-            // Grows from the top-left corner to the right over the lead-in and
-            // stays full through the window phase.
-            width: 0
+            // Grows from the corner over the lead-in, then stays full. A binding
+            // on the shared timeline, so it tracks progressNow exactly.
+            width: win.progressLeadWidth
+                   * Math.max(0, Math.min(1, win.progressNow
+                                             / Math.max(1, win.progressLead)))
         }
         Rectangle {
             id: windowFill
@@ -227,33 +258,42 @@ Window {
             height: parent.height
             radius: win.progressBarRadius
             color: win.p.barWindow
-            // Pinned just past the lead segment; appears full when the window
-            // opens, then its right end recedes left as it counts down.
-            width: 0
+            // Zero until the lead is over, then full and receding to 0 as the
+            // window counts down across [lead, total].
+            width: win.progressNow < win.progressLead
+                   ? 0
+                   : win.progressWindowWidth
+                     * Math.max(0, Math.min(1,
+                         (win.progressTotal - win.progressNow)
+                         / Math.max(1, win.progressWindow)))
         }
 
-        SequentialAnimation {
+        // Sample the engine's real elapsed time every frame rather than letting
+        // one NumberAnimation interpolate the whole timeline. That animation
+        // began a render frame or two after SetProgress arrived yet ran the full
+        // remaining duration, so it finished late and left the window-fill open
+        // by a sliver right at the closing edge, the mismatch visible at the
+        // boundary. FrameAnimation ties the update to the render loop and reads
+        // progressElapsedNowMs() (the shared monotonic clock) each frame, so the
+        // bar tracks the real timeline with only sub-frame, non-cumulative
+        // error. Stopped while frozen so a caught window holds the bar in place.
+        FrameAnimation {
             running: OverlayController.progressActive
-            paused: OverlayController.progressFrozen
-            // Restart from the lead-in on each fresh gesture.
-            onStarted: win.progressWindowPhase = false
-            NumberAnimation {
-                target: leadFill
-                property: "width"
-                from: 0
-                to: win.progressLeadWidth
-                duration: win.progressLead
-                easing.type: Easing.Linear
-            }
-            // Lead-in over: open the window and reveal the panel.
-            ScriptAction { script: win.progressWindowPhase = true }
-            NumberAnimation {
-                target: windowFill
-                property: "width"
-                from: win.progressWindowWidth
-                to: 0
-                duration: win.progressWindow
-                easing.type: Easing.Linear
+                     && !OverlayController.progressFrozen
+            onTriggered: win.progressNow =
+                OverlayController.progressElapsedNowMs()
+        }
+
+        // Snap to the arrival-time elapsed the instant a gesture starts, so the
+        // bar never shows one stale frame from the previous gesture before the
+        // FrameAnimation's first tick. Only on a fresh, unfrozen start; a freeze
+        // must leave progressNow where it is.
+        Connections {
+            target: OverlayController
+            function onProgressChanged() {
+                if (OverlayController.progressActive
+                    && !OverlayController.progressFrozen)
+                    win.progressNow = OverlayController.progressElapsedMs
             }
         }
     }
@@ -273,14 +313,57 @@ Window {
         radius: 16
         border.color: win.p.border
         border.width: 1
-        implicitWidth: row.implicitWidth + 2 * win.framePadding
+        implicitWidth: (OverlayController.label ? labelPill.implicitWidth
+                                                : row.implicitWidth)
+                       + 2 * win.framePadding
         implicitHeight: 64
 
         Behavior on color { ColorAnimation { duration: win.animationDuration } }
         Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
 
+        // Profile-switch name: a single full-width token rendered in the same
+        // cell styling as the active mapped glyph (dark text on the bright
+        // active-cell colour), so it reads as one of the overlay's tokens
+        // rather than dark text floating on the panel background.
+        Rectangle {
+            id: labelPill
+            visible: OverlayController.label
+            anchors.centerIn: parent
+            radius: win.cellRadius
+            color: win.p.cellActive
+            border.color: win.p.cellActiveBorder
+            border.width: 1
+            implicitWidth: labelText.width + 2 * win.labelPadding
+            implicitHeight: win.cellSize
+
+            Behavior on color { ColorAnimation { duration: win.animationDuration } }
+            Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
+
+            Text {
+                id: labelText
+                anchors.centerIn: parent
+                text: OverlayController.variants.length
+                      ? OverlayController.variants[0] : ""
+                color: win.textActiveColor
+                font.family: win.fontFamilyMono
+                font.pixelSize: win.pixelSizeSingle
+                font.weight: Font.Medium
+                // Full name; only a very long one elides so the pill (plus its
+                // padding and the frame padding) still fits the screen.
+                width: Math.min(implicitWidth,
+                                Screen.width - 4 * win.framePadding
+                                - 2 * win.labelPadding)
+                elide: Text.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+
+                Behavior on color { ColorAnimation { duration: win.animationDuration } }
+            }
+        }
+
         RowLayout {
             id: row
+            visible: !OverlayController.label
             anchors.centerIn: parent
             spacing: 8
 
@@ -292,7 +375,7 @@ Window {
                     readonly property bool active: index === OverlayController.currentIndex
                     width: win.cellSize
                     height: win.cellSize
-                    radius: 10
+                    radius: win.cellRadius
                     color: active ? win.p.cellActive : win.p.cellInactive
                     border.color: active ? win.p.cellActiveBorder : win.p.cellInactiveBorder
                     border.width: 1
@@ -312,7 +395,7 @@ Window {
                         verticalAlignment: Text.AlignVCenter
                         fontSizeMode: Text.HorizontalFit
                         text: win.truncateDisplay(modelData)
-                        color: active ? win.p.textActive : win.p.textInactive
+                        color: active ? win.textActiveColor : win.textInactiveColor
                         font.family: win.fontFamilyMono
                         font.pixelSize: {
                             if (win.codepointCount(modelData) > 1) return win.pixelSizeMulti
