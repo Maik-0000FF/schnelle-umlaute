@@ -506,6 +506,12 @@ Item {
                                 text = prow.name;
                                 list.renamingIndex = -1;
                             }
+                            // Handle Escape locally (cancel the rename) instead
+                            // of the window-level Esc shortcut closing the editor.
+                            Keys.onShortcutOverride: (event) => {
+                                if (event.key === Qt.Key_Escape)
+                                    event.accepted = true;
+                            }
                             onActiveFocusChanged: {
                                 if (!activeFocus && prow.renaming) {
                                     text = prow.name; // cancel on focus loss

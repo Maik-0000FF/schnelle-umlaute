@@ -130,6 +130,15 @@ Item {
         event.accepted = true;
     }
 
+    // While capturing, the field owns the keyboard: override every app shortcut
+    // (Esc, Ctrl+N, Ctrl+1, …) so the key reaches Keys.onPressed to be captured
+    // or to cancel, instead of the ApplicationWindow shortcut firing (e.g. Esc
+    // closing the whole editor, or Ctrl+N being swallowed instead of bound).
+    Keys.onShortcutOverride: (event) => {
+        if (root.capturing)
+            event.accepted = true;
+    }
+
     onActiveFocusChanged: {
         if (!activeFocus) {
             root.capturing = false;
