@@ -93,6 +93,8 @@ Rectangle {
         modelRef && editing
             ? modelRef.inputErrorFor(inputEdit.text, rowIndex)
             : ""
+    readonly property string editOutputError:
+        modelRef && editing ? modelRef.outputErrorFor(outputEdit.text) : ""
     readonly property bool editLeaderConflict: {
         leadersTick; // establish dependency
         return editing && inputEdit.text.length > 0 && settingsModel &&
@@ -319,13 +321,27 @@ Rectangle {
             wrapMode: Text.WordWrap
         }
 
+        // Output error (e.g. a lone "," with no variants), shown only when the
+        // input is otherwise fine so the two error lines don't stack.
+        Text {
+            Layout.fillWidth: true
+            Layout.leftMargin: root.inputCellWidth + Theme.spacingMd
+            visible: root.editing && root.editOutputError !== "" &&
+                     outputEdit.text.length > 0 && root.editInputError === ""
+            text: root.editOutputError
+            color: Theme.error
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontBody
+            wrapMode: Text.WordWrap
+        }
+
         Text {
             Layout.fillWidth: true
             Layout.leftMargin: root.inputCellWidth + Theme.spacingMd
             visible: root.staticLeaderConflict ||
                      (root.editing && root.editLeaderConflict &&
                       root.editInputError === "")
-            text: qsTr("This key is configured as a Leader — mapping will not work")
+            text: qsTr("This key is configured as a Leader: mapping will not work")
             color: Theme.warning
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody

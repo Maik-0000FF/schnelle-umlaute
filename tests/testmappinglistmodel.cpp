@@ -86,6 +86,18 @@ void testOutputAcceptsTabs(MappingListModel &m) {
 void testOutputAcceptsCommas(MappingListModel &m) {
     EXPECT(m.validateOutput(QStringLiteral("ä,à,á,â")));
 }
+// A lone "," (or any all-separator output) splits into zero cycling variants,
+// which the engine drops as "no valid outputs", so reject it instead of losing
+// the mapping. Escaped as ",," it is a literal comma and stays valid.
+void testOutputRejectsOnlyComma(MappingListModel &m) {
+    EXPECT(!m.validateOutput(QStringLiteral(",")));
+    EXPECT(m.validateOutput(QStringLiteral(",,")));
+}
+// A single space is a real one-character variant (mapping a key to " "), so it
+// passes even though it is "just whitespace": it survives the split.
+void testOutputAcceptsSingleSpace(MappingListModel &m) {
+    EXPECT(m.validateOutput(QStringLiteral(" ")));
+}
 void testOutputAcceptsEmoji(MappingListModel &m) {
     EXPECT(m.validateOutput(QString::fromUtf8("😀")));
     EXPECT(m.validateOutput(QString::fromUtf8("hi 😀 bye")));
@@ -109,10 +121,16 @@ void testInputRejectsControlChars(MappingListModel &m) {
     // '\n' is not printable.
     EXPECT(!m.validateInput(QStringLiteral("\n")));
 }
+// '#' at the start of a line marks a comment in mappings.txt, so accepting it
+// as an input key would write a line the parser drops on reload (silent data
+// loss). It must be rejected with an explanatory error.
+void testInputRejectsCommentMarker(MappingListModel &m) {
+    EXPECT(!m.validateInput(QStringLiteral("#")));
+    EXPECT(!m.inputErrorFor(QStringLiteral("#")).isEmpty());
+}
 void testInputAcceptsSinglePrintable(MappingListModel &m) {
     EXPECT(m.validateInput(QStringLiteral("a")));
     EXPECT(m.validateInput(QStringLiteral(";")));
-    EXPECT(m.validateInput(QStringLiteral("#")));
 }
 // One Unicode codepoint = one character from the user's perspective, even if
 // stored as a surrogate pair in UTF-16.
@@ -180,6 +198,36 @@ void testInputErrorExcludeRowSuppressesSelfDuplicate(MappingListModel &m) {
     EXPECT(m.inputErrorFor(QStringLiteral("a"), 0).isEmpty());
 }
 
+// -- outputErrorFor: the localized string shown under the output field ------
+
+// Empty output is not an error per se: the Add/Apply button just stays
+// disabled, so no message is shown.
+void testOutputErrorEmptyReturnsEmpty(MappingListModel &m) {
+    EXPECT(m.outputErrorFor(QString()).isEmpty());
+}
+
+// A line break is the file-format hazard; the message must name it.
+void testOutputErrorReportsLineBreak(MappingListModel &m) {
+    QString err = m.outputErrorFor(QStringLiteral("a\nb"));
+    EXPECT(!err.isEmpty());
+    EXPECT(err.contains(QStringLiteral("line")));
+}
+
+// A lone "," splits into zero variants; the message must name that, not the
+// (wrong) line-break reason.
+void testOutputErrorReportsNoVariant(MappingListModel &m) {
+    QString err = m.outputErrorFor(QStringLiteral(","));
+    EXPECT(!err.isEmpty());
+    EXPECT(err.contains(QStringLiteral("variant")));
+}
+
+// Valid outputs (incl. a space and an escaped literal comma) report no error.
+void testOutputErrorValidReturnsEmpty(MappingListModel &m) {
+    EXPECT(m.outputErrorFor(QString::fromUtf8("ä")).isEmpty());
+    EXPECT(m.outputErrorFor(QStringLiteral(" ")).isEmpty());
+    EXPECT(m.outputErrorFor(QStringLiteral(",,")).isEmpty());
+}
+
 // -- test runner ------------------------------------------------------------
 
 using TestFn = void (*)(MappingListModel &);
@@ -199,11 +247,14 @@ const TestCase kTests[] = {
      testOutputAcceptsLeadingAndTrailingSpace},
     {"testOutputAcceptsTabs", testOutputAcceptsTabs},
     {"testOutputAcceptsCommas", testOutputAcceptsCommas},
+    {"testOutputRejectsOnlyComma", testOutputRejectsOnlyComma},
+    {"testOutputAcceptsSingleSpace", testOutputAcceptsSingleSpace},
     {"testOutputAcceptsEmoji", testOutputAcceptsEmoji},
     {"testInputRejectsEmpty", testInputRejectsEmpty},
     {"testInputRejectsMultipleChars", testInputRejectsMultipleChars},
     {"testInputRejectsWhitespace", testInputRejectsWhitespace},
     {"testInputRejectsControlChars", testInputRejectsControlChars},
+    {"testInputRejectsCommentMarker", testInputRejectsCommentMarker},
     {"testInputAcceptsSinglePrintable", testInputAcceptsSinglePrintable},
     {"testInputAcceptsSingleUtf8Codepoint",
      testInputAcceptsSingleUtf8Codepoint},
@@ -218,6 +269,10 @@ const TestCase kTests[] = {
     {"testInputErrorReportsDuplicate", testInputErrorReportsDuplicate},
     {"testInputErrorExcludeRowSuppressesSelfDuplicate",
      testInputErrorExcludeRowSuppressesSelfDuplicate},
+    {"testOutputErrorEmptyReturnsEmpty", testOutputErrorEmptyReturnsEmpty},
+    {"testOutputErrorReportsLineBreak", testOutputErrorReportsLineBreak},
+    {"testOutputErrorReportsNoVariant", testOutputErrorReportsNoVariant},
+    {"testOutputErrorValidReturnsEmpty", testOutputErrorValidReturnsEmpty},
 };
 
 int main(int argc, char **argv) {

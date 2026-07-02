@@ -57,6 +57,11 @@ bool MappingListModel::isValidInputChar(const QString &input) {
     if (ucs4.size() != 1)
         return false;
     uint cp = ucs4[0];
+    // '#' starts a comment line in the mappings file, so an input of '#' would
+    // be silently dropped by the parser (both the engine and the editor's own
+    // reload). Reject it here instead of accepting a mapping that never fires.
+    if (cp == '#')
+        return false;
     return QChar::isPrint(cp) && !QChar::isSpace(cp);
 }
 
@@ -80,18 +85,44 @@ bool MappingListModel::validateInput(const QString &input,
 }
 
 bool MappingListModel::validateOutput(const QString &output) const {
-    return !output.isEmpty() && isValidOutputChar(output);
+    if (output.isEmpty() || !isValidOutputChar(output))
+        return false;
+    // Reject an output that splits into zero cycling variants (e.g. a lone
+    // ","), which the engine would otherwise drop as "no valid outputs",
+    // losing the mapping silently. A space is a valid output on purpose (e.g.
+    // mapping a key to " " so terminal commands skip shell history), so it
+    // survives the split as a one-character variant and stays allowed;
+    // whitespace is never trimmed, here or in the engine.
+    return !schnelle_umlaute::splitOutputs(output.toStdString()).empty();
 }
 
 QString MappingListModel::inputErrorFor(const QString &input,
                                         int excludeRow) const {
     if (input.isEmpty())
         return {};
+    if (input == QStringLiteral("#")) {
+        return tr("\"#\" starts a comment line and can't be used as a key");
+    }
     if (!isValidInputChar(input)) {
         return tr("Must be a single printable character");
     }
     if (hasInput(input, excludeRow)) {
         return tr("This key is already mapped");
+    }
+    return {};
+}
+
+// Mirror of inputErrorFor for the output field: empty is not an error (the
+// Add/Apply button just stays disabled), otherwise explain each way an output
+// is rejected so the reason shows live in the editor instead of a generic toast.
+QString MappingListModel::outputErrorFor(const QString &output) const {
+    if (output.isEmpty())
+        return {};
+    if (!isValidOutputChar(output)) {
+        return tr("Output must not contain line breaks");
+    }
+    if (schnelle_umlaute::splitOutputs(output.toStdString()).empty()) {
+        return tr("Output must have at least one variant (a lone \",\" is empty)");
     }
     return {};
 }
@@ -128,8 +159,8 @@ bool MappingListModel::updateMapping(int row, const QString &input,
         Q_EMIT errorOccurred(inputErrorFor(input, row));
         return false;
     }
-    if (!isValidOutputChar(output) || output.isEmpty()) {
-        Q_EMIT errorOccurred(tr("Output must not contain line breaks"));
+    if (!validateOutput(output)) {
+        Q_EMIT errorOccurred(outputErrorFor(output));
         return false;
     }
     entries_[row].input = input;

@@ -49,6 +49,7 @@ public:
     Q_INVOKABLE bool validateOutput(const QString &output) const;
     Q_INVOKABLE QString inputErrorFor(const QString &input,
                                       int excludeRow = -1) const;
+    Q_INVOKABLE QString outputErrorFor(const QString &output) const;
 
 Q_SIGNALS:
     void countChanged();

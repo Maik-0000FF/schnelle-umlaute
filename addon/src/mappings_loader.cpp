@@ -19,35 +19,6 @@
 
 namespace schnelle_umlaute {
 
-std::vector<std::string> splitOutputs(const std::string &output) {
-    std::vector<std::string> outputs;
-    if (output.empty())
-        return outputs;
-
-    std::string current;
-    for (size_t i = 0; i < output.length(); ++i) {
-        if (output[i] == ',') {
-            if (i + 1 < output.length() && output[i + 1] == ',') {
-                current += ',';
-                ++i;
-            } else {
-                if (!current.empty()) {
-                    outputs.push_back(std::move(current));
-                    current.clear();
-                }
-            }
-        } else {
-            current += output[i];
-        }
-    }
-    // Trailing comma produces an empty segment which is intentionally
-    // skipped — an empty cycling variant would be useless.
-    if (!current.empty()) {
-        outputs.push_back(std::move(current));
-    }
-    return outputs;
-}
-
 UmlautMap loadMappingsFromFile(const std::string &relPath) {
     using namespace fcitx;
     UmlautMap map;
