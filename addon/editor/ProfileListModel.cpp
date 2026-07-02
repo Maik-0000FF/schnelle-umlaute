@@ -4,6 +4,8 @@
 #include "preset_meta.h"
 #include "preset_paths.h"
 
+#include <fcitx-utils/key.h>
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -500,37 +502,15 @@ bool ProfileListModel::setActiveRow(int row) {
 }
 
 QString ProfileListModel::canonicalCombo(const QString &combo) {
-    const QStringList parts =
-        combo.split(QLatin1Char('+'), Qt::SkipEmptyParts);
-    bool ctrl = false, alt = false, shift = false, super = false;
-    QString base;
-    for (const QString &raw : parts) {
-        const QString p = raw.trimmed();
-        const QString l = p.toLower();
-        if (l == QLatin1String("control") || l == QLatin1String("ctrl"))
-            ctrl = true;
-        else if (l == QLatin1String("alt"))
-            alt = true;
-        else if (l == QLatin1String("shift"))
-            shift = true;
-        else if (l == QLatin1String("super") || l == QLatin1String("meta"))
-            super = true;
-        else
-            base = p; // last non-modifier token is the key
-    }
-    if (base.size() == 1 && base.at(0).isLetter())
-        base = base.toUpper();
-    QString out;
-    if (ctrl)
-        out += QLatin1String("Control+");
-    if (alt)
-        out += QLatin1String("Alt+");
-    if (shift)
-        out += QLatin1String("Shift+");
-    if (super)
-        out += QLatin1String("Super+");
-    out += base;
-    return out;
+    // Canonicalise through fcitx's own parse + normalize, the same Key::normalize
+    // the engine's parseShortcut applies before matching. Comparing these strings
+    // is therefore the engine's notion of "same shortcut", so the editor's
+    // duplicate check can't disagree with the runtime matcher. (A hand-rolled
+    // string form is a third, independent equality that could drift from both
+    // the capture writer and the engine over keypad syms, aliases or a future
+    // modifier.) qtKeyComboToPortable emits the X keysym spellings fcitx parses.
+    return QString::fromStdString(
+        fcitx::Key(combo.toStdString()).normalize().toString());
 }
 
 bool ProfileListModel::isComboFree(const QString &combo, int excludeRow,

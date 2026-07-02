@@ -189,8 +189,8 @@ void testPersistenceRoundTrip(ProfileListModel &m) {
     EXPECT(m.createProfile(QStringLiteral("Mathematik")));
     EXPECT(m.setActiveRow(1));
     EXPECT(m.setSelectKey(1, QStringLiteral("Control+Alt+1")));
-    m.setCycleNext(QStringLiteral("Control+Alt+Period"));
-    m.setCyclePrev(QStringLiteral("Control+Alt+Comma"));
+    m.setCycleNext(QStringLiteral("Control+Alt+period"));
+    m.setCyclePrev(QStringLiteral("Control+Alt+comma"));
 
     // A second model over the same config dir must observe the persisted state.
     ProfileListModel m2;
@@ -200,8 +200,8 @@ void testPersistenceRoundTrip(ProfileListModel &m) {
     EXPECT(m2.fileForRow(1) == QStringLiteral("profiles/mathematik.txt"));
     EXPECT(m2.active() == QStringLiteral("Mathematik"));
     EXPECT(rowSelectKey(m2, 1) == QStringLiteral("Control+Alt+1"));
-    EXPECT(m2.cycleNext() == QStringLiteral("Control+Alt+Period"));
-    EXPECT(m2.cyclePrev() == QStringLiteral("Control+Alt+Comma"));
+    EXPECT(m2.cycleNext() == QStringLiteral("Control+Alt+period"));
+    EXPECT(m2.cyclePrev() == QStringLiteral("Control+Alt+comma"));
 }
 
 // A profile name with a space is quote-escaped on write and unescaped on read;

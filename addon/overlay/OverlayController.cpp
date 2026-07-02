@@ -39,6 +39,16 @@ void OverlayController::show(const QStringList &variants, int currentIndex,
         position_ = position;
     label_ = label;
     visible_ = !variants.isEmpty();
+    // A label show is a standalone profile-name pill (a runtime profile switch).
+    // If a gesture's progress bar is still running or frozen (hold a mapped key,
+    // then trigger a switch before releasing), clear it so the bar can't render
+    // above the name. Plain accent overlays (label=false) leave the bar alone,
+    // so the frozen cycling bar keeps showing.
+    if (label && (progressActive_ || progressFrozen_)) {
+        progressActive_ = false;
+        progressFrozen_ = false;
+        Q_EMIT progressChanged();
+    }
     Q_EMIT stateChanged();
 }
 

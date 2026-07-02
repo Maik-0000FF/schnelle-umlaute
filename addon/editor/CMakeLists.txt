@@ -78,6 +78,9 @@ target_link_libraries(schnelle-umlaute-editor PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
+    # Fcitx5::Core provides fcitx::Key, so ProfileListModel's duplicate-shortcut
+    # check normalizes combos exactly like the engine's runtime matcher.
+    Fcitx5::Core
 )
 
 target_compile_options(schnelle-umlaute-editor PRIVATE -Wall -Wextra -Wpedantic)

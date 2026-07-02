@@ -163,6 +163,31 @@ void testSetProgressElapsedCompensation() {
     EXPECT(ctrl.progressElapsedMs() == 0);
 }
 
+// A profile-name (label) show clears a running or frozen progress bar so the
+// name pill can't render over a leftover bar (hold a mapped key, then trigger a
+// profile switch before releasing).
+void testLabelShowClearsProgressBar() {
+    OverlayController ctrl;
+    ctrl.setProgress(100, 200, 0);
+    EXPECT(ctrl.progressActive());
+    ctrl.show({"French"}, 0, QStringLiteral("BottomCenter"), true);
+    EXPECT(!ctrl.progressActive());
+    EXPECT(!ctrl.progressFrozen());
+}
+
+// A plain accent show (label off) leaves the bar alone, so the frozen cycling
+// bar keeps showing while the user steps through variants.
+void testPlainShowKeepsProgressBar() {
+    OverlayController ctrl;
+    ctrl.setProgress(100, 200, 0);
+    ctrl.freezeProgress();
+    EXPECT(ctrl.progressActive());
+    EXPECT(ctrl.progressFrozen());
+    ctrl.show({"ä", "Ä"}, 0, QStringLiteral("BottomCenter"), false);
+    EXPECT(ctrl.progressActive());
+    EXPECT(ctrl.progressFrozen());
+}
+
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
@@ -174,6 +199,8 @@ int main(int argc, char *argv[]) {
     testLabelModeFlag();
     testAdaptorShowForwardsLabel();
     testQuitSchedulesAppExit();
+    testLabelShowClearsProgressBar();
+    testPlainShowKeepsProgressBar();
 
     std::fprintf(stderr, "testoverlaycontroller: all tests passed\n");
     return 0;
