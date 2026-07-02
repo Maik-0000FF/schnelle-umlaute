@@ -249,6 +249,19 @@ Item {
                 // while any rename is open (not just this row's).
                 property int renamingIndex: -1
 
+                // Defensive: a structural model change (row removed / moved /
+                // full reset) can shift indices out from under an open inline
+                // rename, leaving renamingIndex pointing at the wrong row, so
+                // drop the rename when that happens (Mappings does the same for
+                // its edit via onProfileFileChanged). Insertions append at the
+                // end and close the popup, so they need no handler.
+                Connections {
+                    target: root.profilesModel
+                    function onModelReset() { list.renamingIndex = -1; }
+                    function onRowsRemoved() { list.renamingIndex = -1; }
+                    function onRowsMoved() { list.renamingIndex = -1; }
+                }
+
                 // Up/Down move the current row (keyNavigationEnabled); the keys
                 // below act on it: Enter selects the edit target, F2 renames,
                 // Delete removes, A sets active, F toggles favorite.
