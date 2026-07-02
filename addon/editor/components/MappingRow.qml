@@ -216,6 +216,13 @@ Rectangle {
                 border.width: 1
                 Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
             }
+            Keys.onEscapePressed: cancelEdit()
+            // Handle Escape locally (cancel the edit) instead of letting the
+            // window-level Esc shortcut close the whole editor.
+            Keys.onShortcutOverride: (event) => {
+                if (event.key === Qt.Key_Escape)
+                    event.accepted = true;
+            }
         }
 
         Text {
@@ -255,6 +262,12 @@ Rectangle {
             }
             onAccepted: if (root.editValid) confirmEdit()
             Keys.onEscapePressed: cancelEdit()
+            // Handle Escape locally (cancel the edit) instead of letting the
+            // window-level Esc shortcut close the whole editor.
+            Keys.onShortcutOverride: (event) => {
+                if (event.key === Qt.Key_Escape)
+                    event.accepted = true;
+            }
         }
 
         ToolButton {

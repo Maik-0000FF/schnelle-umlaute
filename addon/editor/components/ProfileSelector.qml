@@ -207,6 +207,14 @@ Item {
                         border.width: 1
                     }
                     onAccepted: root.addProfile()
+                    // Escape closes the dropdown (matching its CloseOnEscape),
+                    // instead of the window-level Esc shortcut closing the whole
+                    // editor.
+                    Keys.onEscapePressed: popup.close()
+                    Keys.onShortcutOverride: (event) => {
+                        if (event.key === Qt.Key_Escape)
+                            event.accepted = true;
+                    }
                 }
 
                 Rectangle {
@@ -505,6 +513,12 @@ Item {
                             Keys.onEscapePressed: {
                                 text = prow.name;
                                 list.renamingIndex = -1;
+                            }
+                            // Handle Escape locally (cancel the rename) instead
+                            // of the window-level Esc shortcut closing the editor.
+                            Keys.onShortcutOverride: (event) => {
+                                if (event.key === Qt.Key_Escape)
+                                    event.accepted = true;
                             }
                             onActiveFocusChanged: {
                                 if (!activeFocus && prow.renaming) {
