@@ -115,10 +115,18 @@ ColumnLayout {
                         radius: Theme.radiusSm
                         anchors.centerIn: parent
 
+                        // Keyboard-highlighted cell (arrow-key navigation on the
+                        // focused grid) gets an accent-tinted fill + accent
+                        // border instead of an inset ring.
+                        readonly property bool focused:
+                            previewFrame.activeFocus
+                            && cell.index === root.focusIndex
                         color: parent.active
                             ? Theme.accent
+                            : focused ? Theme.accentSoft
                             : (mouse.containsMouse ? Theme.surfaceHover : Theme.surface)
-                        border.color: parent.active ? Theme.accent : Theme.border
+                        border.color: (parent.active || focused) ? Theme.accent
+                                                                 : Theme.border
                         border.width: 1
                         // In cursor mode the active cell is only the fallback —
                         // keep it marked but dimmed so the pointer marker reads
@@ -126,12 +134,6 @@ ColumnLayout {
                         opacity: (parent.active && root.atCursorMode) ? 0.4 : 1.0
 
                         Behavior on color { ColorAnimation { duration: Theme.animShort } }
-
-                        // Keyboard highlight for the current cell.
-                        FocusRing {
-                            visible: previewFrame.activeFocus
-                                     && cell.index === root.focusIndex
-                        }
 
                         Text {
                             anchors.centerIn: parent

@@ -52,7 +52,8 @@ Item {
         implicitHeight: Theme.controlHeight
         radius: Theme.radiusSm
         color: Theme.background
-        border.color: popup.visible ? Theme.borderFocus : Theme.border
+        border.color: (header.activeFocus || popup.visible) ? Theme.borderFocus
+                                                            : Theme.border
         border.width: 1
         Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
@@ -68,8 +69,6 @@ Item {
                 event.accepted = true;
             }
         }
-
-        FocusRing { visible: header.activeFocus }
 
         Text {
             anchors.left: parent.left
@@ -289,15 +288,28 @@ Item {
                     width: ListView.view.width
                     height: Theme.rowHeight
                     radius: Theme.radiusSm
+                    // Current row (keyboard) gets the filled accent-tinted
+                    // selection; plain hover stays subtle.
                     color: (prow.ListView.isCurrentItem && list.activeFocus)
-                           || prowHover.hovered ? Theme.surfaceHover : "transparent"
+                           ? Theme.accentSoft
+                           : (prowHover.hovered ? Theme.surfaceHover
+                                                : "transparent")
                     property bool renaming: false
+
+                    Behavior on color { ColorAnimation { duration: Theme.animShort } }
 
                     HoverHandler { id: prowHover }
 
-                    // Keyboard focus indicator for the current row.
-                    FocusRing {
-                        visible: prow.ListView.isCurrentItem && list.activeFocus
+                    // Clicking the row (outside the action icons) makes it the
+                    // current row and focuses the list, so keyboard actions
+                    // (Enter/F2/Delete/A/F) continue from where the mouse landed.
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.LeftButton
+                        onClicked: {
+                            list.currentIndex = prow.index;
+                            list.forceActiveFocus();
+                        }
                     }
 
                     RowLayout {

@@ -242,19 +242,4 @@ Item {
     }
 
     function focusAdd() { addCard.focusInput(); }
-
-    // Called when this tab becomes visible: focus the mapping list so Up/Down
-    // navigate rows straight away (selecting the first row if none is current).
-    // When there are no mappings yet the list is hidden, so take focus onto the
-    // panel root instead, which also pulls it off any control on the tab we
-    // just left.
-    function focusPanel() {
-        if (mappingsModel && mappingsModel.count > 0) {
-            if (listView.currentIndex < 0)
-                listView.currentIndex = 0;
-            listView.forceActiveFocus();
-        } else {
-            root.forceActiveFocus();
-        }
-    }
 }

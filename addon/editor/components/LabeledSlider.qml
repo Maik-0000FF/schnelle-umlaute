@@ -62,15 +62,13 @@ RowLayout {
             height: 16
             radius: 8
             color: slider.pressed ? Theme.accentHover : Theme.accent
-            border.color: Theme.background
+            // Keyboard focus shows as an accent handle border (the slider also
+            // takes focus on click, where the drag colour already signals it).
+            border.color: (slider.activeFocus
+                           && slider.focusReason !== Qt.MouseFocusReason)
+                          ? Theme.accent : Theme.background
             border.width: 2
-
-            // Keyboard-only focus ring (the slider takes focus on click too).
-            FocusRing {
-                visible: slider.activeFocus
-                         && slider.focusReason !== Qt.MouseFocusReason
-                radius: width / 2
-            }
+            Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
         }
 
         onValueChanged: {

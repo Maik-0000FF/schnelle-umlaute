@@ -177,8 +177,12 @@ RowLayout {
             // role colour. The role tokens centralise the per-theme swap.
             color: track.dragMode === 1 ? Theme.sliderLeadHover
                                         : Theme.sliderLead
-            border.color: Theme.background
+            // Keyboard focus shows as an accent handle border (the handles only
+            // take focus via Tab; dragging is handled by trackArea below).
+            border.color: lowerHandle.activeFocus ? Theme.accent
+                                                  : Theme.background
             border.width: 2
+            Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
             // Reachable by Tab; Left/Right nudge the lead bound by one step.
             activeFocusOnTab: true
@@ -193,7 +197,6 @@ RowLayout {
                     event.accepted = true;
                 }
             }
-            FocusRing { visible: lowerHandle.activeFocus; radius: width / 2 }
         }
         Rectangle {
             id: upperHandle
@@ -205,8 +208,11 @@ RowLayout {
             z: (track.dragMode === 2 || upperHandle.activeFocus) ? 2 : 1
             color: track.dragMode === 2 ? Theme.sliderWindowHover
                                         : Theme.sliderWindow
-            border.color: Theme.background
+            // Keyboard focus shows as an accent handle border.
+            border.color: upperHandle.activeFocus ? Theme.accent
+                                                   : Theme.background
             border.width: 2
+            Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
             // Reachable by Tab; Left/Right nudge the window's upper bound.
             activeFocusOnTab: true
@@ -223,7 +229,6 @@ RowLayout {
                     event.accepted = true;
                 }
             }
-            FocusRing { visible: upperHandle.activeFocus; radius: width / 2 }
         }
 
         MouseArea {
