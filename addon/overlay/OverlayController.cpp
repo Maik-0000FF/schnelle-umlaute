@@ -1,4 +1,5 @@
 #include "OverlayController.h"
+#include "../overlay_protocol.h"
 #include "../themes.h"
 #include "progress_overlay_geometry.h"
 
@@ -162,3 +163,7 @@ void OverlayDBusAdaptor::SetProgress(int leadMs, int windowMs,
 }
 
 void OverlayDBusAdaptor::FreezeProgress() { ctrl_->freezeProgress(); }
+
+int OverlayDBusAdaptor::GetProtocolVersion() {
+    return schnelle_umlaute::kOverlayProtocolVersion;
+}

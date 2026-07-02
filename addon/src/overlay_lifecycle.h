@@ -36,6 +36,28 @@ decideOverlayLifecycleAction(std::optional<bool> previous, bool current) {
     return OverlayLifecycleAction::None;
 }
 
+// Decide whether an already-running overlay daemon must be quit because its wire
+// protocol no longer matches ours (a stale in-place-upgrade leftover). Only
+// meaningful when a daemon owns the bus name.
+//
+//   hasOwner=false                  → false (nobody running; normal DBus
+//                                            activation starts the fresh binary
+//                                            on the next call)
+//   hasOwner, version query failed  → true  (a daemon predating the version
+//                                            handshake replies with an error;
+//                                            treat it as stale)
+//   hasOwner, reported != expected  → true  (signatures changed since it
+//                                            started; its calls are dropped)
+//   hasOwner, reported == expected  → false (compatible; leave it running)
+inline bool overlayDaemonIsStale(bool hasOwner, bool gotVersion,
+                                 int reportedVersion, int expectedVersion) {
+    if (!hasOwner)
+        return false;
+    if (!gotVersion)
+        return true;
+    return reportedVersion != expectedVersion;
+}
+
 } // namespace fcitx
 
 #endif

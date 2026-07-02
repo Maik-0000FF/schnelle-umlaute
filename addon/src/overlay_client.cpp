@@ -1,5 +1,7 @@
 #include "overlay_client.h"
+#include "overlay_protocol.h"
 
+#include <cstdint>
 #include <fcitx-utils/dbus/message.h>
 #include <fcitx-utils/log.h>
 
@@ -9,6 +11,11 @@ namespace {
 constexpr const char *kService = "de.schnelle_umlaute.Overlay";
 constexpr const char *kPath = "/de/schnelle_umlaute/Overlay";
 constexpr const char *kInterface = "de.schnelle_umlaute.Overlay1";
+// Timeout for the synchronous version handshake in start(). It runs off the hot
+// path (once per enable transition), and only when a daemon already owns the
+// name, so it never triggers activation and a healthy daemon replies in well
+// under this bound.
+constexpr uint64_t kHandshakeTimeoutUsec = 200'000;
 } // namespace
 
 OverlayClient::OverlayClient() : capability_(detectLayerShellCapability()) {
@@ -72,14 +79,50 @@ void OverlayClient::freezeProgress() {
     bus_->flush();
 }
 
+void OverlayClient::quitStaleDaemon() {
+    // GetNameOwner: is a daemon already running? This does not activate one, so
+    // when nobody owns the name we do nothing and let the Hide poke in start()
+    // activate the freshly installed binary.
+    const std::string owner = bus_->serviceOwner(kService, kHandshakeTimeoutUsec);
+    bool gotVersion = false;
+    int reported = -1;
+    if (!owner.empty()) {
+        auto query = bus_->createMethodCall(kService, kPath, kInterface,
+                                            "GetProtocolVersion");
+        auto reply = query.call(kHandshakeTimeoutUsec);
+        if (!reply.isError()) {
+            int32_t v = 0;
+            reply >> v;
+            reported = v;
+            gotVersion = true;
+        }
+    }
+    if (overlayDaemonIsStale(!owner.empty(), gotVersion, reported,
+                             schnelle_umlaute::kOverlayProtocolVersion)) {
+        FCITX_INFO() << "Schnelle: overlay daemon protocol mismatch (daemon "
+                     << (gotVersion ? std::to_string(reported)
+                                    : std::string("pre-handshake"))
+                     << ", engine "
+                     << schnelle_umlaute::kOverlayProtocolVersion
+                     << "); restarting it";
+        quit();
+    }
+}
+
 void OverlayClient::start() {
-    // Sends a no-op Hide to the service name. DBus sees the call and, if
-    // the daemon isn't already running, activates it via the .service file.
-    // If the daemon is already running, Hide is idempotent.
     if (!capability_.supported)
         return;
     if (!bus_ || !bus_->isOpen())
         return;
+    // Replace a stale daemon (an old build still owning the name after an
+    // in-place upgrade) first, so the poke below brings up the freshly
+    // installed binary instead of feeding one that can't parse our current
+    // calls. After a stale quit the fresh daemon activates on the next real
+    // call (this Hide may still land on the exiting old one).
+    quitStaleDaemon();
+    // Sends a no-op Hide to the service name. DBus sees the call and, if
+    // the daemon isn't already running, activates it via the .service file.
+    // If the daemon is already running, Hide is idempotent.
     auto msg = bus_->createMethodCall(kService, kPath, kInterface, "Hide");
     msg.send();
     bus_->flush();

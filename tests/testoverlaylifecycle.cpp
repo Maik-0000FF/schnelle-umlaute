@@ -9,6 +9,7 @@
 #include <optional>
 
 using fcitx::decideOverlayLifecycleAction;
+using fcitx::overlayDaemonIsStale;
 using fcitx::OverlayLifecycleAction;
 
 #define EXPECT(cond)                                                           \
@@ -57,6 +58,35 @@ void testDisabledStaysDisabledNoOp() {
     EXPECT(action == OverlayLifecycleAction::None);
 }
 
+// -- overlayDaemonIsStale(): the protocol-version restart decision -----------
+
+// Nobody running: nothing to restart, DBus activation brings up the fresh
+// binary on the next call. The version args are irrelevant here.
+void testNoOwnerIsNeverStale() {
+    EXPECT(!overlayDaemonIsStale(/*hasOwner=*/false, /*gotVersion=*/false,
+                                 /*reported=*/-1, /*expected=*/1));
+    EXPECT(!overlayDaemonIsStale(false, true, 1, 1));
+}
+
+// A running daemon that predates the handshake replies with an error, so the
+// version query fails: treat it as stale and restart it.
+void testOwnerWithoutVersionIsStale() {
+    EXPECT(overlayDaemonIsStale(/*hasOwner=*/true, /*gotVersion=*/false,
+                                /*reported=*/-1, /*expected=*/1));
+}
+
+// A running daemon reporting a different protocol version is a stale in-place
+// upgrade leftover whose calls would be dropped.
+void testOwnerVersionMismatchIsStale() {
+    EXPECT(overlayDaemonIsStale(true, true, /*reported=*/1, /*expected=*/2));
+    EXPECT(overlayDaemonIsStale(true, true, /*reported=*/3, /*expected=*/2));
+}
+
+// A running daemon on the same protocol version is fine: leave it alone.
+void testOwnerVersionMatchIsNotStale() {
+    EXPECT(!overlayDaemonIsStale(true, true, /*reported=*/2, /*expected=*/2));
+}
+
 int main() {
     testFirstCallIsNoOpWhenDisabled();
     testFirstCallStartsWhenEnabled();
@@ -64,6 +94,10 @@ int main() {
     testEnabledToDisabledQuits();
     testEnabledStaysEnabledNoOp();
     testDisabledStaysDisabledNoOp();
+    testNoOwnerIsNeverStale();
+    testOwnerWithoutVersionIsStale();
+    testOwnerVersionMismatchIsStale();
+    testOwnerVersionMatchIsNotStale();
     std::fprintf(stderr, "testoverlaylifecycle: all tests passed\n");
     return 0;
 }

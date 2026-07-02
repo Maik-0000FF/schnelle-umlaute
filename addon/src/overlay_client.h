@@ -54,6 +54,13 @@ public:
     void applyEnabledTransition(bool enabled);
 
 private:
+    // If a daemon already owns the bus name, ask it for its wire-protocol
+    // version and quit it when it doesn't match ours (a stale leftover from an
+    // in-place upgrade whose new-signature calls would be silently dropped).
+    // No-op when no daemon is running. Called from start() before the
+    // activation poke.
+    void quitStaleDaemon();
+
     std::unique_ptr<dbus::Bus> bus_;
     std::optional<bool> lastEnabled_;
     // Compositor check sampled once at construction. On sessions without
