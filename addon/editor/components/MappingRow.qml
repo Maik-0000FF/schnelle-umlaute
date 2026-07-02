@@ -9,7 +9,10 @@ Rectangle {
     // Highlighted while it is the keyboard-current row of the list.
     readonly property bool isCurrent:
         ListView.isCurrentItem && ListView.view && ListView.view.activeFocus
-    color: (hoverHandler.hovered || isCurrent) ? Theme.surfaceHover : "transparent"
+    // The current row gets a filled accent-tinted highlight (the conventional
+    // list-selection look); plain hover stays subtle.
+    color: isCurrent ? Theme.accentSoft
+           : (hoverHandler.hovered ? Theme.surfaceHover : "transparent")
     border.color: editing ? Theme.borderFocus : "transparent"
     border.width: 1
     height: col.implicitHeight + 8
@@ -20,11 +23,29 @@ Rectangle {
     // background flicker.
     HoverHandler { id: hoverHandler }
 
-    // Keyboard focus indicator for the current row (hidden while editing, where
-    // the input fields carry their own focus styling).
-    FocusRing { visible: root.isCurrent && !root.editing }
+    // Clicking anywhere on the row (outside the action buttons / drag handle)
+    // makes it the current row and moves keyboard focus to the list, so arrow
+    // keys continue from where the mouse landed. Declared before the content so
+    // the buttons and drag handle on top still receive their own clicks.
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton
+        onClicked: {
+            const view = root.ListView.view;
+            if (!view)
+                return;
+            // Any open edit in the list (this row or another) owns focus; a
+            // background click must not pull it away and strand the edit. The
+            // ListView holds the single list-wide editingIndex.
+            if (view.editingIndex !== -1)
+                return;
+            view.currentIndex = root.rowIndex;
+            view.forceActiveFocus();
+        }
+    }
 
     Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
+    Behavior on color { ColorAnimation { duration: Theme.animShort } }
 
     property int rowIndex: -1
     property string inputText: ""

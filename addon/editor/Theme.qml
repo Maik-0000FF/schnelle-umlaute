@@ -114,8 +114,6 @@ QtObject {
     readonly property color borderFocus:  p.borderFocus
     readonly property color accent:       p.accent
     readonly property color accentHover:  p.accentHover
-    // Keyboard-focus ring colour: the theme accent (thickness: focusRingWidth).
-    readonly property color focusRing:    p.accent
     readonly property color accentSoft:   p.accentSoft
     readonly property color brand:        p.brand
     readonly property color brandHover:   p.brandHover
@@ -183,9 +181,6 @@ QtObject {
     readonly property int radiusSm: 6
     readonly property int radiusMd: 10
     readonly property int radiusLg: 14
-
-    // Keyboard-focus ring thickness, drawn just inside a focused control.
-    readonly property int focusRingWidth: 1
 
     // Control-height ladder: one source so buttons, fields and rows line up.
     // controlHeight is the standard single-line control (combo box, dropdown

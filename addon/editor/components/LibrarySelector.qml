@@ -83,7 +83,8 @@ Item {
         // Matches the profile dropdown header: darker than the surface card it
         // sits on, so the control reads as distinct from the card background.
         color: Theme.background
-        border.color: popup.visible ? Theme.borderFocus : Theme.border
+        border.color: (header.activeFocus || popup.visible) ? Theme.borderFocus
+                                                            : Theme.border
         border.width: 1
         Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
@@ -99,8 +100,6 @@ Item {
                 event.accepted = true;
             }
         }
-
-        FocusRing { visible: header.activeFocus }
 
         Text {
             id: libLabel
@@ -313,10 +312,6 @@ Item {
                                                         qsTr("Added “%1”").arg(modelData.name),
                                                         Theme.success);
                                                 popup.close();
-                                            }
-
-                                            FocusRing {
-                                                visible: addPresetBtn.activeFocus
                                             }
 
                                             Keys.onPressed: (event) => {

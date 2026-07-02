@@ -94,12 +94,13 @@ Popup {
                 radius: Theme.radiusSm
                 color: (cancelMouse.containsMouse || cancelBtn.activeFocus)
                        ? Theme.surfaceHover : Theme.background
-                border.color: Theme.border
+                // Keyboard focus adds an accent border on top of the hover fill.
+                border.color: cancelBtn.activeFocus ? Theme.borderFocus
+                                                    : Theme.border
                 border.width: 1
                 activeFocusOnTab: true
                 Behavior on color { ColorAnimation { duration: Theme.animShort } }
-
-                FocusRing { visible: cancelBtn.activeFocus }
+                Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
                 Text {
                     id: cancelLabel
@@ -131,12 +132,12 @@ Popup {
                 implicitHeight: Theme.controlHeight
                 implicitWidth: confirmLabel.implicitWidth + 2 * Theme.spacingMd
                 radius: Theme.radiusSm
+                // Filled button: keyboard focus (and hover) show as the hover
+                // shade of the fill, no separate ring.
                 color: (confirmMouse.containsMouse || confirmBtn.activeFocus)
                        ? root._confirmHover : root._confirmBase
                 activeFocusOnTab: true
                 Behavior on color { ColorAnimation { duration: Theme.animShort } }
-
-                FocusRing { visible: confirmBtn.activeFocus }
 
                 Text {
                     id: confirmLabel

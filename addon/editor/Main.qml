@@ -234,9 +234,9 @@ ApplicationWindow {
                                 const dir = event.key === Qt.Key_Right ? 1 : -1;
                                 const n = (index + dir + tabRepeater.count)
                                           % tabRepeater.count;
+                                // Focus follows the switch centrally
+                                // (StackLayout.onCurrentIndexChanged).
                                 tabRow.currentIndex = n;
-                                tabRepeater.itemAt(n).forceActiveFocus(
-                                    Qt.TabFocusReason);
                                 event.accepted = true;
                             } else if (event.key === Qt.Key_Space
                                        || event.key === Qt.Key_Return
@@ -246,7 +246,16 @@ ApplicationWindow {
                             }
                         }
 
-                        FocusRing { visible: tabItem.activeFocus }
+                        // Keyboard-focus highlight: a subtle filled background
+                        // so a Tab-focused (or just-clicked) tab reads as
+                        // focused without an inset ring. The active tab also
+                        // shows the accent underline below.
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: Theme.radiusSm
+                            color: Theme.surfaceHover
+                            visible: tabItem.activeFocus
+                        }
 
                         // Underline strip — sits over the row separator's
                         // 1 px border at the bottom of the tab strip and
@@ -283,7 +292,13 @@ ApplicationWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: tabRow.currentIndex = index
+                            // Focus the clicked tab so Left/Right keep cycling
+                            // from here; re-clicking the current tab (no index
+                            // change) still pulls focus back onto it.
+                            onClicked: {
+                                tabRow.currentIndex = index;
+                                tabItem.forceActiveFocus(Qt.MouseFocusReason);
+                            }
                         }
                     }
                 }
@@ -294,6 +309,19 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: true
             currentIndex: tabRow.currentIndex
+
+            // Move keyboard focus onto the newly selected tab on every switch
+            // (mouse, Space/Enter, Left/Right and the Ctrl shortcuts all funnel
+            // through currentIndex). Without this a control on the now-hidden
+            // page keeps focus and still eats keys, e.g. the theme combo would
+            // turn arrow presses into theme changes after switching to Mappings.
+            // From the tab, Left/Right keep cycling tabs; a click or Tab drops
+            // into the panel content.
+            onCurrentIndexChanged: {
+                const t = tabRepeater.itemAt(currentIndex);
+                if (t)
+                    t.forceActiveFocus();
+            }
 
             Settings {
                 settingsModel: settings

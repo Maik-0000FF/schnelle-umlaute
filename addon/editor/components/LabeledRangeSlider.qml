@@ -81,10 +81,11 @@ RowLayout {
 
         // Lead (dead-time) duration, centered above its own segment
         // [from … lower] in the lead role colour, mirroring the window label
-        // below. Shown for any non-zero lead and clamped to the track, so the
-        // value appears from the first step instead of staying hidden until the
-        // segment is wide enough to host it. At zero lead there is no segment,
-        // so it stays hidden (the value would be 0 and overlap the window label).
+        // below. Always shown, including at zero: the settings copy explicitly
+        // tells the user they can lower the minimum to 0, so the "0 ms" readout
+        // must be visible there too. At zero the label sits at the left edge
+        // above the lower handle; the window label's collision logic below
+        // nudges it right so the two never overlap.
         Text {
             id: leadLabel
             readonly property real mid:
@@ -92,7 +93,8 @@ RowLayout {
                  + track.xForValue(root.lowerValue)) / 2
             // width is 0 until the first text layout; require it so the label
             // doesn't flash for one frame before its real width is known.
-            visible: width > 0 && root.lowerValue > root.from
+            // lowerValue is always >= from, so this shows every value incl. 0.
+            visible: width > 0
             x: Math.max(0, Math.min(track.width - width, mid - width / 2))
             y: 0
             text: (root.lowerValue - root.from) + " " + root.suffix
@@ -177,8 +179,12 @@ RowLayout {
             // role colour. The role tokens centralise the per-theme swap.
             color: track.dragMode === 1 ? Theme.sliderLeadHover
                                         : Theme.sliderLead
-            border.color: Theme.background
+            // Keyboard focus shows as an accent handle border (the handles only
+            // take focus via Tab; dragging is handled by trackArea below).
+            border.color: lowerHandle.activeFocus ? Theme.accent
+                                                  : Theme.background
             border.width: 2
+            Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
             // Reachable by Tab; Left/Right nudge the lead bound by one step.
             activeFocusOnTab: true
@@ -193,7 +199,6 @@ RowLayout {
                     event.accepted = true;
                 }
             }
-            FocusRing { visible: lowerHandle.activeFocus; radius: width / 2 }
         }
         Rectangle {
             id: upperHandle
@@ -205,8 +210,11 @@ RowLayout {
             z: (track.dragMode === 2 || upperHandle.activeFocus) ? 2 : 1
             color: track.dragMode === 2 ? Theme.sliderWindowHover
                                         : Theme.sliderWindow
-            border.color: Theme.background
+            // Keyboard focus shows as an accent handle border.
+            border.color: upperHandle.activeFocus ? Theme.accent
+                                                   : Theme.background
             border.width: 2
+            Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
             // Reachable by Tab; Left/Right nudge the window's upper bound.
             activeFocusOnTab: true
@@ -223,7 +231,6 @@ RowLayout {
                     event.accepted = true;
                 }
             }
-            FocusRing { visible: upperHandle.activeFocus; radius: width / 2 }
         }
 
         MouseArea {
