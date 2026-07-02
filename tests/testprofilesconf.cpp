@@ -61,8 +61,8 @@ int main(int argc, char **argv) try {
         EXPECT(m.setActiveRow(1));
         EXPECT(m.setSelectKey(1, QStringLiteral("Control+Alt+1")));
         EXPECT(m.setFavorite(1, true));
-        m.setCycleNext(QStringLiteral("Control+Alt+Period"));
-        m.setCyclePrev(QStringLiteral("Control+Alt+Comma"));
+        m.setCycleNext(QStringLiteral("Control+Alt+period"));
+        m.setCyclePrev(QStringLiteral("Control+Alt+comma"));
     }
 
     ProfilesConfig cfg;
@@ -70,8 +70,8 @@ int main(int argc, char **argv) try {
 
     EXPECT(cfg.profiles->size() == 3);
     EXPECT(*cfg.active == std::string("Mathematik"));
-    EXPECT(*cfg.cycleNext == std::string("Control+Alt+Period"));
-    EXPECT(*cfg.cyclePrev == std::string("Control+Alt+Comma"));
+    EXPECT(*cfg.cycleNext == std::string("Control+Alt+period"));
+    EXPECT(*cfg.cyclePrev == std::string("Control+Alt+comma"));
 
     const auto *standard = findEntry(cfg, "Standard");
     EXPECT(standard != nullptr);
@@ -101,8 +101,8 @@ int main(int argc, char **argv) try {
     EXPECT(m2.fileForRow(1) == QStringLiteral("profiles/mathematik.txt"));
     EXPECT(m2.fileForRow(2) == QStringLiteral("profiles/mein-profil.txt"));
     EXPECT(m2.active() == QStringLiteral("Mathematik"));
-    EXPECT(m2.cycleNext() == QStringLiteral("Control+Alt+Period"));
-    EXPECT(m2.cyclePrev() == QStringLiteral("Control+Alt+Comma"));
+    EXPECT(m2.cycleNext() == QStringLiteral("Control+Alt+period"));
+    EXPECT(m2.cyclePrev() == QStringLiteral("Control+Alt+comma"));
     EXPECT(m2.data(m2.index(1), ProfileListModel::SelectKeyRole).toString()
            == QStringLiteral("Control+Alt+1"));
     EXPECT(m2.data(m2.index(1), ProfileListModel::FavoriteRole).toBool());
