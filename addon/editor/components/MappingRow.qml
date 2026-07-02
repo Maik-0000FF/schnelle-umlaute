@@ -31,16 +31,16 @@ Rectangle {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton
         onClicked: {
-            // While the row is being edited its fields own focus; a click on
-            // bare row padding must not steal it (that would strand the open
-            // edit with editingIndex still set), so leave it to the fields.
-            if (root.editing)
-                return;
             const view = root.ListView.view;
-            if (view) {
-                view.currentIndex = root.rowIndex;
-                view.forceActiveFocus();
-            }
+            if (!view)
+                return;
+            // Any open edit in the list (this row or another) owns focus; a
+            // background click must not pull it away and strand the edit. The
+            // ListView holds the single list-wide editingIndex.
+            if (view.editingIndex !== -1)
+                return;
+            view.currentIndex = root.rowIndex;
+            view.forceActiveFocus();
         }
     }
 

@@ -137,6 +137,9 @@ Item {
             if (keyboardSession)
                 header.forceActiveFocus();
             keyboardSession = false;
+            // Clear any open rename so reopening the popup starts clean (the
+            // state now lives on the persistent list, not a recycled delegate).
+            list.renamingIndex = -1;
         }
         // Cap the whole popup so a long profile list still fits small editor
         // windows; the inner list gets its own (smaller) cap below so the
@@ -240,6 +243,12 @@ Item {
                 model: root.profilesModel
                 boundsBehavior: Flickable.StopAtBounds
 
+                // Single list-wide "which row is being renamed" (-1 = none), so
+                // one place owns the rename state: a row's inline field shows
+                // when it matches, and a background click anywhere is suppressed
+                // while any rename is open (not just this row's).
+                property int renamingIndex: -1
+
                 // Up/Down move the current row (keyNavigationEnabled); the keys
                 // below act on it: Enter selects the edit target, F2 renames,
                 // Delete removes, A sets active, F toggles favorite.
@@ -256,7 +265,7 @@ Item {
                         }
                         event.accepted = true;
                     } else if (event.key === Qt.Key_F2) {
-                        it.renaming = true;
+                        list.renamingIndex = it.index;
                         event.accepted = true;
                     } else if (event.key === Qt.Key_Delete) {
                         if (!it.isProtected) {
@@ -294,7 +303,7 @@ Item {
                            ? Theme.accentSoft
                            : (prowHover.hovered ? Theme.surfaceHover
                                                 : "transparent")
-                    property bool renaming: false
+                    readonly property bool renaming: list.renamingIndex === prow.index
 
                     Behavior on color { ColorAnimation { duration: Theme.animShort } }
 
@@ -307,10 +316,11 @@ Item {
                         anchors.fill: parent
                         acceptedButtons: Qt.LeftButton
                         onClicked: {
-                            // Don't steal focus from the inline rename field on
-                            // a click on bare row padding: it cancels on focus
-                            // loss, so this would silently abort the rename.
-                            if (prow.renaming)
+                            // Don't steal focus from an open inline rename (this
+                            // row or another) on a click on bare row padding: it
+                            // cancels on focus loss, so this would silently abort
+                            // the rename.
+                            if (list.renamingIndex !== -1)
                                 return;
                             list.currentIndex = prow.index;
                             list.forceActiveFocus();
@@ -441,16 +451,16 @@ Item {
                                 if (text !== prow.name && root.profilesModel
                                     && !root.profilesModel.renameProfile(prow.index, text))
                                     text = prow.name; // revert on invalid name
-                                prow.renaming = false;
+                                list.renamingIndex = -1;
                             }
                             Keys.onEscapePressed: {
                                 text = prow.name;
-                                prow.renaming = false;
+                                list.renamingIndex = -1;
                             }
                             onActiveFocusChanged: {
                                 if (!activeFocus && prow.renaming) {
                                     text = prow.name; // cancel on focus loss
-                                    prow.renaming = false;
+                                    list.renamingIndex = -1;
                                 }
                             }
                         }
@@ -488,7 +498,7 @@ Item {
                                 visible: parent.hovered
                                 text: qsTr("Rename profile (F2)")
                             }
-                            onClicked: prow.renaming = true
+                            onClicked: list.renamingIndex = prow.index
                         }
 
                         // Delete (trash). For protected profiles (Standard /
