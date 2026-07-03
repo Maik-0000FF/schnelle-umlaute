@@ -43,6 +43,23 @@ public:
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
     int waitingKeyCode_ = 0;
+    // Frontend event time (KeyEvent::time(), ms) of the press that started the
+    // current waiting gesture. On KWin/Wayland the compositor freezes the
+    // event time across a held key's whole auto-repeat burst, so a release
+    // carrying this exact (nonzero) time is a synthetic auto-repeat, not a real
+    // release. See isSyntheticAutoRepeatRelease() / issue #73.
+    int waitingKeyTime_ = 0;
+    // True once a synthetic auto-repeat release has been observed on this input
+    // context, i.e. the platform delivers auto-repeat as release-press pairs
+    // (Wayland). Persists across gestures but is reset on every focus change
+    // (clearAllState runs in activate/deactivate), so it effectively marks the
+    // current focus session: within one, every hold past the first suppression
+    // is armed, while the first over-window hold after a (re)focus can still
+    // leak a single unpaired key-up before the marker latches. Gates the
+    // window-timeout committedKeyCode_ arming so press-only auto-repeat
+    // (classic X11) is left untouched. See isSyntheticAutoRepeatRelease() /
+    // issue #73.
+    bool sawSyntheticRelease_ = false;
 
     // Set after commit to route next Space through commitString (ordering
     // guard). Intentionally NOT cleared in clearAllState() — apps like WezTerm
@@ -73,10 +90,21 @@ public:
     // cycling is temporarily reset between pairs.
     bool altGestureSession_ = false;
 
-    void clearAllState() {
+    // Tear down the waiting-gesture bundle in one place so no commit or
+    // cancel site can forget a field (reset symmetry). Deliberately excludes
+    // sawSyntheticRelease_ (persistent platform marker, see its comment) and
+    // the timers (some callers must not touch a timer from inside its own
+    // callback, see the window-timeout commit).
+    void resetWaitingGesture() {
         waitingKey_.reset();
-        inputKeyPressed_ = false;
         waitingKeyCode_ = 0;
+        waitingKeyTime_ = 0;
+        inputKeyPressed_ = false;
+    }
+
+    void clearAllState() {
+        resetWaitingGesture();
+        sawSyntheticRelease_ = false;
         // Note: recentlyCommitted_ is intentionally NOT cleared here.
         cancelTimeout();
         cancelOverlayShow();

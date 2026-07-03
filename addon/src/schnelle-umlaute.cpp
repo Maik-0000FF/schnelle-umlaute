@@ -30,6 +30,7 @@
 #include "overlay/cursor_overlay_geometry.h"
 #include "overlay_client.h"
 #include "state.h"
+#include "synthetic_autorepeat.h"
 
 namespace fcitx {
 
@@ -293,6 +294,22 @@ public:
                     return;
                 }
 
+                // A synthetic auto-repeat release of the held key must not close
+                // the variant picker. Same frozen-timestamp check as the
+                // pre-leader path (issue #73): waitingKeyTime_ is still the
+                // original press time during cycling, and startTimeUsec_ still
+                // marks the gesture's press for the elapsed guard. Suppress it
+                // and keep cycling; the paired synthetic re-press is ignored by
+                // the repeat guard further down (cyclingInput_ == keyChar).
+                if (isSyntheticAutoRepeatRelease(
+                        keyEvent.time(), state->waitingKeyTime_,
+                        SchnelleUmlauteState::nowUsec() -
+                            state->startTimeUsec_)) {
+                    state->sawSyntheticRelease_ = true;
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+
                 // Non-Alt leader: commit immediately
                 auto it = umlautMap_.find(*state->cyclingInput_);
                 if (it != umlautMap_.end() &&
@@ -303,7 +320,7 @@ public:
                     state->recentlyCommitted_ = true;
                 }
 
-                state->inputKeyPressed_ = false;
+                state->resetWaitingGesture();
                 state->resetCycling();
                 overlayHide();
                 keyEvent.filterAndAccept();
@@ -316,6 +333,31 @@ public:
             // letters match even if Shift is released first
             if (state->waitingKey_ && state->inputKeyPressed_ &&
                 rawCode == state->waitingKeyCode_) {
+                if (isSyntheticAutoRepeatRelease(
+                        keyEvent.time(), state->waitingKeyTime_,
+                        SchnelleUmlauteState::nowUsec() -
+                            state->startTimeUsec_)) {
+                    // Held-key auto-repeat (issue #73): KWin freezes the
+                    // frontend event time across the whole repeat burst, so
+                    // this release carries the starting press's timestamp and
+                    // is synthetic, not a real release. Suppress it and keep
+                    // the gesture waiting so the held char is not committed
+                    // prematurely; the paired synthetic re-press is swallowed
+                    // by the accent-key repeat guard below (waitingKey_ ==
+                    // keyChar). The window timer keeps running untouched, so a
+                    // leader can still convert and the genuine final release
+                    // (advanced timestamp) falls through to the commit below.
+                    // Record that this gesture is on a synthetic-release
+                    // platform, so the window-timeout commit knows a trailing
+                    // synthetic release will follow and needs consuming. On
+                    // press-only auto-repeat (classic X11) this is never set, so
+                    // that path stays byte-for-byte historic.
+                    state->sawSyntheticRelease_ = true;
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+                // Genuine release (advanced or absent event time): commit
+                // immediately, the historic behavior.
                 commitPendingKey(ic, state);
                 keyEvent.filterAndAccept();
                 return;
@@ -335,10 +377,8 @@ public:
             std::string pending = *state->waitingKey_;
             ic->inputPanel().reset();
             ic->updatePreedit();
-            state->waitingKey_.reset();
-            state->waitingKeyCode_ = 0;
+            state->resetWaitingGesture();
             state->cancelTimeout();
-            state->inputKeyPressed_ = false;
             // Window elapsed (a key arrived right at expiry, before the
             // timeout timer fired): clear the trigger preview, mirroring the
             // timeout callback's teardown.
@@ -453,15 +493,13 @@ public:
                 hideTriggerOverlay(state);
                 ic->inputPanel().reset();
                 ic->updatePreedit();
-                state->waitingKey_.reset();
                 // Arm auto-repeat suppression for the still-held input key.
                 // Without this, the next auto-repeat of the held key would
                 // start a fresh gesture and duplicate the character (the
                 // "üu"-class bug guarded at the committedKeyCode_ check).
                 state->committedKeyCode_ = state->waitingKeyCode_;
-                state->waitingKeyCode_ = 0;
+                state->resetWaitingGesture();
                 state->cancelTimeout();
-                state->inputKeyPressed_ = false;
                 if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
                     ic->commitString(pending + " ");
                     state->recentlyCommitted_ = true;
@@ -515,13 +553,12 @@ public:
                         ic->commitString(it->second[0]);
                         ic->updatePreedit();
                         state->recentlyCommitted_ = true;
-                        state->inputKeyPressed_ = false;
                         // Arm auto-repeat suppression for the held input key.
                         // Without this, releasing Alt while the input key is
                         // still down would let the next repeat start a fresh
                         // gesture (üu-class duplicate).
                         state->committedKeyCode_ = state->waitingKeyCode_;
-                        state->waitingKeyCode_ = 0;
+                        state->resetWaitingGesture();
                         state->resetCycling();
                         overlayHide();
                         state->altGestureSession_ = false;
@@ -588,6 +625,11 @@ public:
                             // just tear down so we don't pop a blip out of
                             // nowhere.
                             hideTriggerOverlay(state);
+
+                        // Cycling owns the gesture now: only waitingKey_ ends;
+                        // waitingKeyCode_/waitingKeyTime_ stay valid for the
+                        // cycling release checks.
+                        state->waitingKey_.reset();
                     } else {
                         // Single output with non-Alt leader - commit directly.
                         // If a trigger preview is already showing, flash the
@@ -603,12 +645,10 @@ public:
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
                         state->committedKeyCode_ = state->waitingKeyCode_;
-                        state->inputKeyPressed_ = false;
-                        state->waitingKeyCode_ = 0;
+                        state->resetWaitingGesture();
                         state->recentlyCommitted_ = true;
                     }
 
-                    state->waitingKey_.reset();
                     state->cancelTimeout();
                     if (isAlt)
                         state->consumedAltCode_ = rawCode;
@@ -678,6 +718,10 @@ public:
             // Show character in PREEDIT (not committed yet - can be changed!)
             state->waitingKey_ = keyChar;
             state->waitingKeyCode_ = keyEvent.rawKey().code();
+            // Remember the frontend event time of this press so a later release
+            // carrying the same (frozen) timestamp can be recognised as a
+            // synthetic auto-repeat and suppressed. See isSyntheticAutoRepeatRelease().
+            state->waitingKeyTime_ = keyEvent.time();
             state->inputKeyPressed_ = true;
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
@@ -1094,7 +1138,7 @@ private:
                     }
                     state->resetCycling();
                     overlayHide();
-                    state->waitingKeyCode_ = 0;
+                    state->resetWaitingGesture();
                 }
                 state->altGestureSession_ = false;
                 state->consumedAltCode_ = 0;
@@ -1109,10 +1153,8 @@ private:
         ic->inputPanel().reset();
         ic->commitString(*state->waitingKey_);
         ic->updatePreedit();
-        state->waitingKey_.reset();
-        state->waitingKeyCode_ = 0;
+        state->resetWaitingGesture();
         state->cancelTimeout();
-        state->inputKeyPressed_ = false;
         state->recentlyCommitted_ = true;
     }
 
@@ -1129,7 +1171,7 @@ private:
             ic->updatePreedit();
             state->recentlyCommitted_ = true;
         }
-        state->inputKeyPressed_ = false;
+        state->resetWaitingGesture();
         state->resetCycling();
         overlayHide();
     }
@@ -1339,9 +1381,21 @@ private:
                     ctx->commitString(*state->waitingKey_);
                     ctx->updatePreedit();
                     state->recentlyCommitted_ = true;
-                    state->waitingKey_.reset();
-                    state->waitingKeyCode_ = 0;
-                    state->inputKeyPressed_ = false;
+                    // If the key is still physically held past the accent
+                    // window, its auto-repeat keeps arriving after this commit.
+                    // On a synthetic-release platform (Wayland) a trailing
+                    // release will follow, so arm committedKeyCode_ to consume
+                    // it via the committed-key release branch instead of leaking
+                    // an unpaired key-up to the app (issue #73 robustness). That
+                    // release clears the code again, and each window cycle
+                    // re-arms it, so the held key still restarts a gesture and
+                    // repeats as intended. Gated on sawSyntheticRelease_ so
+                    // press-only auto-repeat (classic X11), where no such
+                    // release comes to clear the code, keeps its historic
+                    // repeat-per-window behavior unchanged.
+                    if (state->sawSyntheticRelease_)
+                        state->committedKeyCode_ = state->waitingKeyCode_;
+                    state->resetWaitingGesture();
                     // Window elapsed without a leader: clear the preview.
                     hideTriggerOverlay(state);
                 }
