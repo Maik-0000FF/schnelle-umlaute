@@ -73,6 +73,16 @@ public:
     // cycling is temporarily reset between pairs.
     bool altGestureSession_ = false;
 
+    // Pre-leader waiting-key commit is in its short deferral window.
+    // On KWin/Qt Wayland a held key's auto-repeat arrives as release-press
+    // pairs; the waiting key's release defers its commit by
+    // kDeferredCommitDelayMs so a re-press of the same key can cancel it and
+    // keep the accent window open (mirrors altGestureSession_ for the
+    // non-cycling path). A different key arriving in this window flushes the
+    // deferred commit first. Cleared by the deferred timer, the flush, the
+    // post-timeout teardown, or clearAllState().
+    bool pendingCommitDeferred_ = false;
+
     void clearAllState() {
         waitingKey_.reset();
         inputKeyPressed_ = false;
@@ -86,6 +96,7 @@ public:
         committedKeyCode_ = 0;
         consumedAltCode_ = 0;
         altGestureSession_ = false;
+        pendingCommitDeferred_ = false;
     }
 
     void resetCycling() {

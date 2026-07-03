@@ -47,6 +47,15 @@ target_compile_options(testlayershellcapability PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testlayershellcapability COMMAND testlayershellcapability)
 set_tests_properties(testlayershellcapability PROPERTIES TIMEOUT 10)
 
+# Unit test for sessionSendsSyntheticRepeats(). Pure header-only logic —
+# guards the session gate that enables the pre-leader commit deferral
+# (issue #73) only in Wayland sessions.
+add_executable(testautorepeatsession testautorepeatsession.cpp)
+target_include_directories(testautorepeatsession PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testautorepeatsession PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testautorepeatsession COMMAND testautorepeatsession)
+set_tests_properties(testautorepeatsession PROPERTIES TIMEOUT 10)
+
 # Unit test for the cursor-overlay geometry helpers. Pure header-only logic —
 # guards the "Cursor:" wire-format split and the lower-left-at-cursor margin
 # math (clamping to the cursor's output) that the overlay daemon relies on.

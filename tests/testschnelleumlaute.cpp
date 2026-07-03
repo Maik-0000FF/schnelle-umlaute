@@ -682,6 +682,7 @@ static const char *kSpanish1000 =
 // Tests 24+ are scheduled from within the Alt leader timer chain (Tests 21-23)
 // to guarantee deferred commits are verified before any subsequent test runs.
 static void scheduleTestsAfterAltVerify(Instance *instance);
+static void scheduleWaylandTests(Instance *instance);
 static void scheduleTimeoutTests(Instance *instance);
 static void scheduleTest60(Instance *instance);
 static void scheduleTest61(Instance *instance);
@@ -5723,7 +5724,127 @@ static void scheduleTest113(Instance *instance) {
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 113 PASSED";
 
-                FCITX_INFO() << "=== All 140 tests PASSED ===";
+                FCITX_INFO() << "=== All non-Wayland tests PASSED ===";
+                // Continue with the Wayland-session tests (deferred pre-leader
+                // commit, issue #73). They flip the session env on, so they run
+                // last; the final one calls instance->exit().
+                scheduleWaylandTests(instance);
+                return false;
+            });
+    });
+}
+
+// =========================================================================
+// WAYLAND-SESSION TESTS (issue #73): pre-leader commit deferral.
+// These flip the session env to Wayland (setenv WAYLAND_DISPLAY), which
+// configureLeaders picks up via applyConfig() -> deferReleaseCommit_ = true.
+// They run last so the env flip cannot affect the non-Wayland tests above.
+// =========================================================================
+static void scheduleWaylandTests(Instance *instance) {
+    // Test 141: a held key's Wayland auto-repeat (release-press pairs) must NOT
+    // leak a premature character before the accent window; the leader still
+    // converts. This is the core issue-#73 bug.
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 141;
+        FCITX_INFO() << "=== Test 141 (Wayland): held-key auto-repeat does not "
+                        "leak a premature char ===";
+        setenv("WAYLAND_DISPLAY", "wayland-0", 1);
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "testW141");
+
+        // Press 's' -> waiting (maps to "ß").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), false);
+
+        // Simulate two Wayland auto-repeat ticks: each is a synthetic release
+        // immediately followed by a re-press of the same key. No expectation is
+        // pushed, so a premature "s" committed here would abort the test
+        // frontend on an empty expectation queue.
+        for (int i = 0; i < 2; ++i) {
+            tf->call<ITestFrontend::sendKeyEvent>(
+                uuid, Key(FcitxKey_s, KeyStates(), kCodeS), true);
+            bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+                uuid, Key(FcitxKey_s, KeyStates(), kCodeS), false);
+            FCITX_ASSERT(consumed) << "Auto-repeat re-press should be consumed "
+                                      "(gesture continues, no premature commit)";
+        }
+
+        // Leader within the window -> "ß", with no stray "s" before it.
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\x9f");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Space during gesture should convert to ß";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 141 PASSED";
+    });
+
+    // Test 142: flush ordering (plan-review Fund 1). A different key arriving
+    // during the deferral must flush the pending char first; for Space the char
+    // and the space travel through one commitString ("s "), so they cannot
+    // reorder in WezTerm/browsers and Space does NOT trigger the accent ("ß").
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 142;
+        FCITX_INFO() << "=== Test 142 (Wayland): deferral flush routes Space "
+                        "through combined commit ===";
+        setenv("WAYLAND_DISPLAY", "wayland-0", 1);
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "testW142");
+
+        // Press 's' -> waiting, then a genuine release -> deferral armed.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), true);
+
+        // A DIFFERENT key (Space) arrives inside the 5ms window (synchronously,
+        // before the timer fires). It must flush "s" and the space as one
+        // ordered commit, not trigger the accent.
+        tf->call<ITestFrontend::pushCommitExpectation>("s ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed)
+            << "Space flushing the deferral should be consumed";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 142 PASSED";
+    });
+
+    // Test 143: a genuine final release (no re-press) commits the plain char
+    // once the deferral timer fires — the character is not lost. Chained-timer
+    // verify like the Alt tests; this last one exits the event loop.
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 143;
+        FCITX_INFO() << "=== Test 143 (Wayland): genuine release commits after "
+                        "the deferral timer ===";
+        setenv("WAYLAND_DISPLAY", "wayland-0", 1);
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "testW143");
+
+        // Press 's' -> waiting; genuine release -> deferral armed. The plain
+        // char is expected to commit when the 5ms timer fires.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("s");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), true);
+
+        struct TH {
+            std::unique_ptr<EventSourceTime> t;
+        };
+        auto h = std::make_shared<TH>();
+        h->t = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
+            [instance, uuid, h](EventSourceTime *, uint64_t) {
+                auto *tf = instance->addonManager().addon("testfrontend");
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 143 PASSED";
+                FCITX_INFO() << "=== All Wayland tests PASSED ===";
                 instance->exit();
                 return false;
             });

@@ -21,6 +21,7 @@
 #include <fcitx/userinterface.h>
 #include <xkbcommon/xkbcommon.h>
 #include "app_filter.h"
+#include "autorepeat_session.h"
 #include "config.h"
 #include "hand_classifier.h"
 #include "mappings_loader.h"
@@ -316,6 +317,27 @@ public:
             // letters match even if Shift is released first
             if (state->waitingKey_ && state->inputKeyPressed_ &&
                 rawCode == state->waitingKeyCode_) {
+                if (deferReleaseCommit_) {
+                    // Wayland session: KWin delivers a held key's auto-repeat
+                    // as a release-press pair (via wl_keyboard). Committing
+                    // here would leak a premature character before the accent
+                    // window elapses. Defer the commit: a re-press of the same
+                    // key within kDeferredCommitDelayMs cancels it and keeps
+                    // the window open (the pendingCommitDeferred_ block below
+                    // classifyLeader), a real release lets the timer commit.
+                    // Mirrors the Alt-cycling deferral
+                    // (scheduleDeferredCyclingCommit).
+                    state->inputKeyPressed_ = false;
+                    state->pendingCommitDeferred_ = true;
+                    scheduleDeferredWaitingCommit(ic, state);
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+                // X11 / non-Wayland session: auto-repeat arrives as repeat
+                // presses with no synthetic release, so a release here is
+                // always genuine. Commit immediately — the historic behavior,
+                // left byte-for-byte unchanged so nothing outside Wayland
+                // sessions is affected.
                 commitPendingKey(ic, state);
                 keyEvent.filterAndAccept();
                 return;
@@ -339,6 +361,10 @@ public:
             state->waitingKeyCode_ = 0;
             state->cancelTimeout();
             state->inputKeyPressed_ = false;
+            // If a deferred pre-leader commit was still pending, this teardown
+            // supersedes it: clear the flag so a later gesture's re-press/flush
+            // block can't act on a stale deferral.
+            state->pendingCommitDeferred_ = false;
             // Window elapsed (a key arrived right at expiry, before the
             // timeout timer fired): clear the trigger preview, mirroring the
             // timeout callback's teardown.
@@ -406,6 +432,67 @@ public:
             state->inputKeyPressed_ = true;
             keyEvent.filterAndAccept();
             return;
+        }
+
+        // Pre-leader waiting-key commit is deferred (KWin/Qt Wayland auto-
+        // repeat arrives as release-press pairs). Decide what this press means
+        // before it is interpreted as a leader. Gated on waitingKey_ so a
+        // stale flag (after some other teardown reset waitingKey_) can never
+        // drive this block.
+        if (state->pendingCommitDeferred_ && state->waitingKey_) {
+            if (rawCode == state->waitingKeyCode_) {
+                // Same physical key re-pressed within the deferral window:
+                // this is an auto-repeat release-press pair, not a real
+                // re-tap. A human same-finger double-tap takes tens of ms, far
+                // beyond kDeferredCommitDelayMs, so the timer never fires in
+                // between. Cancel the deferred commit and keep the accent
+                // window open so the held key does not leak a premature char.
+                // (The Alt-cycling path relies on the same assumption; here it
+                // matters more because a false positive would swallow a
+                // genuine keystroke.)
+                //
+                // Window expiry is intentionally NOT handled here: the
+                // post-timeout guard higher up (the isTimeoutExpired block
+                // that commits the pending char and clears
+                // pendingCommitDeferred_) runs before this block, so by the
+                // time we get here the window is always still open. This block
+                // MUST stay after that guard.
+                state->cancelTimeout();
+                state->pendingCommitDeferred_ = false;
+                state->inputKeyPressed_ = true;
+                // Re-arm the window's upper-bound timer. scheduleTimeout
+                // anchors on startTimeUsec_ (not now), so the window keeps its
+                // original deadline instead of restarting every tick.
+                scheduleTimeout(ic, state);
+                keyEvent.filterAndAccept();
+                return;
+            } else {
+                // A different key arrived during the deferral: flush the
+                // pending commit first so the gesture ends cleanly, then let
+                // this key be processed normally. Route Space through the same
+                // commitString as the pending char (ordering guard, mirrors
+                // the post-timeout teardown above) so they cannot reorder in
+                // WezTerm/browsers — this path runs on every tap of a mapped
+                // letter, so the guard must hold here too.
+                std::string pending = *state->waitingKey_;
+                ic->inputPanel().reset();
+                ic->updatePreedit();
+                state->waitingKey_.reset();
+                state->waitingKeyCode_ = 0;
+                state->cancelTimeout();
+                state->pendingCommitDeferred_ = false;
+                state->inputKeyPressed_ = false;
+                hideTriggerOverlay(state);
+                if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
+                    ic->commitString(pending + " ");
+                    state->recentlyCommitted_ = true;
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+                ic->commitString(pending);
+                state->recentlyCommitted_ = true;
+                // Fall through: process this key as a normal fresh event.
+            }
         }
 
         // =========================================
@@ -758,7 +845,27 @@ public:
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
         // Don't clear state if input key is still pressed!
         // Some apps (Chromium, Neovide) call reset() after every commit.
-        auto *state = event.inputContext()->propertyFor(&factory_);
+        auto *ic = event.inputContext();
+        auto *state = ic->propertyFor(&factory_);
+        // A reset event (focus change, app reset, IC teardown) during the
+        // pre-leader deferral limbo means no auto-repeat re-press is coming, so
+        // finalize the released key exactly as a real release would. Commit it
+        // now — before the IC can be torn down, which would strand the deferred
+        // timer and drop the char. commitPendingKey resets the preedit, so the
+        // server has nothing left to auto-commit (no double output).
+        //
+        // Honest caveat: if a reset() fired inside the sub-millisecond gap
+        // between a synthetic release and its re-press, this would finalize
+        // the char early and the following re-press would start a fresh
+        // gesture (a premature/duplicate risk). In practice reset() is driven
+        // by focus/commit events, not delivered mid auto-repeat-gap, so this
+        // does not happen; the commit-on-reset is the correct outcome for
+        // every reset() that actually occurs here.
+        if (state->pendingCommitDeferred_) {
+            state->pendingCommitDeferred_ = false;
+            commitPendingKey(ic, state);
+            return;
+        }
         if (state->inputKeyPressed_) {
             return; // Keep all state intact
         }
@@ -970,6 +1077,13 @@ private:
         umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
         rebuildProfileShortcuts();
 
+        // Enable the pre-leader commit deferral only in sessions that deliver
+        // auto-repeat as synthetic release-press pairs (Wayland). Re-read here
+        // (not just in the constructor) so a session-env change is picked up
+        // on a config reload; production sessions are stable, so this is a
+        // constant in practice. See autorepeat_session.h / issue #73.
+        deferReleaseCommit_ = detectSyntheticRepeats();
+
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
         // stores the original value so the UI round-trips correctly.
@@ -1098,6 +1212,49 @@ private:
                 }
                 state->altGestureSession_ = false;
                 state->consumedAltCode_ = 0;
+                return false;
+            });
+    }
+
+    // Deferred commit for the pre-leader waiting key on KWin/Qt Wayland.
+    // Auto-repeat sends release-press pairs; committing on the synthetic
+    // release would leak a premature character before the accent window ends.
+    // Instead wait kDeferredCommitDelayMs — a re-press of the same key cancels
+    // this timer and keeps the window open; a real release lets it fire and
+    // commit the pending char. Mirrors scheduleDeferredCyclingCommit for the
+    // non-cycling path, and commits exactly what commitPendingKey would.
+    void scheduleDeferredWaitingCommit(InputContext *ic,
+                                       SchnelleUmlauteState *state) {
+        state->cancelTimeout();
+
+        auto savedRef = ic->watch();
+        auto *eventLoop = &instance_->eventLoop();
+        uint64_t now = SchnelleUmlauteState::nowUsec();
+        uint64_t target =
+            now + kDeferredCommitDelayMs * kMicrosecondsPerMillisecond;
+
+        state->timeoutEvent_ = eventLoop->addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [state, savedRef, this](EventSourceTime *, uint64_t) {
+                // Safety: see scheduleTimeout — single-threaded event loop
+                // guarantees state outlives savedRef.get() != nullptr.
+                auto *ctx = savedRef.get();
+                if (!ctx)
+                    return false;
+
+                if (state->waitingKey_) {
+                    hideTriggerOverlay(state);
+                    ctx->inputPanel().reset();
+                    ctx->commitString(*state->waitingKey_);
+                    ctx->updatePreedit();
+                    state->waitingKey_.reset();
+                    state->waitingKeyCode_ = 0;
+                    state->recentlyCommitted_ = true;
+                }
+                state->inputKeyPressed_ = false;
+                state->pendingCommitDeferred_ = false;
+                // Don't reset timeoutEvent_ here (use-after-free); see the
+                // scheduleTimeout callback's note.
                 return false;
             });
     }
@@ -1317,9 +1474,18 @@ private:
         auto *eventLoop = &instance_->eventLoop();
 
         uint64_t now_usec = SchnelleUmlauteState::nowUsec();
+        // Anchor on startTimeUsec_ (not now) so re-arming after an auto-repeat
+        // release-press gap keeps the window's original deadline instead of
+        // restarting it every tick. The sole first-arm caller sets
+        // startTimeUsec_ one line before calling, so now ≈ startTimeUsec_ and
+        // first-arm behavior is unchanged. Clamp to now so a deadline already
+        // in the past fires immediately rather than being passed to
+        // addTimeEvent as a stale target.
         uint64_t target_usec =
-            now_usec +
+            state->startTimeUsec_ +
             static_cast<uint64_t>(effectiveDelay) * kMicrosecondsPerMillisecond;
+        if (target_usec < now_usec)
+            target_usec = now_usec;
 
         auto savedRef = ic->watch();
         state->timeoutEvent_ = eventLoop->addTimeEvent(
@@ -1442,6 +1608,12 @@ private:
     // (commitPendingKey + the app's follow-up reset). A daemon restart can
     // briefly desync this, but the next real show() corrects it.
     bool overlayVisible_ = false;
+    // Whether to defer the pre-leader waiting-key commit (issue #73). Set once
+    // from the session type in applyConfig(): true only in Wayland sessions,
+    // whose auto-repeat arrives as synthetic release-press pairs. False on
+    // X11/terminal, where the release path keeps its historic immediate
+    // commit. See autorepeat_session.h.
+    bool deferReleaseCommit_ = false;
     // In TextCaret placement the overlay is fcitx5's own input-panel
     // candidate window, owned by the focused InputContext rather than the
     // daemon. Track that context so overlayHide() can clear its candidate
