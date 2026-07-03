@@ -481,10 +481,9 @@ public:
             // MIN-HOLD GUARD (lower bound of the accent window)
             // Before cycling has started, a leader that arrives before the
             // minimum hold time has elapsed is not an accent trigger. Commit
-            // the plain pending char now (plus a space for the Space leader,
-            // in the same commitString so the order can't flip), then let the
-            // leader act as a normal key. With min == 0 this never fires, so
-            // the historic behavior is unchanged.
+            // the plain pending char now, then let the leader act as a normal
+            // key. With min == 0 this never fires, so the historic behavior
+            // is unchanged.
             if (!state->cyclingInput_ && state->waitingKey_ &&
                 state->isBeforeMinHold(getEffectiveMinHold(state))) {
                 std::string pending = *state->waitingKey_;
@@ -501,7 +500,21 @@ public:
                 state->resetWaitingGesture();
                 state->cancelTimeout();
                 if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
-                    ic->commitString(pending + " ");
+                    // Two separate single-character commits, NOT one combined
+                    // "a " string: apps that evaluate text inserts per event
+                    // (monkeytype.com is the reported case, issue #90) drop
+                    // the letter of a multi-character insert and only register
+                    // the space. Both commits stay on the IME channel, whose
+                    // delivery is serialized, so they cannot reorder against
+                    // each other — unlike letting the raw Space key event
+                    // through, which races the commit across channels (the #6
+                    // pattern the recentlyCommitted_ guard exists for). This
+                    // mirrors that guard's shipped behavior of routing Space
+                    // through its own commitString after a commit. The
+                    // post-timeout ordering guard above intentionally keeps
+                    // its atomic combined commit (d93a01f, WezTerm reorder).
+                    ic->commitString(pending);
+                    ic->commitString(" ");
                     state->recentlyCommitted_ = true;
                     keyEvent.filterAndAccept();
                     return;

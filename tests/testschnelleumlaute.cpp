@@ -5568,8 +5568,12 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Immediately press Space (~0ms < 200ms min) → plain "a ", no accent.
-        tf->call<ITestFrontend::pushCommitExpectation>("a ");
+        // Immediately press Space (~0ms < 200ms min) → plain "a" + " ", no
+        // accent. Two separate single-character commits (issue #90): apps
+        // that evaluate text inserts per event drop the letter of a combined
+        // "a " insert.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
         FCITX_ASSERT(consumed)
@@ -5597,7 +5601,8 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
 
-        tf->call<ITestFrontend::pushCommitExpectation>("A ");
+        tf->call<ITestFrontend::pushCommitExpectation>("A");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
         FCITX_ASSERT(consumed) << "Space before uppercase min hold must be "
@@ -5628,8 +5633,9 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Early Space (~0ms < 300ms) → guard commits plain "a ", consumes.
-        tf->call<ITestFrontend::pushCommitExpectation>("a ");
+        // Early Space (~0ms < 300ms) → guard commits plain "a" + " ", consumes.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
         FCITX_ASSERT(consumed) << "Early Space must be consumed as plain char";
