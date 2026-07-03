@@ -64,17 +64,19 @@
 
 using namespace fcitx;
 
-// Delay (in microseconds) to wait for the deferred Alt cycling commit timer
-// (5ms) to fire before verifying the committed string.  50ms gives 45ms of
-// headroom over the 5ms addon timer — enough for sanitizer-instrumented CI
-// runners (ASan/UBSan) where 25ms was occasionally tight.
+// Delay (in microseconds) to wait for the addon's deferred commit timers to
+// fire before verifying the committed string: the deferred Alt cycling
+// commit (5ms) and the zero-delay trailing-space commit (test 142). 50ms
+// gives 45ms of headroom over the 5ms addon timer, enough for
+// sanitizer-instrumented CI runners (ASan/UBSan) where 25ms was
+// occasionally tight.
 constexpr uint64_t kDeferredVerifyDelayUsec = 50'000; // 50ms
 
 // Last test number entered. Updated at the top of each scheduled lambda so a
 // SIGABRT (FCITX_ASSERT failure) or SIGSEGV writes the most recently entered
 // test ID to stderr before the default handler dumps the core or ASan report.
 // Without this, a CI failure points at "testschnelleumlaute aborted" and
-// triage has to guess from interleaved logs which of 135 cases was running.
+// triage has to guess from interleaved logs which test case was running.
 static volatile std::sig_atomic_t g_currentTest = 0;
 
 static void crashHandler(int signo) {

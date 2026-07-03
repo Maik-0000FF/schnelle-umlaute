@@ -784,6 +784,12 @@ public:
             commitCyclingValue(ic, state);
         }
 
+        // A deferred space was already consumed from the user; deliver it
+        // instead of letting clearAllState() cancel it. Reachable only in the
+        // sub-millisecond window where a FocusOut queued right behind the
+        // Space press dispatches before the zero-delay timer.
+        flushPendingSpaceCommit(ic, state);
+
         state->clearAllState();
         state->recentlyCommitted_ = false;
         // Focus left this context: drop any visible overlay (cycling picker or
