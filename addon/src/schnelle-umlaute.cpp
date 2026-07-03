@@ -30,6 +30,7 @@
 #include "overlay/cursor_overlay_geometry.h"
 #include "overlay_client.h"
 #include "state.h"
+#include "synthetic_autorepeat.h"
 
 namespace fcitx {
 
@@ -293,6 +294,19 @@ public:
                     return;
                 }
 
+                // A synthetic auto-repeat release of the held key must not close
+                // the variant picker. Same frozen-timestamp check as the
+                // pre-leader path (issue #73): waitingKeyTime_ is still the
+                // original press time during cycling. Suppress it and keep
+                // cycling; the paired synthetic re-press is ignored by the
+                // repeat guard further down (cyclingInput_ == keyChar).
+                if (isSyntheticAutoRepeatRelease(keyEvent.time(),
+                                                 state->waitingKeyTime_)) {
+                    state->sawSyntheticRelease_ = true;
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+
                 // Non-Alt leader: commit immediately
                 auto it = umlautMap_.find(*state->cyclingInput_);
                 if (it != umlautMap_.end() &&
@@ -316,6 +330,29 @@ public:
             // letters match even if Shift is released first
             if (state->waitingKey_ && state->inputKeyPressed_ &&
                 rawCode == state->waitingKeyCode_) {
+                if (isSyntheticAutoRepeatRelease(keyEvent.time(),
+                                                 state->waitingKeyTime_)) {
+                    // Held-key auto-repeat (issue #73): KWin freezes the
+                    // frontend event time across the whole repeat burst, so
+                    // this release carries the starting press's timestamp and
+                    // is synthetic, not a real release. Suppress it and keep
+                    // the gesture waiting so the held char is not committed
+                    // prematurely; the paired synthetic re-press is swallowed
+                    // by the accent-key repeat guard below (waitingKey_ ==
+                    // keyChar). The window timer keeps running untouched, so a
+                    // leader can still convert and the genuine final release
+                    // (advanced timestamp) falls through to the commit below.
+                    // Record that this gesture is on a synthetic-release
+                    // platform, so the window-timeout commit knows a trailing
+                    // synthetic release will follow and needs consuming. On
+                    // press-only auto-repeat (classic X11) this is never set, so
+                    // that path stays byte-for-byte historic.
+                    state->sawSyntheticRelease_ = true;
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+                // Genuine release (advanced or absent event time): commit
+                // immediately, the historic behavior.
                 commitPendingKey(ic, state);
                 keyEvent.filterAndAccept();
                 return;
@@ -678,6 +715,10 @@ public:
             // Show character in PREEDIT (not committed yet - can be changed!)
             state->waitingKey_ = keyChar;
             state->waitingKeyCode_ = keyEvent.rawKey().code();
+            // Remember the frontend event time of this press so a later release
+            // carrying the same (frozen) timestamp can be recognised as a
+            // synthetic auto-repeat and suppressed. See isSyntheticAutoRepeatRelease().
+            state->waitingKeyTime_ = keyEvent.time();
             state->inputKeyPressed_ = true;
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
@@ -1339,6 +1380,20 @@ private:
                     ctx->commitString(*state->waitingKey_);
                     ctx->updatePreedit();
                     state->recentlyCommitted_ = true;
+                    // If the key is still physically held past the accent
+                    // window, its auto-repeat keeps arriving after this commit.
+                    // On a synthetic-release platform (Wayland) a trailing
+                    // release will follow, so arm committedKeyCode_ to consume
+                    // it via the committed-key release branch instead of leaking
+                    // an unpaired key-up to the app (issue #73 robustness). That
+                    // release clears the code again, and each window cycle
+                    // re-arms it, so the held key still restarts a gesture and
+                    // repeats as intended. Gated on sawSyntheticRelease_ so
+                    // press-only auto-repeat (classic X11), where no such
+                    // release comes to clear the code, keeps its historic
+                    // repeat-per-window behavior unchanged.
+                    if (state->sawSyntheticRelease_)
+                        state->committedKeyCode_ = state->waitingKeyCode_;
                     state->waitingKey_.reset();
                     state->waitingKeyCode_ = 0;
                     state->inputKeyPressed_ = false;

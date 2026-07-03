@@ -47,6 +47,15 @@ target_compile_options(testlayershellcapability PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testlayershellcapability COMMAND testlayershellcapability)
 set_tests_properties(testlayershellcapability PROPERTIES TIMEOUT 10)
 
+# Unit test for isSyntheticAutoRepeatRelease(). Pure header-only logic that
+# guards the predicate that recognises a held key's synthetic auto-repeat
+# release by its frozen frontend timestamp (issue #73).
+add_executable(testsyntheticautorepeat testsyntheticautorepeat.cpp)
+target_include_directories(testsyntheticautorepeat PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testsyntheticautorepeat PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testsyntheticautorepeat COMMAND testsyntheticautorepeat)
+set_tests_properties(testsyntheticautorepeat PROPERTIES TIMEOUT 10)
+
 # Unit test for the cursor-overlay geometry helpers. Pure header-only logic —
 # guards the "Cursor:" wire-format split and the lower-left-at-cursor margin
 # math (clamping to the cursor's output) that the overlay daemon relies on.

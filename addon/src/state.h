@@ -43,6 +43,21 @@ public:
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
     int waitingKeyCode_ = 0;
+    // Frontend event time (KeyEvent::time(), ms) of the press that started the
+    // current waiting gesture. On KWin/Wayland the compositor freezes the
+    // event time across a held key's whole auto-repeat burst, so a release
+    // carrying this exact (nonzero) time is a synthetic auto-repeat, not a real
+    // release. See isSyntheticAutoRepeatRelease() / issue #73.
+    int waitingKeyTime_ = 0;
+    // True once a synthetic auto-repeat release has been observed on this input
+    // context, i.e. the platform delivers auto-repeat as release-press pairs
+    // (Wayland). Persistent for the context (only cleared by clearAllState, not
+    // per gesture) so every hold past the first is armed, not just the ones
+    // whose window opened after auto-repeat already started. Gates the
+    // window-timeout committedKeyCode_ arming so press-only auto-repeat
+    // (classic X11) is left untouched. See isSyntheticAutoRepeatRelease() /
+    // issue #73.
+    bool sawSyntheticRelease_ = false;
 
     // Set after commit to route next Space through commitString (ordering
     // guard). Intentionally NOT cleared in clearAllState() — apps like WezTerm
@@ -77,6 +92,8 @@ public:
         waitingKey_.reset();
         inputKeyPressed_ = false;
         waitingKeyCode_ = 0;
+        waitingKeyTime_ = 0;
+        sawSyntheticRelease_ = false;
         // Note: recentlyCommitted_ is intentionally NOT cleared here.
         cancelTimeout();
         cancelOverlayShow();
