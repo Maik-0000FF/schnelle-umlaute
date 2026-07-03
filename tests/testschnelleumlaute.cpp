@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (136 tests)
+// Test Suite for Schnelle Umlaute (142 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -29,13 +29,17 @@
 // 129-132 Focus-flap resilience FocusOut during preedit/cycling, rapid 50x flap, flap after commit (sim. MouseTiler 100ms)
 // 133-135 State invariants    recentlyCommitted_ lifecycle, getBaseChar edge keycodes, AppFilter Whitelist empty program
 // 136     Alt repeat-suppress  second leader during Alt single-output arms committedKeyCode_ (üu-duplicate pin)
+// 137-140 Min-hold lower bound early Space plain commit, uppercase bound, repeat suppression, degenerate window
+// 141-142 Deferred space       post-timeout guard split, zero-delay timer path (timer-chained) (issue #90)
 // clang-format on
 
 #include <unistd.h>
+#include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <ctime>
 #include <memory>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 #include <fcitx-config/rawconfig.h>
@@ -60,17 +64,19 @@
 
 using namespace fcitx;
 
-// Delay (in microseconds) to wait for the deferred Alt cycling commit timer
-// (5ms) to fire before verifying the committed string.  50ms gives 45ms of
-// headroom over the 5ms addon timer — enough for sanitizer-instrumented CI
-// runners (ASan/UBSan) where 25ms was occasionally tight.
+// Delay (in microseconds) to wait for the addon's deferred commit timers to
+// fire before verifying the committed string: the deferred Alt cycling
+// commit (5ms) and the zero-delay trailing-space commit (test 142). 50ms
+// gives 45ms of headroom over the 5ms addon timer, enough for
+// sanitizer-instrumented CI runners (ASan/UBSan) where 25ms was
+// occasionally tight.
 constexpr uint64_t kDeferredVerifyDelayUsec = 50'000; // 50ms
 
 // Last test number entered. Updated at the top of each scheduled lambda so a
 // SIGABRT (FCITX_ASSERT failure) or SIGSEGV writes the most recently entered
 // test ID to stderr before the default handler dumps the core or ASan report.
 // Without this, a CI failure points at "testschnelleumlaute aborted" and
-// triage has to guess from interleaved logs which of 135 cases was running.
+// triage has to guess from interleaved logs which test case was running.
 static volatile std::sig_atomic_t g_currentTest = 0;
 
 static void crashHandler(int signo) {
@@ -5568,8 +5574,12 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Immediately press Space (~0ms < 200ms min) → plain "a ", no accent.
-        tf->call<ITestFrontend::pushCommitExpectation>("a ");
+        // Immediately press Space (~0ms < 200ms min) → plain "a" + " ", no
+        // accent. Two separate single-character commits (issue #90): apps
+        // that evaluate text inserts per event drop the letter of a combined
+        // "a " insert.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
         FCITX_ASSERT(consumed)
@@ -5597,7 +5607,8 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
 
-        tf->call<ITestFrontend::pushCommitExpectation>("A ");
+        tf->call<ITestFrontend::pushCommitExpectation>("A");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
         FCITX_ASSERT(consumed) << "Space before uppercase min hold must be "
@@ -5628,8 +5639,9 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Early Space (~0ms < 300ms) → guard commits plain "a ", consumes.
-        tf->call<ITestFrontend::pushCommitExpectation>("a ");
+        // Early Space (~0ms < 300ms) → guard commits plain "a" + " ", consumes.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
         FCITX_ASSERT(consumed) << "Early Space must be consumed as plain char";
@@ -5684,47 +5696,139 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO() << "Test 140 PASSED";
     });
 
+    // =========================================================================
+    // TEST 141: Post-timeout ordering guard splits char and space (issue #90
+    // twin). The accent window has expired but the timeout timer has not
+    // fired: the blocking sleep below keeps the single-threaded event loop
+    // from running it, so the Space press hits the in-handler ordering guard.
+    // It must deliver "a" and " " as separate commits like the min-hold guard
+    // (historically this path emitted one combined "a ").
+    // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 113;
-        FCITX_INFO() << "=== Test 113: Inside window [300, 2000] with min > 0, "
-                        "Space converts ===";
-        // Window [300, 2000]: lowercase minimum hold 300ms, max 2000ms. This
-        // is the positive counterpart to tests 137-139: a leader that arrives
-        // inside the window (after min, before max) must still convert even
-        // though a non-zero minimum hold is configured.
-        configureWithDelay(instance, 2000, 2000, true, false, 300, 300);
+        g_currentTest = 141;
+        FCITX_INFO()
+            << "=== Test 141: Post-timeout guard splits char and space ===";
+        // Smallest valid window (kDelayMin = 50ms), no minimum hold.
+        configureWithDelay(instance, 50, 50, true, false, 0, 0);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test113");
+        auto uuid = createAndActivate(instance, tf, "test141");
 
-        // Press 'a' → waiting
+        // Hold 'a' → waiting.
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Wait 1500ms, past the 300ms min, still inside the 2000ms max
-        struct TH {
-            std::unique_ptr<EventSourceTime> t;
+        // Let the 50ms window expire WITHOUT yielding to the event loop, so
+        // the addon's timeout timer cannot fire and the pending 'a' is still
+        // waiting when Space arrives.
+        std::this_thread::sleep_for(std::chrono::milliseconds(60));
+
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed)
+            << "Space right after window expiry must be consumed";
+
+        // The release flushes the deferred space at the top of keyEvent
+        // (order guarantee when a key event wins the race against the timer).
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 141 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 142: Deferred space commit fires on its own timer (issue #90).
+    // Space before the minimum hold commits "a" synchronously and " " in its
+    // own event-loop turn, so per-event apps receive two single-character
+    // inserts. No key event follows before the verify timer here, so the
+    // zero-delay timer itself must deliver the space (the flush hook at the
+    // top of keyEvent is exercised by tests 137-139 and 141 instead). The IC
+    // is destroyed WITHOUT further key events: if the timer path failed, the
+    // pending space dies with the IC and the leftover " " expectation makes
+    // the next commit (test 113's "ä") fatal with a mismatch pointing here.
+    // Timer-chained like tests 21-23: the dispatcher runs all top-level
+    // lambdas back to back, so the follow-up test lives in the callback.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 142;
+        FCITX_INFO() << "=== Test 142: Deferred space commit timer path ===";
+        configureWithDelay(instance, 2000, 2000, true, false, 200, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test142");
+
+        // Hold 'a' → waiting.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Early Space (~0ms < 200ms min): "a" commits synchronously, " " is
+        // scheduled on the zero-delay timer.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Early Space must be consumed";
+
+        // Give the zero-delay timer its own event-loop turns, then clean up
+        // and chain to the final test. The shared holder keeps the chained
+        // timers alive (tests 21-23 pattern).
+        struct TimerHolder {
+            std::unique_ptr<EventSourceTime> timer;
         };
-        auto h = std::make_shared<TH>();
-        h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 1'500'000, 0,
-            [instance, uuid, h](EventSourceTime *, uint64_t) {
+        auto holder = std::make_shared<TimerHolder>();
+        holder->timer = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
+            [instance, uuid, holder](EventSourceTime *, uint64_t) {
                 auto *tf = instance->addonManager().addon("testfrontend");
-
-                // At 1500ms: elapsed > 300 (min) and < 2000 (max) → Space
-                // converts to "ä" despite the non-zero minimum hold.
-                tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
-                bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
-                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-                FCITX_ASSERT(consumed)
-                    << "Space at 1500ms must convert (inside [300, 2000])";
-
-                tf->call<ITestFrontend::keyEvent>(
-                    uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
-                FCITX_INFO() << "Test 113 PASSED";
+                FCITX_INFO() << "Test 142 PASSED";
 
-                FCITX_INFO() << "=== All 140 tests PASSED ===";
-                instance->exit();
+                // --- Test 113: positive min-hold counterpart, ends suite ---
+                g_currentTest = 113;
+                FCITX_INFO()
+                    << "=== Test 113: Inside window [300, 2000] with min > 0, "
+                       "Space converts ===";
+                // Window [300, 2000]: lowercase minimum hold 300ms, max
+                // 2000ms. This is the positive counterpart to tests 137-139:
+                // a leader that arrives inside the window (after min, before
+                // max) must still convert even though a non-zero minimum hold
+                // is configured.
+                configureWithDelay(instance, 2000, 2000, true, false, 300,
+                                   300);
+                auto uuid113 = createAndActivate(instance, tf, "test113");
+
+                // Press 'a' → waiting
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid113, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+                // Wait 1500ms, past the 300ms min, inside the 2000ms max
+                holder->timer = instance->eventLoop().addTimeEvent(
+                    CLOCK_MONOTONIC, nowUsec() + 1'500'000, 0,
+                    [instance, uuid113, holder](EventSourceTime *, uint64_t) {
+                        auto *tf =
+                            instance->addonManager().addon("testfrontend");
+
+                        // At 1500ms: elapsed > 300 (min) and < 2000 (max) →
+                        // Space converts to "ä" despite the minimum hold.
+                        tf->call<ITestFrontend::pushCommitExpectation>(
+                            "\xc3\xa4");
+                        bool consumed113 = tf->call<ITestFrontend::sendKeyEvent>(
+                            uuid113, Key(FcitxKey_space, KeyStates(), kCodeSpace),
+                            false);
+                        FCITX_ASSERT(consumed113)
+                            << "Space at 1500ms must convert (inside [300, "
+                               "2000])";
+
+                        tf->call<ITestFrontend::keyEvent>(
+                            uuid113, Key(FcitxKey_a, KeyStates(), kCodeA),
+                            true);
+                        tf->call<ITestFrontend::destroyInputContext>(uuid113);
+                        FCITX_INFO() << "Test 113 PASSED";
+
+                        FCITX_INFO() << "=== All 142 tests PASSED ===";
+                        instance->exit();
+                        return false;
+                    });
                 return false;
             });
     });

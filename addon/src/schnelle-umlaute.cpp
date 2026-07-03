@@ -161,6 +161,11 @@ public:
 
         auto *state = ic->propertyFor(&factory_);
 
+        // Deliver a still-pending deferred space before this key is processed,
+        // so its text can never land behind this key's output if the key event
+        // wins the race against the zero-delay timer. See scheduleSpaceCommit().
+        flushPendingSpaceCommit(ic, state);
+
         auto key = keyEvent.key();
         bool isPress = !keyEvent.isRelease();
         int rawCode = keyEvent.rawKey().code();
@@ -368,30 +373,23 @@ public:
         // =========================================
         // ORDERING GUARD: Ensure correct character order after timeout
         // =========================================
-        // Commit pending char in the SAME commitString as the following key
-        // so both travel through one XIM event — impossible to reorder.
-        // Modifier combinations (Ctrl+Space) are excluded so shortcuts
-        // are not swallowed — pending char is committed separately instead.
+        // Window elapsed but a key arrived before the timeout timer fired:
+        // commit the pending char now (this also clears the trigger preview,
+        // mirroring the timeout callback's teardown). A Space is committed
+        // separately in its own event-loop turn so per-event apps receive two
+        // single-character inserts instead of one "a " (issue #90); see
+        // scheduleSpaceCommit(). Modifier combinations (Ctrl+Space) are
+        // excluded so shortcuts are not swallowed; any other key falls
+        // through and continues as a normal key.
         if (state->waitingKey_ &&
             state->isTimeoutExpired(getEffectiveDelay(state))) {
-            std::string pending = *state->waitingKey_;
-            ic->inputPanel().reset();
-            ic->updatePreedit();
-            state->resetWaitingGesture();
-            state->cancelTimeout();
-            // Window elapsed (a key arrived right at expiry, before the
-            // timeout timer fired): clear the trigger preview, mirroring the
-            // timeout callback's teardown.
-            hideTriggerOverlay(state);
+            commitPendingKey(ic, state);
 
             if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
-                ic->commitString(pending + " ");
-                state->recentlyCommitted_ = true;
+                scheduleSpaceCommit(ic, state);
                 keyEvent.filterAndAccept();
                 return;
             }
-            ic->commitString(pending);
-            state->recentlyCommitted_ = true;
         }
 
         // =========================================
@@ -481,40 +479,34 @@ public:
             // MIN-HOLD GUARD (lower bound of the accent window)
             // Before cycling has started, a leader that arrives before the
             // minimum hold time has elapsed is not an accent trigger. Commit
-            // the plain pending char now (plus a space for the Space leader,
-            // in the same commitString so the order can't flip), then let the
-            // leader act as a normal key. With min == 0 this never fires, so
-            // the historic behavior is unchanged.
+            // the plain pending char now, then let the leader act as a normal
+            // key. With min == 0 this never fires, so the historic behavior
+            // is unchanged.
             if (!state->cyclingInput_ && state->waitingKey_ &&
                 state->isBeforeMinHold(getEffectiveMinHold(state))) {
-                std::string pending = *state->waitingKey_;
-                // In progress mode the overlay is already up (shown at t=0), so
-                // tear it down now that this turns into a plain commit.
-                hideTriggerOverlay(state);
-                ic->inputPanel().reset();
-                ic->updatePreedit();
                 // Arm auto-repeat suppression for the still-held input key.
                 // Without this, the next auto-repeat of the held key would
                 // start a fresh gesture and duplicate the character (the
                 // "üu"-class bug guarded at the committedKeyCode_ check).
+                // Must happen before commitPendingKey() resets the code.
                 state->committedKeyCode_ = state->waitingKeyCode_;
-                state->resetWaitingGesture();
-                state->cancelTimeout();
+                commitPendingKey(ic, state);
                 if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
-                    ic->commitString(pending + " ");
-                    state->recentlyCommitted_ = true;
+                    // The space is committed separately in its own event-loop
+                    // turn so per-event apps receive two single-character
+                    // inserts instead of one "a " (issue #90). See
+                    // scheduleSpaceCommit() for the transport rationale.
+                    scheduleSpaceCommit(ic, state);
                     keyEvent.filterAndAccept();
                     return;
                 }
-                // Non-Space leader (arrow): commit the plain char and let the
-                // leader through as a normal key. This mirrors the post-timeout
-                // ordering guard above; the committed char and the raw leader
-                // travel on separate XIM channels, so in theory they could
-                // reorder in terminals like WezTerm (the #6 pattern), but only
-                // for arrow leaders combined with a minimum hold, which is
-                // rare.
-                ic->commitString(pending);
-                state->recentlyCommitted_ = true;
+                // Non-Space leader (arrow): the plain char is committed, the
+                // leader passes through as a normal key. The committed char
+                // and the raw leader travel on separate channels, so in
+                // theory they could reorder in terminals like WezTerm (the
+                // #6 pattern), but arrows cannot be delivered per
+                // commitString, and arrow leaders combined with a minimum
+                // hold are rare.
                 return;
             }
 
@@ -791,6 +783,12 @@ public:
             commitPendingKey(ic, state);
             commitCyclingValue(ic, state);
         }
+
+        // A deferred space was already consumed from the user; deliver it
+        // instead of letting clearAllState() cancel it. Reachable only in the
+        // sub-millisecond window where a FocusOut queued right behind the
+        // Space press dispatches before the zero-delay timer.
+        flushPendingSpaceCommit(ic, state);
 
         state->clearAllState();
         state->recentlyCommitted_ = false;
@@ -1155,6 +1153,51 @@ private:
         ic->updatePreedit();
         state->resetWaitingGesture();
         state->cancelTimeout();
+        state->recentlyCommitted_ = true;
+    }
+
+    // Deliver the trailing space of a char+space commit in its own event-loop
+    // turn (issue #90). The XIM frontend (always) and the DBus frontend (for
+    // clients with the KeyEventOrderFix capability, e.g. the GTK module)
+    // buffer every commit issued while a key event is being processed and
+    // deliver them merged as ONE string (deliverBlockedEvents()), so two
+    // back-to-back commitString calls still reach the app as a combined
+    // "a ". Apps that evaluate text inserts per event (monkeytype.com) then
+    // drop the letter and only register the space. A zero-delay timer moves
+    // the space into its own delivery, giving every frontend two
+    // single-character inserts. Order is safe twice over: both commits stay
+    // on the IME channel, and a key event that wins the race against the
+    // timer flushes the space first (flushPendingSpaceCommit() at the top of
+    // keyEvent()). This is the same transport the window-timeout commit has
+    // shipped since fa13cf7: timer commit, space routed as its own commit.
+    void scheduleSpaceCommit(InputContext *ic, SchnelleUmlauteState *state) {
+        auto savedRef = ic->watch();
+        auto *eventLoop = &instance_->eventLoop();
+        state->pendingSpaceCommit_ = true;
+        state->spaceCommitEvent_ = eventLoop->addTimeEvent(
+            CLOCK_MONOTONIC, SchnelleUmlauteState::nowUsec(), 0,
+            [this, state, savedRef](EventSourceTime *, uint64_t) {
+                // Safety: see scheduleTimeout (single-threaded event loop
+                // guarantees state outlives savedRef.get() != nullptr).
+                auto *ctx = savedRef.get();
+                if (!ctx)
+                    return false;
+                flushPendingSpaceCommit(ctx, state);
+                // Don't reset spaceCommitEvent_ here: destroying the
+                // EventSource inside its own callback is a use-after-free
+                // risk. pendingSpaceCommit_ is the source of truth; the
+                // unique_ptr is cleaned up by the next scheduleSpaceCommit()
+                // or cancelSpaceCommit() call.
+                return false;
+            });
+    }
+
+    void flushPendingSpaceCommit(InputContext *ic,
+                                 SchnelleUmlauteState *state) {
+        if (!state->pendingSpaceCommit_)
+            return;
+        state->pendingSpaceCommit_ = false;
+        ic->commitString(" ");
         state->recentlyCommitted_ = true;
     }
 
