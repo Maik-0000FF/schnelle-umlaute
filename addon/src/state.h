@@ -40,6 +40,15 @@ public:
     // it can be pending while a fresh preview is being scheduled.
     std::unique_ptr<EventSourceTime> overlayHideEvent_;
 
+    // Zero-delay timer that delivers the trailing space of a char+space
+    // commit in its own event-loop turn (see scheduleSpaceCommit()). Own
+    // slot: sharing timeoutEvent_ would let the next gesture's
+    // scheduleTimeout() cancel a still-pending space. pendingSpaceCommit_
+    // is the source of truth (the EventSourceTime stays non-null after
+    // firing, and a callback must not destroy its own source).
+    std::unique_ptr<EventSourceTime> spaceCommitEvent_;
+    bool pendingSpaceCommit_ = false;
+
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
     int waitingKeyCode_ = 0;
@@ -109,6 +118,7 @@ public:
         cancelTimeout();
         cancelOverlayShow();
         cancelOverlayHide();
+        cancelSpaceCommit();
         resetCycling();
         heldRawCodes_.clear();
         committedKeyCode_ = 0;
@@ -126,6 +136,11 @@ public:
     void cancelOverlayShow() { overlayShowEvent_.reset(); }
 
     void cancelOverlayHide() { overlayHideEvent_.reset(); }
+
+    void cancelSpaceCommit() {
+        spaceCommitEvent_.reset();
+        pendingSpaceCommit_ = false;
+    }
 
     bool isTimeoutExpired(int effectiveDelay) const {
         if (!waitingKey_)
