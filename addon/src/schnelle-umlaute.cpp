@@ -297,11 +297,14 @@ public:
                 // A synthetic auto-repeat release of the held key must not close
                 // the variant picker. Same frozen-timestamp check as the
                 // pre-leader path (issue #73): waitingKeyTime_ is still the
-                // original press time during cycling. Suppress it and keep
-                // cycling; the paired synthetic re-press is ignored by the
-                // repeat guard further down (cyclingInput_ == keyChar).
-                if (isSyntheticAutoRepeatRelease(keyEvent.time(),
-                                                 state->waitingKeyTime_)) {
+                // original press time during cycling, and startTimeUsec_ still
+                // marks the gesture's press for the elapsed guard. Suppress it
+                // and keep cycling; the paired synthetic re-press is ignored by
+                // the repeat guard further down (cyclingInput_ == keyChar).
+                if (isSyntheticAutoRepeatRelease(
+                        keyEvent.time(), state->waitingKeyTime_,
+                        SchnelleUmlauteState::nowUsec() -
+                            state->startTimeUsec_)) {
                     state->sawSyntheticRelease_ = true;
                     keyEvent.filterAndAccept();
                     return;
@@ -317,7 +320,7 @@ public:
                     state->recentlyCommitted_ = true;
                 }
 
-                state->inputKeyPressed_ = false;
+                state->resetWaitingGesture();
                 state->resetCycling();
                 overlayHide();
                 keyEvent.filterAndAccept();
@@ -330,8 +333,10 @@ public:
             // letters match even if Shift is released first
             if (state->waitingKey_ && state->inputKeyPressed_ &&
                 rawCode == state->waitingKeyCode_) {
-                if (isSyntheticAutoRepeatRelease(keyEvent.time(),
-                                                 state->waitingKeyTime_)) {
+                if (isSyntheticAutoRepeatRelease(
+                        keyEvent.time(), state->waitingKeyTime_,
+                        SchnelleUmlauteState::nowUsec() -
+                            state->startTimeUsec_)) {
                     // Held-key auto-repeat (issue #73): KWin freezes the
                     // frontend event time across the whole repeat burst, so
                     // this release carries the starting press's timestamp and
@@ -372,10 +377,8 @@ public:
             std::string pending = *state->waitingKey_;
             ic->inputPanel().reset();
             ic->updatePreedit();
-            state->waitingKey_.reset();
-            state->waitingKeyCode_ = 0;
+            state->resetWaitingGesture();
             state->cancelTimeout();
-            state->inputKeyPressed_ = false;
             // Window elapsed (a key arrived right at expiry, before the
             // timeout timer fired): clear the trigger preview, mirroring the
             // timeout callback's teardown.
@@ -490,15 +493,13 @@ public:
                 hideTriggerOverlay(state);
                 ic->inputPanel().reset();
                 ic->updatePreedit();
-                state->waitingKey_.reset();
                 // Arm auto-repeat suppression for the still-held input key.
                 // Without this, the next auto-repeat of the held key would
                 // start a fresh gesture and duplicate the character (the
                 // "üu"-class bug guarded at the committedKeyCode_ check).
                 state->committedKeyCode_ = state->waitingKeyCode_;
-                state->waitingKeyCode_ = 0;
+                state->resetWaitingGesture();
                 state->cancelTimeout();
-                state->inputKeyPressed_ = false;
                 if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
                     ic->commitString(pending + " ");
                     state->recentlyCommitted_ = true;
@@ -552,13 +553,12 @@ public:
                         ic->commitString(it->second[0]);
                         ic->updatePreedit();
                         state->recentlyCommitted_ = true;
-                        state->inputKeyPressed_ = false;
                         // Arm auto-repeat suppression for the held input key.
                         // Without this, releasing Alt while the input key is
                         // still down would let the next repeat start a fresh
                         // gesture (üu-class duplicate).
                         state->committedKeyCode_ = state->waitingKeyCode_;
-                        state->waitingKeyCode_ = 0;
+                        state->resetWaitingGesture();
                         state->resetCycling();
                         overlayHide();
                         state->altGestureSession_ = false;
@@ -640,8 +640,7 @@ public:
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
                         state->committedKeyCode_ = state->waitingKeyCode_;
-                        state->inputKeyPressed_ = false;
-                        state->waitingKeyCode_ = 0;
+                        state->resetWaitingGesture();
                         state->recentlyCommitted_ = true;
                     }
 
@@ -1135,7 +1134,7 @@ private:
                     }
                     state->resetCycling();
                     overlayHide();
-                    state->waitingKeyCode_ = 0;
+                    state->resetWaitingGesture();
                 }
                 state->altGestureSession_ = false;
                 state->consumedAltCode_ = 0;
@@ -1150,10 +1149,8 @@ private:
         ic->inputPanel().reset();
         ic->commitString(*state->waitingKey_);
         ic->updatePreedit();
-        state->waitingKey_.reset();
-        state->waitingKeyCode_ = 0;
+        state->resetWaitingGesture();
         state->cancelTimeout();
-        state->inputKeyPressed_ = false;
         state->recentlyCommitted_ = true;
     }
 
@@ -1170,7 +1167,7 @@ private:
             ic->updatePreedit();
             state->recentlyCommitted_ = true;
         }
-        state->inputKeyPressed_ = false;
+        state->resetWaitingGesture();
         state->resetCycling();
         overlayHide();
     }
@@ -1394,9 +1391,7 @@ private:
                     // repeat-per-window behavior unchanged.
                     if (state->sawSyntheticRelease_)
                         state->committedKeyCode_ = state->waitingKeyCode_;
-                    state->waitingKey_.reset();
-                    state->waitingKeyCode_ = 0;
-                    state->inputKeyPressed_ = false;
+                    state->resetWaitingGesture();
                     // Window elapsed without a leader: clear the preview.
                     hideTriggerOverlay(state);
                 }

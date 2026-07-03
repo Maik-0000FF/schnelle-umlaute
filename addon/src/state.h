@@ -88,11 +88,20 @@ public:
     // cycling is temporarily reset between pairs.
     bool altGestureSession_ = false;
 
-    void clearAllState() {
+    // Tear down the waiting-gesture bundle in one place so no commit or
+    // cancel site can forget a field (reset symmetry). Deliberately excludes
+    // sawSyntheticRelease_ (persistent platform marker, see its comment) and
+    // the timers (some callers must not touch a timer from inside its own
+    // callback, see the window-timeout commit).
+    void resetWaitingGesture() {
         waitingKey_.reset();
-        inputKeyPressed_ = false;
         waitingKeyCode_ = 0;
         waitingKeyTime_ = 0;
+        inputKeyPressed_ = false;
+    }
+
+    void clearAllState() {
+        resetWaitingGesture();
         sawSyntheticRelease_ = false;
         // Note: recentlyCommitted_ is intentionally NOT cleared here.
         cancelTimeout();
