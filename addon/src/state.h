@@ -51,9 +51,11 @@ public:
     int waitingKeyTime_ = 0;
     // True once a synthetic auto-repeat release has been observed on this input
     // context, i.e. the platform delivers auto-repeat as release-press pairs
-    // (Wayland). Persistent for the context (only cleared by clearAllState, not
-    // per gesture) so every hold past the first is armed, not just the ones
-    // whose window opened after auto-repeat already started. Gates the
+    // (Wayland). Persists across gestures but is reset on every focus change
+    // (clearAllState runs in activate/deactivate), so it effectively marks the
+    // current focus session: within one, every hold past the first suppression
+    // is armed, while the first over-window hold after a (re)focus can still
+    // leak a single unpaired key-up before the marker latches. Gates the
     // window-timeout committedKeyCode_ arming so press-only auto-repeat
     // (classic X11) is left untouched. See isSyntheticAutoRepeatRelease() /
     // issue #73.

@@ -625,6 +625,11 @@ public:
                             // just tear down so we don't pop a blip out of
                             // nowhere.
                             hideTriggerOverlay(state);
+
+                        // Cycling owns the gesture now: only waitingKey_ ends;
+                        // waitingKeyCode_/waitingKeyTime_ stay valid for the
+                        // cycling release checks.
+                        state->waitingKey_.reset();
                     } else {
                         // Single output with non-Alt leader - commit directly.
                         // If a trigger preview is already showing, flash the
@@ -644,7 +649,6 @@ public:
                         state->recentlyCommitted_ = true;
                     }
 
-                    state->waitingKey_.reset();
                     state->cancelTimeout();
                     if (isAlt)
                         state->consumedAltCode_ = rawCode;
