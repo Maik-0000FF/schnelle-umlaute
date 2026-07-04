@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (150 tests)
+// Test Suite for Schnelle Umlaute (151 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -34,6 +34,7 @@
 // 143     reset() space flush  reset() before the zero-delay timer flushes the deferred space (issue #90)
 // 144-145 reset() repeat guard reset() preserves committed_ arming for single-output and min-hold sites (issue #92)
 // 146-150 wayland repeat fix   issue #92 hole 2 fixed: held-key repeat suppressed at all 3 arming sites, elapsed-ref + injected-pair guards
+// 151     window-timeout test  per-window repeat: window-timeout arming clears per synthetic release (issue #92/#73)
 // clang-format on
 
 #include <unistd.h>
@@ -6205,8 +6206,64 @@ static void scheduleTest113(Instance *instance) {
                         tf->call<ITestFrontend::destroyInputContext>(uuid113);
                         FCITX_INFO() << "Test 113 PASSED";
 
-                        FCITX_INFO() << "=== All 150 tests PASSED ===";
-                        instance->exit();
+                        // --- Test 151: window-timeout per-window repeat (issue
+                        // #92 hole 2 / #73). Timer-chained onto the suite tail so
+                        // the real accent-window timeout can fire. The window-
+                        // timeout arming opts out of synthetic-keep with a zero
+                        // press time, so a synthetic release must CLEAR it (one
+                        // char per window), unlike the single-output sites. ---
+                        g_currentTest = 151;
+                        FCITX_INFO() << "=== Test 151: window-timeout per-window "
+                                        "repeat (#92/#73) ===";
+                        configureWithDelay(instance, 50, 50, true, false, 0, 0);
+                        auto uuid151 = createAndActivate(instance, tf, "test151");
+                        const int wtT = 5000;
+                        // Hold 'u' -> waiting; the window timeout is ~50ms out.
+                        sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU, false,
+                                      wtT);
+                        // Latch sawSyntheticRelease_ with a synthetic pair (>5ms),
+                        // so the timeout arms committed_ for the trailing release.
+                        std::this_thread::sleep_for(std::chrono::milliseconds(6));
+                        sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU, true,
+                                      wtT);
+                        sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU, false,
+                                      wtT);
+                        FCITX_ASSERT(getClientPreedit(instance) == "u")
+                            << "Gesture must stay waiting after the synthetic pair";
+                        // The window elapses without a leader -> the timeout
+                        // commits "u" and (sawSyntheticRelease_) arms
+                        // committed_(u, 0, 0). Wait past the window, then verify.
+                        tf->call<ITestFrontend::pushCommitExpectation>("u");
+                        holder->timer = instance->eventLoop().addTimeEvent(
+                            CLOCK_MONOTONIC, nowUsec() + 80'000, 0,
+                            [instance, uuid151, wtT,
+                             holder](EventSourceTime *, uint64_t) {
+                                auto *tf = instance->addonManager().addon(
+                                    "testfrontend");
+                                // Timeout fired: "u" committed, preedit cleared,
+                                // committed_ = {u, 0, 0}.
+                                FCITX_ASSERT(getClientPreedit(instance).empty())
+                                    << "Window timeout should have committed and "
+                                       "cleared the preedit";
+                                // A synthetic release must CLEAR the arming
+                                // (committed_.time == 0), not keep it, so the held
+                                // key restarts a gesture: one char per window.
+                                sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU,
+                                              true, wtT);
+                                sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU,
+                                              false, wtT);
+                                FCITX_ASSERT(getClientPreedit(instance) == "u")
+                                    << "Window-timeout arming must clear per "
+                                       "synthetic release and restart, got '"
+                                    << getClientPreedit(instance) << "'";
+                                tf->call<ITestFrontend::destroyInputContext>(
+                                    uuid151);
+                                FCITX_INFO() << "Test 151 PASSED";
+
+                                FCITX_INFO() << "=== All 151 tests PASSED ===";
+                                instance->exit();
+                                return false;
+                            });
                         return false;
                     });
                 return false;
