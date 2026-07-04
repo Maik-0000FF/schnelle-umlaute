@@ -15,6 +15,8 @@
 #include <string>
 #include <unordered_set>
 
+#include "synthetic_autorepeat.h"
+
 namespace fcitx {
 
 constexpr uint64_t kMicrosecondsPerSecond = 1'000'000;
@@ -139,7 +141,29 @@ public:
     void armCommittedKey(int code, int time, uint64_t startUsec) {
         committed_ = {code, time, startUsec};
     }
+    // Arm committed-key suppression from the current waiting gesture's fields.
+    // Call BEFORE resetWaitingGesture()/commitPendingKey() clears them; carries
+    // the "capture waiting code/time/start together, in this order" invariant
+    // that every single-output commit site shares (issue #92 hole 2).
+    void armCommittedFromWaiting() {
+        armCommittedKey(waitingKeyCode_, waitingKeyTime_, startTimeUsec_);
+    }
     void clearCommittedKey() { committed_ = {}; }
+
+    // Classify a key release as a synthetic auto-repeat for the waiting or the
+    // committed gesture. Each binds isSyntheticAutoRepeatRelease() to its own
+    // bundle's (frozen press time, monotonic start) pair and owns the nowUsec()
+    // math, so a call site cannot pair one gesture's timestamp with the other's
+    // start. releaseTime is the release's frontend event time. See
+    // synthetic_autorepeat.h / issue #73.
+    bool isSyntheticWaitingRelease(int releaseTime) const {
+        return isSyntheticAutoRepeatRelease(releaseTime, waitingKeyTime_,
+                                            nowUsec() - startTimeUsec_);
+    }
+    bool isSyntheticCommittedRelease(int releaseTime) const {
+        return isSyntheticAutoRepeatRelease(releaseTime, committed_.time,
+                                            nowUsec() - committed_.startUsec);
+    }
 
     void clearAllState() {
         resetWaitingGesture();

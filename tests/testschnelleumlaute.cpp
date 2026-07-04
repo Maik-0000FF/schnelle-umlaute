@@ -65,6 +65,7 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <xkbcommon/xkbcommon.h>
+#include "src/synthetic_autorepeat.h"
 #include "testdir.h"
 #include "testfrontend_public.h"
 
@@ -139,6 +140,15 @@ constexpr int kCode1 = 10;                  // physical key for 1/!
 constexpr int kCode8 = 17;                  // physical key for 8/*
 constexpr int kCodeF = 41;                  // physical key for f
 constexpr int kCodeJ = 44;                  // physical key for j
+
+// Hold longer than the engine's synthetic auto-repeat elapsed guard
+// (kSyntheticReleaseMinElapsedUsec, 5 ms) so a frozen-timestamp release
+// classifies as synthetic. Derived from the engine constant plus 1 ms margin,
+// so raising the threshold cannot silently make these sleeps too short and flip
+// the synthetic-repeat tests to false results. See synthetic_autorepeat.h.
+constexpr auto kSyntheticReleaseTestHold =
+    std::chrono::microseconds(kSyntheticReleaseMinElapsedUsec) +
+    std::chrono::milliseconds(1);
 
 // Helper: load mappings via setSubConfig (the path loadMappingsFromFile reads)
 static void
@@ -5918,7 +5928,7 @@ static void scheduleTest113(Instance *instance) {
         for (int i = 0; i < 3; ++i) {
             // >5ms since the committed gesture's press, so the release passes the
             // synthetic elapsed guard (a real burst's first repeat is delayed).
-            std::this_thread::sleep_for(std::chrono::milliseconds(6));
+            std::this_thread::sleep_for(kSyntheticReleaseTestHold);
             bool rel =
                 sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT);
             bool pr =
@@ -6002,7 +6012,7 @@ static void scheduleTest113(Instance *instance) {
 
         // >5ms so committed_.startUsec (u's) is old, then a fresh 'a' gesture
         // resets the GLOBAL startTimeUsec_ to ~now.
-        std::this_thread::sleep_for(std::chrono::milliseconds(6));
+        std::this_thread::sleep_for(kSyntheticReleaseTestHold);
         sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false, ta);
         FCITX_ASSERT(getClientPreedit(instance) == "a")
             << "'a' gesture should be waiting";
@@ -6050,7 +6060,7 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::pushCommitExpectation>(" ");
 
         for (int i = 0; i < 3; ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(6));
+            std::this_thread::sleep_for(kSyntheticReleaseTestHold);
             sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT);
             sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
             FCITX_ASSERT(getClientPreedit(instance).empty())
@@ -6090,7 +6100,7 @@ static void scheduleTest113(Instance *instance) {
         sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false, burstT);
 
         for (int i = 0; i < 3; ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(6));
+            std::this_thread::sleep_for(kSyntheticReleaseTestHold);
             sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT);
             sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
             FCITX_ASSERT(getClientPreedit(instance).empty())
@@ -6251,7 +6261,7 @@ static void scheduleTest113(Instance *instance) {
                                       wtT);
                         // Latch sawSyntheticRelease_ with a synthetic pair (>5ms),
                         // so the timeout arms committed_ for the trailing release.
-                        std::this_thread::sleep_for(std::chrono::milliseconds(6));
+                        std::this_thread::sleep_for(kSyntheticReleaseTestHold);
                         sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU, true,
                                       wtT);
                         sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU, false,

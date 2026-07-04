@@ -15,7 +15,7 @@ add_subdirectory(inputmethod)
 set(SU_TEST_WARN_FLAGS -Wall -Wextra -Wpedantic)
 
 add_executable(testschnelleumlaute testschnelleumlaute.cpp)
-target_include_directories(testschnelleumlaute PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(testschnelleumlaute PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${PROJECT_SOURCE_DIR})
 target_compile_options(testschnelleumlaute PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testschnelleumlaute Fcitx5::Core Fcitx5::Module::TestFrontend Fcitx5::Module::TestIM PkgConfig::XKBCommon)
 add_dependencies(testschnelleumlaute copy-addon-conf copy-im-conf schnelle-umlaute)

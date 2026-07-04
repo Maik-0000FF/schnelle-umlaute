@@ -288,10 +288,7 @@ public:
                 // .startUsec), mirroring the waiting-release branch's #73 check.
                 // The window-timeout arming leaves committed_.time == 0, so this
                 // never matches there and that path clears per window as before.
-                if (isSyntheticAutoRepeatRelease(
-                        keyEvent.time(), state->committed_.time,
-                        SchnelleUmlauteState::nowUsec() -
-                            state->committed_.startUsec)) {
+                if (state->isSyntheticCommittedRelease(keyEvent.time())) {
                     state->heldRawCodes_.insert(rawCode);
                     keyEvent.filterAndAccept();
                     return;
@@ -326,10 +323,7 @@ public:
                 // marks the gesture's press for the elapsed guard. Suppress it
                 // and keep cycling; the paired synthetic re-press is ignored by
                 // the repeat guard further down (cyclingInput_ == keyChar).
-                if (isSyntheticAutoRepeatRelease(
-                        keyEvent.time(), state->waitingKeyTime_,
-                        SchnelleUmlauteState::nowUsec() -
-                            state->startTimeUsec_)) {
+                if (state->isSyntheticWaitingRelease(keyEvent.time())) {
                     state->sawSyntheticRelease_ = true;
                     keyEvent.filterAndAccept();
                     return;
@@ -358,10 +352,7 @@ public:
             // letters match even if Shift is released first
             if (state->waitingKey_ && state->inputKeyPressed_ &&
                 rawCode == state->waitingKeyCode_) {
-                if (isSyntheticAutoRepeatRelease(
-                        keyEvent.time(), state->waitingKeyTime_,
-                        SchnelleUmlauteState::nowUsec() -
-                            state->startTimeUsec_)) {
+                if (state->isSyntheticWaitingRelease(keyEvent.time())) {
                     // Held-key auto-repeat (issue #73): KWin freezes the
                     // frontend event time across the whole repeat burst, so
                     // this release carries the starting press's timestamp and
@@ -512,9 +503,7 @@ public:
                 // time, so a synthetic release keeps the arming (issue #92 hole
                 // 2). Capture waitingKeyTime_/startTimeUsec_ now, before
                 // commitPendingKey() clears the waiting gesture.
-                state->armCommittedKey(state->waitingKeyCode_,
-                                       state->waitingKeyTime_,
-                                       state->startTimeUsec_);
+                state->armCommittedFromWaiting();
                 commitPendingKey(ic, state);
                 if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
                     // The space is committed separately in its own event-loop
@@ -577,9 +566,7 @@ public:
                         // KWin/Wayland alike (issue #92 hole 2); the frozen press
                         // time in committed_ keeps the arming across a synthetic
                         // release burst.
-                        state->armCommittedKey(state->waitingKeyCode_,
-                                               state->waitingKeyTime_,
-                                               state->startTimeUsec_);
+                        state->armCommittedFromWaiting();
                         state->resetWaitingGesture();
                         state->resetCycling();
                         overlayHide();
@@ -671,9 +658,7 @@ public:
                         // hole 2); the frozen press time in committed_ keeps the
                         // arming across a synthetic release burst. Capture before
                         // resetWaitingGesture() clears the waiting gesture.
-                        state->armCommittedKey(state->waitingKeyCode_,
-                                               state->waitingKeyTime_,
-                                               state->startTimeUsec_);
+                        state->armCommittedFromWaiting();
                         state->resetWaitingGesture();
                         state->recentlyCommitted_ = true;
                     }
@@ -801,7 +786,13 @@ public:
     void activate(const InputMethodEntry &, InputContextEvent &event) override {
         // Ensure clean state when switching TO this input method.
         // Catches residual state after crashes or unexpected restarts.
-        auto *state = event.inputContext()->propertyFor(&factory_);
+        auto *ic = event.inputContext();
+        auto *state = ic->propertyFor(&factory_);
+        // A deferred space already consumed from the user must be delivered
+        // before clearAllState() cancels it, mirroring deactivate()/reset()/
+        // wipeAllGestureState() (issue #90). Narrow: an activate() landing on an
+        // IC that still holds a pending space without a flushing deactivate.
+        flushPendingSpaceCommit(ic, state);
         state->clearAllState();
         state->recentlyCommitted_ = false;
     }
