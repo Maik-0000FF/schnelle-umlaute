@@ -275,16 +275,29 @@ public:
 
             // Consume release of key that was committed via single-output.
             // The press was filterAndAccepted, so the release is an orphan.
-            // NOTE: unlike the waiting-release branch below, this deliberately
-            // does not run the isSyntheticAutoRepeatRelease() timestamp check, so
-            // on KWin/Wayland the first synthetic auto-repeat release clears the
-            // arming here and one duplicate can leak past a held conversion. This
-            // is the source of issue #92 hole 2 (see the committedKeyCode_
-            // declaration and test 146). Left as-is for now: a real fix needs a
-            // press timestamp (committedKeyTime_) tracked at every arming site.
-            if (state->committedKeyCode_ != 0 &&
-                rawCode == state->committedKeyCode_) {
-                state->committedKeyCode_ = 0;
+            if (state->committed_.code != 0 &&
+                rawCode == state->committed_.code) {
+                // On KWin/Wayland auto-repeat arrives as release-press pairs with
+                // a frozen event time. A synthetic release carries the committed
+                // key's press time, and must NOT drop the arming — otherwise the
+                // paired re-press restarts a gesture and one raw char leaks
+                // (issue #92 hole 2). Keep the arming and re-insert the raw code
+                // that the top-of-handler erase removed, so the repeat guard
+                // below (keyed on heldRawCodes_) swallows the re-press. Uses the
+                // committed gesture's own press time/start (committed_.time /
+                // .startUsec), mirroring the waiting-release branch's #73 check.
+                // The window-timeout arming leaves committed_.time == 0, so this
+                // never matches there and that path clears per window as before.
+                if (isSyntheticAutoRepeatRelease(
+                        keyEvent.time(), state->committed_.time,
+                        SchnelleUmlauteState::nowUsec() -
+                            state->committed_.startUsec)) {
+                    state->heldRawCodes_.insert(rawCode);
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+                // Genuine release (advanced or absent event time): clear it.
+                state->clearCommittedKey();
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -494,11 +507,14 @@ public:
                 // Arm auto-repeat suppression for the still-held input key.
                 // Without this, the next auto-repeat of the held key would
                 // start a fresh gesture and duplicate the character (the
-                // "üu"-class bug guarded at the committedKeyCode_ check).
-                // Must happen before commitPendingKey() resets the code.
-                // Full suppression on X11; on KWin/Wayland one duplicate can
-                // still leak (issue #92 hole 2, see the committedKeyCode_ decl).
-                state->committedKeyCode_ = state->waitingKeyCode_;
+                // "üu"-class bug guarded at the committed_ check). Suppresses on
+                // X11 and KWin/Wayland alike: committed_.time is the frozen press
+                // time, so a synthetic release keeps the arming (issue #92 hole
+                // 2). Capture waitingKeyTime_/startTimeUsec_ now, before
+                // commitPendingKey() clears the waiting gesture.
+                state->armCommittedKey(state->waitingKeyCode_,
+                                       state->waitingKeyTime_,
+                                       state->startTimeUsec_);
                 commitPendingKey(ic, state);
                 if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
                     // The space is committed separately in its own event-loop
@@ -557,10 +573,13 @@ public:
                         // Arm auto-repeat suppression for the held input key.
                         // Without this, releasing Alt while the input key is
                         // still down would let the next repeat start a fresh
-                        // gesture (üu-class duplicate). Full on X11; on
-                        // KWin/Wayland one duplicate can still leak (issue #92
-                        // hole 2, see the committedKeyCode_ declaration).
-                        state->committedKeyCode_ = state->waitingKeyCode_;
+                        // gesture (üu-class duplicate). Suppresses on X11 and
+                        // KWin/Wayland alike (issue #92 hole 2); the frozen press
+                        // time in committed_ keeps the arming across a synthetic
+                        // release burst.
+                        state->armCommittedKey(state->waitingKeyCode_,
+                                               state->waitingKeyTime_,
+                                               state->startTimeUsec_);
                         state->resetWaitingGesture();
                         state->resetCycling();
                         overlayHide();
@@ -648,9 +667,13 @@ public:
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
                         // Arm auto-repeat suppression for the still-held key.
-                        // Full on X11; on KWin/Wayland one duplicate can still
-                        // leak (issue #92 hole 2, see committedKeyCode_ decl).
-                        state->committedKeyCode_ = state->waitingKeyCode_;
+                        // Suppresses on X11 and KWin/Wayland alike (issue #92
+                        // hole 2); the frozen press time in committed_ keeps the
+                        // arming across a synthetic release burst. Capture before
+                        // resetWaitingGesture() clears the waiting gesture.
+                        state->armCommittedKey(state->waitingKeyCode_,
+                                               state->waitingKeyTime_,
+                                               state->startTimeUsec_);
                         state->resetWaitingGesture();
                         state->recentlyCommitted_ = true;
                     }
@@ -711,8 +734,8 @@ public:
             // still be held, generating repeat events. Without this guard,
             // repeats start new unwanted gestures (e.g. 'u' + AltGr → "ü" then
             // repeat 'u' → "üu").
-            if (!isNewKeyPress && state->committedKeyCode_ != 0 &&
-                rawCode == state->committedKeyCode_) {
+            if (!isNewKeyPress && state->committed_.code != 0 &&
+                rawCode == state->committed_.code) {
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -837,23 +860,23 @@ public:
         // overlayVisible_ check distinguishes a live flash from a spent timer
         // (overlayHideEvent_ stays non-null after firing, like overlayShowEvent_).
         // A still-held key whose char was already committed via single-output
-        // keeps committedKeyCode_ armed so its auto-repeat is consumed instead
-        // of starting a fresh gesture (the "üu"-class guard). clearAllState()
-        // drops committedKeyCode_ and its heldRawCodes_ entry, so the app-reset()
-        // Chromium and Neovide fire after every commit lets the next auto-repeat
-        // re-enter as a fresh press (isNewKeyPress == true, so the repeat guard
-        // below the arming sites no longer matches) and start a duplicate gesture
-        // (issue #92). Preserve only the still-held code across the wipe; the
-        // focus-change path (deactivate/activate) keeps clearing everything.
-        // Self-guarding: 0 means nothing was armed (a release already cleared it
-        // via the committed-key release branch).
-        const int heldCommitted = state->committedKeyCode_;
+        // keeps committed_ armed so its auto-repeat is consumed instead of
+        // starting a fresh gesture (the "üu"-class guard). clearAllState() drops
+        // committed_ and its heldRawCodes_ entry, so the app-reset() Chromium and
+        // Neovide fire after every commit lets the next auto-repeat re-enter as a
+        // fresh press (isNewKeyPress == true, so the repeat guard below the arming
+        // sites no longer matches) and start a duplicate gesture (issue #92).
+        // Preserve the whole committed_ bundle across the wipe; the focus-change
+        // path (deactivate/activate) keeps clearing everything. Self-guarding:
+        // code == 0 means nothing was armed (a release already cleared it via the
+        // committed-key release branch).
+        const auto heldCommitted = state->committed_;
 
         auto flash = std::move(state->overlayHideEvent_);
         state->clearAllState();
-        if (heldCommitted != 0) {
-            state->committedKeyCode_ = heldCommitted;
-            state->heldRawCodes_.insert(heldCommitted);
+        if (heldCommitted.code != 0) {
+            state->committed_ = heldCommitted;
+            state->heldRawCodes_.insert(heldCommitted.code);
         }
         if (flash && overlayVisible_) {
             state->overlayHideEvent_ = std::move(flash);
@@ -995,13 +1018,13 @@ private:
         // until real release.
         auto heldKeys = st->heldRawCodes_;
         // Symmetry with the heldRawCodes_ preserve above: keep the single-output
-        // repeat-suppression arming across the wipe too, so a still-held combo
-        // doesn't lose its committedKeyCode_ guard on a profile switch (issue
-        // #92). Rarely armed on the switch combo, purely state-preserving.
-        const int heldCommitted = st->committedKeyCode_;
+        // repeat-suppression arming (the whole committed_ bundle) across the wipe
+        // too, so a still-held combo doesn't lose its guard on a profile switch
+        // (issue #92). Rarely armed on the switch combo, purely state-preserving.
+        const auto heldCommitted = st->committed_;
         wipeAllGestureState();
         st->heldRawCodes_ = std::move(heldKeys);
-        st->committedKeyCode_ = heldCommitted;
+        st->committed_ = heldCommitted;
         profiles_.active.setValue(name);
         umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
         safeSaveAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
@@ -1478,17 +1501,20 @@ private:
                     // If the key is still physically held past the accent
                     // window, its auto-repeat keeps arriving after this commit.
                     // On a synthetic-release platform (Wayland) a trailing
-                    // release will follow, so arm committedKeyCode_ to consume
-                    // it via the committed-key release branch instead of leaking
-                    // an unpaired key-up to the app (issue #73 robustness). That
-                    // release clears the code again, and each window cycle
-                    // re-arms it, so the held key still restarts a gesture and
-                    // repeats as intended. Gated on sawSyntheticRelease_ so
-                    // press-only auto-repeat (classic X11), where no such
-                    // release comes to clear the code, keeps its historic
-                    // repeat-per-window behavior unchanged.
+                    // release will follow, so arm committed_ to consume it via
+                    // the committed-key release branch instead of leaking an
+                    // unpaired key-up to the app (issue #73 robustness). Arm with
+                    // time == 0 (and startUsec == 0) so the release branch does
+                    // NOT keep the arming for a synthetic release (unlike the
+                    // single-output sites, issue #92 hole 2): the release clears
+                    // the code again, and each window cycle re-arms it, so the
+                    // held key still restarts a gesture and repeats as intended.
+                    // Explicit 0 is an invariant, not a "happens to be 0" bet — a
+                    // prior single-output commit could otherwise leave a stale
+                    // time. Gated on sawSyntheticRelease_ so press-only auto-
+                    // repeat (classic X11) keeps its historic per-window behavior.
                     if (state->sawSyntheticRelease_)
-                        state->committedKeyCode_ = state->waitingKeyCode_;
+                        state->armCommittedKey(state->waitingKeyCode_, 0, 0);
                     state->resetWaitingGesture();
                     // Window elapsed without a leader: clear the preview.
                     hideTriggerOverlay(state);
