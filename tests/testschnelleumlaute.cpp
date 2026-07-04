@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (143 tests)
+// Test Suite for Schnelle Umlaute (145 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -32,6 +32,7 @@
 // 137-140 Min-hold lower bound early Space plain commit, uppercase bound, repeat suppression, degenerate window
 // 141-142 Deferred space       post-timeout guard split, zero-delay timer path (timer-chained) (issue #90)
 // 143     reset() space flush  reset() before the zero-delay timer flushes the deferred space (issue #90)
+// 144-145 reset() repeat guard reset() preserves committedKeyCode_ arming for single-output and min-hold sites (issue #92)
 // clang-format on
 
 #include <unistd.h>
@@ -5742,6 +5743,100 @@ static void scheduleTest113(Instance *instance) {
     });
 
     // =========================================================================
+    // TEST 144: reset() preserves single-output repeat suppression (issue #92).
+    // After a single-output commit the still-held key keeps committedKeyCode_
+    // armed so its auto-repeat is consumed (the "üu"-class guard, test 24).
+    // Chromium and Neovide fire reset() after every commit; clearAllState()
+    // would drop the arming and its heldRawCodes_ entry, so the next repeat
+    // would re-enter as a fresh press and duplicate the character. reset() must
+    // preserve the still-held code. Verified two ways: the repeat leaves the
+    // preedit empty (a fresh gesture would show "a"), and no stray commit is
+    // pushed, so a duplicate would abort on the empty expectation queue.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 144;
+        FCITX_INFO()
+            << "=== Test 144: reset() preserves repeat suppression ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test144");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // Hold 'a' + Space → commit 'ä', arm committedKeyCode_ = kCodeA.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("ä");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // App fires reset() on the commit: inputKeyPressed_ is false after the
+        // single-output commit, so it runs clearAllState().
+        ic->reset();
+
+        // Auto-repeat 'a' (held, same keycode, no release) must still be
+        // consumed by the preserved arming, not start a fresh gesture.
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(consumed) << "Repeat after reset() must be consumed";
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "Repeat after reset() must not start a fresh gesture";
+
+        // Real release must be consumed by the committed-key release branch;
+        // no character is committed (no expectation pushed).
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        FCITX_ASSERT(consumed) << "Release after reset() must be consumed";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 144 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 145: same guard at the min-hold arming site (issue #92). Space before
+    // the minimum hold commits the plain char and arms committedKeyCode_; a
+    // following reset() must preserve it too. reset()'s issue-#90 flush delivers
+    // the deferred trailing space, so both "a" and " " are expected, then the
+    // held key's auto-repeat must stay suppressed.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 145;
+        FCITX_INFO()
+            << "=== Test 145: reset() preserves min-hold arming ===";
+        configureWithDelay(instance, 2000, 2000, true, false, 200, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test145");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // Hold 'a', early Space (< 200ms min): commits "a", arms
+        // committedKeyCode_, schedules the deferred " ".
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // reset() flushes the deferred " " and must preserve the arming.
+        ic->reset();
+
+        // Auto-repeat 'a' stays suppressed; no fresh gesture.
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(consumed) << "Repeat after reset() must be consumed";
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "Repeat after reset() must not start a fresh gesture";
+
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        FCITX_ASSERT(consumed) << "Release after reset() must be consumed";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 145 PASSED";
+    });
+
+    // =========================================================================
     // TEST 141: Post-timeout ordering guard splits char and space (issue #90
     // twin). The accent window has expired but the timeout timer has not
     // fired: the blocking sleep below keeps the single-threaded event loop
@@ -5870,7 +5965,7 @@ static void scheduleTest113(Instance *instance) {
                         tf->call<ITestFrontend::destroyInputContext>(uuid113);
                         FCITX_INFO() << "Test 113 PASSED";
 
-                        FCITX_INFO() << "=== All 143 tests PASSED ===";
+                        FCITX_INFO() << "=== All 145 tests PASSED ===";
                         instance->exit();
                         return false;
                     });

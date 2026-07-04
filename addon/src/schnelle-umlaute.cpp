@@ -822,8 +822,25 @@ public:
         // becomes a no-op, then restore it and leave the overlay up. The
         // overlayVisible_ check distinguishes a live flash from a spent timer
         // (overlayHideEvent_ stays non-null after firing, like overlayShowEvent_).
+        // A still-held key whose char was already committed via single-output
+        // keeps committedKeyCode_ armed so its auto-repeat is consumed instead
+        // of starting a fresh gesture (the "üu"-class guard). clearAllState()
+        // drops committedKeyCode_ and its heldRawCodes_ entry, so the app-reset()
+        // Chromium and Neovide fire after every commit lets the next auto-repeat
+        // re-enter as a fresh press (isNewKeyPress == true, so the repeat guard
+        // below the arming sites no longer matches) and start a duplicate gesture
+        // (issue #92). Preserve only the still-held code across the wipe; the
+        // focus-change path (deactivate/activate) keeps clearing everything.
+        // Self-guarding: 0 means nothing was armed (a release already cleared it
+        // via the committed-key release branch).
+        const int heldCommitted = state->committedKeyCode_;
+
         auto flash = std::move(state->overlayHideEvent_);
         state->clearAllState();
+        if (heldCommitted != 0) {
+            state->committedKeyCode_ = heldCommitted;
+            state->heldRawCodes_.insert(heldCommitted);
+        }
         if (flash && overlayVisible_) {
             state->overlayHideEvent_ = std::move(flash);
             return;
@@ -963,8 +980,14 @@ private:
         // disk write). Keeping it marks the combo as held, suppressing repeats
         // until real release.
         auto heldKeys = st->heldRawCodes_;
+        // Symmetry with the heldRawCodes_ preserve above: keep the single-output
+        // repeat-suppression arming across the wipe too, so a still-held combo
+        // doesn't lose its committedKeyCode_ guard on a profile switch (issue
+        // #92). Rarely armed on the switch combo, purely state-preserving.
+        const int heldCommitted = st->committedKeyCode_;
         wipeAllGestureState();
         st->heldRawCodes_ = std::move(heldKeys);
+        st->committedKeyCode_ = heldCommitted;
         profiles_.active.setValue(name);
         umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
         safeSaveAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
