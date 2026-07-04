@@ -275,6 +275,13 @@ public:
 
             // Consume release of key that was committed via single-output.
             // The press was filterAndAccepted, so the release is an orphan.
+            // NOTE: unlike the waiting-release branch below, this deliberately
+            // does not run the isSyntheticAutoRepeatRelease() timestamp check, so
+            // on KWin/Wayland the first synthetic auto-repeat release clears the
+            // arming here and one duplicate can leak past a held conversion. This
+            // is the source of issue #92 hole 2 (see the committedKeyCode_
+            // declaration and test 146). Left as-is for now: a real fix needs a
+            // press timestamp (committedKeyTime_) tracked at every arming site.
             if (state->committedKeyCode_ != 0 &&
                 rawCode == state->committedKeyCode_) {
                 state->committedKeyCode_ = 0;
@@ -489,6 +496,8 @@ public:
                 // start a fresh gesture and duplicate the character (the
                 // "üu"-class bug guarded at the committedKeyCode_ check).
                 // Must happen before commitPendingKey() resets the code.
+                // Full suppression on X11; on KWin/Wayland one duplicate can
+                // still leak (issue #92 hole 2, see the committedKeyCode_ decl).
                 state->committedKeyCode_ = state->waitingKeyCode_;
                 commitPendingKey(ic, state);
                 if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
@@ -548,7 +557,9 @@ public:
                         // Arm auto-repeat suppression for the held input key.
                         // Without this, releasing Alt while the input key is
                         // still down would let the next repeat start a fresh
-                        // gesture (üu-class duplicate).
+                        // gesture (üu-class duplicate). Full on X11; on
+                        // KWin/Wayland one duplicate can still leak (issue #92
+                        // hole 2, see the committedKeyCode_ declaration).
                         state->committedKeyCode_ = state->waitingKeyCode_;
                         state->resetWaitingGesture();
                         state->resetCycling();
@@ -636,6 +647,9 @@ public:
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
+                        // Arm auto-repeat suppression for the still-held key.
+                        // Full on X11; on KWin/Wayland one duplicate can still
+                        // leak (issue #92 hole 2, see committedKeyCode_ decl).
                         state->committedKeyCode_ = state->waitingKeyCode_;
                         state->resetWaitingGesture();
                         state->recentlyCommitted_ = true;

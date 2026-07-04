@@ -83,9 +83,17 @@ public:
     // Track physically held keys to distinguish fresh presses from repeats
     std::unordered_set<int> heldRawCodes_;
 
-    // Suppress auto-repeat after single-output commit until key is released.
-    // Without this, held accent keys generate repeat events that start new
-    // unwanted gestures after the conversion is already committed (e.g. "üu").
+    // Suppress auto-repeat of a held accent key after a single-output commit,
+    // so the still-held key does not start a fresh gesture and duplicate the
+    // character (e.g. "üu"). Coverage differs by platform: on press-only
+    // auto-repeat (classic X11) the repeat is suppressed until the key is
+    // actually released. On synthetic release-press platforms (KWin/Wayland) it
+    // holds only until the FIRST synthetic release — the release branch clears
+    // this code without a frozen-timestamp check (unlike the waiting-release
+    // branch), so exactly one duplicate can still leak when an accent key is
+    // held past its conversion (issue #92 hole 2, characterized by test 146).
+    // The window-timeout arming path documents the same one-char-per-burst
+    // repeat as intended; a real fix would track a press timestamp here.
     int committedKeyCode_ = 0;
 
     // Track consumed Alt/AltGr leader press to also consume the release.

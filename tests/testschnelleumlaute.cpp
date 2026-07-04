@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (145 tests)
+// Test Suite for Schnelle Umlaute (146 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -33,6 +33,7 @@
 // 141-142 Deferred space       post-timeout guard split, zero-delay timer path (timer-chained) (issue #90)
 // 143     reset() space flush  reset() before the zero-delay timer flushes the deferred space (issue #90)
 // 144-145 reset() repeat guard reset() preserves committedKeyCode_ arming for single-output and min-hold sites (issue #92)
+// 146     wayland leak diag   diagnostic: measures the issue #92 hole-2 one-repeat-pair leak (currently one dup)
 // clang-format on
 
 #include <unistd.h>
@@ -54,6 +55,7 @@
 #include <fcitx-utils/testing.h>
 #include <fcitx-utils/utf8.h>
 #include <fcitx/addonmanager.h>
+#include <fcitx/event.h>
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputcontextmanager.h>
 #include <fcitx/inputmethodgroup.h>
@@ -416,6 +418,22 @@ static std::string getClientPreedit(Instance *instance) {
         return true;
     });
     return result;
+}
+
+// Dispatch a key event carrying an explicit frontend timestamp (ms), bypassing
+// the test frontend which always stamps time()==0. KWin/Wayland freezes this
+// timestamp across a held key's whole auto-repeat burst, so setting it by hand
+// is the only way to exercise the synthetic release-press pairs the #73
+// predicate keys on. This is a MODEL of that timestamp behavior driven straight
+// through ic->keyEvent() (not the ITestFrontend::sendKeyEvent path): it is only
+// as faithful as the frozen-timestamp assumption, not a 1:1 capture of a real
+// KWin session. Returns whether the addon consumed the event.
+static bool sendKeyAtTime(Instance *instance, ICUUID uuid, FcitxKeySym sym,
+                          uint16_t code, bool isRelease, int timeMs) {
+    auto *ic = instance->inputContextManager().findByUUID(uuid);
+    KeyEvent ke(ic, Key(sym, KeyStates(), code), isRelease, timeMs);
+    ic->keyEvent(ke);
+    return ke.accepted();
 }
 
 // Type a single char with clean typing (press+release).
@@ -5837,6 +5855,64 @@ static void scheduleTest113(Instance *instance) {
     });
 
     // =========================================================================
+    // TEST 146: Wayland one-repeat-pair leak severity (issue #92, hole 2).
+    // DIAGNOSTIC / CHARACTERIZATION of the *current* (unfixed) behavior: measures
+    // how many raw characters leak when an accent key is held past a single-
+    // output conversion on a KWin/Wayland session (auto-repeat delivered as
+    // release-press pairs with a frozen timestamp). Events are injected with an
+    // explicit timestamp via sendKeyAtTime() because the test frontend stamps
+    // time()==0, which the #73 predicate treats as non-synthetic.
+    //
+    // Sequence: hold 'u' + Space -> "ü" (arms committedKeyCode_), then several
+    // synthetic [release, press] pairs at the frozen burst time, then a genuine
+    // release at an advanced time. Expected outcome with today's code: exactly
+    // ONE duplicate. The first synthetic release clears committedKeyCode_ (its
+    // release branch does not check the timestamp), the paired re-press restarts
+    // a fresh gesture whose later synthetic releases #73 suppresses, and only the
+    // genuine final release commits that gesture's held char -> "üu". A >5ms gap
+    // per burst satisfies isSyntheticAutoRepeatRelease's elapsed guard. If the
+    // leak were per-pair instead, a second "u" would abort on the empty queue.
+    // When hole 2 is fixed this test must be updated to expect zero duplicates.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 146;
+        FCITX_INFO()
+            << "=== Test 146: Wayland one-pair leak severity (issue #92) ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test146");
+
+        const int burstT = 5000; // frozen burst timestamp (ms), nonzero
+        // Hold 'u' + Space -> single-output "ü", arms committedKeyCode_ = kCodeU.
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
+        tf->call<ITestFrontend::pushCommitExpectation>("ü");
+        sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false, burstT);
+
+        // Auto-repeat burst: release-press pairs at the frozen time. The loop
+        // must commit nothing; a leaked "u" here would hit the empty queue.
+        for (int i = 0; i < 3; ++i) {
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT);
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
+            // >5ms so the restarted gesture's next synthetic release passes the
+            // elapsed guard and is suppressed by #73 instead of committing.
+            std::this_thread::sleep_for(std::chrono::milliseconds(6));
+        }
+
+        // The restarted gesture is waiting with preedit 'u' at this point.
+        FCITX_ASSERT(getClientPreedit(instance) == "u")
+            << "Expected a restarted gesture waiting on 'u', got '"
+            << getClientPreedit(instance) << "'";
+
+        // Genuine final release (advanced timestamp) commits that one held char:
+        // the single leaked duplicate. More than one would already have aborted.
+        tf->call<ITestFrontend::pushCommitExpectation>("u");
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT + 100);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 146 PASSED (measured leak: exactly one 'u')";
+    });
+
+    // =========================================================================
     // TEST 141: Post-timeout ordering guard splits char and space (issue #90
     // twin). The accent window has expired but the timeout timer has not
     // fired: the blocking sleep below keeps the single-threaded event loop
@@ -5965,7 +6041,7 @@ static void scheduleTest113(Instance *instance) {
                         tf->call<ITestFrontend::destroyInputContext>(uuid113);
                         FCITX_INFO() << "Test 113 PASSED";
 
-                        FCITX_INFO() << "=== All 145 tests PASSED ===";
+                        FCITX_INFO() << "=== All 146 tests PASSED ===";
                         instance->exit();
                         return false;
                     });
