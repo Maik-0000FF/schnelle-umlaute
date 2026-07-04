@@ -456,10 +456,10 @@ struct AltVerifyHolder {
 constexpr uint64_t kDeferredPollIntervalUsec = 5'000; // 5ms
 constexpr int kDeferredPollMaxAttempts = 400;         // ~2s bound
 
-static void destroyAfterDeferredCommit(Instance *instance, ICUUID uuid,
-                                       std::shared_ptr<AltVerifyHolder> holder,
-                                       std::function<void()> next,
-                                       int attempt = 0) {
+static void destroyAfterDeferredCommit(
+    Instance *instance, ICUUID uuid,
+    const std::shared_ptr<AltVerifyHolder> &holder,
+    const std::function<void()> &next, int attempt = 0) {
     holder->timer = instance->eventLoop().addTimeEvent(
         CLOCK_MONOTONIC, nowUsec() + kDeferredPollIntervalUsec, 0,
         [instance, uuid, holder, next, attempt](EventSourceTime *, uint64_t) {
