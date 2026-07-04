@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (136 tests)
+// Test Suite for Schnelle Umlaute (151 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -28,14 +28,23 @@
 // 122-128 Shifted input split  shifted symbols (! * @) with dual split, cycling, Shift-held leader, single key
 // 129-132 Focus-flap resilience FocusOut during preedit/cycling, rapid 50x flap, flap after commit (sim. MouseTiler 100ms)
 // 133-135 State invariants    recentlyCommitted_ lifecycle, getBaseChar edge keycodes, AppFilter Whitelist empty program
-// 136     Alt repeat-suppress  second leader during Alt single-output arms committedKeyCode_ (üu-duplicate pin)
+// 136     Alt repeat-suppress  second leader during Alt single-output arms committed_ (üu-duplicate pin)
+// 137-140 Min-hold lower bound early Space plain commit, uppercase bound, repeat suppression, degenerate window
+// 141-142 Deferred space       post-timeout guard split, zero-delay timer path (timer-chained) (issue #90)
+// 143     reset() space flush  reset() before the zero-delay timer flushes the deferred space (issue #90)
+// 144-145 reset() repeat guard reset() preserves committed_ arming for single-output and min-hold sites (issue #92)
+// 146-150 wayland repeat fix   issue #92 hole 2 fixed: held-key repeat suppressed at all 3 arming sites, elapsed-ref + injected-pair guards
+// 151     window-timeout test  per-window repeat: window-timeout arming clears per synthetic release (issue #92/#73)
 // clang-format on
 
 #include <unistd.h>
+#include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <ctime>
 #include <memory>
+#include <functional>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 #include <fcitx-config/rawconfig.h>
@@ -48,6 +57,7 @@
 #include <fcitx-utils/testing.h>
 #include <fcitx-utils/utf8.h>
 #include <fcitx/addonmanager.h>
+#include <fcitx/event.h>
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputcontextmanager.h>
 #include <fcitx/inputmethodgroup.h>
@@ -55,22 +65,25 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <xkbcommon/xkbcommon.h>
+#include "src/synthetic_autorepeat.h"
 #include "testdir.h"
 #include "testfrontend_public.h"
 
 using namespace fcitx;
 
-// Delay (in microseconds) to wait for the deferred Alt cycling commit timer
-// (5ms) to fire before verifying the committed string.  50ms gives 45ms of
-// headroom over the 5ms addon timer — enough for sanitizer-instrumented CI
-// runners (ASan/UBSan) where 25ms was occasionally tight.
+// Delay (in microseconds) to wait for the addon's deferred commit timers to
+// fire before verifying the committed string: the deferred Alt cycling
+// commit (5ms) and the zero-delay trailing-space commit (test 142). 50ms
+// gives 45ms of headroom over the 5ms addon timer, enough for
+// sanitizer-instrumented CI runners (ASan/UBSan) where 25ms was
+// occasionally tight.
 constexpr uint64_t kDeferredVerifyDelayUsec = 50'000; // 50ms
 
 // Last test number entered. Updated at the top of each scheduled lambda so a
 // SIGABRT (FCITX_ASSERT failure) or SIGSEGV writes the most recently entered
 // test ID to stderr before the default handler dumps the core or ASan report.
 // Without this, a CI failure points at "testschnelleumlaute aborted" and
-// triage has to guess from interleaved logs which of 135 cases was running.
+// triage has to guess from interleaved logs which test case was running.
 static volatile std::sig_atomic_t g_currentTest = 0;
 
 static void crashHandler(int signo) {
@@ -127,6 +140,15 @@ constexpr int kCode1 = 10;                  // physical key for 1/!
 constexpr int kCode8 = 17;                  // physical key for 8/*
 constexpr int kCodeF = 41;                  // physical key for f
 constexpr int kCodeJ = 44;                  // physical key for j
+
+// Hold longer than the engine's synthetic auto-repeat elapsed guard
+// (kSyntheticReleaseMinElapsedUsec, 5 ms) so a frozen-timestamp release
+// classifies as synthetic. Derived from the engine constant plus 1 ms margin,
+// so raising the threshold cannot silently make these sleeps too short and flip
+// the synthetic-repeat tests to false results. See synthetic_autorepeat.h.
+constexpr auto kSyntheticReleaseTestHold =
+    std::chrono::microseconds(kSyntheticReleaseMinElapsedUsec) +
+    std::chrono::milliseconds(1);
 
 // Helper: load mappings via setSubConfig (the path loadMappingsFromFile reads)
 static void
@@ -408,6 +430,64 @@ static std::string getClientPreedit(Instance *instance) {
         return true;
     });
     return result;
+}
+
+// Dispatch a key event carrying an explicit frontend timestamp (ms), bypassing
+// the test frontend which always stamps time()==0. KWin/Wayland freezes this
+// timestamp across a held key's whole auto-repeat burst, so setting it by hand
+// is the only way to exercise the synthetic release-press pairs the #73
+// predicate keys on. This is a MODEL of that timestamp behavior driven straight
+// through ic->keyEvent() (not the ITestFrontend::sendKeyEvent path): it is only
+// as faithful as the frozen-timestamp assumption, not a 1:1 capture of a real
+// KWin session. Returns whether the addon consumed the event.
+static bool sendKeyAtTime(Instance *instance, ICUUID uuid, FcitxKeySym sym,
+                          uint16_t code, bool isRelease, int timeMs) {
+    auto *ic = instance->inputContextManager().findByUUID(uuid);
+    KeyEvent ke(ic, Key(sym, KeyStates(), code), isRelease, timeMs);
+    ic->keyEvent(ke);
+    return ke.accepted();
+}
+
+// Alt-deferred-commit verification (tests 21-23). The Alt leader's release
+// schedules a 5ms deferred cycling commit; the test pushes a "ä" expectation and
+// must let that deferred fire before tearing the IC down. A fixed wait is racy:
+// under an ASan event-loop stall the verify timer can destroy the IC before the
+// 5ms deferred fires, cancelling it with the IC, so the "ä" expectation is never
+// consumed and leaks into a later test (test 30 then aborts on "ae" != "ä").
+// Instead, poll until the deferred has actually fired: its callback resets the
+// preedit, so an EMPTY client preedit is the "fired" signal (the preedit shows
+// "ä" until the deferred commits). The IC is never destroyed while the deferred
+// is still pending, so the timer ordering under a stall no longer matters. A
+// generous attempt bound fails explicitly if the deferred never fires, so a
+// genuinely broken commit path is still caught.
+struct AltVerifyHolder {
+    std::unique_ptr<EventSourceTime> timer;
+};
+constexpr uint64_t kDeferredPollIntervalUsec = 5'000; // 5ms
+constexpr int kDeferredPollMaxAttempts = 400;         // ~2s bound
+
+static void destroyAfterDeferredCommit(
+    Instance *instance, ICUUID uuid,
+    const std::shared_ptr<AltVerifyHolder> &holder,
+    const std::function<void()> &next, int attempt = 0) {
+    holder->timer = instance->eventLoop().addTimeEvent(
+        CLOCK_MONOTONIC, nowUsec() + kDeferredPollIntervalUsec, 0,
+        [instance, uuid, holder, next, attempt](EventSourceTime *, uint64_t) {
+            if (!getClientPreedit(instance).empty() &&
+                attempt < kDeferredPollMaxAttempts) {
+                destroyAfterDeferredCommit(instance, uuid, holder, next,
+                                           attempt + 1);
+                return false;
+            }
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "Deferred cycling commit never fired within bound (preedit "
+                   "still '"
+                << getClientPreedit(instance) << "')";
+            auto *tf = instance->addonManager().addon("testfrontend");
+            tf->call<ITestFrontend::destroyInputContext>(uuid);
+            next();
+            return false;
+        });
 }
 
 // Type a single char with clean typing (press+release).
@@ -1310,17 +1390,14 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         // Shared holder keeps all chained timers alive
-        struct TimerHolder {
-            std::unique_ptr<EventSourceTime> timer;
-        };
-        auto holder = std::make_shared<TimerHolder>();
+        auto holder = std::make_shared<AltVerifyHolder>();
 
-        // Wait for deferred commit, then clean up and chain to Test 18
-        holder->timer = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
-            [instance, uuid, holder](EventSourceTime *, uint64_t) {
+        // Destroy the IC only once Test 21's deferred cycling commit has fired
+        // (preedit empty), then chain to Test 22. Poll-based, stall-proof — see
+        // destroyAfterDeferredCommit.
+        destroyAfterDeferredCommit(
+            instance, uuid, holder, [instance, holder]() {
                 auto *tf = instance->addonManager().addon("testfrontend");
-                tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 21 PASSED";
 
                 // --- Test 22: AltGr as leader ---
@@ -1345,12 +1422,10 @@ void scheduleTests(Instance *instance) {
                 tf->call<ITestFrontend::keyEvent>(
                     uuid22, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
-                holder->timer = instance->eventLoop().addTimeEvent(
-                    CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
-                    [instance, uuid22, holder](EventSourceTime *, uint64_t) {
+                destroyAfterDeferredCommit(
+                    instance, uuid22, holder, [instance, holder]() {
                         auto *tf =
                             instance->addonManager().addon("testfrontend");
-                        tf->call<ITestFrontend::destroyInputContext>(uuid22);
                         FCITX_INFO() << "Test 22 PASSED";
 
                         // --- Test 23: Alt release consumed, commits "ä" ---
@@ -1381,24 +1456,14 @@ void scheduleTests(Instance *instance) {
                         FCITX_ASSERT(c) << "Accent key release during Alt "
                                            "gesture should be consumed";
 
-                        holder->timer = instance->eventLoop().addTimeEvent(
-                            CLOCK_MONOTONIC,
-                            nowUsec() + kDeferredVerifyDelayUsec, 0,
-                            [instance, uuid23, holder](EventSourceTime *,
-                                                       uint64_t) {
-                                auto *tf = instance->addonManager().addon(
-                                    "testfrontend");
-                                tf->call<ITestFrontend::destroyInputContext>(
-                                    uuid23);
+                        destroyAfterDeferredCommit(
+                            instance, uuid23, holder, [instance]() {
                                 FCITX_INFO() << "Test 23 PASSED";
                                 // All deferred commits verified — safe to
                                 // continue
                                 scheduleTestsAfterAltVerify(instance);
-                                return false;
                             });
-                        return false;
                     });
-                return false;
             });
     });
 }
@@ -1408,7 +1473,7 @@ void scheduleTests(Instance *instance) {
 static void scheduleTestsAfterAltVerify(Instance *instance) {
 
     // =========================================================================
-    // TEST 20: committedKeyCode_ — auto-repeat suppression after commit
+    // TEST 20: committed_ — auto-repeat suppression after commit
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 24;
@@ -1429,7 +1494,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
         FCITX_ASSERT(consumed) << "Auto-repeat after commit should be consumed";
 
-        // Release 'a' — should be consumed (committedKeyCode_)
+        // Release 'a' — should be consumed (committed_)
         consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         FCITX_ASSERT(consumed) << "Release of committed key should be consumed";
@@ -5498,7 +5563,7 @@ static void scheduleTest113(Instance *instance) {
     // both as leaders and a single-output mapping (u→ü), hold 'u' + Alt enters
     // Alt cycling with "ü" in preedit (altGestureSession_=true, size==1).
     // Pressing Space (a different leader) commits "ü" + the leader's space
-    // char, and must arm committedKeyCode_ for the still-held 'u' so the next
+    // char, and must arm committed_ for the still-held 'u' so the next
     // auto- repeat is consumed instead of starting a fresh gesture. Without
     // this arming, the user would see "ü u" / "üu" duplicates.
     // =========================================================================
@@ -5522,7 +5587,7 @@ static void scheduleTest113(Instance *instance) {
 
         // Press Space (different leader) during Alt session → commits "ü",
         // then commits the leader's printable char " ", then arms
-        // committedKeyCode_ = kCodeU.
+        // committed_.code = kCodeU.
         tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xbc");
         tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
@@ -5531,14 +5596,14 @@ static void scheduleTest113(Instance *instance) {
             << "Second leader during Alt single-output must be consumed";
 
         // Auto-repeat 'u' (held, same keycode, no release) → must be
-        // consumed by committedKeyCode_ guard, not start a fresh gesture.
+        // consumed by committed_ guard, not start a fresh gesture.
         consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_u, KeyStates(), kCodeU), false);
         FCITX_ASSERT(consumed)
             << "Auto-repeat after Alt single-output commit must be consumed "
                "(üu-class duplicate guard)";
 
-        // Release 'u' → also consumed (still under committedKeyCode_).
+        // Release 'u' → also consumed (still under committed_).
         consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_u, KeyStates(), kCodeU), true);
         FCITX_ASSERT(consumed)
@@ -5568,8 +5633,12 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Immediately press Space (~0ms < 200ms min) → plain "a ", no accent.
-        tf->call<ITestFrontend::pushCommitExpectation>("a ");
+        // Immediately press Space (~0ms < 200ms min) → plain "a" + " ", no
+        // accent. Two separate single-character commits (issue #90): apps
+        // that evaluate text inserts per event drop the letter of a combined
+        // "a " insert.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
         FCITX_ASSERT(consumed)
@@ -5597,7 +5666,8 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
 
-        tf->call<ITestFrontend::pushCommitExpectation>("A ");
+        tf->call<ITestFrontend::pushCommitExpectation>("A");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
         FCITX_ASSERT(consumed) << "Space before uppercase min hold must be "
@@ -5612,7 +5682,7 @@ static void scheduleTest113(Instance *instance) {
     // =========================================================================
     // TEST 139: Min-hold guard arms auto-repeat suppression. Hold 'a', press
     // Space before the minimum hold → plain "a ". The 'a' key is still held;
-    // its auto-repeat must be consumed (committedKeyCode_ guard), not start a
+    // its auto-repeat must be consumed (committed_ guard), not start a
     // fresh gesture, otherwise a duplicate character leaks (üu-class bug).
     // =========================================================================
     testDispatcher->schedule([instance]() {
@@ -5628,20 +5698,21 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Early Space (~0ms < 300ms) → guard commits plain "a ", consumes.
-        tf->call<ITestFrontend::pushCommitExpectation>("a ");
+        // Early Space (~0ms < 300ms) → guard commits plain "a" + " ", consumes.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
         FCITX_ASSERT(consumed) << "Early Space must be consumed as plain char";
 
         // Auto-repeat of the still-held 'a' (same rawCode, no release) must be
-        // consumed by the committedKeyCode_ guard, with no new commit.
+        // consumed by the committed_ guard, with no new commit.
         consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
         FCITX_ASSERT(consumed) << "Auto-repeat after min-hold guard must be "
                                   "consumed (no duplicate)";
 
-        // Release 'a' → also consumed under committedKeyCode_.
+        // Release 'a' → also consumed under committed_.
         consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         FCITX_ASSERT(consumed)
@@ -5684,47 +5755,555 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO() << "Test 140 PASSED";
     });
 
+    // =========================================================================
+    // TEST 143: reset() flushes a pending deferred space (issue #90; #73
+    // review). Space before the minimum hold commits "a" synchronously and arms
+    // " " on the zero-delay timer. Chromium and Neovide fire reset() after every
+    // commit; a reset() landing before that timer must deliver the consumed
+    // space, not silently cancel it via clearAllState(). reset() is invoked
+    // directly (synchronously, before the event loop can run the timer) so the
+    // race is deterministic. Without the flushPendingSpaceCommit() guard in
+    // reset() the dropped " " leaves its expectation queued, and the next
+    // commit (test 141's "a") then aborts with a mismatch pointing here.
+    // Runs before the timer-chained tests 141-142 so no deferred timer is left
+    // in flight (reset() destroys the zero-delay timer as it flushes).
+    // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 113;
-        FCITX_INFO() << "=== Test 113: Inside window [300, 2000] with min > 0, "
-                        "Space converts ===";
-        // Window [300, 2000]: lowercase minimum hold 300ms, max 2000ms. This
-        // is the positive counterpart to tests 137-139: a leader that arrives
-        // inside the window (after min, before max) must still convert even
-        // though a non-zero minimum hold is configured.
-        configureWithDelay(instance, 2000, 2000, true, false, 300, 300);
+        g_currentTest = 143;
+        FCITX_INFO()
+            << "=== Test 143: reset() flushes pending deferred space ===";
+        configureWithDelay(instance, 2000, 2000, true, false, 200, 200);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test113");
+        auto uuid = createAndActivate(instance, tf, "test143");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
 
-        // Press 'a' → waiting
+        // Hold 'a' → waiting.
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
-        // Wait 1500ms, past the 300ms min, still inside the 2000ms max
-        struct TH {
-            std::unique_ptr<EventSourceTime> t;
+        // Early Space (~0ms < 200ms min): "a" commits synchronously, " " is
+        // scheduled on the zero-delay timer; inputKeyPressed_ is now false, so
+        // the reset() early-return does not cover this state.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Early Space must be consumed";
+
+        // reset() before the zero-delay timer runs: the flush must deliver the
+        // deferred " " (matching the expectation) instead of dropping it.
+        ic->reset();
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 143 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 144: reset() preserves single-output repeat suppression (issue #92).
+    // After a single-output commit the still-held key keeps committed_
+    // armed so its auto-repeat is consumed (the "üu"-class guard, test 24).
+    // Chromium and Neovide fire reset() after every commit; clearAllState()
+    // would drop the arming and its heldRawCodes_ entry, so the next repeat
+    // would re-enter as a fresh press and duplicate the character. reset() must
+    // preserve the still-held code. Verified two ways: the repeat leaves the
+    // preedit empty (a fresh gesture would show "a"), and no stray commit is
+    // pushed, so a duplicate would abort on the empty expectation queue.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 144;
+        FCITX_INFO()
+            << "=== Test 144: reset() preserves repeat suppression ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test144");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // Hold 'a' + Space → commit 'ä', arm committed_.code = kCodeA.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("ä");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // App fires reset() on the commit: inputKeyPressed_ is false after the
+        // single-output commit, so it runs clearAllState().
+        ic->reset();
+
+        // Auto-repeat 'a' (held, same keycode, no release) must still be
+        // consumed by the preserved arming, not start a fresh gesture.
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(consumed) << "Repeat after reset() must be consumed";
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "Repeat after reset() must not start a fresh gesture";
+
+        // Real release must be consumed by the committed-key release branch;
+        // no character is committed (no expectation pushed).
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        FCITX_ASSERT(consumed) << "Release after reset() must be consumed";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 144 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 145: same guard at the min-hold arming site (issue #92). Space before
+    // the minimum hold commits the plain char and arms committed_; a
+    // following reset() must preserve it too. reset()'s issue-#90 flush delivers
+    // the deferred trailing space, so both "a" and " " are expected, then the
+    // held key's auto-repeat must stay suppressed.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 145;
+        FCITX_INFO()
+            << "=== Test 145: reset() preserves min-hold arming ===";
+        configureWithDelay(instance, 2000, 2000, true, false, 200, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test145");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // Hold 'a', early Space (< 200ms min): commits "a", arms
+        // committed_, schedules the deferred " ".
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+        // reset() flushes the deferred " " and must preserve the arming.
+        ic->reset();
+
+        // Auto-repeat 'a' stays suppressed; no fresh gesture.
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(consumed) << "Repeat after reset() must be consumed";
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "Repeat after reset() must not start a fresh gesture";
+
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        FCITX_ASSERT(consumed) << "Release after reset() must be consumed";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 145 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 146: Wayland held-key repeat fully suppressed (issue #92, hole 2).
+    // Regression for the fix: holding an accent key past a single-output
+    // conversion on a KWin/Wayland session (auto-repeat as release-press pairs
+    // with a frozen timestamp) must leak NO duplicate. Events carry an explicit
+    // timestamp via sendKeyAtTime() because the test frontend stamps time()==0,
+    // which the #73 predicate treats as non-synthetic.
+    //
+    // hold 'u' + Space -> "ü" (arms committed_), then several synthetic
+    // [release, press] pairs at the frozen burst time, then a genuine release at
+    // an advanced time. Each synthetic release keeps the arming (committed_.time
+    // matches) and the paired re-press is swallowed by the repeat guard, so the
+    // preedit never restarts and nothing else commits; the genuine release just
+    // clears the arming. Sleeping >5ms before each release satisfies the elapsed
+    // guard (a real burst's first repeat is one repeat-period after the press).
+    // Only "ü" is expected — any leaked "u" aborts on the empty queue.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 146;
+        FCITX_INFO() << "=== Test 146: Wayland held-key repeat suppressed (#92) "
+                        "===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test146");
+
+        const int burstT = 5000; // frozen burst timestamp (ms), nonzero
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
+        tf->call<ITestFrontend::pushCommitExpectation>("ü");
+        sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false, burstT);
+
+        // Auto-repeat burst: release-press pairs at the frozen time, all consumed
+        // with no commit and no restarted gesture.
+        for (int i = 0; i < 3; ++i) {
+            // >5ms since the committed gesture's press, so the release passes the
+            // synthetic elapsed guard (a real burst's first repeat is delayed).
+            std::this_thread::sleep_for(kSyntheticReleaseTestHold);
+            bool rel =
+                sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT);
+            bool pr =
+                sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
+            FCITX_ASSERT(rel && pr) << "Synthetic pair must be consumed";
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "Held burst must not restart a gesture, got '"
+                << getClientPreedit(instance) << "'";
+        }
+
+        // Genuine final release (advanced timestamp): clears the arming, no
+        // commit. No "u" expectation is pushed, so a duplicate would abort.
+        bool fin =
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT + 100);
+        FCITX_ASSERT(fin) << "Genuine release must be consumed";
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "No leftover gesture after release";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 146 PASSED (no duplicate leaked)";
+    });
+
+    // =========================================================================
+    // TEST 147: an injected equal-timestamp pair (< 5ms after the commit) stays
+    // on the historic clear path (issue #92 hole 2 fix must not swallow injected
+    // input). Hold 'u' + Space -> "ü" arms committed_; a release at the same
+    // frozen time but only microseconds later fails the synthetic elapsed guard,
+    // so it is treated as genuine and clears the arming, and the paired re-press
+    // then restarts a normal 'u' gesture (preedit 'u').
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 147;
+        FCITX_INFO()
+            << "=== Test 147: injected fast pair clears arming (#92) ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test147");
+
+        const int t = 5000;
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, t);
+        tf->call<ITestFrontend::pushCommitExpectation>("ü");
+        sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false, t);
+
+        // No sleep: elapsed < 5ms, so the release is NOT classed synthetic and
+        // clears the arming; the re-press then starts a fresh 'u' gesture.
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, t);
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, t);
+        FCITX_ASSERT(getClientPreedit(instance) == "u")
+            << "Injected fast pair must clear the arming and restart a gesture";
+
+        tf->call<ITestFrontend::pushCommitExpectation>("u");
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, t + 100);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 147 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 148: the synthetic-release elapsed reference is the COMMITTED
+    // gesture's own press, not the global startTimeUsec_ a later gesture
+    // overwrites (issue #92 hole 2, Loch 2). Commit 'u' (arms committed_ with
+    // u's press/start), wait >5ms, then start a fresh 'a' gesture (which resets
+    // the global startTimeUsec_ to ~now). A synthetic release of the still-held
+    // 'u' must stay recognised as synthetic via committed_.startUsec (>5ms old)
+    // and keep the arming, even though the global start is sub-5ms — so the 'u'
+    // repeat leaves the 'a' gesture untouched. A flat-field impl keyed on
+    // startTimeUsec_ would misclassify, clear the arming, and let the 'u'
+    // re-press commit the pending 'a' and restart.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 148;
+        FCITX_INFO()
+            << "=== Test 148: elapsed ref is the committed gesture (#92) ===";
+        configureLeaders(instance, true, false, false, false, false, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test148");
+
+        const int tu = 5000, ta = 6000;
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, tu);
+        tf->call<ITestFrontend::pushCommitExpectation>("ü");
+        sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false, tu);
+
+        // >5ms so committed_.startUsec (u's) is old, then a fresh 'a' gesture
+        // resets the GLOBAL startTimeUsec_ to ~now.
+        std::this_thread::sleep_for(kSyntheticReleaseTestHold);
+        sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false, ta);
+        FCITX_ASSERT(getClientPreedit(instance) == "a")
+            << "'a' gesture should be waiting";
+
+        // Synthetic release of the still-held 'u'. elapsed vs committed_.startUsec
+        // is >5ms -> synthetic -> keep arming; the re-press is swallowed and the
+        // 'a' gesture is untouched.
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, tu);
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, tu);
+        FCITX_ASSERT(getClientPreedit(instance) == "a")
+            << "'u' repeat must not disturb the 'a' gesture, got '"
+            << getClientPreedit(instance) << "'";
+
+        // Cleanup: genuine 'u' release clears its arming (no commit); 'a' release
+        // commits the waiting 'a'.
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, tu + 100);
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, true, ta + 100);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 148 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 149: held-key suppression via the MIN-HOLD arming site (issue #92
+    // hole 2), a different arming path than test 146's normal single-output.
+    // Space before the minimum hold commits the plain char "u" and arms
+    // committed_; the deferred trailing " " is delivered by the next event's
+    // top-of-keyEvent flush. A synthetic burst on the held 'u' must leak nothing.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 149;
+        FCITX_INFO()
+            << "=== Test 149: min-hold site held-key suppressed (#92) ===";
+        configureWithDelay(instance, 2000, 2000, true, false, 200, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test149");
+
+        const int burstT = 5000;
+        // Hold 'u', early Space (< 200ms min): commits "u", arms committed_,
+        // defers " ".
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
+        tf->call<ITestFrontend::pushCommitExpectation>("u");
+        sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false, burstT);
+        // Delivered by the top-of-keyEvent flush on the first burst event below.
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+
+        for (int i = 0; i < 3; ++i) {
+            std::this_thread::sleep_for(kSyntheticReleaseTestHold);
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT);
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "Min-hold burst must not restart a gesture, got '"
+                << getClientPreedit(instance) << "'";
+        }
+        bool fin =
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT + 100);
+        FCITX_ASSERT(fin) << "Genuine release must be consumed";
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "No leftover gesture after release";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 149 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 150: held-key suppression via the ALT single-output arming site
+    // (issue #92 hole 2), the third arming path (cf. test 136). Hold 'u' + Alt
+    // enters single-output Alt cycling; Space (second leader) commits "ü" + " "
+    // and arms committed_. Events carry a frozen timestamp so committed_.time
+    // matches the burst; a synthetic burst on the held 'u' must leak nothing.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 150;
+        FCITX_INFO() << "=== Test 150: Alt site held-key suppressed (#92) ===";
+        configureLeaders(instance, true, false, false, false, false, true);
+        setMappings(instance, {{"u", "\xc3\xbc"}});
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test150");
+
+        const int burstT = 5000;
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
+        sendKeyAtTime(instance, uuid, FcitxKey_Alt_L, kCodeAltL, false, burstT);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xbc");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false, burstT);
+
+        for (int i = 0; i < 3; ++i) {
+            std::this_thread::sleep_for(kSyntheticReleaseTestHold);
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT);
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "Alt-site burst must not restart a gesture, got '"
+                << getClientPreedit(instance) << "'";
+        }
+        bool fin =
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT + 100);
+        FCITX_ASSERT(fin) << "Genuine release must be consumed";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 150 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 141: Post-timeout ordering guard splits char and space (issue #90
+    // twin). The accent window has expired but the timeout timer has not
+    // fired: the blocking sleep below keeps the single-threaded event loop
+    // from running it, so the Space press hits the in-handler ordering guard.
+    // It must deliver "a" and " " as separate commits like the min-hold guard
+    // (historically this path emitted one combined "a ").
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 141;
+        FCITX_INFO()
+            << "=== Test 141: Post-timeout guard splits char and space ===";
+        // Smallest valid window (kDelayMin = 50ms), no minimum hold.
+        configureWithDelay(instance, 50, 50, true, false, 0, 0);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test141");
+
+        // Hold 'a' → waiting.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Let the 50ms window expire WITHOUT yielding to the event loop, so
+        // the addon's timeout timer cannot fire and the pending 'a' is still
+        // waiting when Space arrives.
+        std::this_thread::sleep_for(std::chrono::milliseconds(60));
+
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed)
+            << "Space right after window expiry must be consumed";
+
+        // The release flushes the deferred space at the top of keyEvent
+        // (order guarantee when a key event wins the race against the timer).
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 141 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 142: Deferred space commit fires on its own timer (issue #90).
+    // Space before the minimum hold commits "a" synchronously and " " in its
+    // own event-loop turn, so per-event apps receive two single-character
+    // inserts. No key event follows before the verify timer here, so the
+    // zero-delay timer itself must deliver the space (the flush hook at the
+    // top of keyEvent is exercised by tests 137-139 and 141 instead). The IC
+    // is destroyed WITHOUT further key events: if the timer path failed, the
+    // pending space dies with the IC and the leftover " " expectation makes
+    // the next commit (test 113's "ä") fatal with a mismatch pointing here.
+    // Timer-chained like tests 21-23: the dispatcher runs all top-level
+    // lambdas back to back, so the follow-up test lives in the callback.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 142;
+        FCITX_INFO() << "=== Test 142: Deferred space commit timer path ===";
+        configureWithDelay(instance, 2000, 2000, true, false, 200, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test142");
+
+        // Hold 'a' → waiting.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Early Space (~0ms < 200ms min): "a" commits synchronously, " " is
+        // scheduled on the zero-delay timer.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Early Space must be consumed";
+
+        // Give the zero-delay timer its own event-loop turns, then clean up
+        // and chain to the final test. The shared holder keeps the chained
+        // timers alive (tests 21-23 pattern).
+        struct TimerHolder {
+            std::unique_ptr<EventSourceTime> timer;
         };
-        auto h = std::make_shared<TH>();
-        h->t = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + 1'500'000, 0,
-            [instance, uuid, h](EventSourceTime *, uint64_t) {
+        auto holder = std::make_shared<TimerHolder>();
+        holder->timer = instance->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
+            [instance, uuid, holder](EventSourceTime *, uint64_t) {
                 auto *tf = instance->addonManager().addon("testfrontend");
-
-                // At 1500ms: elapsed > 300 (min) and < 2000 (max) → Space
-                // converts to "ä" despite the non-zero minimum hold.
-                tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
-                bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
-                    uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-                FCITX_ASSERT(consumed)
-                    << "Space at 1500ms must convert (inside [300, 2000])";
-
-                tf->call<ITestFrontend::keyEvent>(
-                    uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
                 tf->call<ITestFrontend::destroyInputContext>(uuid);
-                FCITX_INFO() << "Test 113 PASSED";
+                FCITX_INFO() << "Test 142 PASSED";
 
-                FCITX_INFO() << "=== All 140 tests PASSED ===";
-                instance->exit();
+                // --- Test 113: positive min-hold counterpart, ends suite ---
+                g_currentTest = 113;
+                FCITX_INFO()
+                    << "=== Test 113: Inside window [300, 2000] with min > 0, "
+                       "Space converts ===";
+                // Window [300, 2000]: lowercase minimum hold 300ms, max
+                // 2000ms. This is the positive counterpart to tests 137-139:
+                // a leader that arrives inside the window (after min, before
+                // max) must still convert even though a non-zero minimum hold
+                // is configured.
+                configureWithDelay(instance, 2000, 2000, true, false, 300,
+                                   300);
+                auto uuid113 = createAndActivate(instance, tf, "test113");
+
+                // Press 'a' → waiting
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid113, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+                // Wait 1500ms, past the 300ms min, inside the 2000ms max
+                holder->timer = instance->eventLoop().addTimeEvent(
+                    CLOCK_MONOTONIC, nowUsec() + 1'500'000, 0,
+                    [instance, uuid113, holder](EventSourceTime *, uint64_t) {
+                        auto *tf =
+                            instance->addonManager().addon("testfrontend");
+
+                        // At 1500ms: elapsed > 300 (min) and < 2000 (max) →
+                        // Space converts to "ä" despite the minimum hold.
+                        tf->call<ITestFrontend::pushCommitExpectation>(
+                            "\xc3\xa4");
+                        bool consumed113 = tf->call<ITestFrontend::sendKeyEvent>(
+                            uuid113, Key(FcitxKey_space, KeyStates(), kCodeSpace),
+                            false);
+                        FCITX_ASSERT(consumed113)
+                            << "Space at 1500ms must convert (inside [300, "
+                               "2000])";
+
+                        tf->call<ITestFrontend::keyEvent>(
+                            uuid113, Key(FcitxKey_a, KeyStates(), kCodeA),
+                            true);
+                        tf->call<ITestFrontend::destroyInputContext>(uuid113);
+                        FCITX_INFO() << "Test 113 PASSED";
+
+                        // --- Test 151: window-timeout per-window repeat (issue
+                        // #92 hole 2 / #73). Timer-chained onto the suite tail so
+                        // the real accent-window timeout can fire. The window-
+                        // timeout arming opts out of synthetic-keep with a zero
+                        // press time, so a synthetic release must CLEAR it (one
+                        // char per window), unlike the single-output sites. ---
+                        g_currentTest = 151;
+                        FCITX_INFO() << "=== Test 151: window-timeout per-window "
+                                        "repeat (#92/#73) ===";
+                        configureWithDelay(instance, 50, 50, true, false, 0, 0);
+                        auto uuid151 = createAndActivate(instance, tf, "test151");
+                        const int wtT = 5000;
+                        // Hold 'u' -> waiting; the window timeout is ~50ms out.
+                        sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU, false,
+                                      wtT);
+                        // Latch sawSyntheticRelease_ with a synthetic pair (>5ms),
+                        // so the timeout arms committed_ for the trailing release.
+                        std::this_thread::sleep_for(kSyntheticReleaseTestHold);
+                        sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU, true,
+                                      wtT);
+                        sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU, false,
+                                      wtT);
+                        FCITX_ASSERT(getClientPreedit(instance) == "u")
+                            << "Gesture must stay waiting after the synthetic pair";
+                        // The window elapses without a leader -> the timeout
+                        // commits "u" and (sawSyntheticRelease_) arms
+                        // committed_(u, 0, 0). Wait past the window, then verify.
+                        tf->call<ITestFrontend::pushCommitExpectation>("u");
+                        holder->timer = instance->eventLoop().addTimeEvent(
+                            CLOCK_MONOTONIC, nowUsec() + 80'000, 0,
+                            [instance, uuid151, wtT,
+                             holder](EventSourceTime *, uint64_t) {
+                                auto *tf = instance->addonManager().addon(
+                                    "testfrontend");
+                                // Timeout fired: "u" committed, preedit cleared,
+                                // committed_ = {u, 0, 0}.
+                                FCITX_ASSERT(getClientPreedit(instance).empty())
+                                    << "Window timeout should have committed and "
+                                       "cleared the preedit";
+                                // A synthetic release must CLEAR the arming
+                                // (committed_.time == 0), not keep it, so the held
+                                // key restarts a gesture: one char per window.
+                                sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU,
+                                              true, wtT);
+                                sendKeyAtTime(instance, uuid151, FcitxKey_u, kCodeU,
+                                              false, wtT);
+                                FCITX_ASSERT(getClientPreedit(instance) == "u")
+                                    << "Window-timeout arming must clear per "
+                                       "synthetic release and restart, got '"
+                                    << getClientPreedit(instance) << "'";
+                                tf->call<ITestFrontend::destroyInputContext>(
+                                    uuid151);
+                                FCITX_INFO() << "Test 151 PASSED";
+
+                                FCITX_INFO() << "=== All 151 tests PASSED ===";
+                                instance->exit();
+                                return false;
+                            });
+                        return false;
+                    });
                 return false;
             });
     });

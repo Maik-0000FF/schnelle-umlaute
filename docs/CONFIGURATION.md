@@ -4,7 +4,7 @@ All addon settings can be changed in two ways:
 
 - **Standalone editor** (recommended): launch `schnelle-umlaute-editor` from a terminal, an application launcher, or by clicking the gear/Configure button next to the addon in `fcitx5-config-qt`. All paths open the same Qt-based editor.
 - **Config files**: settings and mappings are stored in two separate locations:
-  - `~/.config/fcitx5/conf/schnelle-umlaute.conf`: delays, leader keys, app filter, overlay, theme (INI format)
+  - `~/.config/fcitx5/conf/schnelle-umlaute.conf`: theme, delays, leader keys, overlay, app filter (INI format)
   - `~/.config/fcitx5/schnelle-umlaute/mappings.txt`: character mappings (`Input=Output`, one per line)
 
 Saves through the editor are **applied live** via fcitx5's `Controller1.ReloadAddonConfig` DBus call, no restart needed. After a manual edit of the config files, reload with `fcitx5-remote -r`.
@@ -69,13 +69,13 @@ This addon is **not a standalone keyboard layout**, it works **alongside** your 
 
 ## The Standalone Editor
 
-The editor has two tabs: **Settings** (delays, leader keys, app filter, overlay, theme) and **Mappings** (the input → output list).
+The editor has two tabs: **Settings** (theme, delays, leader keys, overlay, app filter) and **Mappings** (the input → output list).
 
-![Settings tab](assets/screenshot-editor-settings-kde.png)
+![Settings tab](assets/screenshot-editor-settings.png)
 
 Changes are saved automatically and applied live, the bottom-right corner shows "Changes are saved automatically", and the bottom-left status indicator shows "Loaded" once the addon picks them up.
 
-![Mappings tab](assets/screenshot-editor-mappings-kde.png)
+![Mappings tab](assets/screenshot-editor-mappings.png)
 
 The Mappings tab uses a dynamic list, add as many entries as you need with the **+** button at the top, remove them with the trash icon, drag the handle on the left to reorder. Each row has a gear icon for additional per-entry actions.
 
@@ -236,9 +236,15 @@ Name=Français
 File=profiles/francais.txt
 ```
 
-Manage profiles from the dropdown at the top of the **Mappings** tab (add, rename, set active, assign switch shortcuts, mark favorites for cycling). There are two ways to get a ready-made profile in:
+Manage profiles from the dropdown at the top of the **Mappings** tab (add, rename, set active, assign switch shortcuts, mark favorites for cycling). Starred profiles are the ones the cycle shortcut steps through.
+
+![Profiles dropdown with favorites](assets/screenshot-editor-profiles-dropdown.png)
+
+There are two ways to get a ready-made profile in:
 
 **Add from library.** Expand **Add from library** in that dropdown to see the presets shipped with the app (e.g. *Français*, *Español*). Adding one **copies** it into your `profiles/` and registers it in one step, it appears immediately, no fcitx restart. Because it is a copy, your later edits to that profile are independent of the bundled template, so an app update never overwrites your customizations.
+
+![Add from library dropdown](assets/screenshot-editor-library-dropdown.png)
 
 **Drop a file in.** Copy any mapping `.txt` into `~/.config/fcitx5/schnelle-umlaute/profiles/` and reopen the editor: loose files there are auto-registered as profiles, so you can share and install profiles without hand-editing `profiles.conf`. A profile file may start with optional header comments that set its display name and description (otherwise the name is derived from the filename):
 
@@ -292,8 +298,6 @@ l=a,, b,, c
 ## Theme
 
 The editor and the cycle overlay share a theme. Pick one from the dropdown in the Settings tab.
-
-![Theme dropdown](assets/screenshot-editor-theme-dropdown-kde.png)
 
 | Theme | Description |
 |---|---|

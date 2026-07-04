@@ -75,6 +75,30 @@ Environment variables must be set correctly. See the environment variables step 
 
 Then **logout and login again** for changes to take effect.
 
+## Premature or duplicate character when holding a mapped key (Qt apps under Wayland)
+
+**Symptom:** In some Qt applications under a Wayland session (for example Kate, or LibreOffice), holding a mapped key emits the plain character before you can complete the accent, instead of waiting for the trigger window.
+
+**Cause:** On Wayland the compositor delivers a held key's auto-repeat as synthetic release-press pairs rather than plain repeat presses. The release of such a pair looks like a real key release and used to commit the character early.
+
+**Status:** The addon recognises these synthetic releases by their frozen frontend event timestamp (the compositor stamps the whole repeat burst with the original press time) and suppresses them, so Qt6-native apps such as Kate behave correctly. Fast typing is unaffected: a genuine keypress carries an advancing timestamp and commits immediately.
+
+**LibreOffice:** LibreOffice is not a normal Qt application; its input path depends on the selected VCL backend, and the default backend can still emit the premature character. Switch LibreOffice to the Qt6 (or KF6) backend so it uses the same fixed input path. This applies on any distribution and has two parts:
+
+1. **Install the Qt6/KF6 VCL plugin.** The package name varies by distribution, commonly `libreoffice-qt6` or `libreoffice-kf6` (some ship it inside the main LibreOffice package or as `libreoffice-kde`). Check your package manager.
+2. **Select it** with the `SAL_USE_VCLPLUGIN` environment variable set to `qt6` (or `kf6`).
+
+Quick test from a terminal, nothing permanent:
+
+    SAL_USE_VCLPLUGIN=qt6 soffice
+
+To make it permanent, export the variable for your graphical session the way your distribution and desktop expect (for example `~/.profile`, a `~/.config/environment.d/` drop-in, or your compositor configuration). NixOS example:
+
+    environment.systemPackages = [ pkgs.libreoffice-qt6 ];
+    environment.sessionVariables.SAL_USE_VCLPLUGIN = "qt6";
+
+`kf6` additionally gives KDE theme integration. This is a LibreOffice configuration, not an addon setting.
+
 ## Umlauts not appearing
 
 1. Make sure you're switched to "Schnelle Umlaute" input method (<kbd>Ctrl</kbd> + <kbd>Space</kbd>)

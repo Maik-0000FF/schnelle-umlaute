@@ -15,6 +15,8 @@
 #include <string>
 #include <unordered_set>
 
+#include "synthetic_autorepeat.h"
+
 namespace fcitx {
 
 constexpr uint64_t kMicrosecondsPerSecond = 1'000'000;
@@ -40,9 +42,34 @@ public:
     // it can be pending while a fresh preview is being scheduled.
     std::unique_ptr<EventSourceTime> overlayHideEvent_;
 
+    // Zero-delay timer that delivers the trailing space of a char+space
+    // commit in its own event-loop turn (see scheduleSpaceCommit()). Own
+    // slot: sharing timeoutEvent_ would let the next gesture's
+    // scheduleTimeout() cancel a still-pending space. pendingSpaceCommit_
+    // is the source of truth (the EventSourceTime stays non-null after
+    // firing, and a callback must not destroy its own source).
+    std::unique_ptr<EventSourceTime> spaceCommitEvent_;
+    bool pendingSpaceCommit_ = false;
+
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
     int waitingKeyCode_ = 0;
+    // Frontend event time (KeyEvent::time(), ms) of the press that started the
+    // current waiting gesture. On KWin/Wayland the compositor freezes the
+    // event time across a held key's whole auto-repeat burst, so a release
+    // carrying this exact (nonzero) time is a synthetic auto-repeat, not a real
+    // release. See isSyntheticAutoRepeatRelease() / issue #73.
+    int waitingKeyTime_ = 0;
+    // True once a synthetic auto-repeat release has been observed on this input
+    // context, i.e. the platform delivers auto-repeat as release-press pairs
+    // (Wayland). Persists across gestures but is reset on every focus change
+    // (clearAllState runs in activate/deactivate), so it effectively marks the
+    // current focus session: within one, every hold past the first suppression
+    // is armed, while the first over-window hold after a (re)focus can still
+    // leak a single unpaired key-up before the marker latches. Gates the
+    // window-timeout committed_ arming so press-only auto-repeat (classic X11)
+    // is left untouched. See isSyntheticAutoRepeatRelease() / issue #73.
+    bool sawSyntheticRelease_ = false;
 
     // Set after commit to route next Space through commitString (ordering
     // guard). Intentionally NOT cleared in clearAllState() — apps like WezTerm
@@ -57,10 +84,32 @@ public:
     // Track physically held keys to distinguish fresh presses from repeats
     std::unordered_set<int> heldRawCodes_;
 
-    // Suppress auto-repeat after single-output commit until key is released.
-    // Without this, held accent keys generate repeat events that start new
-    // unwanted gestures after the conversion is already committed (e.g. "üu").
-    int committedKeyCode_ = 0;
+    // Repeat-suppression arming for a held accent key after a single-output
+    // commit: while the key stays physically down, its auto-repeat is consumed
+    // instead of starting a fresh gesture that would duplicate the character
+    // (e.g. "üu"). The three values are bundled so they always move together;
+    // a bare field trio drifts out of sync across the arming, clear,
+    // reset-preserve and profile-switch sites. Coverage is now uniform: full on
+    // X11 (press-only repeat) AND on synthetic release-press platforms
+    // (KWin/Wayland), where the frozen press timestamp lets the release branch
+    // keep the arming across the whole burst (issue #92 hole 2).
+    //
+    //  - code:      raw keycode of the committed, still-held key (0 == not armed).
+    //  - time:      frozen frontend event time (KeyEvent::time(), ms) of its
+    //               press. A synthetic KWin/Wayland auto-repeat release carries
+    //               this exact time and must NOT drop the arming. The window-
+    //               timeout arming leaves this 0 on purpose: a 0 press time never
+    //               equals a real release time, so its release clears the code
+    //               per window, keeping the intended one-char-per-window repeat.
+    //  - startUsec: monotonic press time of THIS committed gesture, the elapsed
+    //               reference for the synthetic-release predicate. Must not use
+    //               the global startTimeUsec_, which a later gesture overwrites.
+    struct CommittedKey {
+        int code = 0;
+        int time = 0;
+        uint64_t startUsec = 0;
+    };
+    CommittedKey committed_;
 
     // Track consumed Alt/AltGr leader press to also consume the release.
     // Prevents compositor state confusion from an orphan modifier release
@@ -73,17 +122,60 @@ public:
     // cycling is temporarily reset between pairs.
     bool altGestureSession_ = false;
 
-    void clearAllState() {
+    // Tear down the waiting-gesture bundle in one place so no commit or
+    // cancel site can forget a field (reset symmetry). Deliberately excludes
+    // sawSyntheticRelease_ (persistent platform marker, see its comment) and
+    // the timers (some callers must not touch a timer from inside its own
+    // callback, see the window-timeout commit).
+    void resetWaitingGesture() {
         waitingKey_.reset();
-        inputKeyPressed_ = false;
         waitingKeyCode_ = 0;
+        waitingKeyTime_ = 0;
+        inputKeyPressed_ = false;
+    }
+
+    // Arm/clear the committed-key repeat suppression as one unit, so code, its
+    // frozen press timestamp and its monotonic start never drift apart. Pass
+    // time=0/startUsec=0 to opt a site out of synthetic-release keeping (the
+    // window-timeout path), which then clears on the next release as before.
+    void armCommittedKey(int code, int time, uint64_t startUsec) {
+        committed_ = {code, time, startUsec};
+    }
+    // Arm committed-key suppression from the current waiting gesture's fields.
+    // Call BEFORE resetWaitingGesture()/commitPendingKey() clears them; carries
+    // the "capture waiting code/time/start together, in this order" invariant
+    // that every single-output commit site shares (issue #92 hole 2).
+    void armCommittedFromWaiting() {
+        armCommittedKey(waitingKeyCode_, waitingKeyTime_, startTimeUsec_);
+    }
+    void clearCommittedKey() { committed_ = {}; }
+
+    // Classify a key release as a synthetic auto-repeat for the waiting or the
+    // committed gesture. Each binds isSyntheticAutoRepeatRelease() to its own
+    // bundle's (frozen press time, monotonic start) pair and owns the nowUsec()
+    // math, so a call site cannot pair one gesture's timestamp with the other's
+    // start. releaseTime is the release's frontend event time. See
+    // synthetic_autorepeat.h / issue #73.
+    bool isSyntheticWaitingRelease(int releaseTime) const {
+        return isSyntheticAutoRepeatRelease(releaseTime, waitingKeyTime_,
+                                            nowUsec() - startTimeUsec_);
+    }
+    bool isSyntheticCommittedRelease(int releaseTime) const {
+        return isSyntheticAutoRepeatRelease(releaseTime, committed_.time,
+                                            nowUsec() - committed_.startUsec);
+    }
+
+    void clearAllState() {
+        resetWaitingGesture();
+        sawSyntheticRelease_ = false;
         // Note: recentlyCommitted_ is intentionally NOT cleared here.
         cancelTimeout();
         cancelOverlayShow();
         cancelOverlayHide();
+        cancelSpaceCommit();
         resetCycling();
         heldRawCodes_.clear();
-        committedKeyCode_ = 0;
+        clearCommittedKey();
         consumedAltCode_ = 0;
         altGestureSession_ = false;
     }
@@ -98,6 +190,11 @@ public:
     void cancelOverlayShow() { overlayShowEvent_.reset(); }
 
     void cancelOverlayHide() { overlayHideEvent_.reset(); }
+
+    void cancelSpaceCommit() {
+        spaceCommitEvent_.reset();
+        pendingSpaceCommit_ = false;
+    }
 
     bool isTimeoutExpired(int effectiveDelay) const {
         if (!waitingKey_)

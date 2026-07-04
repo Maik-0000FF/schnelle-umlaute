@@ -30,6 +30,7 @@
 #include "overlay/cursor_overlay_geometry.h"
 #include "overlay_client.h"
 #include "state.h"
+#include "synthetic_autorepeat.h"
 
 namespace fcitx {
 
@@ -160,6 +161,11 @@ public:
 
         auto *state = ic->propertyFor(&factory_);
 
+        // Deliver a still-pending deferred space before this key is processed,
+        // so its text can never land behind this key's output if the key event
+        // wins the race against the zero-delay timer. See scheduleSpaceCommit().
+        flushPendingSpaceCommit(ic, state);
+
         auto key = keyEvent.key();
         bool isPress = !keyEvent.isRelease();
         int rawCode = keyEvent.rawKey().code();
@@ -269,9 +275,26 @@ public:
 
             // Consume release of key that was committed via single-output.
             // The press was filterAndAccepted, so the release is an orphan.
-            if (state->committedKeyCode_ != 0 &&
-                rawCode == state->committedKeyCode_) {
-                state->committedKeyCode_ = 0;
+            if (state->committed_.code != 0 &&
+                rawCode == state->committed_.code) {
+                // On KWin/Wayland auto-repeat arrives as release-press pairs with
+                // a frozen event time. A synthetic release carries the committed
+                // key's press time, and must NOT drop the arming — otherwise the
+                // paired re-press restarts a gesture and one raw char leaks
+                // (issue #92 hole 2). Keep the arming and re-insert the raw code
+                // that the top-of-handler erase removed, so the repeat guard
+                // below (keyed on heldRawCodes_) swallows the re-press. Uses the
+                // committed gesture's own press time/start (committed_.time /
+                // .startUsec), mirroring the waiting-release branch's #73 check.
+                // The window-timeout arming leaves committed_.time == 0, so this
+                // never matches there and that path clears per window as before.
+                if (state->isSyntheticCommittedRelease(keyEvent.time())) {
+                    state->heldRawCodes_.insert(rawCode);
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+                // Genuine release (advanced or absent event time): clear it.
+                state->clearCommittedKey();
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -293,6 +316,19 @@ public:
                     return;
                 }
 
+                // A synthetic auto-repeat release of the held key must not close
+                // the variant picker. Same frozen-timestamp check as the
+                // pre-leader path (issue #73): waitingKeyTime_ is still the
+                // original press time during cycling, and startTimeUsec_ still
+                // marks the gesture's press for the elapsed guard. Suppress it
+                // and keep cycling; the paired synthetic re-press is ignored by
+                // the repeat guard further down (cyclingInput_ == keyChar).
+                if (state->isSyntheticWaitingRelease(keyEvent.time())) {
+                    state->sawSyntheticRelease_ = true;
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+
                 // Non-Alt leader: commit immediately
                 auto it = umlautMap_.find(*state->cyclingInput_);
                 if (it != umlautMap_.end() &&
@@ -303,7 +339,7 @@ public:
                     state->recentlyCommitted_ = true;
                 }
 
-                state->inputKeyPressed_ = false;
+                state->resetWaitingGesture();
                 state->resetCycling();
                 overlayHide();
                 keyEvent.filterAndAccept();
@@ -316,6 +352,28 @@ public:
             // letters match even if Shift is released first
             if (state->waitingKey_ && state->inputKeyPressed_ &&
                 rawCode == state->waitingKeyCode_) {
+                if (state->isSyntheticWaitingRelease(keyEvent.time())) {
+                    // Held-key auto-repeat (issue #73): KWin freezes the
+                    // frontend event time across the whole repeat burst, so
+                    // this release carries the starting press's timestamp and
+                    // is synthetic, not a real release. Suppress it and keep
+                    // the gesture waiting so the held char is not committed
+                    // prematurely; the paired synthetic re-press is swallowed
+                    // by the accent-key repeat guard below (waitingKey_ ==
+                    // keyChar). The window timer keeps running untouched, so a
+                    // leader can still convert and the genuine final release
+                    // (advanced timestamp) falls through to the commit below.
+                    // Record that this gesture is on a synthetic-release
+                    // platform, so the window-timeout commit knows a trailing
+                    // synthetic release will follow and needs consuming. On
+                    // press-only auto-repeat (classic X11) this is never set, so
+                    // that path stays byte-for-byte historic.
+                    state->sawSyntheticRelease_ = true;
+                    keyEvent.filterAndAccept();
+                    return;
+                }
+                // Genuine release (advanced or absent event time): commit
+                // immediately, the historic behavior.
                 commitPendingKey(ic, state);
                 keyEvent.filterAndAccept();
                 return;
@@ -326,32 +384,23 @@ public:
         // =========================================
         // ORDERING GUARD: Ensure correct character order after timeout
         // =========================================
-        // Commit pending char in the SAME commitString as the following key
-        // so both travel through one XIM event — impossible to reorder.
-        // Modifier combinations (Ctrl+Space) are excluded so shortcuts
-        // are not swallowed — pending char is committed separately instead.
+        // Window elapsed but a key arrived before the timeout timer fired:
+        // commit the pending char now (this also clears the trigger preview,
+        // mirroring the timeout callback's teardown). A Space is committed
+        // separately in its own event-loop turn so per-event apps receive two
+        // single-character inserts instead of one "a " (issue #90); see
+        // scheduleSpaceCommit(). Modifier combinations (Ctrl+Space) are
+        // excluded so shortcuts are not swallowed; any other key falls
+        // through and continues as a normal key.
         if (state->waitingKey_ &&
             state->isTimeoutExpired(getEffectiveDelay(state))) {
-            std::string pending = *state->waitingKey_;
-            ic->inputPanel().reset();
-            ic->updatePreedit();
-            state->waitingKey_.reset();
-            state->waitingKeyCode_ = 0;
-            state->cancelTimeout();
-            state->inputKeyPressed_ = false;
-            // Window elapsed (a key arrived right at expiry, before the
-            // timeout timer fired): clear the trigger preview, mirroring the
-            // timeout callback's teardown.
-            hideTriggerOverlay(state);
+            commitPendingKey(ic, state);
 
             if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
-                ic->commitString(pending + " ");
-                state->recentlyCommitted_ = true;
+                scheduleSpaceCommit(ic, state);
                 keyEvent.filterAndAccept();
                 return;
             }
-            ic->commitString(pending);
-            state->recentlyCommitted_ = true;
         }
 
         // =========================================
@@ -441,42 +490,37 @@ public:
             // MIN-HOLD GUARD (lower bound of the accent window)
             // Before cycling has started, a leader that arrives before the
             // minimum hold time has elapsed is not an accent trigger. Commit
-            // the plain pending char now (plus a space for the Space leader,
-            // in the same commitString so the order can't flip), then let the
-            // leader act as a normal key. With min == 0 this never fires, so
-            // the historic behavior is unchanged.
+            // the plain pending char now, then let the leader act as a normal
+            // key. With min == 0 this never fires, so the historic behavior
+            // is unchanged.
             if (!state->cyclingInput_ && state->waitingKey_ &&
                 state->isBeforeMinHold(getEffectiveMinHold(state))) {
-                std::string pending = *state->waitingKey_;
-                // In progress mode the overlay is already up (shown at t=0), so
-                // tear it down now that this turns into a plain commit.
-                hideTriggerOverlay(state);
-                ic->inputPanel().reset();
-                ic->updatePreedit();
-                state->waitingKey_.reset();
                 // Arm auto-repeat suppression for the still-held input key.
                 // Without this, the next auto-repeat of the held key would
                 // start a fresh gesture and duplicate the character (the
-                // "üu"-class bug guarded at the committedKeyCode_ check).
-                state->committedKeyCode_ = state->waitingKeyCode_;
-                state->waitingKeyCode_ = 0;
-                state->cancelTimeout();
-                state->inputKeyPressed_ = false;
+                // "üu"-class bug guarded at the committed_ check). Suppresses on
+                // X11 and KWin/Wayland alike: committed_.time is the frozen press
+                // time, so a synthetic release keeps the arming (issue #92 hole
+                // 2). Capture waitingKeyTime_/startTimeUsec_ now, before
+                // commitPendingKey() clears the waiting gesture.
+                state->armCommittedFromWaiting();
+                commitPendingKey(ic, state);
                 if (key.sym() == FcitxKey_space && !hasModifiers(key)) {
-                    ic->commitString(pending + " ");
-                    state->recentlyCommitted_ = true;
+                    // The space is committed separately in its own event-loop
+                    // turn so per-event apps receive two single-character
+                    // inserts instead of one "a " (issue #90). See
+                    // scheduleSpaceCommit() for the transport rationale.
+                    scheduleSpaceCommit(ic, state);
                     keyEvent.filterAndAccept();
                     return;
                 }
-                // Non-Space leader (arrow): commit the plain char and let the
-                // leader through as a normal key. This mirrors the post-timeout
-                // ordering guard above; the committed char and the raw leader
-                // travel on separate XIM channels, so in theory they could
-                // reorder in terminals like WezTerm (the #6 pattern), but only
-                // for arrow leaders combined with a minimum hold, which is
-                // rare.
-                ic->commitString(pending);
-                state->recentlyCommitted_ = true;
+                // Non-Space leader (arrow): the plain char is committed, the
+                // leader passes through as a normal key. The committed char
+                // and the raw leader travel on separate channels, so in
+                // theory they could reorder in terminals like WezTerm (the
+                // #6 pattern), but arrows cannot be delivered per
+                // commitString, and arrow leaders combined with a minimum
+                // hold are rare.
                 return;
             }
 
@@ -515,13 +559,15 @@ public:
                         ic->commitString(it->second[0]);
                         ic->updatePreedit();
                         state->recentlyCommitted_ = true;
-                        state->inputKeyPressed_ = false;
                         // Arm auto-repeat suppression for the held input key.
                         // Without this, releasing Alt while the input key is
                         // still down would let the next repeat start a fresh
-                        // gesture (üu-class duplicate).
-                        state->committedKeyCode_ = state->waitingKeyCode_;
-                        state->waitingKeyCode_ = 0;
+                        // gesture (üu-class duplicate). Suppresses on X11 and
+                        // KWin/Wayland alike (issue #92 hole 2); the frozen press
+                        // time in committed_ keeps the arming across a synthetic
+                        // release burst.
+                        state->armCommittedFromWaiting();
+                        state->resetWaitingGesture();
                         state->resetCycling();
                         overlayHide();
                         state->altGestureSession_ = false;
@@ -588,6 +634,11 @@ public:
                             // just tear down so we don't pop a blip out of
                             // nowhere.
                             hideTriggerOverlay(state);
+
+                        // Cycling owns the gesture now: only waitingKey_ ends;
+                        // waitingKeyCode_/waitingKeyTime_ stay valid for the
+                        // cycling release checks.
+                        state->waitingKey_.reset();
                     } else {
                         // Single output with non-Alt leader - commit directly.
                         // If a trigger preview is already showing, flash the
@@ -602,13 +653,16 @@ public:
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
-                        state->committedKeyCode_ = state->waitingKeyCode_;
-                        state->inputKeyPressed_ = false;
-                        state->waitingKeyCode_ = 0;
+                        // Arm auto-repeat suppression for the still-held key.
+                        // Suppresses on X11 and KWin/Wayland alike (issue #92
+                        // hole 2); the frozen press time in committed_ keeps the
+                        // arming across a synthetic release burst. Capture before
+                        // resetWaitingGesture() clears the waiting gesture.
+                        state->armCommittedFromWaiting();
+                        state->resetWaitingGesture();
                         state->recentlyCommitted_ = true;
                     }
 
-                    state->waitingKey_.reset();
                     state->cancelTimeout();
                     if (isAlt)
                         state->consumedAltCode_ = rawCode;
@@ -665,8 +719,8 @@ public:
             // still be held, generating repeat events. Without this guard,
             // repeats start new unwanted gestures (e.g. 'u' + AltGr → "ü" then
             // repeat 'u' → "üu").
-            if (!isNewKeyPress && state->committedKeyCode_ != 0 &&
-                rawCode == state->committedKeyCode_) {
+            if (!isNewKeyPress && state->committed_.code != 0 &&
+                rawCode == state->committed_.code) {
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -678,6 +732,10 @@ public:
             // Show character in PREEDIT (not committed yet - can be changed!)
             state->waitingKey_ = keyChar;
             state->waitingKeyCode_ = keyEvent.rawKey().code();
+            // Remember the frontend event time of this press so a later release
+            // carrying the same (frozen) timestamp can be recognised as a
+            // synthetic auto-repeat and suppressed. See isSyntheticAutoRepeatRelease().
+            state->waitingKeyTime_ = keyEvent.time();
             state->inputKeyPressed_ = true;
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
@@ -728,7 +786,13 @@ public:
     void activate(const InputMethodEntry &, InputContextEvent &event) override {
         // Ensure clean state when switching TO this input method.
         // Catches residual state after crashes or unexpected restarts.
-        auto *state = event.inputContext()->propertyFor(&factory_);
+        auto *ic = event.inputContext();
+        auto *state = ic->propertyFor(&factory_);
+        // A deferred space already consumed from the user must be delivered
+        // before clearAllState() cancels it, mirroring deactivate()/reset()/
+        // wipeAllGestureState() (issue #90). Narrow: an activate() landing on an
+        // IC that still holds a pending space without a flushing deactivate.
+        flushPendingSpaceCommit(ic, state);
         state->clearAllState();
         state->recentlyCommitted_ = false;
     }
@@ -748,6 +812,12 @@ public:
             commitCyclingValue(ic, state);
         }
 
+        // A deferred space was already consumed from the user; deliver it
+        // instead of letting clearAllState() cancel it. Reachable only in the
+        // sub-millisecond window where a FocusOut queued right behind the
+        // Space press dispatches before the zero-delay timer.
+        flushPendingSpaceCommit(ic, state);
+
         state->clearAllState();
         state->recentlyCommitted_ = false;
         // Focus left this context: drop any visible overlay (cycling picker or
@@ -763,6 +833,15 @@ public:
             return; // Keep all state intact
         }
 
+        // A deferred trailing space was already consumed from the user; deliver
+        // it before clearAllState() cancels it, mirroring deactivate(). The char
+        // committed synchronously and cleared inputKeyPressed_, so the early
+        // return above does not cover it; without this flush a reset() landing
+        // in the sub-millisecond window before the zero-delay space timer
+        // (Chromium and Neovide fire reset() after every commit) drops the
+        // trailing space (issue #90).
+        flushPendingSpaceCommit(event.inputContext(), state);
+
         // A running commit-flash must survive the post-commit reset that
         // Chromium and Neovide fire, otherwise the confirmation overlay would
         // vanish in the same frame as the commit (single-output commits set
@@ -771,8 +850,25 @@ public:
         // becomes a no-op, then restore it and leave the overlay up. The
         // overlayVisible_ check distinguishes a live flash from a spent timer
         // (overlayHideEvent_ stays non-null after firing, like overlayShowEvent_).
+        // A still-held key whose char was already committed via single-output
+        // keeps committed_ armed so its auto-repeat is consumed instead of
+        // starting a fresh gesture (the "üu"-class guard). clearAllState() drops
+        // committed_ and its heldRawCodes_ entry, so the app-reset() Chromium and
+        // Neovide fire after every commit lets the next auto-repeat re-enter as a
+        // fresh press (isNewKeyPress == true, so the repeat guard below the arming
+        // sites no longer matches) and start a duplicate gesture (issue #92).
+        // Preserve the whole committed_ bundle across the wipe; the focus-change
+        // path (deactivate/activate) keeps clearing everything. Self-guarding:
+        // code == 0 means nothing was armed (a release already cleared it via the
+        // committed-key release branch).
+        const auto heldCommitted = state->committed_;
+
         auto flash = std::move(state->overlayHideEvent_);
         state->clearAllState();
+        if (heldCommitted.code != 0) {
+            state->committed_ = heldCommitted;
+            state->heldRawCodes_.insert(heldCommitted.code);
+        }
         if (flash && overlayVisible_) {
             state->overlayHideEvent_ = std::move(flash);
             return;
@@ -861,6 +957,11 @@ private:
     void wipeAllGestureState() {
         instance_->inputContextManager().foreach([this](InputContext *c) {
             auto *s = c->propertyFor(&factory_);
+            // Deliver a consumed deferred space before wiping, same guard as
+            // reset()/deactivate(): a config or profile reload can land between
+            // the Space press and the zero-delay timer. Only the focused IC can
+            // hold a pending space, so this is a no-op for every other context.
+            flushPendingSpaceCommit(c, s);
             s->clearAllState();
             s->recentlyCommitted_ = false;
             c->inputPanel().reset();
@@ -907,8 +1008,14 @@ private:
         // disk write). Keeping it marks the combo as held, suppressing repeats
         // until real release.
         auto heldKeys = st->heldRawCodes_;
+        // Symmetry with the heldRawCodes_ preserve above: keep the single-output
+        // repeat-suppression arming (the whole committed_ bundle) across the wipe
+        // too, so a still-held combo doesn't lose its guard on a profile switch
+        // (issue #92). Rarely armed on the switch combo, purely state-preserving.
+        const auto heldCommitted = st->committed_;
         wipeAllGestureState();
         st->heldRawCodes_ = std::move(heldKeys);
+        st->committed_ = heldCommitted;
         profiles_.active.setValue(name);
         umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
         safeSaveAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
@@ -1094,7 +1201,7 @@ private:
                     }
                     state->resetCycling();
                     overlayHide();
-                    state->waitingKeyCode_ = 0;
+                    state->resetWaitingGesture();
                 }
                 state->altGestureSession_ = false;
                 state->consumedAltCode_ = 0;
@@ -1109,10 +1216,53 @@ private:
         ic->inputPanel().reset();
         ic->commitString(*state->waitingKey_);
         ic->updatePreedit();
-        state->waitingKey_.reset();
-        state->waitingKeyCode_ = 0;
+        state->resetWaitingGesture();
         state->cancelTimeout();
-        state->inputKeyPressed_ = false;
+        state->recentlyCommitted_ = true;
+    }
+
+    // Deliver the trailing space of a char+space commit in its own event-loop
+    // turn (issue #90). The XIM frontend (always) and the DBus frontend (for
+    // clients with the KeyEventOrderFix capability, e.g. the GTK module)
+    // buffer every commit issued while a key event is being processed and
+    // deliver them merged as ONE string (deliverBlockedEvents()), so two
+    // back-to-back commitString calls still reach the app as a combined
+    // "a ". Apps that evaluate text inserts per event (monkeytype.com) then
+    // drop the letter and only register the space. A zero-delay timer moves
+    // the space into its own delivery, giving every frontend two
+    // single-character inserts. Order is safe twice over: both commits stay
+    // on the IME channel, and a key event that wins the race against the
+    // timer flushes the space first (flushPendingSpaceCommit() at the top of
+    // keyEvent()). This is the same transport the window-timeout commit has
+    // shipped since fa13cf7: timer commit, space routed as its own commit.
+    void scheduleSpaceCommit(InputContext *ic, SchnelleUmlauteState *state) {
+        auto savedRef = ic->watch();
+        auto *eventLoop = &instance_->eventLoop();
+        state->pendingSpaceCommit_ = true;
+        state->spaceCommitEvent_ = eventLoop->addTimeEvent(
+            CLOCK_MONOTONIC, SchnelleUmlauteState::nowUsec(), 0,
+            [this, state, savedRef](EventSourceTime *, uint64_t) {
+                // Safety: see scheduleTimeout (single-threaded event loop
+                // guarantees state outlives savedRef.get() != nullptr).
+                auto *ctx = savedRef.get();
+                if (!ctx)
+                    return false;
+                flushPendingSpaceCommit(ctx, state);
+                // Don't reset spaceCommitEvent_ here: destroying the
+                // EventSource inside its own callback is a use-after-free
+                // risk. pendingSpaceCommit_ is the source of truth; the
+                // unique_ptr is cleaned up by the next scheduleSpaceCommit()
+                // or cancelSpaceCommit() call.
+                return false;
+            });
+    }
+
+    void flushPendingSpaceCommit(InputContext *ic,
+                                 SchnelleUmlauteState *state) {
+        if (!state->pendingSpaceCommit_)
+            return;
+        state->pendingSpaceCommit_ = false;
+        ic->commitString(" ");
         state->recentlyCommitted_ = true;
     }
 
@@ -1129,7 +1279,7 @@ private:
             ic->updatePreedit();
             state->recentlyCommitted_ = true;
         }
-        state->inputKeyPressed_ = false;
+        state->resetWaitingGesture();
         state->resetCycling();
         overlayHide();
     }
@@ -1339,9 +1489,24 @@ private:
                     ctx->commitString(*state->waitingKey_);
                     ctx->updatePreedit();
                     state->recentlyCommitted_ = true;
-                    state->waitingKey_.reset();
-                    state->waitingKeyCode_ = 0;
-                    state->inputKeyPressed_ = false;
+                    // If the key is still physically held past the accent
+                    // window, its auto-repeat keeps arriving after this commit.
+                    // On a synthetic-release platform (Wayland) a trailing
+                    // release will follow, so arm committed_ to consume it via
+                    // the committed-key release branch instead of leaking an
+                    // unpaired key-up to the app (issue #73 robustness). Arm with
+                    // time == 0 (and startUsec == 0) so the release branch does
+                    // NOT keep the arming for a synthetic release (unlike the
+                    // single-output sites, issue #92 hole 2): the release clears
+                    // the code again, and each window cycle re-arms it, so the
+                    // held key still restarts a gesture and repeats as intended.
+                    // Explicit 0 is an invariant, not a "happens to be 0" bet — a
+                    // prior single-output commit could otherwise leave a stale
+                    // time. Gated on sawSyntheticRelease_ so press-only auto-
+                    // repeat (classic X11) keeps its historic per-window behavior.
+                    if (state->sawSyntheticRelease_)
+                        state->armCommittedKey(state->waitingKeyCode_, 0, 0);
+                    state->resetWaitingGesture();
                     // Window elapsed without a leader: clear the preview.
                     hideTriggerOverlay(state);
                 }
