@@ -805,6 +805,15 @@ public:
             return; // Keep all state intact
         }
 
+        // A deferred trailing space was already consumed from the user; deliver
+        // it before clearAllState() cancels it, mirroring deactivate(). The char
+        // committed synchronously and cleared inputKeyPressed_, so the early
+        // return above does not cover it; without this flush a reset() landing
+        // in the sub-millisecond window before the zero-delay space timer
+        // (Chromium and Neovide fire reset() after every commit) drops the
+        // trailing space (issue #90).
+        flushPendingSpaceCommit(event.inputContext(), state);
+
         // A running commit-flash must survive the post-commit reset that
         // Chromium and Neovide fire, otherwise the confirmation overlay would
         // vanish in the same frame as the commit (single-output commits set
@@ -903,6 +912,11 @@ private:
     void wipeAllGestureState() {
         instance_->inputContextManager().foreach([this](InputContext *c) {
             auto *s = c->propertyFor(&factory_);
+            // Deliver a consumed deferred space before wiping, same guard as
+            // reset()/deactivate(): a config or profile reload can land between
+            // the Space press and the zero-delay timer. Only the focused IC can
+            // hold a pending space, so this is a no-op for every other context.
+            flushPendingSpaceCommit(c, s);
             s->clearAllState();
             s->recentlyCommitted_ = false;
             c->inputPanel().reset();

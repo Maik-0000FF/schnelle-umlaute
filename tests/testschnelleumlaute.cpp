@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (142 tests)
+// Test Suite for Schnelle Umlaute (143 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -31,6 +31,7 @@
 // 136     Alt repeat-suppress  second leader during Alt single-output arms committedKeyCode_ (üu-duplicate pin)
 // 137-140 Min-hold lower bound early Space plain commit, uppercase bound, repeat suppression, degenerate window
 // 141-142 Deferred space       post-timeout guard split, zero-delay timer path (timer-chained) (issue #90)
+// 143     reset() space flush  reset() before the zero-delay timer flushes the deferred space (issue #90)
 // clang-format on
 
 #include <unistd.h>
@@ -5697,6 +5698,50 @@ static void scheduleTest113(Instance *instance) {
     });
 
     // =========================================================================
+    // TEST 143: reset() flushes a pending deferred space (issue #90; #73
+    // review). Space before the minimum hold commits "a" synchronously and arms
+    // " " on the zero-delay timer. Chromium and Neovide fire reset() after every
+    // commit; a reset() landing before that timer must deliver the consumed
+    // space, not silently cancel it via clearAllState(). reset() is invoked
+    // directly (synchronously, before the event loop can run the timer) so the
+    // race is deterministic. Without the flushPendingSpaceCommit() guard in
+    // reset() the dropped " " leaves its expectation queued, and the next
+    // commit (test 141's "a") then aborts with a mismatch pointing here.
+    // Runs before the timer-chained tests 141-142 so no deferred timer is left
+    // in flight (reset() destroys the zero-delay timer as it flushes).
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 143;
+        FCITX_INFO()
+            << "=== Test 143: reset() flushes pending deferred space ===";
+        configureWithDelay(instance, 2000, 2000, true, false, 200, 200);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test143");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // Hold 'a' → waiting.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+        // Early Space (~0ms < 200ms min): "a" commits synchronously, " " is
+        // scheduled on the zero-delay timer; inputKeyPressed_ is now false, so
+        // the reset() early-return does not cover this state.
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::pushCommitExpectation>(" ");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(consumed) << "Early Space must be consumed";
+
+        // reset() before the zero-delay timer runs: the flush must deliver the
+        // deferred " " (matching the expectation) instead of dropping it.
+        ic->reset();
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 143 PASSED";
+    });
+
+    // =========================================================================
     // TEST 141: Post-timeout ordering guard splits char and space (issue #90
     // twin). The accent window has expired but the timeout timer has not
     // fired: the blocking sleep below keeps the single-threaded event loop
@@ -5825,7 +5870,7 @@ static void scheduleTest113(Instance *instance) {
                         tf->call<ITestFrontend::destroyInputContext>(uuid113);
                         FCITX_INFO() << "Test 113 PASSED";
 
-                        FCITX_INFO() << "=== All 142 tests PASSED ===";
+                        FCITX_INFO() << "=== All 143 tests PASSED ===";
                         instance->exit();
                         return false;
                     });
