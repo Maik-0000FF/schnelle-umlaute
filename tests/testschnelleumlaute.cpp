@@ -43,6 +43,7 @@
 #include <cstdio>
 #include <ctime>
 #include <memory>
+#include <functional>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -435,6 +436,48 @@ static bool sendKeyAtTime(Instance *instance, ICUUID uuid, FcitxKeySym sym,
     KeyEvent ke(ic, Key(sym, KeyStates(), code), isRelease, timeMs);
     ic->keyEvent(ke);
     return ke.accepted();
+}
+
+// Alt-deferred-commit verification (tests 21-23). The Alt leader's release
+// schedules a 5ms deferred cycling commit; the test pushes a "ä" expectation and
+// must let that deferred fire before tearing the IC down. A fixed wait is racy:
+// under an ASan event-loop stall the verify timer can destroy the IC before the
+// 5ms deferred fires, cancelling it with the IC, so the "ä" expectation is never
+// consumed and leaks into a later test (test 30 then aborts on "ae" != "ä").
+// Instead, poll until the deferred has actually fired: its callback resets the
+// preedit, so an EMPTY client preedit is the "fired" signal (the preedit shows
+// "ä" until the deferred commits). The IC is never destroyed while the deferred
+// is still pending, so the timer ordering under a stall no longer matters. A
+// generous attempt bound fails explicitly if the deferred never fires, so a
+// genuinely broken commit path is still caught.
+struct AltVerifyHolder {
+    std::unique_ptr<EventSourceTime> timer;
+};
+constexpr uint64_t kDeferredPollIntervalUsec = 5'000; // 5ms
+constexpr int kDeferredPollMaxAttempts = 400;         // ~2s bound
+
+static void destroyAfterDeferredCommit(Instance *instance, ICUUID uuid,
+                                       std::shared_ptr<AltVerifyHolder> holder,
+                                       std::function<void()> next,
+                                       int attempt = 0) {
+    holder->timer = instance->eventLoop().addTimeEvent(
+        CLOCK_MONOTONIC, nowUsec() + kDeferredPollIntervalUsec, 0,
+        [instance, uuid, holder, next, attempt](EventSourceTime *, uint64_t) {
+            if (!getClientPreedit(instance).empty() &&
+                attempt < kDeferredPollMaxAttempts) {
+                destroyAfterDeferredCommit(instance, uuid, holder, next,
+                                           attempt + 1);
+                return false;
+            }
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "Deferred cycling commit never fired within bound (preedit "
+                   "still '"
+                << getClientPreedit(instance) << "')";
+            auto *tf = instance->addonManager().addon("testfrontend");
+            tf->call<ITestFrontend::destroyInputContext>(uuid);
+            next();
+            return false;
+        });
 }
 
 // Type a single char with clean typing (press+release).
@@ -1337,17 +1380,14 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
         // Shared holder keeps all chained timers alive
-        struct TimerHolder {
-            std::unique_ptr<EventSourceTime> timer;
-        };
-        auto holder = std::make_shared<TimerHolder>();
+        auto holder = std::make_shared<AltVerifyHolder>();
 
-        // Wait for deferred commit, then clean up and chain to Test 18
-        holder->timer = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
-            [instance, uuid, holder](EventSourceTime *, uint64_t) {
+        // Destroy the IC only once Test 21's deferred cycling commit has fired
+        // (preedit empty), then chain to Test 22. Poll-based, stall-proof — see
+        // destroyAfterDeferredCommit.
+        destroyAfterDeferredCommit(
+            instance, uuid, holder, [instance, holder]() {
                 auto *tf = instance->addonManager().addon("testfrontend");
-                tf->call<ITestFrontend::destroyInputContext>(uuid);
                 FCITX_INFO() << "Test 21 PASSED";
 
                 // --- Test 22: AltGr as leader ---
@@ -1372,12 +1412,10 @@ void scheduleTests(Instance *instance) {
                 tf->call<ITestFrontend::keyEvent>(
                     uuid22, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
-                holder->timer = instance->eventLoop().addTimeEvent(
-                    CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
-                    [instance, uuid22, holder](EventSourceTime *, uint64_t) {
+                destroyAfterDeferredCommit(
+                    instance, uuid22, holder, [instance, holder]() {
                         auto *tf =
                             instance->addonManager().addon("testfrontend");
-                        tf->call<ITestFrontend::destroyInputContext>(uuid22);
                         FCITX_INFO() << "Test 22 PASSED";
 
                         // --- Test 23: Alt release consumed, commits "ä" ---
@@ -1408,24 +1446,14 @@ void scheduleTests(Instance *instance) {
                         FCITX_ASSERT(c) << "Accent key release during Alt "
                                            "gesture should be consumed";
 
-                        holder->timer = instance->eventLoop().addTimeEvent(
-                            CLOCK_MONOTONIC,
-                            nowUsec() + kDeferredVerifyDelayUsec, 0,
-                            [instance, uuid23, holder](EventSourceTime *,
-                                                       uint64_t) {
-                                auto *tf = instance->addonManager().addon(
-                                    "testfrontend");
-                                tf->call<ITestFrontend::destroyInputContext>(
-                                    uuid23);
+                        destroyAfterDeferredCommit(
+                            instance, uuid23, holder, [instance]() {
                                 FCITX_INFO() << "Test 23 PASSED";
                                 // All deferred commits verified — safe to
                                 // continue
                                 scheduleTestsAfterAltVerify(instance);
-                                return false;
                             });
-                        return false;
                     });
-                return false;
             });
     });
 }
