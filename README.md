@@ -40,11 +40,11 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 
 ## Demo
 
-**Overlay at the mouse cursor** — the accent indicator follows your pointer while you cycle through variants.
+**Overlay at the mouse cursor**: the accent indicator follows your pointer while you cycle through variants.
 
 https://github.com/user-attachments/assets/49cd0811-7b50-4e0d-8221-f8c18fe39872
 
-**Overlay at the text caret** — the indicator appears right where you type, so it also works on X11.
+**Overlay at the text caret**: the indicator appears right where you type, so it also works on X11.
 
 https://github.com/user-attachments/assets/5c8e691c-a9b8-4f2b-bddb-98124294d622
 
