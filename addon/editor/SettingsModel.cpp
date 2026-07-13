@@ -29,6 +29,17 @@ bool fromBool(const QString &s) {
     return s.compare("True", Qt::CaseInsensitive) == 0;
 }
 
+// A leader's captured physical key. Anything that cannot name a pressable key,
+// including an absent or unparseable value, reads back as kNoKeyCode and leaves
+// the leader unassigned. Never fabricate a keycode from a malformed value: a
+// wrong physical key would trigger the wrong leader and mis-classify its
+// keyboard half.
+int toKeyCode(const QString &s) {
+    bool ok = false;
+    const int code = s.trimmed().toInt(&ok);
+    return (ok && fcitx::isUsableKeyCode(code)) ? code : kNoKeyCode;
+}
+
 // --- Caret theme: generate an fcitx5 classicui theme matching the editor
 // palette and point classicui at it. All compositor-agnostic (classicui is
 // fcitx5's own renderer); the only "stop following the desktop" switch is
@@ -252,6 +263,42 @@ void SettingsModel::setCustomKey2(const QString &v) {
     if (isValidLeaderKey(v))
         save();
 }
+// The capture rejects a held modifier, but it cannot reject CapsLock: Qt does
+// not report it in the event's modifiers at all. So a press under CapsLock still
+// arrives as 'A' rather than 'a'. Fold the character down here, where Qt's full
+// Unicode case mapping is available and handles 'Ä' as readily as 'A'. The
+// keycode is unaffected either way, so only the label and the mapped-input
+// collision check depend on getting this right.
+static QString leaderChar(const QString &raw) {
+    if (!SettingsModel::isValidLeaderKey(raw))
+        return QString();
+    const QString folded = raw.toLower();
+    // Full case mapping can turn one codepoint into two: Turkish 'İ' (U+0130)
+    // folds to 'i' plus a combining dot. That would break the single-codepoint
+    // invariant the label and the collision check rely on, and the field would
+    // then flag a perfectly good leader as invalid. Keep the unfolded character
+    // in that case; it is still exactly one codepoint.
+    return SettingsModel::isValidLeaderKey(folded) ? folded : raw;
+}
+
+// The only way a keycode enters the config: both halves land together, then one
+// save. A code that cannot name a pressable key is stored as kNoKeyCode, which
+// reads as "no key assigned" rather than as a leader that can never fire.
+void SettingsModel::captureCustomKey1(const QString &ch, int code) {
+    customKey1Code_ = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
+    customKey1_ = leaderChar(ch);
+    Q_EMIT customKey1CodeChanged();
+    Q_EMIT customKey1Changed();
+    save();
+}
+void SettingsModel::captureCustomKey2(const QString &ch, int code) {
+    customKey2Code_ = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
+    customKey2_ = leaderChar(ch);
+    Q_EMIT customKey2CodeChanged();
+    Q_EMIT customKey2Changed();
+    save();
+}
+
 void SettingsModel::setAppFilterMode(const QString &v) {
     if (appFilterMode_ == v)
         return;
@@ -501,10 +548,14 @@ void SettingsModel::load() {
                 customKey1Enabled_ = fromBool(val);
             else if (key == "CustomKey")
                 customKey1_ = val;
+            else if (key == "CustomKeyCode")
+                customKey1Code_ = toKeyCode(val);
             else if (key == "CustomKey2Enabled")
                 customKey2Enabled_ = fromBool(val);
             else if (key == "CustomKey2")
                 customKey2_ = val;
+            else if (key == "CustomKey2Code")
+                customKey2Code_ = toKeyCode(val);
         } else if (section == QLatin1String("AppFilter")) {
             if (key == "Mode")
                 appFilterMode_ = val;
@@ -586,8 +637,10 @@ void SettingsModel::load() {
     Q_EMIT leaderAltChanged();
     Q_EMIT customKey1EnabledChanged();
     Q_EMIT customKey1Changed();
+    Q_EMIT customKey1CodeChanged();
     Q_EMIT customKey2EnabledChanged();
     Q_EMIT customKey2Changed();
+    Q_EMIT customKey2CodeChanged();
     Q_EMIT appFilterModeChanged();
     Q_EMIT blacklistChanged();
     Q_EMIT whitelistChanged();
@@ -636,10 +689,14 @@ void SettingsModel::save() {
         << "CustomKeyEnabled=" << toBool(customKey1Enabled_) << "\n";
     out << "#   \xe2\x86\xb3 Key\n"
         << "CustomKey=" << customKey1_ << "\n";
+    out << "#   \xe2\x86\xb3 Key code\n"
+        << "CustomKeyCode=" << customKey1Code_ << "\n";
     out << "# Custom Leader 2 (hand-split)\n"
         << "CustomKey2Enabled=" << toBool(customKey2Enabled_) << "\n";
     out << "#   \xe2\x86\xb3 Key\n"
         << "CustomKey2=" << customKey2_ << "\n";
+    out << "#   \xe2\x86\xb3 Key code\n"
+        << "CustomKey2Code=" << customKey2Code_ << "\n";
     out << "\n";
     out << "[AppFilter]\n";
     out << "# Mode\n" << "Mode=" << appFilterMode_ << "\n";

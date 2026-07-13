@@ -19,7 +19,6 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <fcitx/userinterface.h>
-#include <xkbcommon/xkbcommon.h>
 #include "app_filter.h"
 #include "config.h"
 #include "hand_classifier.h"
@@ -53,32 +52,7 @@ public:
         instance_->inputContextManager().registerProperty(
             "schnelle-umlaute-state", &factory_);
 
-        // Build XKB keymap from system defaults so we can resolve the
-        // unshifted (Level 0) character for any physical key.  This lets
-        // Shift+symbol custom leaders work (e.g. Shift+/ → '?' is
-        // resolved back to '/' via the keymap).
-        xkbCtx_ = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-        if (xkbCtx_) {
-            xkbKeymap_ = xkb_keymap_new_from_names(xkbCtx_, nullptr,
-                                                   XKB_KEYMAP_COMPILE_NO_FLAGS);
-            if (!xkbKeymap_) {
-                FCITX_WARN() << "Schnelle: XKB keymap creation failed"
-                             << " — custom leader resolution disabled";
-            }
-        } else {
-            FCITX_WARN() << "Schnelle: XKB context creation failed"
-                         << " — custom leader resolution disabled";
-        }
-        handClassifier_.build(xkbKeymap_);
-
         reloadConfig();
-    }
-
-    ~SchnelleUmlauteEngine() {
-        if (xkbKeymap_)
-            xkb_keymap_unref(xkbKeymap_);
-        if (xkbCtx_)
-            xkb_context_unref(xkbCtx_);
     }
 
     // Returns a single-ExternalOption config so fcitx5-config-qt / KDE KCM
@@ -185,6 +159,9 @@ public:
         if (unicode > 0 && unicode <= kMaxUnicodeCodepoint) {
             keyChar = utf8::UCS4ToUTF8(unicode);
         }
+
+        if (isPress)
+            learnBaseChar(keyEvent.rawKey(), rawCode);
 
         // Pure modifier key presses (Shift, Ctrl, Alt, Super, etc.)
         // pass through without affecting gesture state.
@@ -432,10 +409,12 @@ public:
                 return; // Let the shortcut through
             }
             // Alt-only during gesture: resolve the physical key's base
-            // character.  Some backends change the keysym when Alt is held
-            // (e.g. number keys → symbols), which would prevent the accent
-            // key handler from finding the mapping.  Using the Level 0
-            // character from the XKB keymap ensures correct recognition.
+            // character.  Some layouts hand us a different keysym when Alt is
+            // held (AltGr+q → '@', number keys → symbols), which would stop the
+            // accent key handler from finding the mapping.  The base character
+            // comes from what this key produced unmodified earlier in the
+            // session (learnBaseChar), i.e. the real layout, not a compiled guess.
+            // Unknown key → keep the keysym's character, as before.
             std::string baseChar = getBaseChar(rawCode);
             if (!baseChar.empty()) {
                 keyChar = baseChar;
@@ -460,22 +439,17 @@ public:
         // =========================================
         // HANDLE LEADER KEY (Space/Arrows/Alt/Custom)
         // =========================================
-        auto leaderType = classifyLeader(key, keyChar, rawCode);
+        auto leaderType = classifyLeader(key, rawCode);
 
         // Dual custom leader split: downgrade to None if this leader is
         // not allowed for the currently active input key's keyboard half.
-        if (leaderType != LeaderType::None) {
-            std::string activeInput;
-            if (state->cyclingInput_)
-                activeInput = *state->cyclingInput_;
-            else if (state->waitingKey_)
-                activeInput = *state->waitingKey_;
-
-            if (!activeInput.empty() &&
-                !isDualCustomAllowed(leaderType, activeInput,
-                                     state->waitingKeyCode_)) {
-                leaderType = LeaderType::None;
-            }
+        // The gesture must be live (waiting or cycling) for a half to exist;
+        // waitingKeyCode_ carries the input key's physical position through
+        // both phases.
+        if (leaderType != LeaderType::None &&
+            (state->cyclingInput_ || state->waitingKey_) &&
+            !isDualCustomAllowed(leaderType, state->waitingKeyCode_)) {
+            leaderType = LeaderType::None;
         }
 
         if (leaderType != LeaderType::None) {
@@ -1088,6 +1062,15 @@ private:
             *config_.leader->custom->customKey2Enabled
                 ? sanitizeCustomKey(*config_.leader->custom->customKey2)
                 : "";
+        // The physical key behind each leader, i.e. what actually triggers it.
+        cachedCustomKeyCode_ =
+            *config_.leader->custom->customKeyEnabled
+                ? sanitizeKeyCode(*config_.leader->custom->customKeyCode)
+                : kNoKeyCode;
+        cachedCustomKey2Code_ =
+            *config_.leader->custom->customKey2Enabled
+                ? sanitizeKeyCode(*config_.leader->custom->customKey2Code)
+                : kNoKeyCode;
 
         // Warn if a custom leader key collides with a mapped input
         if (!cachedCustomKey_.empty() && umlautMap_.count(cachedCustomKey_)) {
@@ -1101,14 +1084,28 @@ private:
                          << " — it cannot trigger its own mapping";
         }
 
-        // Warn about dual custom leader conflicts
-        if (!cachedCustomKey_.empty() && !cachedCustomKey2_.empty()) {
-            if (cachedCustomKey_ == cachedCustomKey2_) {
+        // An enabled leader with no captured key cannot trigger anything.
+        if (*config_.leader->custom->customKeyEnabled &&
+            cachedCustomKeyCode_ == kNoKeyCode) {
+            FCITX_WARN() << "Schnelle: CustomKey has no key assigned"
+                         << ", press the key in the editor to set it";
+        }
+        if (*config_.leader->custom->customKey2Enabled &&
+            cachedCustomKey2Code_ == kNoKeyCode) {
+            FCITX_WARN() << "Schnelle: CustomKey2 has no key assigned"
+                         << ", press the key in the editor to set it";
+        }
+
+        // Warn when the split cannot apply. Mirrors isDualCustomAllowed(), so
+        // the log explains why both leaders trigger everything.
+        if (cachedCustomKeyCode_ != kNoKeyCode &&
+            cachedCustomKey2Code_ != kNoKeyCode) {
+            if (cachedCustomKeyCode_ == cachedCustomKey2Code_) {
                 FCITX_WARN()
-                    << "Schnelle: CustomKey and CustomKey2 are identical"
+                    << "Schnelle: CustomKey and CustomKey2 are the same key"
                     << " — dual split disabled, both trigger all mappings";
-            } else if (handClassifier_.isLeftHand(cachedCustomKey_) ==
-                       handClassifier_.isLeftHand(cachedCustomKey2_)) {
+            } else if (isLeftHandKeycode(cachedCustomKeyCode_) ==
+                       isLeftHandKeycode(cachedCustomKey2Code_)) {
                 FCITX_WARN()
                     << "Schnelle: CustomKey '" << cachedCustomKey_
                     << "' and CustomKey2 '" << cachedCustomKey2_
@@ -1294,57 +1291,64 @@ private:
                mods.test(KeyState::Super);
     }
 
+    // Every modifier that can change which character a key produces. AltGr is
+    // the one that is easy to miss: it is the level-3 shift and reports as
+    // Mod5, NOT as Alt (which is Mod1), so a guard testing Alt alone would let
+    // AltGr through and learn the level-3 character as if it were the base one.
+    // NumLock is deliberately absent: it only switches the keypad, never a
+    // letter.
+    static KeyStates charChangingModifiers() {
+        return KeyStates(KeyState::Shift) | KeyState::CapsLock |
+               KeyState::Ctrl | KeyState::Alt | KeyState::Super |
+               KeyState::Hyper | KeyState::Meta | KeyState::Mod5;
+    }
+
+    // Record what a physical key produces when pressed with no modifiers at
+    // all. This is the user's real layout, observed rather than assumed: fcitx5
+    // resolved the keysym through the XKB state that actually governs the
+    // session, so the pair is correct on every layout.
+    //
+    // Takes the RAW key, never KeyEvent::key(). The normalized key is unusable
+    // for deciding "unmodified": Key::normalize() keeps only Ctrl/Alt/Shift/
+    // Super, and drops Shift outright for a-z/A-Z. AltGr (Mod5) and CapsLock
+    // would therefore be invisible here, and Shift+a would arrive looking like
+    // an unmodified 'A'. Each of those would teach a key a wrong base character.
+    //
+    // A key's entry is refreshed the next time it is pressed unmodified, so
+    // after a layout switch every key corrects itself on its first plain press.
+    // Until then its old character is served, which the sole consumer tolerates:
+    // it only ever falls back to the keysym's own character. That consumer is
+    // the Alt-leader bypass (see getBaseChar). Keys never pressed unmodified
+    // stay unknown.
+    void learnBaseChar(const Key &rawKey, int rawCode) {
+        if (rawCode == kNoKeyCode)
+            return;
+        if (rawKey.states().testAny(charChangingModifiers()))
+            return;
+        const uint32_t unicode = Key::keySymToUnicode(rawKey.sym());
+        if (unicode == 0 || unicode > kMaxUnicodeCodepoint)
+            return;
+        baseCharByCode_[rawCode] = utf8::UCS4ToUTF8(unicode);
+    }
+
+    // The unmodified character of a physical key, or empty when that key has
+    // not been pressed unmodified yet. Never guesses.
+    std::string getBaseChar(int rawCode) const {
+        const auto it = baseCharByCode_.find(rawCode);
+        return it == baseCharByCode_.end() ? std::string() : it->second;
+    }
+
     static bool isAltLeaderSym(KeySym sym) {
         return sym == FcitxKey_Alt_L || sym == FcitxKey_Alt_R ||
                sym == FcitxKey_ISO_Level3_Shift;
     }
 
-    // Case-insensitive match for ASCII letters, exact match otherwise.
-    // Allows Shift+f to match custom leader "f" so uppercase mappings
-    // work naturally while holding Shift (e.g. Shift+O + Shift+F → Ö).
-    static bool matchCustomKey(const std::string &keyChar,
-                               const std::string &customKey) {
-        if (keyChar == customKey)
-            return true;
-        if (keyChar.size() == 1 && customKey.size() == 1) {
-            char a = keyChar[0], b = customKey[0];
-            if (a >= 'A' && a <= 'Z')
-                a += 32;
-            if (b >= 'A' && b <= 'Z')
-                b += 32;
-            if (a >= 'a' && a <= 'z')
-                return a == b;
-        }
-        return false;
-    }
-
-    // Resolve the base (unshifted, Level 0) character for a physical key
-    // using the XKB keymap.  Returns empty string if unavailable.
-    std::string getBaseChar(int rawCode) const {
-        if (!xkbKeymap_)
-            return "";
-        auto code = static_cast<xkb_keycode_t>(rawCode);
-        const xkb_keysym_t *syms;
-        int n = xkb_keymap_key_get_syms_by_level(xkbKeymap_, code, 0, 0, &syms);
-        if (n > 0) {
-            uint32_t uc = xkb_keysym_to_utf32(syms[0]);
-            if (uc > 0 && uc <= kMaxUnicodeCodepoint) {
-                return utf8::UCS4ToUTF8(uc);
-            }
-        }
-        return "";
-    }
-
-    // Match a keypress against a custom leader key.  First tries the
-    // character directly (handles letters via case-folding).  If that
-    // fails (Shift turned '/' into '?'), resolves the physical key's
-    // base character via the XKB keymap and retries.
-    bool matchCustomKeyOrBase(const std::string &keyChar,
-                              const std::string &customKey, int rawCode) const {
-        if (!keyChar.empty() && matchCustomKey(keyChar, customKey))
-            return true;
-        std::string base = getBaseChar(rawCode);
-        return !base.empty() && matchCustomKey(base, customKey);
+    // A custom leader IS its physical key, so matching is a keycode comparison
+    // and nothing else. The leader fires whatever character the key currently
+    // produces: through Shift, through any layout, through any script. An
+    // unconfigured leader (kNoKeyCode) matches nothing.
+    static bool matchCustomLeader(int customKeyCode, int rawCode) {
+        return customKeyCode != kNoKeyCode && rawCode == customKeyCode;
     }
 
     // Leader classification for dual custom leader support.
@@ -1352,24 +1356,17 @@ private:
     // Custom1/Custom2 may be restricted by dual-split logic.
     enum class LeaderType { None, BuiltIn, Custom1, Custom2 };
 
-    LeaderType classifyLeader(const Key &key, const std::string &keyChar,
-                              int rawCode) const {
+    LeaderType classifyLeader(const Key &key, int rawCode) const {
         KeySym sym = key.sym();
 
         // Alt/AltGr — built-in, unrestricted
         if (*config_.leader->alt && isAltLeaderSym(sym))
             return LeaderType::BuiltIn;
 
-        // Custom Key 1 (sanitized at config load, case-insensitive for
-        // letters). When Shift changes the character (e.g. Shift+/ → ?), fall
-        // back to the XKB keymap to resolve the physical key's base character.
-        if (!cachedCustomKey_.empty() &&
-            matchCustomKeyOrBase(keyChar, cachedCustomKey_, rawCode))
+        // Custom leaders: the captured physical keys
+        if (matchCustomLeader(cachedCustomKeyCode_, rawCode))
             return LeaderType::Custom1;
-
-        // Custom Key 2
-        if (!cachedCustomKey2_.empty() &&
-            matchCustomKeyOrBase(keyChar, cachedCustomKey2_, rawCode))
+        if (matchCustomLeader(cachedCustomKey2Code_, rawCode))
             return LeaderType::Custom2;
 
         // Built-in leader toggles
@@ -1387,37 +1384,46 @@ private:
         return LeaderType::None;
     }
 
-    // Dual custom leader split: when BOTH custom keys are set and on
-    // opposite hands, each only triggers inputs on the OTHER hand.
-    // Single custom key or same-hand keys → no restriction.
-    // Built-in leaders always unrestricted.
-    // inputKeyCode: physical keycode of the input key (from waitingKeyCode_).
-    // When available, uses the physical key position directly — this correctly
-    // classifies shifted characters (e.g. ! = Shift+1 → left hand) that
-    // charToKeycode_ cannot resolve (it only has level 0 / unshifted chars).
-    bool isDualCustomAllowed(LeaderType leader, const std::string &inputKey,
-                             int inputKeyCode = 0) const {
+    // Dual custom leader split: when BOTH custom leaders are configured and sit
+    // on opposite keyboard halves, each one only triggers inputs on the OTHER
+    // half. Built-in leaders are always unrestricted.
+    //
+    // Every hand comes from a physical keycode: the leaders' from the config
+    // (captured in the editor), the input key's from the key event via
+    // waitingKeyCode_, which stays valid through cycling. Nothing is resolved
+    // from a character, so the rule holds on every layout and across a layout
+    // switch.
+    //
+    // The split switches off, and every leader then triggers everything, when it
+    // no meaning: only one leader configured, or both on the same key or the
+    // same half.
+    bool isDualCustomAllowed(LeaderType leader, int inputKeyCode) const {
         if (leader == LeaderType::BuiltIn || leader == LeaderType::None)
             return true;
 
-        // Dual mode only when BOTH custom keys are set
-        if (cachedCustomKey_.empty() || cachedCustomKey2_.empty())
+        // Dual mode only when BOTH custom leaders are configured
+        if (cachedCustomKeyCode_ == kNoKeyCode ||
+            cachedCustomKey2Code_ == kNoKeyCode)
             return true;
 
-        // Identical keys → no split
-        if (cachedCustomKey_ == cachedCustomKey2_)
+        // Same physical key → no split
+        if (cachedCustomKeyCode_ == cachedCustomKey2Code_)
             return true;
 
-        bool key1Left = handClassifier_.isLeftHand(cachedCustomKey_);
-        bool key2Left = handClassifier_.isLeftHand(cachedCustomKey2_);
+        const bool key1Left = isLeftHandKeycode(cachedCustomKeyCode_);
+        const bool key2Left = isLeftHandKeycode(cachedCustomKey2Code_);
 
-        // Both keys on same hand → no split possible, allow all
+        // Both leaders on the same half → no split possible, allow all
         if (key1Left == key2Left)
             return true;
 
-        bool inputLeft = (inputKeyCode > 0)
-                             ? HandClassifier::isLeftHandKeycode(inputKeyCode)
-                             : handClassifier_.isLeftHand(inputKey);
+        // The input key always carries its keycode (waitingKeyCode_ is set on
+        // the press and outlives the switch to cycling), so this guard should
+        // never fire. Allow rather than classify a missing code as right-hand.
+        if (inputKeyCode == kNoKeyCode)
+            return true;
+
+        const bool inputLeft = isLeftHandKeycode(inputKeyCode);
 
         // Left-hand leader triggers RIGHT-hand inputs (and vice versa)
         if (leader == LeaderType::Custom1)
@@ -1533,10 +1539,21 @@ private:
                 sanitizeCustomKey(*config_.leader->custom->customKey2));
     }
 
-    // Sanitize custom leader key: trim whitespace, keep only first UTF-8
-    // character, lowercase ASCII letters.  Only a single key is valid —
-    // spaces would silently shadow the Space toggle, and multi-char strings
-    // would never match a keypress.
+    // A keycode is only meaningful if it can name a real key. The config is a
+    // plain text file, so a hand-edited value outside the pressable range has to
+    // collapse to kNoKeyCode here. Left as-is, it would count as "leader
+    // configured" (arming the hand-split and silencing the no-key warning) while
+    // matching no key that can ever be pressed. That holds at both ends: -1 and
+    // 99999 are equally unreachable.
+    static int sanitizeKeyCode(int raw) {
+        return isUsableKeyCode(raw) ? raw : kNoKeyCode;
+    }
+
+    // Normalise a custom leader's stored character: trim whitespace, keep only
+    // the first UTF-8 character, lowercase ASCII letters. The character does not
+    // trigger the leader (its keycode does), so this only shapes what is shown
+    // and what the mapped-input collision check compares. A hand-edited config
+    // cannot smuggle a multi-character or padded string into either.
     static std::string sanitizeCustomKey(const std::string &raw) {
         size_t start = raw.find_first_not_of(" \t\n\r");
         if (start == std::string::npos)
@@ -1582,18 +1599,20 @@ private:
 
     // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
-    // Sanitized custom leader keys (trimmed, single UTF-8 char each)
+    // The character each custom leader printed when it was captured. Not used
+    // for matching, only for log messages and the mapped-input collision
+    // warning.
     std::string cachedCustomKey_;
     std::string cachedCustomKey2_;
-    // XKB keymap for resolving the base (unshifted) character of a physical
-    // key.  Lets Shift+symbol custom leaders work (e.g. Shift+/ → '?' is
-    // resolved back to '/' so the leader still matches).
-    struct xkb_context *xkbCtx_ = nullptr;
-    struct xkb_keymap *xkbKeymap_ = nullptr;
-    // Layout-independent hand classifier. Built from xkbKeymap_ after the
-    // keymap is ready; used by isDualCustomAllowed() for the dual
-    // custom-leader split feature.
-    HandClassifier handClassifier_;
+    // The physical key (evdev+8) behind each custom leader, captured in the
+    // editor. This is what triggers the leader and what the hand-split
+    // classifies. kNoKeyCode → the leader is off or has no key assigned.
+    int cachedCustomKeyCode_ = kNoKeyCode;
+    int cachedCustomKey2Code_ = kNoKeyCode;
+    // Physical key (evdev+8) → the character it produces unmodified, learned
+    // from the user's own keystrokes. See learnBaseChar(). Bounded by the
+    // keyboard's key count, so it needs no eviction.
+    std::unordered_map<int, std::string> baseCharByCode_;
     // App filter (cached from config). When set to Blacklist/Whitelist,
     // processing is skipped for matching apps based on ic->program().
     AppFilter appFilter_;

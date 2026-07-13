@@ -9,6 +9,7 @@
 #include <fcitx-config/enum.h>
 #include <fcitx-config/rawconfig.h>
 
+#include "hand_classifier.h"
 #include "profile_paths.h"
 
 #include <string>
@@ -99,6 +100,14 @@ FCITX_CONFIGURATION(
         this, "UppercaseMin", "Uppercase minimum hold (ms)", 0,
         IntConstrainWithStep(kMinHoldMin, kDelayMax, kDelayStep)};);
 
+// A custom leader is a physical key, captured as a real key press in the
+// editor. That press stores two things: the keycode, which is what the engine
+// matches and hand-classifies, and the character, which is only shown in the UI
+// and checked against the mappings.
+//
+// The keycode identifies the key regardless of layout and regardless of Shift,
+// which changes the character but not the key. A leader whose keycode is
+// kNoKeyCode has no captured key and is inactive.
 FCITX_CONFIGURATION(
     CustomLeaderConfig, Option<bool> customKeyEnabled{this, "CustomKeyEnabled",
                                                       "Custom Leader 1", false};
@@ -112,6 +121,8 @@ FCITX_CONFIGURATION(
         PlaceholderAnnotation(
             "e.g. ; or #", true,
             "Single character. Must not be a mapped input key.")};
+    Option<int> customKeyCode{this, "CustomKeyCode", "  \xe2\x86\xb3 Key code",
+                              kNoKeyCode};
     Option<bool> customKey2Enabled{this, "CustomKey2Enabled",
                                    "Custom Leader 2 (hand-split)", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey2{
@@ -123,7 +134,9 @@ FCITX_CONFIGURATION(
         {},
         PlaceholderAnnotation(
             "e.g. j or f", true,
-            "Single character on the opposite keyboard half of Leader 1.")};);
+            "Single character on the opposite keyboard half of Leader 1.")};
+    Option<int> customKey2Code{this, "CustomKey2Code",
+                               "  \xe2\x86\xb3 Key code", kNoKeyCode};);
 
 FCITX_CONFIGURATION(LeaderConfig,
                     Option<bool> space{this, "Space", "Space", true};

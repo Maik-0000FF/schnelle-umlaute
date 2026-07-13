@@ -129,6 +129,9 @@ void testDefaultsOnMissingFile() {
     EXPECT(s.leaderAlt() == false);
     EXPECT(s.customKey1Enabled() == false);
     EXPECT(s.customKey2Enabled() == false);
+    // No key captured yet. Never invent a position for an unset leader.
+    EXPECT(s.customKey1Code() == fcitx::kNoKeyCode);
+    EXPECT(s.customKey2Code() == fcitx::kNoKeyCode);
     EXPECT(s.appFilterMode() == QStringLiteral("Disabled"));
     EXPECT(s.blacklist().isEmpty());
     EXPECT(s.whitelist().isEmpty());
@@ -154,7 +157,14 @@ void testScalarRoundTrip() {
         s.setLeaderLeft(true);
         s.setLeaderAlt(true);
         s.setCustomKey1Enabled(true);
-        s.setCustomKey1(QStringLiteral(";"));
+        // '#' is the character that starts a comment in this INI-ish file. It is
+        // only ever written on the VALUE side (`CustomKey=#`), where it is just
+        // text, but pin that: a parser that stripped it would silently blank the
+        // leader's display character and its mapped-input collision check.
+        // The captured physical key must survive the round-trip too: it is what
+        // the addon matches and hand-classifies, so losing it would take the
+        // leader and the dual split down with it. 20 = the '#' key.
+        s.captureCustomKey1(QStringLiteral("#"), 20);
         s.setAppFilterMode(QStringLiteral("Blacklist"));
         s.setOverlayEnabled(true);
         s.setOverlayShowOnTrigger(true);
@@ -169,11 +179,102 @@ void testScalarRoundTrip() {
     EXPECT(s2.leaderLeft() == true);
     EXPECT(s2.leaderAlt() == true);
     EXPECT(s2.customKey1Enabled() == true);
-    EXPECT(s2.customKey1() == QStringLiteral(";"));
+    EXPECT(s2.customKey1() == QStringLiteral("#"));
+    EXPECT(s2.customKey1Code() == 20);
     EXPECT(s2.appFilterMode() == QStringLiteral("Blacklist"));
     EXPECT(s2.overlayEnabled() == true);
     EXPECT(s2.overlayShowOnTrigger() == true);
     EXPECT(s2.theme() == QStringLiteral("dark"));
+}
+
+// One captured key press stores both halves of a leader together, so the file
+// never holds the new keycode next to the previous key's character, and QML can
+// ask hasKey instead of restating the "no key" sentinel.
+void testCaptureCustomKeyRoundTrip() {
+    resetTempdir();
+    {
+        SettingsModel s;
+        s.setCustomKey1Enabled(true);
+        EXPECT(s.customKey1HasKey() == false);
+        s.captureCustomKey1(QStringLiteral("f"), 41);
+        EXPECT(s.customKey1HasKey() == true);
+
+        // Re-capturing replaces both halves at once.
+        s.captureCustomKey1(QStringLiteral("j"), 44);
+    }
+    SettingsModel s2;
+    EXPECT(s2.customKey1() == QStringLiteral("j"));
+    EXPECT(s2.customKey1Code() == 44);
+    EXPECT(s2.customKey1HasKey() == true);
+}
+
+// A hand-edited keycode that cannot name a real key reads back as "no key", so
+// the editor shows it as unassigned instead of pretending it works. Both ends
+// of the range matter: an out-of-range code is as unpressable as a negative one,
+// and either would otherwise count as a configured leader and arm the split.
+void testInvalidKeyCodeReadsAsUnassigned() {
+    const char *unusable[] = {"-1", "0", "776", "99999", "notanumber"};
+    for (const char *code : unusable) {
+        resetTempdir();
+        writeConfig(std::string("[Leader/Custom]\n"
+                                "CustomKeyEnabled=True\n"
+                                "CustomKey=f\n"
+                                "CustomKeyCode=") +
+                    code + "\n");
+        SettingsModel s;
+        EXPECT(s.customKey1Code() == fcitx::kNoKeyCode);
+        EXPECT(s.customKey1HasKey() == false);
+    }
+
+    // The boundary itself is a key a keyboard may report and must survive.
+    resetTempdir();
+    writeConfig("[Leader/Custom]\n"
+                "CustomKeyEnabled=True\n"
+                "CustomKey=f\n"
+                "CustomKeyCode=775\n");
+    SettingsModel s;
+    EXPECT(s.customKey1Code() == fcitx::kMaxKeyCode);
+    EXPECT(s.customKey1HasKey() == true);
+}
+
+// Qt never reports CapsLock in a key event's modifiers, so a capture under
+// CapsLock arrives uppercased. The label and the mapped-input collision check
+// compare characters, so the stored one is folded down. Non-ASCII included: the
+// engine's own fold only covers ASCII.
+void testCaptureFoldsCaseIncludingNonAscii() {
+    resetTempdir();
+    {
+        SettingsModel s;
+        s.setCustomKey1Enabled(true);
+        s.captureCustomKey1(QStringLiteral("F"), 41);
+        EXPECT(s.customKey1() == QStringLiteral("f"));
+
+        s.setCustomKey2Enabled(true);
+        s.captureCustomKey2(QString::fromUtf8("Ä"), 48);
+        EXPECT(s.customKey2() == QString::fromUtf8("ä"));
+    }
+    SettingsModel s2;
+    EXPECT(s2.customKey1() == QStringLiteral("f"));
+    EXPECT(s2.customKey2() == QString::fromUtf8("ä"));
+}
+
+// Case mapping is allowed to expand a codepoint: Turkish 'İ' (U+0130) folds to
+// 'i' plus a combining dot. The stored character must stay a single codepoint
+// regardless, or the editor flags a working leader as invalid. The unfolded
+// character is kept in that case.
+void testCaptureKeepsSingleCodepointWhenFoldExpands() {
+    resetTempdir();
+    const QString dottedI = QString::fromUtf8("\xC4\xB0"); // U+0130
+    EXPECT(dottedI.toLower().toUcs4().size() == 2);        // the fold expands
+
+    SettingsModel s;
+    s.setCustomKey1Enabled(true);
+    s.captureCustomKey1(dottedI, 31);
+    EXPECT(s.customKey1().toUcs4().size() == 1);
+    EXPECT(s.customKey1() == dottedI);
+    EXPECT(SettingsModel::isValidLeaderKey(s.customKey1()));
+    // The key itself is unaffected: matching never looks at the character.
+    EXPECT(s.customKey1Code() == 31);
 }
 
 void testBlacklistAddAndRoundTrip() {
@@ -424,6 +525,12 @@ const TestCase kTests[] = {
     {"testIsValidPlacement", testIsValidPlacement},
     {"testDefaultsOnMissingFile", testDefaultsOnMissingFile},
     {"testScalarRoundTrip", testScalarRoundTrip},
+    {"testCaptureCustomKeyRoundTrip", testCaptureCustomKeyRoundTrip},
+    {"testCaptureFoldsCaseIncludingNonAscii",
+     testCaptureFoldsCaseIncludingNonAscii},
+    {"testCaptureKeepsSingleCodepointWhenFoldExpands",
+     testCaptureKeepsSingleCodepointWhenFoldExpands},
+    {"testInvalidKeyCodeReadsAsUnassigned", testInvalidKeyCodeReadsAsUnassigned},
     {"testBlacklistAddAndRoundTrip", testBlacklistAddAndRoundTrip},
     {"testWhitelistAddAndRemove", testWhitelistAddAndRemove},
     {"testBlacklistDedupAndTrim", testBlacklistDedupAndTrim},

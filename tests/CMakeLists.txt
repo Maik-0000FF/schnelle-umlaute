@@ -1,5 +1,12 @@
 find_package(Fcitx5Module REQUIRED COMPONENTS TestFrontend TestIM)
 
+# xkbcommon is a TEST-only dependency. The addon itself no longer compiles a
+# keymap (it takes physical keycodes straight from the key events), so only
+# testschnelleumlaute needs it: it builds real de/fr/dvorak keymaps to work out
+# which physical key produces a given character on each layout, and then checks
+# the shipped classifier against those positions.
+pkg_check_modules(XKBCommon REQUIRED IMPORTED_TARGET xkbcommon)
+
 # Extra Qt components only tests need (DBus adaptor headers in
 # OverlayController.h, QSignalSpy for verifying signal emission).
 find_package(Qt${QT_MAJOR_VERSION} REQUIRED COMPONENTS DBus Test)
