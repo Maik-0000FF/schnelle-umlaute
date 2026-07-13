@@ -51,12 +51,19 @@ class SettingsModel : public QObject {
                    customKey1Changed)
     Q_PROPERTY(int customKey1Code READ customKey1Code WRITE setCustomKey1Code
                    NOTIFY customKey1CodeChanged)
+    // Whether a physical key has been captured. QML asks this instead of
+    // comparing the code against kNoKeyCode, so the sentinel value stays
+    // defined in exactly one place (hand_classifier.h) and is never restated.
+    Q_PROPERTY(bool customKey1HasKey READ customKey1HasKey NOTIFY
+                   customKey1CodeChanged)
     Q_PROPERTY(bool customKey2Enabled READ customKey2Enabled WRITE
                    setCustomKey2Enabled NOTIFY customKey2EnabledChanged)
     Q_PROPERTY(QString customKey2 READ customKey2 WRITE setCustomKey2 NOTIFY
                    customKey2Changed)
     Q_PROPERTY(int customKey2Code READ customKey2Code WRITE setCustomKey2Code
                    NOTIFY customKey2CodeChanged)
+    Q_PROPERTY(bool customKey2HasKey READ customKey2HasKey NOTIFY
+                   customKey2CodeChanged)
 
     Q_PROPERTY(QString appFilterMode READ appFilterMode WRITE setAppFilterMode
                    NOTIFY appFilterModeChanged)
@@ -112,9 +119,17 @@ public:
     bool customKey1Enabled() const { return customKey1Enabled_; }
     QString customKey1() const { return customKey1_; }
     int customKey1Code() const { return customKey1Code_; }
+    bool customKey1HasKey() const { return customKey1Code_ != kNoKeyCode; }
     bool customKey2Enabled() const { return customKey2Enabled_; }
     QString customKey2() const { return customKey2_; }
     int customKey2Code() const { return customKey2Code_; }
+    bool customKey2HasKey() const { return customKey2Code_ != kNoKeyCode; }
+
+    // One captured key press sets both halves of a leader. Going through the
+    // individual setters would write the config file twice and, in between,
+    // leave the new keycode paired with the previous key's character.
+    Q_INVOKABLE void captureCustomKey1(const QString &ch, int code);
+    Q_INVOKABLE void captureCustomKey2(const QString &ch, int code);
     QString appFilterMode() const { return appFilterMode_; }
     QStringList blacklist() const { return blacklist_; }
     QStringList whitelist() const { return whitelist_; }

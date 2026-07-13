@@ -161,7 +161,7 @@ public:
         }
 
         if (isPress)
-            learnBaseChar(key, rawCode, keyChar);
+            learnBaseChar(keyEvent.rawKey(), rawCode);
 
         // Pure modifier key presses (Shift, Ctrl, Alt, Super, etc.)
         // pass through without affecting gesture state.
@@ -413,7 +413,7 @@ public:
             // held (AltGr+q → '@', number keys → symbols), which would stop the
             // accent key handler from finding the mapping.  The base character
             // comes from what this key produced unmodified earlier in the
-            // session (learnBaseChar) — the real layout, not a compiled guess.
+            // session (learnBaseChar), i.e. the real layout, not a compiled guess.
             // Unknown key → keep the keysym's character, as before.
             std::string baseChar = getBaseChar(rawCode);
             if (!baseChar.empty()) {
@@ -1062,13 +1062,15 @@ private:
             *config_.leader->custom->customKey2Enabled
                 ? sanitizeCustomKey(*config_.leader->custom->customKey2)
                 : "";
-        // The physical key behind each leader — what actually triggers it.
-        cachedCustomKeyCode_ = *config_.leader->custom->customKeyEnabled
-                                   ? *config_.leader->custom->customKeyCode
-                                   : kNoKeyCode;
-        cachedCustomKey2Code_ = *config_.leader->custom->customKey2Enabled
-                                    ? *config_.leader->custom->customKey2Code
-                                    : kNoKeyCode;
+        // The physical key behind each leader, i.e. what actually triggers it.
+        cachedCustomKeyCode_ =
+            *config_.leader->custom->customKeyEnabled
+                ? sanitizeKeyCode(*config_.leader->custom->customKeyCode)
+                : kNoKeyCode;
+        cachedCustomKey2Code_ =
+            *config_.leader->custom->customKey2Enabled
+                ? sanitizeKeyCode(*config_.leader->custom->customKey2Code)
+                : kNoKeyCode;
 
         // Warn if a custom leader key collides with a mapped input
         if (!cachedCustomKey_.empty() && umlautMap_.count(cachedCustomKey_)) {
@@ -1086,12 +1088,12 @@ private:
         if (*config_.leader->custom->customKeyEnabled &&
             cachedCustomKeyCode_ == kNoKeyCode) {
             FCITX_WARN() << "Schnelle: CustomKey has no key assigned"
-                         << " — press the key in the editor to set it";
+                         << ", press the key in the editor to set it";
         }
         if (*config_.leader->custom->customKey2Enabled &&
             cachedCustomKey2Code_ == kNoKeyCode) {
             FCITX_WARN() << "Schnelle: CustomKey2 has no key assigned"
-                         << " — press the key in the editor to set it";
+                         << ", press the key in the editor to set it";
         }
 
         // Warn when the split cannot apply. Mirrors isDualCustomAllowed(), so
@@ -1289,24 +1291,44 @@ private:
                mods.test(KeyState::Super);
     }
 
-    // Record what a physical key produces when pressed with no modifiers. This
-    // is the user's real layout, observed rather than assumed: fcitx5 resolved
-    // the keysym through the XKB state that actually governs the session, so
-    // the pair is correct on every layout and re-learns itself after a layout
-    // switch.
+    // Every modifier that can change which character a key produces. AltGr is
+    // the one that is easy to miss: it is the level-3 shift and reports as
+    // Mod5, NOT as Alt (which is Mod1), so a guard testing Alt alone would let
+    // AltGr through and learn the level-3 character as if it were the base one.
+    // NumLock is deliberately absent: it only switches the keypad, never a
+    // letter.
+    static KeyStates charChangingModifiers() {
+        return KeyStates(KeyState::Shift) | KeyState::CapsLock |
+               KeyState::Ctrl | KeyState::Alt | KeyState::Super |
+               KeyState::Hyper | KeyState::Meta | KeyState::Mod5;
+    }
+
+    // Record what a physical key produces when pressed with no modifiers at
+    // all. This is the user's real layout, observed rather than assumed: fcitx5
+    // resolved the keysym through the XKB state that actually governs the
+    // session, so the pair is correct on every layout.
     //
-    // Only the Alt-leader bypass consumes it (see getBaseChar). A key not yet
-    // pressed unmodified stays unknown, and the caller then keeps the keysym's
-    // own character.
-    void learnBaseChar(const Key &key, int rawCode, const std::string &keyChar) {
-        if (keyChar.empty() || rawCode == kNoKeyCode)
+    // Takes the RAW key, never KeyEvent::key(). The normalized key is unusable
+    // for deciding "unmodified": Key::normalize() keeps only Ctrl/Alt/Shift/
+    // Super, and drops Shift outright for a-z/A-Z. AltGr (Mod5) and CapsLock
+    // would therefore be invisible here, and Shift+a would arrive looking like
+    // an unmodified 'A' — each one teaching a wrong base character for a key.
+    //
+    // A key's entry is refreshed the next time it is pressed unmodified, so
+    // after a layout switch every key corrects itself on its first plain press.
+    // Until then its old character is served, which the sole consumer tolerates:
+    // it only ever falls back to the keysym's own character. That consumer is
+    // the Alt-leader bypass (see getBaseChar). Keys never pressed unmodified
+    // stay unknown.
+    void learnBaseChar(const Key &rawKey, int rawCode) {
+        if (rawCode == kNoKeyCode)
             return;
-        const KeyStates mods = key.states();
-        if (mods.test(KeyState::Shift) || mods.test(KeyState::Ctrl) ||
-            mods.test(KeyState::Alt) || mods.test(KeyState::Super) ||
-            mods.test(KeyState::CapsLock))
+        if (rawKey.states().testAny(charChangingModifiers()))
             return;
-        baseCharByCode_[rawCode] = keyChar;
+        const uint32_t unicode = Key::keySymToUnicode(rawKey.sym());
+        if (unicode == 0 || unicode > kMaxUnicodeCodepoint)
+            return;
+        baseCharByCode_[rawCode] = utf8::UCS4ToUTF8(unicode);
     }
 
     // The unmodified character of a physical key, or empty when that key has
@@ -1341,7 +1363,7 @@ private:
         if (*config_.leader->alt && isAltLeaderSym(sym))
             return LeaderType::BuiltIn;
 
-        // Custom leaders — the captured physical keys
+        // Custom leaders: the captured physical keys
         if (matchCustomLeader(cachedCustomKeyCode_, rawCode))
             return LeaderType::Custom1;
         if (matchCustomLeader(cachedCustomKey2Code_, rawCode))
@@ -1372,7 +1394,7 @@ private:
     // from a character, so the rule holds on every layout and across a layout
     // switch.
     //
-    // The split switches off — every leader triggers everything — when it has
+    // The split switches off, and every leader then triggers everything, when it
     // no meaning: only one leader configured, or both on the same key or the
     // same half.
     bool isDualCustomAllowed(LeaderType leader, int inputKeyCode) const {
@@ -1517,10 +1539,19 @@ private:
                 sanitizeCustomKey(*config_.leader->custom->customKey2));
     }
 
+    // A keycode is only meaningful if it can name a real key. The config is a
+    // plain text file, so a hand-edited negative or zero value has to collapse
+    // to kNoKeyCode here: left as-is, it would count as "leader configured"
+    // (arming the hand-split and silencing the no-key warning) while matching
+    // no key that can ever be pressed.
+    static int sanitizeKeyCode(int raw) {
+        return raw > kNoKeyCode ? raw : kNoKeyCode;
+    }
+
     // Normalise a custom leader's stored character: trim whitespace, keep only
     // the first UTF-8 character, lowercase ASCII letters. The character does not
     // trigger the leader (its keycode does), so this only shapes what is shown
-    // and what the mapped-input collision check compares — a hand-edited config
+    // and what the mapped-input collision check compares. A hand-edited config
     // cannot smuggle a multi-character or padded string into either.
     static std::string sanitizeCustomKey(const std::string &raw) {
         size_t start = raw.find_first_not_of(" \t\n\r");
@@ -1568,7 +1599,7 @@ private:
     // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
     // The character each custom leader printed when it was captured. Not used
-    // for matching — only for log messages and the mapped-input collision
+    // for matching, only for log messages and the mapped-input collision
     // warning.
     std::string cachedCustomKey_;
     std::string cachedCustomKey2_;

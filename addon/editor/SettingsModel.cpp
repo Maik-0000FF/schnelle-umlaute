@@ -279,6 +279,25 @@ void SettingsModel::setCustomKey2Code(int v) {
     Q_EMIT customKey2CodeChanged();
     save();
 }
+
+// Both halves land together, then one save. The keycode is authoritative and
+// always stored; the character is display only, so a value the leader rules
+// reject is simply not shown rather than blocking the capture.
+void SettingsModel::captureCustomKey1(const QString &ch, int code) {
+    customKey1Code_ = code;
+    customKey1_ = isValidLeaderKey(ch) ? ch : QString();
+    Q_EMIT customKey1CodeChanged();
+    Q_EMIT customKey1Changed();
+    save();
+}
+void SettingsModel::captureCustomKey2(const QString &ch, int code) {
+    customKey2Code_ = code;
+    customKey2_ = isValidLeaderKey(ch) ? ch : QString();
+    Q_EMIT customKey2CodeChanged();
+    Q_EMIT customKey2Changed();
+    save();
+}
+
 void SettingsModel::setAppFilterMode(const QString &v) {
     if (appFilterMode_ == v)
         return;

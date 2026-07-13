@@ -65,7 +65,7 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <xkbcommon/xkbcommon.h>
-// The shipped classifier and kNoKeyCode — tested directly, not re-implemented.
+// The shipped classifier and kNoKeyCode, tested directly rather than copied.
 #include "src/hand_classifier.h"
 #include "src/synthetic_autorepeat.h"
 #include "testdir.h"
@@ -185,9 +185,9 @@ static ICUUID createAndActivate(Instance * /*instance*/,
 }
 
 // customCode/custom2Code are the physical keys behind the custom leaders, as
-// the editor captures them. Leaving them at kNoKeyCode models a config written
-// before keycodes were stored: the leader still matches by character, but it
-// has no known keyboard half, so the dual split stays off.
+// the editor captures them. They are what makes a leader active: left at
+// kNoKeyCode, the leader has no key and triggers nothing, whatever character
+// is stored alongside it (see TEST 153).
 static void configureLeaders(Instance *instance, bool space, bool left,
                              bool right, bool up, bool down, bool alt,
                              const std::string &custom = "",
@@ -2366,7 +2366,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
             Key(FcitxKey_question, KeyStates(KeyState::Shift), kCodeSlash),
             false);
         FCITX_ASSERT(consumed)
-            << "Shift+'/' must still fire the '/' leader — the key is the "
+            << "Shift+'/' must still fire the '/' leader: the key is the "
                "leader, not the character it happens to produce";
 
         tf->call<ITestFrontend::keyEvent>(
@@ -2401,11 +2401,124 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_z, KeyStates(), kCodeZ), false);
         FCITX_ASSERT(!consumed)
-            << "A leader with no key assigned must not trigger — the character "
+            << "A leader with no key assigned must not trigger: the character "
                "alone does not configure one";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 153 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 154: AltGr must not poison the learned base characters
+    // The engine remembers what each physical key produces UNMODIFIED, and the
+    // Alt-leader bypass uses that to find the mapping when a modifier changed
+    // the keysym. AltGr is the level-3 shift and reports as Mod5, not as Alt,
+    // so a modifier guard that only knows about Alt would treat AltGr+s as an
+    // unmodified press and learn the level-3 character for that key.
+    //
+    // Here the 's' key is taught first, then hit with AltGr (reporting '@'),
+    // then used as a new mapped key during an Alt gesture. The bypass has to
+    // resolve it back to 's' and start an 's' gesture. If AltGr had been learned
+    // as the base character, it would commit '@' instead.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 154;
+        FCITX_INFO() << "=== Test 154: AltGr does not poison base chars ===";
+        configureLeaders(instance, false, false, false, false, false, true);
+        setMappings(instance, {{"a", "\xc3\xa4"}, {"s", "\xc3\x9f"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test154");
+
+        // Teach the 's' key: press it unmodified, release without a leader so it
+        // commits as itself.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("s");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(), kCodeS), true);
+
+        // Now hit the SAME physical key with AltGr, which reports Mod5 and a
+        // different keysym. This must not become the key's base character.
+        // Note this only works if the guard reads the RAW key: normalize()
+        // strips Mod5, so the normalized key looks unmodified.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_at, KeyStates(KeyState::Mod5), kCodeS), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_at, KeyStates(KeyState::Mod5), kCodeS), true);
+
+        // Same for Shift: normalize() drops the Shift bit for letters, so a
+        // shifted press also looks unmodified on the normalized key. It must not
+        // teach 'S' as the base character either. 'S' is not a mapped input
+        // here, so it simply passes through.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_S, KeyStates(KeyState::Shift), kCodeS), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_S, KeyStates(KeyState::Shift), kCodeS), true);
+
+        // Hold 'a', press Alt to start cycling.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+
+        // Press the 's' key with Alt held, arriving with a modifier-changed
+        // keysym. The bypass resolves the key's base character: 's', a mapped
+        // input, so the cycling value commits and an 's' gesture starts. A
+        // poisoned map would resolve '@' and commit that instead, which the
+        // frontend flags as an unexpected commit.
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_at, KeyState::Alt, kCodeS), false);
+        FCITX_ASSERT(consumed) << "Alt+'s' during cycling must be consumed";
+
+        // Release it: the 's' gesture commits as itself, proving a gesture was
+        // started for 's' and not that '@' was emitted.
+        tf->call<ITestFrontend::pushCommitExpectation>("s");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_at, KeyState::Alt, kCodeS), true);
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 154 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 155: A negative keycode from a hand-edited config is not a key
+    // The config is a plain text file. A keycode that cannot name a real key
+    // must collapse to "no key assigned", otherwise it counts as a configured
+    // leader: matching nothing, yet arming the hand-split off its own bogus
+    // position (-1 classifies as right-hand by omission).
+    //
+    // Leader 1 claims -1, leader 2 is the real 'f' key on the LEFT half. Taking
+    // -1 at face value makes the two look opposite-handed, arms the split, and
+    // restricts left-hand leader 'f' to right-hand inputs, which would block
+    // left-hand 'a'. Collapsed to "no key", the split stays off and 'f'
+    // triggers everything.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 155;
+        FCITX_INFO() << "=== Test 155: Negative keycode is no key ===";
+        configureLeaders(instance, false, false, false, false, false, false, "z",
+                         "f", -1, kCodeF);
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test155");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_f, KeyStates(), kCodeF), false);
+        FCITX_ASSERT(consumed)
+            << "A leader with an unusable keycode must not arm the split";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 155 PASSED";
     });
 
     // =========================================================================

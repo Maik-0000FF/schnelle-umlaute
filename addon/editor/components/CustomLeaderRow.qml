@@ -15,14 +15,15 @@ ColumnLayout {
     property string labelText: ""
     property bool enabledValue: false
     property string keyValue: ""
-    // evdev+8, matching fcitx5's Key::code(). kNoKeyCode = no key assigned.
-    property int keyCodeValue: 0
+    // Whether a physical key has been captured. The model answers this, so the
+    // "no key" sentinel keeps a single definition in C++ and is never restated
+    // as a bare number here.
+    property bool keyAssigned: false
     property var mappingsModel: null
     signal enabledEdited(bool v)
-    signal keyEdited(string v)
-    signal keyCodeEdited(int v)
-
-    readonly property int noKeyCode: 0
+    // One key press, one signal: the character and the physical key belong
+    // together and are stored in a single write.
+    signal keyCaptured(string ch, int code)
 
     property bool capturing: false
 
@@ -31,8 +32,7 @@ ColumnLayout {
 
     // A leader with no key assigned cannot trigger anything. The character on
     // its own is not enough, so say so instead of looking configured.
-    readonly property bool needsKey:
-        enabledValue && keyCodeValue === noKeyCode
+    readonly property bool needsKey: enabledValue && !keyAssigned
 
     // inputErrorFor reads model state that QML can't track through a method
     // call, so bump this tick whenever the mapping model changes and reference
@@ -136,40 +136,62 @@ ColumnLayout {
             Keys.onPressed: (event) => {
                 if (!root.capturing)
                     return;
-                event.accepted = true;
 
-                // Wait for the real key; a standalone modifier press is the user
-                // reaching for Shift, not the leader they mean.
-                if (event.key === Qt.Key_Shift || event.key === Qt.Key_Control
-                    || event.key === Qt.Key_Alt || event.key === Qt.Key_AltGr
-                    || event.key === Qt.Key_Meta || event.key === Qt.Key_CapsLock)
+                // Tab keeps moving focus, even while armed: swallowing it would
+                // trap the keyboard in a field the user cannot leave. Losing
+                // focus cancels the capture (onActiveFocusChanged).
+                if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
                     return;
 
+                // Escape cancels. Consume it so it does not also close the
+                // window.
                 if (event.key === Qt.Key_Escape) {
                     root.capturing = false;
+                    event.accepted = true;
                     return;
                 }
 
-                // The character is still shown to the user and checked against
-                // the mappings, so a key that produces none (F1, arrows) cannot
+                // Keep waiting on a bare modifier press: that is the user
+                // reaching for Shift, not the leader they mean.
+                if (event.key === Qt.Key_Shift || event.key === Qt.Key_Control
+                    || event.key === Qt.Key_Alt || event.key === Qt.Key_AltGr
+                    || event.key === Qt.Key_Meta || event.key === Qt.Key_CapsLock) {
+                    event.accepted = true;
+                    return;
+                }
+
+                // The character is shown to the user and checked against the
+                // mappings, so a key that produces none (F1, arrows) cannot
                 // serve as a leader. Stay armed and let them press another.
                 const ch = event.text;
-                if (!root.isValidSingleChar(ch))
+                if (!root.isValidSingleChar(ch)) {
+                    event.accepted = true;
                     return;
+                }
 
                 root.capturing = false;
-                // Keycode first: it is the authoritative half, and writing the
-                // character first would briefly pair the new character with the
-                // previous key's code.
-                root.keyCodeEdited(event.nativeScanCode);
-                root.keyEdited(ch);
+                event.accepted = true;
+                root.keyCaptured(ch, event.nativeScanCode);
             }
         }
 
+        // The red border needs a reason next to it, or the field just looks
+        // broken. Only a hand-edited config can get here: a capture never
+        // stores a character that fails isValidSingleChar.
         Text {
-            visible: root.needsKey && !root.capturing
+            visible: root.invalidChar && !root.capturing
             Layout.fillWidth: true
-            text: qsTr("No key assigned — click the field and press the key you want")
+            text: qsTr("Stored character is not a single character")
+            color: Theme.error
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontBody
+            wrapMode: Text.WordWrap
+        }
+
+        Text {
+            visible: root.needsKey && !root.capturing && !root.invalidChar
+            Layout.fillWidth: true
+            text: qsTr("No key assigned. Click the field and press the key you want.")
             color: Theme.warning
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody
@@ -177,7 +199,7 @@ ColumnLayout {
         }
 
         Text {
-            visible: root.conflictsWithMapping && !root.needsKey
+            visible: root.conflictsWithMapping && !root.needsKey && !root.invalidChar
             Layout.fillWidth: true
             text: qsTr("Warning: this key is already a mapping input")
             color: Theme.warning

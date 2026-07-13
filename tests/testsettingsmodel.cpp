@@ -129,7 +129,7 @@ void testDefaultsOnMissingFile() {
     EXPECT(s.leaderAlt() == false);
     EXPECT(s.customKey1Enabled() == false);
     EXPECT(s.customKey2Enabled() == false);
-    // No key captured yet — never invent a position for an unset leader.
+    // No key captured yet. Never invent a position for an unset leader.
     EXPECT(s.customKey1Code() == fcitx::kNoKeyCode);
     EXPECT(s.customKey2Code() == fcitx::kNoKeyCode);
     EXPECT(s.appFilterMode() == QStringLiteral("Disabled"));
@@ -186,6 +186,40 @@ void testScalarRoundTrip() {
     EXPECT(s2.overlayEnabled() == true);
     EXPECT(s2.overlayShowOnTrigger() == true);
     EXPECT(s2.theme() == QStringLiteral("dark"));
+}
+
+// One captured key press stores both halves of a leader together, so the file
+// never holds the new keycode next to the previous key's character, and QML can
+// ask hasKey instead of restating the "no key" sentinel.
+void testCaptureCustomKeyRoundTrip() {
+    resetTempdir();
+    {
+        SettingsModel s;
+        s.setCustomKey1Enabled(true);
+        EXPECT(s.customKey1HasKey() == false);
+        s.captureCustomKey1(QStringLiteral("f"), 41);
+        EXPECT(s.customKey1HasKey() == true);
+
+        // Re-capturing replaces both halves at once.
+        s.captureCustomKey1(QStringLiteral("j"), 44);
+    }
+    SettingsModel s2;
+    EXPECT(s2.customKey1() == QStringLiteral("j"));
+    EXPECT(s2.customKey1Code() == 44);
+    EXPECT(s2.customKey1HasKey() == true);
+}
+
+// A hand-edited keycode that cannot name a real key reads back as "no key",
+// so the editor shows it as unassigned instead of silently pretending it works.
+void testInvalidKeyCodeReadsAsUnassigned() {
+    resetTempdir();
+    writeConfig("[Leader/Custom]\n"
+                "CustomKeyEnabled=True\n"
+                "CustomKey=f\n"
+                "CustomKeyCode=-1\n");
+    SettingsModel s;
+    EXPECT(s.customKey1Code() == fcitx::kNoKeyCode);
+    EXPECT(s.customKey1HasKey() == false);
 }
 
 void testBlacklistAddAndRoundTrip() {
@@ -436,6 +470,8 @@ const TestCase kTests[] = {
     {"testIsValidPlacement", testIsValidPlacement},
     {"testDefaultsOnMissingFile", testDefaultsOnMissingFile},
     {"testScalarRoundTrip", testScalarRoundTrip},
+    {"testCaptureCustomKeyRoundTrip", testCaptureCustomKeyRoundTrip},
+    {"testInvalidKeyCodeReadsAsUnassigned", testInvalidKeyCodeReadsAsUnassigned},
     {"testBlacklistAddAndRoundTrip", testBlacklistAddAndRoundTrip},
     {"testWhitelistAddAndRemove", testWhitelistAddAndRemove},
     {"testBlacklistDedupAndTrim", testBlacklistDedupAndTrim},
