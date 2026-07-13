@@ -263,21 +263,29 @@ void SettingsModel::setCustomKey2(const QString &v) {
     if (isValidLeaderKey(v))
         save();
 }
+// The capture rejects a held modifier, but it cannot reject CapsLock: Qt does
+// not report it in the event's modifiers at all. So a press under CapsLock still
+// arrives as 'A' rather than 'a'. Fold the character down here, where Qt's full
+// Unicode case mapping is available and handles 'Ä' as readily as 'A'. The
+// keycode is unaffected either way, so only the label and the mapped-input
+// collision check depend on getting this right.
+static QString leaderChar(const QString &raw) {
+    return SettingsModel::isValidLeaderKey(raw) ? raw.toLower() : QString();
+}
+
 // The only way a keycode enters the config: both halves land together, then one
 // save. A code that cannot name a pressable key is stored as kNoKeyCode, which
-// reads as "no key assigned" rather than as a leader that can never fire. The
-// character is display only, so one the leader rules reject is simply not shown
-// instead of blocking the capture.
+// reads as "no key assigned" rather than as a leader that can never fire.
 void SettingsModel::captureCustomKey1(const QString &ch, int code) {
     customKey1Code_ = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
-    customKey1_ = isValidLeaderKey(ch) ? ch : QString();
+    customKey1_ = leaderChar(ch);
     Q_EMIT customKey1CodeChanged();
     Q_EMIT customKey1Changed();
     save();
 }
 void SettingsModel::captureCustomKey2(const QString &ch, int code) {
     customKey2Code_ = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
-    customKey2_ = isValidLeaderKey(ch) ? ch : QString();
+    customKey2_ = leaderChar(ch);
     Q_EMIT customKey2CodeChanged();
     Q_EMIT customKey2Changed();
     save();

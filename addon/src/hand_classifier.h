@@ -22,13 +22,18 @@ namespace fcitx {
 // keyboard half, so it cannot take part in the split either.
 inline constexpr int kNoKeyCode = 0;
 
-// Highest keycode a key event can carry: X11 and XKB encode the keycode in a
-// byte, so evdev+8 tops out here. Anything above cannot name a key that is
-// pressable, and must be treated like kNoKeyCode rather than as a configured
-// leader (which would arm the hand-split off a position nobody can reach).
-inline constexpr int kMaxKeyCode = 255;
+// Highest keycode a key event can carry: the kernel's KEY_MAX is 767, so in the
+// evdev+8 convention no key can report more than this. The bound exists to keep
+// a hand-edited config from claiming a position no key can occupy, which would
+// otherwise count as a configured leader and arm the hand-split off a key that
+// can never be pressed.
+//
+// Deliberately the full evdev range rather than the 255 an X11 KeyCode byte
+// would hold: xkb_keycode_t is 32 bits wide, and this bound is here to reject
+// nonsense, not to second-guess what a keyboard may report.
+inline constexpr int kMaxKeyCode = 775; // KEY_MAX (767) + 8
 
-// Whether a keycode can name a real, pressable key.
+// Whether a keycode can name a key that could actually be pressed.
 constexpr bool isUsableKeyCode(int keycode) {
     return keycode > kNoKeyCode && keycode <= kMaxKeyCode;
 }

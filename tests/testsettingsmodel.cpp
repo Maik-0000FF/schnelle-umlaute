@@ -213,7 +213,7 @@ void testCaptureCustomKeyRoundTrip() {
 // of the range matter: an out-of-range code is as unpressable as a negative one,
 // and either would otherwise count as a configured leader and arm the split.
 void testInvalidKeyCodeReadsAsUnassigned() {
-    const char *unusable[] = {"-1", "0", "256", "99999", "notanumber"};
+    const char *unusable[] = {"-1", "0", "776", "99999", "notanumber"};
     for (const char *code : unusable) {
         resetTempdir();
         writeConfig(std::string("[Leader/Custom]\n"
@@ -226,15 +226,36 @@ void testInvalidKeyCodeReadsAsUnassigned() {
         EXPECT(s.customKey1HasKey() == false);
     }
 
-    // The boundary itself is a real key and must survive.
+    // The boundary itself is a key a keyboard may report and must survive.
     resetTempdir();
     writeConfig("[Leader/Custom]\n"
                 "CustomKeyEnabled=True\n"
                 "CustomKey=f\n"
-                "CustomKeyCode=255\n");
+                "CustomKeyCode=775\n");
     SettingsModel s;
-    EXPECT(s.customKey1Code() == 255);
+    EXPECT(s.customKey1Code() == fcitx::kMaxKeyCode);
     EXPECT(s.customKey1HasKey() == true);
+}
+
+// Qt never reports CapsLock in a key event's modifiers, so a capture under
+// CapsLock arrives uppercased. The label and the mapped-input collision check
+// compare characters, so the stored one is folded down. Non-ASCII included: the
+// engine's own fold only covers ASCII.
+void testCaptureFoldsCaseIncludingNonAscii() {
+    resetTempdir();
+    {
+        SettingsModel s;
+        s.setCustomKey1Enabled(true);
+        s.captureCustomKey1(QStringLiteral("F"), 41);
+        EXPECT(s.customKey1() == QStringLiteral("f"));
+
+        s.setCustomKey2Enabled(true);
+        s.captureCustomKey2(QString::fromUtf8("Ä"), 48);
+        EXPECT(s.customKey2() == QString::fromUtf8("ä"));
+    }
+    SettingsModel s2;
+    EXPECT(s2.customKey1() == QStringLiteral("f"));
+    EXPECT(s2.customKey2() == QString::fromUtf8("ä"));
 }
 
 void testBlacklistAddAndRoundTrip() {
@@ -486,6 +507,8 @@ const TestCase kTests[] = {
     {"testDefaultsOnMissingFile", testDefaultsOnMissingFile},
     {"testScalarRoundTrip", testScalarRoundTrip},
     {"testCaptureCustomKeyRoundTrip", testCaptureCustomKeyRoundTrip},
+    {"testCaptureFoldsCaseIncludingNonAscii",
+     testCaptureFoldsCaseIncludingNonAscii},
     {"testInvalidKeyCodeReadsAsUnassigned", testInvalidKeyCodeReadsAsUnassigned},
     {"testBlacklistAddAndRoundTrip", testBlacklistAddAndRoundTrip},
     {"testWhitelistAddAndRemove", testWhitelistAddAndRemove},

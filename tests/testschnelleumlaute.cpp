@@ -5730,9 +5730,10 @@ static void scheduleTest113(Instance *instance) {
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test134");
 
-        // Press Alt first, then a mapped key with a wildly out-of-range
-        // keycode (XKB max is typically 255). Addon resolves base via XKB,
-        // which returns nothing → no Alt-bypass, key path falls through.
+        // Press Alt first, then a mapped key with a wildly out-of-range keycode.
+        // No key ever produced that code unmodified, so it has no learned base
+        // character and the Alt-bypass resolves nothing. The key path must fall
+        // through rather than trip over the unknown code.
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
         tf->call<ITestFrontend::sendKeyEvent>(
