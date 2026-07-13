@@ -29,6 +29,16 @@ bool fromBool(const QString &s) {
     return s.compare("True", Qt::CaseInsensitive) == 0;
 }
 
+// A leader's captured physical key. An absent or unparseable value reads back
+// as kNoKeyCode, leaving the leader unassigned. Never fabricate a keycode from
+// a malformed value: a wrong physical key would trigger the wrong leader and
+// mis-classify its keyboard half.
+int toKeyCode(const QString &s) {
+    bool ok = false;
+    const int code = s.trimmed().toInt(&ok);
+    return (ok && code > kNoKeyCode) ? code : kNoKeyCode;
+}
+
 // --- Caret theme: generate an fcitx5 classicui theme matching the editor
 // palette and point classicui at it. All compositor-agnostic (classicui is
 // fcitx5's own renderer); the only "stop following the desktop" switch is
@@ -237,6 +247,16 @@ void SettingsModel::setCustomKey1(const QString &v) {
     if (isValidLeaderKey(v))
         save();
 }
+// The keycode is written unconditionally: any physical key is a legal leader,
+// so it has no notion of "invalid". isValidLeaderKey() guards the character
+// only (single char, not a mapped input).
+void SettingsModel::setCustomKey1Code(int v) {
+    if (customKey1Code_ == v)
+        return;
+    customKey1Code_ = v;
+    Q_EMIT customKey1CodeChanged();
+    save();
+}
 void SettingsModel::setCustomKey2Enabled(bool v) {
     if (customKey2Enabled_ == v)
         return;
@@ -251,6 +271,13 @@ void SettingsModel::setCustomKey2(const QString &v) {
     Q_EMIT customKey2Changed();
     if (isValidLeaderKey(v))
         save();
+}
+void SettingsModel::setCustomKey2Code(int v) {
+    if (customKey2Code_ == v)
+        return;
+    customKey2Code_ = v;
+    Q_EMIT customKey2CodeChanged();
+    save();
 }
 void SettingsModel::setAppFilterMode(const QString &v) {
     if (appFilterMode_ == v)
@@ -501,10 +528,14 @@ void SettingsModel::load() {
                 customKey1Enabled_ = fromBool(val);
             else if (key == "CustomKey")
                 customKey1_ = val;
+            else if (key == "CustomKeyCode")
+                customKey1Code_ = toKeyCode(val);
             else if (key == "CustomKey2Enabled")
                 customKey2Enabled_ = fromBool(val);
             else if (key == "CustomKey2")
                 customKey2_ = val;
+            else if (key == "CustomKey2Code")
+                customKey2Code_ = toKeyCode(val);
         } else if (section == QLatin1String("AppFilter")) {
             if (key == "Mode")
                 appFilterMode_ = val;
@@ -586,8 +617,10 @@ void SettingsModel::load() {
     Q_EMIT leaderAltChanged();
     Q_EMIT customKey1EnabledChanged();
     Q_EMIT customKey1Changed();
+    Q_EMIT customKey1CodeChanged();
     Q_EMIT customKey2EnabledChanged();
     Q_EMIT customKey2Changed();
+    Q_EMIT customKey2CodeChanged();
     Q_EMIT appFilterModeChanged();
     Q_EMIT blacklistChanged();
     Q_EMIT whitelistChanged();
@@ -636,10 +669,14 @@ void SettingsModel::save() {
         << "CustomKeyEnabled=" << toBool(customKey1Enabled_) << "\n";
     out << "#   \xe2\x86\xb3 Key\n"
         << "CustomKey=" << customKey1_ << "\n";
+    out << "#   \xe2\x86\xb3 Key code\n"
+        << "CustomKeyCode=" << customKey1Code_ << "\n";
     out << "# Custom Leader 2 (hand-split)\n"
         << "CustomKey2Enabled=" << toBool(customKey2Enabled_) << "\n";
     out << "#   \xe2\x86\xb3 Key\n"
         << "CustomKey2=" << customKey2_ << "\n";
+    out << "#   \xe2\x86\xb3 Key code\n"
+        << "CustomKey2Code=" << customKey2Code_ << "\n";
     out << "\n";
     out << "[AppFilter]\n";
     out << "# Mode\n" << "Mode=" << appFilterMode_ << "\n";

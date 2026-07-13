@@ -3,21 +3,36 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import SchnelleUmlaute
 
+// A custom leader is a PHYSICAL key, so it is captured as a real key press
+// rather than typed as a character. One press yields both halves: the character
+// (shown here and checked against the mappings) and the keycode, which is what
+// the addon matches and hand-classifies. See addon/src/hand_classifier.h.
 ColumnLayout {
     id: root
     Layout.fillWidth: true
     spacing: Theme.spacingSm
 
     property string labelText: ""
-    property string placeholderHint: "e.g. ; or #"
     property bool enabledValue: false
     property string keyValue: ""
+    // evdev+8, matching fcitx5's Key::code(). kNoKeyCode = no key assigned.
+    property int keyCodeValue: 0
     property var mappingsModel: null
     signal enabledEdited(bool v)
     signal keyEdited(string v)
+    signal keyCodeEdited(int v)
+
+    readonly property int noKeyCode: 0
+
+    property bool capturing: false
 
     readonly property bool invalidChar:
         keyValue.length > 0 && !isValidSingleChar(keyValue)
+
+    // A leader with no key assigned cannot trigger anything. The character on
+    // its own is not enough, so say so instead of looking configured.
+    readonly property bool needsKey:
+        enabledValue && keyCodeValue === noKeyCode
 
     // inputErrorFor reads model state that QML can't track through a method
     // call, so bump this tick whenever the mapping model changes and reference
@@ -65,45 +80,104 @@ ColumnLayout {
             Layout.preferredWidth: 40
         }
 
-        ThemedTextField {
-            id: keyField
-            Layout.preferredWidth: 80
-            text: root.keyValue
-            placeholderText: root.placeholderHint
-            maximumLength: 4
-            font.family: Theme.fontFamilyMono
-            font.pixelSize: Theme.fontStrong
-            horizontalAlignment: TextInput.AlignHCenter
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: Theme.background
-                border.color: root.invalidChar
-                    ? Theme.error
-                    : (root.conflictsWithMapping
+        // Click to arm, then press the key you want as the leader. Focus is
+        // required for Keys.onPressed to see the press at all, so the whole
+        // field is a focus scope that grabs the keyboard while capturing.
+        Rectangle {
+            id: captureField
+            Layout.preferredWidth: 120
+            Layout.preferredHeight: Theme.controlHeight
+            radius: Theme.radiusSm
+            color: Theme.background
+            focus: true
+            activeFocusOnTab: true
+            border.color: root.invalidChar
+                ? Theme.error
+                : (root.capturing
+                    ? Theme.accent
+                    : (root.needsKey
                         ? Theme.warning
-                        : (keyField.activeFocus ? Theme.accent : Theme.border))
-                border.width: 1
-                Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
+                        : (captureField.activeFocus ? Theme.accent : Theme.border)))
+            border.width: 1
+            Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
+
+            Text {
+                anchors.centerIn: parent
+                text: root.capturing
+                    ? qsTr("Press a key…")
+                    : (root.keyValue.length > 0
+                        ? root.keyValue
+                        : qsTr("Click to set"))
+                color: root.capturing || root.keyValue.length === 0
+                    ? Theme.textMuted
+                    : Theme.text
+                font.family: root.capturing || root.keyValue.length === 0
+                    ? Theme.fontFamily
+                    : Theme.fontFamilyMono
+                font.pixelSize: root.capturing || root.keyValue.length === 0
+                    ? Theme.fontBody
+                    : Theme.fontStrong
             }
-            onTextChanged: {
-                if (text !== root.keyValue) {
-                    root.keyEdited(text);
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    captureField.forceActiveFocus();
+                    root.capturing = true;
                 }
+            }
+
+            // Dropping focus mid-capture would leave the field armed forever.
+            onActiveFocusChanged: {
+                if (!activeFocus)
+                    root.capturing = false;
+            }
+
+            Keys.onPressed: (event) => {
+                if (!root.capturing)
+                    return;
+                event.accepted = true;
+
+                // Wait for the real key; a standalone modifier press is the user
+                // reaching for Shift, not the leader they mean.
+                if (event.key === Qt.Key_Shift || event.key === Qt.Key_Control
+                    || event.key === Qt.Key_Alt || event.key === Qt.Key_AltGr
+                    || event.key === Qt.Key_Meta || event.key === Qt.Key_CapsLock)
+                    return;
+
+                if (event.key === Qt.Key_Escape) {
+                    root.capturing = false;
+                    return;
+                }
+
+                // The character is still shown to the user and checked against
+                // the mappings, so a key that produces none (F1, arrows) cannot
+                // serve as a leader. Stay armed and let them press another.
+                const ch = event.text;
+                if (!root.isValidSingleChar(ch))
+                    return;
+
+                root.capturing = false;
+                // Keycode first: it is the authoritative half, and writing the
+                // character first would briefly pair the new character with the
+                // previous key's code.
+                root.keyCodeEdited(event.nativeScanCode);
+                root.keyEdited(ch);
             }
         }
 
         Text {
-            visible: root.invalidChar
+            visible: root.needsKey && !root.capturing
             Layout.fillWidth: true
-            text: qsTr("Must be a single non-whitespace character")
-            color: Theme.error
+            text: qsTr("No key assigned — click the field and press the key you want")
+            color: Theme.warning
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody
             wrapMode: Text.WordWrap
         }
 
         Text {
-            visible: root.conflictsWithMapping && !root.invalidChar
+            visible: root.conflictsWithMapping && !root.needsKey
             Layout.fillWidth: true
             text: qsTr("Warning: this key is already a mapping input")
             color: Theme.warning

@@ -173,22 +173,24 @@ Item {
 
                     CustomLeaderRow {
                         labelText: qsTr("Custom Leader 1")
-                        placeholderHint: ""
                         enabledValue: root.settingsModel ? root.settingsModel.customKey1Enabled : false
                         keyValue: root.settingsModel ? root.settingsModel.customKey1 : ""
+                        keyCodeValue: root.settingsModel ? root.settingsModel.customKey1Code : 0
                         mappingsModel: root.mappingsModel
                         onEnabledEdited: (v) => root.settingsModel.customKey1Enabled = v
                         onKeyEdited: (v) => root.settingsModel.customKey1 = v
+                        onKeyCodeEdited: (v) => root.settingsModel.customKey1Code = v
                     }
 
                     CustomLeaderRow {
                         labelText: qsTr("Custom Leader 2 (hand-split)")
-                        placeholderHint: ""
                         enabledValue: root.settingsModel ? root.settingsModel.customKey2Enabled : false
                         keyValue: root.settingsModel ? root.settingsModel.customKey2 : ""
+                        keyCodeValue: root.settingsModel ? root.settingsModel.customKey2Code : 0
                         mappingsModel: root.mappingsModel
                         onEnabledEdited: (v) => root.settingsModel.customKey2Enabled = v
                         onKeyEdited: (v) => root.settingsModel.customKey2 = v
+                        onKeyCodeEdited: (v) => root.settingsModel.customKey2Code = v
                     }
                 }
 

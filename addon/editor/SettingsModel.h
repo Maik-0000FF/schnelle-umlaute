@@ -7,6 +7,11 @@
 #include <QStringList>
 
 #include "OverlayDBusClient.h"
+// Single source for kNoKeyCode and the evdev+8 keycode convention, so the
+// editor writes exactly what the engine reads.
+#include "../src/hand_classifier.h"
+
+using fcitx::kNoKeyCode;
 
 class SettingsModel : public QObject {
     Q_OBJECT
@@ -37,14 +42,21 @@ class SettingsModel : public QObject {
     Q_PROPERTY(bool leaderAlt READ leaderAlt WRITE setLeaderAlt NOTIFY
                    leaderAltChanged)
 
+    // Each custom leader is a physical key. One key press in CustomLeaderRow
+    // captures both halves: the character, which is only displayed, and the
+    // keycode, which is what the addon matches and hand-classifies.
     Q_PROPERTY(bool customKey1Enabled READ customKey1Enabled WRITE
                    setCustomKey1Enabled NOTIFY customKey1EnabledChanged)
     Q_PROPERTY(QString customKey1 READ customKey1 WRITE setCustomKey1 NOTIFY
                    customKey1Changed)
+    Q_PROPERTY(int customKey1Code READ customKey1Code WRITE setCustomKey1Code
+                   NOTIFY customKey1CodeChanged)
     Q_PROPERTY(bool customKey2Enabled READ customKey2Enabled WRITE
                    setCustomKey2Enabled NOTIFY customKey2EnabledChanged)
     Q_PROPERTY(QString customKey2 READ customKey2 WRITE setCustomKey2 NOTIFY
                    customKey2Changed)
+    Q_PROPERTY(int customKey2Code READ customKey2Code WRITE setCustomKey2Code
+                   NOTIFY customKey2CodeChanged)
 
     Q_PROPERTY(QString appFilterMode READ appFilterMode WRITE setAppFilterMode
                    NOTIFY appFilterModeChanged)
@@ -99,8 +111,10 @@ public:
     bool leaderAlt() const { return leaderAlt_; }
     bool customKey1Enabled() const { return customKey1Enabled_; }
     QString customKey1() const { return customKey1_; }
+    int customKey1Code() const { return customKey1Code_; }
     bool customKey2Enabled() const { return customKey2Enabled_; }
     QString customKey2() const { return customKey2_; }
+    int customKey2Code() const { return customKey2Code_; }
     QString appFilterMode() const { return appFilterMode_; }
     QStringList blacklist() const { return blacklist_; }
     QStringList whitelist() const { return whitelist_; }
@@ -138,8 +152,10 @@ public:
     void setLeaderAlt(bool v);
     void setCustomKey1Enabled(bool v);
     void setCustomKey1(const QString &v);
+    void setCustomKey1Code(int v);
     void setCustomKey2Enabled(bool v);
     void setCustomKey2(const QString &v);
+    void setCustomKey2Code(int v);
     void setAppFilterMode(const QString &v);
     void setOverlayEnabled(bool v);
     void setOverlayShowOnTrigger(bool v);
@@ -176,8 +192,10 @@ Q_SIGNALS:
     void leaderAltChanged();
     void customKey1EnabledChanged();
     void customKey1Changed();
+    void customKey1CodeChanged();
     void customKey2EnabledChanged();
     void customKey2Changed();
+    void customKey2CodeChanged();
     void leadersChanged();
     void appFilterModeChanged();
     void blacklistChanged();
@@ -215,8 +233,10 @@ private:
     bool leaderAlt_ = false;
     bool customKey1Enabled_ = false;
     QString customKey1_;
+    int customKey1Code_ = kNoKeyCode;
     bool customKey2Enabled_ = false;
     QString customKey2_;
+    int customKey2Code_ = kNoKeyCode;
     QString appFilterMode_ = "Disabled";
     QStringList blacklist_;
     QStringList whitelist_;

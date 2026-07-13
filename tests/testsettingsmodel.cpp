@@ -129,6 +129,9 @@ void testDefaultsOnMissingFile() {
     EXPECT(s.leaderAlt() == false);
     EXPECT(s.customKey1Enabled() == false);
     EXPECT(s.customKey2Enabled() == false);
+    // No key captured yet — never invent a position for an unset leader.
+    EXPECT(s.customKey1Code() == fcitx::kNoKeyCode);
+    EXPECT(s.customKey2Code() == fcitx::kNoKeyCode);
     EXPECT(s.appFilterMode() == QStringLiteral("Disabled"));
     EXPECT(s.blacklist().isEmpty());
     EXPECT(s.whitelist().isEmpty());
@@ -154,7 +157,15 @@ void testScalarRoundTrip() {
         s.setLeaderLeft(true);
         s.setLeaderAlt(true);
         s.setCustomKey1Enabled(true);
-        s.setCustomKey1(QStringLiteral(";"));
+        // '#' is the character that starts a comment in this INI-ish file. It is
+        // only ever written on the VALUE side (`CustomKey=#`), where it is just
+        // text, but pin that: a parser that stripped it would silently blank the
+        // leader's display character and its mapped-input collision check.
+        s.setCustomKey1(QStringLiteral("#"));
+        // The captured physical key must survive the round-trip too: it is what
+        // the addon matches and hand-classifies, so losing it would take the
+        // leader and the dual split down with it. 20 = the '#' key.
+        s.setCustomKey1Code(20);
         s.setAppFilterMode(QStringLiteral("Blacklist"));
         s.setOverlayEnabled(true);
         s.setOverlayShowOnTrigger(true);
@@ -169,7 +180,8 @@ void testScalarRoundTrip() {
     EXPECT(s2.leaderLeft() == true);
     EXPECT(s2.leaderAlt() == true);
     EXPECT(s2.customKey1Enabled() == true);
-    EXPECT(s2.customKey1() == QStringLiteral(";"));
+    EXPECT(s2.customKey1() == QStringLiteral("#"));
+    EXPECT(s2.customKey1Code() == 20);
     EXPECT(s2.appFilterMode() == QStringLiteral("Blacklist"));
     EXPECT(s2.overlayEnabled() == true);
     EXPECT(s2.overlayShowOnTrigger() == true);

@@ -65,6 +65,8 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <xkbcommon/xkbcommon.h>
+// The shipped classifier and kNoKeyCode — tested directly, not re-implemented.
+#include "src/hand_classifier.h"
 #include "src/synthetic_autorepeat.h"
 #include "testdir.h"
 #include "testfrontend_public.h"
@@ -114,7 +116,9 @@ static uint64_t nowUsec() {
     return static_cast<uint64_t>(ts.tv_sec) * 1'000'000 + ts.tv_nsec / 1'000;
 }
 
-// Physical key codes (arbitrary but consistent per key)
+// Physical key codes (evdev+8, the X11/XKB/fcitx5 convention). These are the
+// real US-QWERTY positions, which is what a US test keyboard reports; the
+// engine never assumes a layout, it only compares the codes it is given.
 constexpr int kCodeA = 38;
 constexpr int kCodeS = 39;
 constexpr int kCodeB = 56;
@@ -140,6 +144,13 @@ constexpr int kCode1 = 10;                  // physical key for 1/!
 constexpr int kCode8 = 17;                  // physical key for 8/*
 constexpr int kCodeF = 41;                  // physical key for f
 constexpr int kCodeJ = 44;                  // physical key for j
+// Custom-leader keys for the dual-split tests. F (left half) / J (right half)
+// and Z (left) / slash (right) are opposite-hand pairs; X sits on the SAME half
+// as Z, which must switch the split off.
+constexpr int kCodeZ = 52;
+constexpr int kCodeX = 53;
+constexpr int kCodeSlash = 61;
+constexpr int kCodeSection = 21; // physical key for §
 
 // Hold longer than the engine's synthetic auto-repeat elapsed guard
 // (kSyntheticReleaseMinElapsedUsec, 5 ms) so a frozen-timestamp release
@@ -173,10 +184,16 @@ static ICUUID createAndActivate(Instance * /*instance*/,
     return uuid;
 }
 
+// customCode/custom2Code are the physical keys behind the custom leaders, as
+// the editor captures them. Leaving them at kNoKeyCode models a config written
+// before keycodes were stored: the leader still matches by character, but it
+// has no known keyboard half, so the dual split stays off.
 static void configureLeaders(Instance *instance, bool space, bool left,
                              bool right, bool up, bool down, bool alt,
                              const std::string &custom = "",
-                             const std::string &custom2 = "") {
+                             const std::string &custom2 = "",
+                             int customCode = fcitx::kNoKeyCode,
+                             int custom2Code = fcitx::kNoKeyCode) {
     auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
     RawConfig config;
     config.setValueByPath("Delay/Lowercase", "400");
@@ -190,9 +207,13 @@ static void configureLeaders(Instance *instance, bool space, bool left,
     config.setValueByPath("Leader/Custom/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey", custom);
+    config.setValueByPath("Leader/Custom/CustomKeyCode",
+                          std::to_string(customCode));
     config.setValueByPath("Leader/Custom/CustomKey2Enabled",
                           custom2.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey2", custom2);
+    config.setValueByPath("Leader/Custom/CustomKey2Code",
+                          std::to_string(custom2Code));
     config.setValueByPath("AppFilter/Mode", "Disabled");
     addon->setConfig(config);
     setMappings(instance, {
@@ -349,7 +370,8 @@ static bool isLetter(char c) {
 // Configure multilingual cycling mappings with specified leaders
 static void configureMultilingualCycling(Instance *instance, bool space,
                                          bool alt,
-                                         const std::string &custom = "") {
+                                         const std::string &custom = "",
+                                         int customCode = fcitx::kNoKeyCode) {
     auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
     RawConfig config;
     config.setValueByPath("Delay/Lowercase", "400");
@@ -363,6 +385,8 @@ static void configureMultilingualCycling(Instance *instance, bool space,
     config.setValueByPath("Leader/Custom/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey", custom);
+    config.setValueByPath("Leader/Custom/CustomKeyCode",
+                          std::to_string(customCode));
     addon->setConfig(config);
     setMappings(instance,
                 {
@@ -1102,7 +1126,7 @@ void scheduleTests(Instance *instance) {
         g_currentTest = 12;
         FCITX_INFO() << "=== Test 12: Shift+A + Shift+/ → Ä ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "z", "/");
+                         "z", "/", kCodeZ, kCodeSlash);
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test12");
@@ -1140,7 +1164,7 @@ void scheduleTests(Instance *instance) {
         g_currentTest = 13;
         FCITX_INFO() << "=== Test 13: Shift+U + Shift+Z → Ü ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "z", "/");
+                         "z", "/", kCodeZ, kCodeSlash);
 
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test13");
@@ -1510,7 +1534,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         g_currentTest = 25;
         FCITX_INFO() << "=== Test 25: Custom leader key '#' ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "#");
+                         "#", "", kCodeHash);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test25");
 
@@ -1543,11 +1567,10 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         g_currentTest = 26;
         FCITX_INFO() << "=== Test 26: Custom leader with UTF-8 char § ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "\xc2\xa7"); // § in UTF-8
+                         "\xc2\xa7", "", kCodeSection); // § in UTF-8
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test26");
 
-        constexpr int kCodeSection = 21;
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
@@ -1564,14 +1587,15 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 25: Custom leader sanitization — multi-char trimmed to first
-    // Config "#x" should sanitize to "#" and work as leader.
+    // TEST 25: The stored character does not affect matching
+    // CustomKey is a junk multi-character string, but the leader's KEY is the
+    // '#' key. Pressing it must still trigger: only the keycode is compared.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 27;
-        FCITX_INFO() << "=== Test 27: Custom leader multi-char sanitized ===";
+        FCITX_INFO() << "=== Test 27: Junk character, key still leads ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "#x");
+                         "#x", "", kCodeHash);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test27");
 
@@ -1592,14 +1616,14 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 26: Custom leader sanitization — whitespace trimmed
-    // Config "  #  " should sanitize to "#" and work as leader.
+    // TEST 26: Padded character does not affect matching either
+    // Same as test 27 with a whitespace-padded CustomKey. The '#' key leads.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 28;
-        FCITX_INFO() << "=== Test 28: Custom leader whitespace trimmed ===";
+        FCITX_INFO() << "=== Test 28: Padded character, key still leads ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "  #  ");
+                         "  #  ", "", kCodeHash);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test28");
 
@@ -1623,18 +1647,17 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // testfrontend commit-expectation issue (OTHER KEYS path).
 
     // =========================================================================
-    // TEST 28: Custom leader sanitization — multi-byte UTF-8 trimmed from
-    // longer Config "§xyz" should sanitize to "§" (2 bytes kept, rest dropped).
+    // TEST 28: A multi-byte character in CustomKey does not affect matching
+    // CustomKey is "§xyz", but the leader's KEY is the § key. It leads anyway.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 29;
-        FCITX_INFO() << "=== Test 29: Multi-byte UTF-8 trimmed from longer ===";
+        FCITX_INFO() << "=== Test 29: Multi-byte junk, key still leads ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "\xc2\xa7xyz"); // "§xyz"
+                         "\xc2\xa7xyz", "", kCodeSection); // "§xyz"
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test29");
 
-        constexpr int kCodeSection = 21;
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
 
@@ -1642,7 +1665,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_section, KeyStates(), kCodeSection), false);
         FCITX_ASSERT(consumed)
-            << "Sanitized § from '§xyz' should work as leader";
+            << "The § key must lead regardless of what CustomKey stores";
 
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
@@ -2015,7 +2038,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         g_currentTest = 42;
         FCITX_INFO()
             << "=== Test 42: Custom leader (#) — German 1000 chars ===";
-        configureMultilingualCycling(instance, false, false, "#");
+        configureMultilingualCycling(instance, false, false, "#", kCodeHash);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test42");
 
@@ -2178,7 +2201,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         g_currentTest = 45;
         FCITX_INFO() << "=== Test 45: CustomKey2 basic ===";
         configureLeaders(instance, false, false, false, false, false, false, "",
-                         "#");
+                         "#", fcitx::kNoKeyCode, kCodeHash);
         setMappings(instance, {{"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -2207,7 +2230,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         g_currentTest = 46;
         FCITX_INFO() << "=== Test 46: Dual split — allowed ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "z", "/");
+                         "z", "/", kCodeZ, kCodeSlash);
         setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -2238,7 +2261,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         g_currentTest = 47;
         FCITX_INFO() << "=== Test 47: Dual split — blocked ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "z", "/");
+                         "z", "/", kCodeZ, kCodeSlash);
         setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -2267,7 +2290,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         g_currentTest = 48;
         FCITX_INFO() << "=== Test 48: Dual split — reverse ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "z", "/");
+                         "z", "/", kCodeZ, kCodeSlash);
         setMappings(instance, {{"u", "\xc3\xbc"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -2295,7 +2318,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         g_currentTest = 49;
         FCITX_INFO() << "=== Test 49: Single custom key — no split ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "z");
+                         "z", "", kCodeZ);
         setMappings(instance, {{"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -2318,6 +2341,74 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     });
 
     // =========================================================================
+    // TEST 152: Symbol leader still fires while Shift is held
+    // The leader is the physical key, so Shift changing its character must not
+    // matter. Leader = the '/' key (code 61). With Shift that key reports the
+    // '?' keysym; the leader fires anyway, because only the keycode is compared.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 152;
+        FCITX_INFO() << "=== Test 152: Symbol leader fires with Shift held ===";
+        configureLeaders(instance, false, false, false, false, false, false,
+                         "/", "", kCodeSlash);
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test152");
+
+        // Hold 'a', then press the '/' key WITH Shift: the frontend delivers the
+        // shifted keysym ('?'), but the physical code is still the leader's.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid,
+            Key(FcitxKey_question, KeyStates(KeyState::Shift), kCodeSlash),
+            false);
+        FCITX_ASSERT(consumed)
+            << "Shift+'/' must still fire the '/' leader — the key is the "
+               "leader, not the character it happens to produce";
+
+        tf->call<ITestFrontend::keyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 152 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 153: A leader with no key assigned triggers nothing
+    // The leader IS its physical key, so a character on its own does not
+    // configure one. Enabling CustomKey without capturing a key (kNoKeyCode)
+    // must leave it inert: pressing that character falls through as a normal
+    // key instead of acting as a leader.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 153;
+        FCITX_INFO() << "=== Test 153: Leader without a key is inert ===";
+        // Character set, keycode deliberately left at kNoKeyCode.
+        configureLeaders(instance, false, false, false, false, false, false,
+                         "z");
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test153");
+
+        // Hold 'a', press 'z'. 'z' is not a leader (no key assigned), so it must
+        // NOT convert: the preedit commits as plain 'a' and 'z' passes through.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_z, KeyStates(), kCodeZ), false);
+        FCITX_ASSERT(!consumed)
+            << "A leader with no key assigned must not trigger — the character "
+               "alone does not configure one";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 153 PASSED";
+    });
+
+    // =========================================================================
     // TEST 60: Dual split — built-in leader ignores split
     // CustomKey="z", CustomKey2="/", Space=True.
     // Space is BuiltIn → ignores hand split, triggers all mappings.
@@ -2326,7 +2417,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         g_currentTest = 50;
         FCITX_INFO() << "=== Test 50: Built-in leader ignores split ===";
         configureLeaders(instance, true, false, false, false, false, false, "z",
-                         "/");
+                         "/", kCodeZ, kCodeSlash);
         setMappings(instance, {{"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -2415,7 +2506,7 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         g_currentTest = 53;
         FCITX_INFO() << "=== Test 53: Same-hand dual leaders — no split ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "z", "x");
+                         "z", "x", kCodeZ, kCodeX);
         setMappings(instance, {{"a", "\xc3\xa4"}, {"u", "\xc3\xbc"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -2550,17 +2641,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         FCITX_INFO()
             << "=== Test 57: Layout-independent hand classification ===";
 
-        // Mirror engine logic: isLeftHandKeycode + char→keycode reverse map
-        auto isLeftKeycode = [](int kc) {
-            return (kc >= 24 && kc <= 28) || // Q W E R T row
-                   (kc >= 38 && kc <= 42) || // A S D F G row
-                   (kc >= 52 && kc <= 56) || // Z X C V B row
-                   kc == 49 ||               // ` ~
-                   (kc >= 10 && kc <= 14);   // 1 2 3 4 5
-        };
-
-        auto buildMap = [](struct xkb_keymap *km) {
-            std::unordered_map<std::string, int> m;
+        // Exercises the shipped fcitx::isLeftHandKeycode(), not a copy of it.
+        //
+        // keycodeFor() stands in for the editor's key capture: it answers "which
+        // physical key does the user press to type `ch` on this layout". The
+        // engine only ever sees that keycode, never the character.
+        auto keycodeFor = [](struct xkb_keymap *km, const std::string &ch) {
             xkb_keycode_t min = xkb_keymap_min_keycode(km);
             xkb_keycode_t max = xkb_keymap_max_keycode(km);
             for (xkb_keycode_t code = min; code <= max; ++code) {
@@ -2568,26 +2654,12 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
                 int n = xkb_keymap_key_get_syms_by_level(km, code, 0, 0, &syms);
                 if (n > 0) {
                     uint32_t uc = xkb_keysym_to_utf32(syms[0]);
-                    if (uc > 0 && uc <= 0x10FFFF) {
-                        std::string ch = utf8::UCS4ToUTF8(uc);
-                        m.emplace(std::move(ch), static_cast<int>(code));
-                    }
+                    if (uc > 0 && uc <= 0x10FFFF && utf8::UCS4ToUTF8(uc) == ch)
+                        return static_cast<int>(code);
                 }
             }
-            return m;
+            return fcitx::kNoKeyCode;
         };
-
-        auto isLeft =
-            [&isLeftKeycode](const std::unordered_map<std::string, int> &m,
-                             const std::string &key) {
-                std::string lookup = key;
-                if (lookup.size() == 1 && lookup[0] >= 'A' && lookup[0] <= 'Z')
-                    lookup[0] = static_cast<char>(lookup[0] - 'A' + 'a');
-                auto it = m.find(lookup);
-                if (it == m.end())
-                    return false;
-                return isLeftKeycode(it->second);
-            };
 
         auto *ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
         FCITX_ASSERT(ctx) << "XKB context creation failed";
@@ -2702,16 +2774,17 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
                 continue;
             }
 
-            auto charMap = buildMap(km);
-
             for (const auto &[ch, expectLeft] : lc.checks) {
-                bool got = isLeft(charMap, ch);
+                const int code = keycodeFor(km, ch);
+                FCITX_ASSERT(code != fcitx::kNoKeyCode)
+                    << lc.layout << ": no key produces '" << ch << "'";
+                const bool got = fcitx::isLeftHandKeycode(code);
                 FCITX_ASSERT(got == expectLeft)
                     << lc.layout
                     << (lc.variant ? std::string("/") + lc.variant : "")
-                    << ": '" << ch << "' expected "
-                    << (expectLeft ? "left" : "right") << " but got "
-                    << (got ? "left" : "right");
+                    << ": '" << ch << "' sits on keycode " << code
+                    << ", expected " << (expectLeft ? "left" : "right")
+                    << " but got " << (got ? "left" : "right");
             }
 
             xkb_keymap_unref(km);
@@ -2723,6 +2796,37 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
 
         FCITX_ASSERT(layoutsTested >= 2)
             << "At least 2 layouts must be available for meaningful coverage";
+
+        // Pin why the hand must never be derived from a character: the same
+        // character sits on opposite halves depending on the layout. 'z' is a
+        // left-hand key on US and a right-hand key on QWERTZ. Any future
+        // char→keycode lookup would have to pick one and be wrong on the other,
+        // so this fails loudly if one is reintroduced.
+        xkb_rule_names usNames{};
+        usNames.layout = "us";
+        xkb_rule_names deNames{};
+        deNames.layout = "de";
+        auto *usKm =
+            xkb_keymap_new_from_names(ctx, &usNames, XKB_KEYMAP_COMPILE_NO_FLAGS);
+        auto *deKm =
+            xkb_keymap_new_from_names(ctx, &deNames, XKB_KEYMAP_COMPILE_NO_FLAGS);
+        if (usKm && deKm) {
+            const int zUs = keycodeFor(usKm, "z");
+            const int zDe = keycodeFor(deKm, "z");
+            FCITX_ASSERT(zUs != zDe)
+                << "'z' must sit on different keys in us/de for this to mean "
+                   "anything";
+            FCITX_ASSERT(fcitx::isLeftHandKeycode(zUs))
+                << "US 'z' (keycode " << zUs << ") is left-hand";
+            FCITX_ASSERT(!fcitx::isLeftHandKeycode(zDe))
+                << "QWERTZ 'z' (keycode " << zDe << ") is RIGHT-hand";
+            FCITX_INFO() << "Character is not a hand: 'z' is keycode " << zUs
+                         << " (left) on us but " << zDe << " (right) on de";
+        }
+        if (usKm)
+            xkb_keymap_unref(usKm);
+        if (deKm)
+            xkb_keymap_unref(deKm);
 
         xkb_context_unref(ctx);
         FCITX_INFO() << "Test 57 PASSED — " << layoutsTested
@@ -3621,6 +3725,8 @@ static void scheduleRemainingTests(Instance *instance) {
         // Set custom leader to 'a' which is also a mapped input
         config.setValueByPath("Leader/Custom/CustomKeyEnabled", "True");
         config.setValueByPath("Leader/Custom/CustomKey", "a");
+        config.setValueByPath("Leader/Custom/CustomKeyCode",
+                              std::to_string(kCodeA));
         config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
         config.setValueByPath("Leader/Custom/CustomKey2", "");
         addon->setConfig(config);
@@ -3969,6 +4075,8 @@ static void scheduleRemainingTests(Instance *instance) {
         config.setValueByPath("Leader/Alt", "False");
         config.setValueByPath("Leader/Custom/CustomKeyEnabled", "True");
         config.setValueByPath("Leader/Custom/CustomKey", "F");
+        config.setValueByPath("Leader/Custom/CustomKeyCode",
+                              std::to_string(kCodeF));
         config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
         config.setValueByPath("Leader/Custom/CustomKey2", "");
         addon->setConfig(config);
@@ -4168,7 +4276,8 @@ static void scheduleRemainingTests(Instance *instance) {
     testDispatcher->schedule([instance]() {
         g_currentTest = 99;
         FCITX_INFO() << "=== Test 99: All leaders enabled ===";
-        configureLeaders(instance, true, true, true, true, true, true, "#");
+        configureLeaders(instance, true, true, true, true, true, true, "#",
+                         "", kCodeHash);
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test99");
 
@@ -5001,7 +5110,7 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO()
             << "=== Test 122: Dual split — shifted '!' + 'j' (opposite) ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "f", "j");
+                         "f", "j", kCodeF, kCodeJ);
         setMappings(instance, {{"!", "excl"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -5038,7 +5147,7 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO()
             << "=== Test 123: Dual split — shifted '!' + 'f' (same hand) ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "f", "j");
+                         "f", "j", kCodeF, kCodeJ);
         setMappings(instance, {{"!", "excl"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -5065,15 +5174,16 @@ static void scheduleTest113(Instance *instance) {
 
     // =========================================================================
     // TEST 124: Shifted input '!' with Shift held through leader press
-    // User holds Shift+1, then presses j (becomes J due to Shift).
-    // matchCustomKey case-insensitive match + keycode-based split → works.
+    // User holds Shift+1, then presses j (which reports 'J' because Shift is
+    // still down). Both the leader match and the split go by keycode, so Shift
+    // is irrelevant → works.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 124;
         FCITX_INFO() << "=== Test 124: Shift held through leader — Shift+1 + "
                         "Shift+J ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "f", "j");
+                         "f", "j", kCodeF, kCodeJ);
         setMappings(instance, {{"!", "excl"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -5111,7 +5221,7 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO()
             << "=== Test 125: Dual split — shifted '*' + 'f' (opposite) ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "f", "j");
+                         "f", "j", kCodeF, kCodeJ);
         setMappings(instance, {{"*", "star"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -5147,7 +5257,7 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO()
             << "=== Test 126: Dual split — shifted '*' + 'j' (same hand) ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "f", "j");
+                         "f", "j", kCodeF, kCodeJ);
         setMappings(instance, {{"*", "star"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -5182,7 +5292,7 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO()
             << "=== Test 127: Shifted input cycling — '!' multi-output ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "f", "j");
+                         "f", "j", kCodeF, kCodeJ);
         setMappings(instance, {{"!", "one,two,three"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -5222,7 +5332,7 @@ static void scheduleTest113(Instance *instance) {
         FCITX_INFO()
             << "=== Test 128: Single custom key — shifted '!' no split ===";
         configureLeaders(instance, false, false, false, false, false, false,
-                         "j");
+                         "j", "", kCodeJ);
         setMappings(instance, {{"!", "excl"}, {"a", "\xc3\xa4"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -6298,7 +6408,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 151 tests PASSED ===";
+                                FCITX_INFO() << "=== All 153 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });
