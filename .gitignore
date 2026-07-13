@@ -20,7 +20,7 @@ install_manifest.txt
 result
 result-*
 
-# AUR Build (if building locally)
+# AUR Build
 pkg/
 /src/
 *.tar.gz
@@ -51,7 +51,7 @@ debug/
 *.orig
 *.rej
 
-# Compiled Python (if added later)
+# Compiled Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -61,6 +61,6 @@ __pycache__/
 *.test
 test-results/
 
-# Development context (not for public repo)
-CLAUDE.md
+# Development context
 private/
+.private/
