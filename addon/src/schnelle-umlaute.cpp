@@ -1312,7 +1312,7 @@ private:
     // for deciding "unmodified": Key::normalize() keeps only Ctrl/Alt/Shift/
     // Super, and drops Shift outright for a-z/A-Z. AltGr (Mod5) and CapsLock
     // would therefore be invisible here, and Shift+a would arrive looking like
-    // an unmodified 'A' — each one teaching a wrong base character for a key.
+    // an unmodified 'A'. Each of those would teach a key a wrong base character.
     //
     // A key's entry is refreshed the next time it is pressed unmodified, so
     // after a layout switch every key corrects itself on its first plain press.
@@ -1540,12 +1540,13 @@ private:
     }
 
     // A keycode is only meaningful if it can name a real key. The config is a
-    // plain text file, so a hand-edited negative or zero value has to collapse
-    // to kNoKeyCode here: left as-is, it would count as "leader configured"
-    // (arming the hand-split and silencing the no-key warning) while matching
-    // no key that can ever be pressed.
+    // plain text file, so a hand-edited value outside the pressable range has to
+    // collapse to kNoKeyCode here. Left as-is, it would count as "leader
+    // configured" (arming the hand-split and silencing the no-key warning) while
+    // matching no key that can ever be pressed. That holds at both ends: -1 and
+    // 99999 are equally unreachable.
     static int sanitizeKeyCode(int raw) {
-        return raw > kNoKeyCode ? raw : kNoKeyCode;
+        return isUsableKeyCode(raw) ? raw : kNoKeyCode;
     }
 
     // Normalise a custom leader's stored character: trim whitespace, keep only

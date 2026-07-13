@@ -26,6 +26,23 @@ ColumnLayout {
     signal keyCaptured(string ch, int code)
 
     property bool capturing: false
+    // Set while the user holds a modifier during capture, so the field can say
+    // why it is not taking the press.
+    property bool modifierHeld: false
+
+    // A modifier never becomes part of a leader: matching compares the physical
+    // key alone, so it is wrong to let one into the capture. Holding Shift and
+    // pressing '/' would store the plain '/' KEY labelled '?', and the bare key
+    // would trigger from then on. Holding AltGr and pressing 'q' to pick '@'
+    // would arm the plain 'q' key. Requiring a clean press keeps the stored
+    // character equal to what the bare key prints.
+    //
+    // This is capture only. While TYPING, modifiers are irrelevant by design:
+    // Shift+A followed by the (shifted) leader key still fires it, which is how
+    // uppercase mappings work.
+    readonly property int captureBlockingModifiers:
+        Qt.ShiftModifier | Qt.ControlModifier | Qt.AltModifier
+        | Qt.MetaModifier | Qt.GroupSwitchModifier
 
     readonly property bool invalidChar:
         keyValue.length > 0 && !isValidSingleChar(keyValue)
@@ -104,7 +121,7 @@ ColumnLayout {
             Text {
                 anchors.centerIn: parent
                 text: root.capturing
-                    ? qsTr("Press a key…")
+                    ? (root.modifierHeld ? qsTr("Without modifiers") : qsTr("Press a key…"))
                     : (root.keyValue.length > 0
                         ? root.keyValue
                         : qsTr("Click to set"))
@@ -123,6 +140,7 @@ ColumnLayout {
                 anchors.fill: parent
                 onClicked: {
                     captureField.forceActiveFocus();
+                    root.modifierHeld = false;
                     root.capturing = true;
                 }
             }
@@ -160,6 +178,15 @@ ColumnLayout {
                     return;
                 }
 
+                // A key pressed WITH a modifier is not the key they will get.
+                // Stay armed and say so.
+                if (event.modifiers & root.captureBlockingModifiers) {
+                    root.modifierHeld = true;
+                    event.accepted = true;
+                    return;
+                }
+                root.modifierHeld = false;
+
                 // The character is shown to the user and checked against the
                 // mappings, so a key that produces none (F1, arrows) cannot
                 // serve as a leader. Stay armed and let them press another.
@@ -173,6 +200,16 @@ ColumnLayout {
                 event.accepted = true;
                 root.keyCaptured(ch, event.nativeScanCode);
             }
+        }
+
+        Text {
+            visible: root.capturing && root.modifierHeld
+            Layout.fillWidth: true
+            text: qsTr("A modifier is not part of the leader. Press the key on its own.")
+            color: Theme.warning
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontBody
+            wrapMode: Text.WordWrap
         }
 
         // The red border needs a reason next to it, or the field just looks

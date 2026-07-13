@@ -22,6 +22,17 @@ namespace fcitx {
 // keyboard half, so it cannot take part in the split either.
 inline constexpr int kNoKeyCode = 0;
 
+// Highest keycode a key event can carry: X11 and XKB encode the keycode in a
+// byte, so evdev+8 tops out here. Anything above cannot name a key that is
+// pressable, and must be treated like kNoKeyCode rather than as a configured
+// leader (which would arm the hand-split off a position nobody can reach).
+inline constexpr int kMaxKeyCode = 255;
+
+// Whether a keycode can name a real, pressable key.
+constexpr bool isUsableKeyCode(int keycode) {
+    return keycode > kNoKeyCode && keycode <= kMaxKeyCode;
+}
+
 // Left-hand classification for an evdev+8 keycode. That offset is the shared
 // convention of XKB, X11, fcitx5's Key::code() and Qt's nativeScanCode (Qt adds
 // the same 8 on both XCB and Wayland), so no translation is needed at any

@@ -49,8 +49,11 @@ class SettingsModel : public QObject {
                    setCustomKey1Enabled NOTIFY customKey1EnabledChanged)
     Q_PROPERTY(QString customKey1 READ customKey1 WRITE setCustomKey1 NOTIFY
                    customKey1Changed)
-    Q_PROPERTY(int customKey1Code READ customKey1Code WRITE setCustomKey1Code
-                   NOTIFY customKey1CodeChanged)
+    // Read-only: a keycode is only ever set by capturing a key press, which
+    // captureCustomKey1() stores together with its character. A writable
+    // property would be a second way in, one that could store a code no key can
+    // produce.
+    Q_PROPERTY(int customKey1Code READ customKey1Code NOTIFY customKey1CodeChanged)
     // Whether a physical key has been captured. QML asks this instead of
     // comparing the code against kNoKeyCode, so the sentinel value stays
     // defined in exactly one place (hand_classifier.h) and is never restated.
@@ -60,8 +63,7 @@ class SettingsModel : public QObject {
                    setCustomKey2Enabled NOTIFY customKey2EnabledChanged)
     Q_PROPERTY(QString customKey2 READ customKey2 WRITE setCustomKey2 NOTIFY
                    customKey2Changed)
-    Q_PROPERTY(int customKey2Code READ customKey2Code WRITE setCustomKey2Code
-                   NOTIFY customKey2CodeChanged)
+    Q_PROPERTY(int customKey2Code READ customKey2Code NOTIFY customKey2CodeChanged)
     Q_PROPERTY(bool customKey2HasKey READ customKey2HasKey NOTIFY
                    customKey2CodeChanged)
 
@@ -167,10 +169,8 @@ public:
     void setLeaderAlt(bool v);
     void setCustomKey1Enabled(bool v);
     void setCustomKey1(const QString &v);
-    void setCustomKey1Code(int v);
     void setCustomKey2Enabled(bool v);
     void setCustomKey2(const QString &v);
-    void setCustomKey2Code(int v);
     void setAppFilterMode(const QString &v);
     void setOverlayEnabled(bool v);
     void setOverlayShowOnTrigger(bool v);

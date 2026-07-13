@@ -2345,6 +2345,11 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     // The leader is the physical key, so Shift changing its character must not
     // matter. Leader = the '/' key (code 61). With Shift that key reports the
     // '?' keysym; the leader fires anyway, because only the keycode is compared.
+    //
+    // Modifiers are rejected when CAPTURING a leader in the editor (a modifier
+    // is not part of the key you get), but they must stay irrelevant while
+    // TYPING. That is what makes uppercase mappings work: Shift stays down from
+    // the input key through the leader press. See TEST 94 for Shift+A + Shift+F.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 152;
@@ -2485,41 +2490,45 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 155: A negative keycode from a hand-edited config is not a key
-    // The config is a plain text file. A keycode that cannot name a real key
+    // TEST 155: A keycode that cannot name a key is not a key
+    // The config is a plain text file. A keycode outside the pressable range
     // must collapse to "no key assigned", otherwise it counts as a configured
-    // leader: matching nothing, yet arming the hand-split off its own bogus
-    // position (-1 classifies as right-hand by omission).
+    // leader: matching nothing, yet arming the hand-split off a position nobody
+    // can reach (an out-of-range code classifies as right-hand by omission).
     //
-    // Leader 1 claims -1, leader 2 is the real 'f' key on the LEFT half. Taking
-    // -1 at face value makes the two look opposite-handed, arms the split, and
-    // restricts left-hand leader 'f' to right-hand inputs, which would block
-    // left-hand 'a'. Collapsed to "no key", the split stays off and 'f'
-    // triggers everything.
+    // Leader 1 claims the bogus code, leader 2 is the real 'f' key on the LEFT
+    // half. Taken at face value the two look opposite-handed, which arms the
+    // split and restricts left-hand leader 'f' to right-hand inputs, blocking
+    // left-hand 'a'. Collapsed to "no key", the split stays off and 'f' triggers
+    // everything. Both ends of the range are checked: -1 and 99999 are equally
+    // unpressable.
     // =========================================================================
-    testDispatcher->schedule([instance]() {
-        g_currentTest = 155;
-        FCITX_INFO() << "=== Test 155: Negative keycode is no key ===";
-        configureLeaders(instance, false, false, false, false, false, false, "z",
-                         "f", -1, kCodeF);
-        setMappings(instance, {{"a", "\xc3\xa4"}});
+    for (const int bogusCode : {-1, 99999}) {
+        testDispatcher->schedule([instance, bogusCode]() {
+            g_currentTest = 155;
+            FCITX_INFO() << "=== Test 155: Unusable keycode " << bogusCode
+                         << " is no key ===";
+            configureLeaders(instance, false, false, false, false, false, false,
+                             "z", "f", bogusCode, kCodeF);
+            setMappings(instance, {{"a", "\xc3\xa4"}});
 
-        auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test155");
+            auto *tf = instance->addonManager().addon("testfrontend");
+            auto uuid = createAndActivate(instance, tf, "test155");
 
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
-        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_f, KeyStates(), kCodeF), false);
-        FCITX_ASSERT(consumed)
-            << "A leader with an unusable keycode must not arm the split";
+            tf->call<ITestFrontend::sendKeyEvent>(
+                uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+            tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+            bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+                uuid, Key(FcitxKey_f, KeyStates(), kCodeF), false);
+            FCITX_ASSERT(consumed)
+                << "A leader with an unusable keycode must not arm the split";
 
-        tf->call<ITestFrontend::keyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
-        tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 155 PASSED";
-    });
+            tf->call<ITestFrontend::keyEvent>(
+                uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+            tf->call<ITestFrontend::destroyInputContext>(uuid);
+            FCITX_INFO() << "Test 155 PASSED for " << bogusCode;
+        });
+    }
 
     // =========================================================================
     // TEST 60: Dual split — built-in leader ignores split

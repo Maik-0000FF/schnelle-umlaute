@@ -29,14 +29,15 @@ bool fromBool(const QString &s) {
     return s.compare("True", Qt::CaseInsensitive) == 0;
 }
 
-// A leader's captured physical key. An absent or unparseable value reads back
-// as kNoKeyCode, leaving the leader unassigned. Never fabricate a keycode from
-// a malformed value: a wrong physical key would trigger the wrong leader and
-// mis-classify its keyboard half.
+// A leader's captured physical key. Anything that cannot name a pressable key,
+// including an absent or unparseable value, reads back as kNoKeyCode and leaves
+// the leader unassigned. Never fabricate a keycode from a malformed value: a
+// wrong physical key would trigger the wrong leader and mis-classify its
+// keyboard half.
 int toKeyCode(const QString &s) {
     bool ok = false;
     const int code = s.trimmed().toInt(&ok);
-    return (ok && code > kNoKeyCode) ? code : kNoKeyCode;
+    return (ok && fcitx::isUsableKeyCode(code)) ? code : kNoKeyCode;
 }
 
 // --- Caret theme: generate an fcitx5 classicui theme matching the editor
@@ -247,16 +248,6 @@ void SettingsModel::setCustomKey1(const QString &v) {
     if (isValidLeaderKey(v))
         save();
 }
-// The keycode is written unconditionally: any physical key is a legal leader,
-// so it has no notion of "invalid". isValidLeaderKey() guards the character
-// only (single char, not a mapped input).
-void SettingsModel::setCustomKey1Code(int v) {
-    if (customKey1Code_ == v)
-        return;
-    customKey1Code_ = v;
-    Q_EMIT customKey1CodeChanged();
-    save();
-}
 void SettingsModel::setCustomKey2Enabled(bool v) {
     if (customKey2Enabled_ == v)
         return;
@@ -272,26 +263,20 @@ void SettingsModel::setCustomKey2(const QString &v) {
     if (isValidLeaderKey(v))
         save();
 }
-void SettingsModel::setCustomKey2Code(int v) {
-    if (customKey2Code_ == v)
-        return;
-    customKey2Code_ = v;
-    Q_EMIT customKey2CodeChanged();
-    save();
-}
-
-// Both halves land together, then one save. The keycode is authoritative and
-// always stored; the character is display only, so a value the leader rules
-// reject is simply not shown rather than blocking the capture.
+// The only way a keycode enters the config: both halves land together, then one
+// save. A code that cannot name a pressable key is stored as kNoKeyCode, which
+// reads as "no key assigned" rather than as a leader that can never fire. The
+// character is display only, so one the leader rules reject is simply not shown
+// instead of blocking the capture.
 void SettingsModel::captureCustomKey1(const QString &ch, int code) {
-    customKey1Code_ = code;
+    customKey1Code_ = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
     customKey1_ = isValidLeaderKey(ch) ? ch : QString();
     Q_EMIT customKey1CodeChanged();
     Q_EMIT customKey1Changed();
     save();
 }
 void SettingsModel::captureCustomKey2(const QString &ch, int code) {
-    customKey2Code_ = code;
+    customKey2Code_ = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
     customKey2_ = isValidLeaderKey(ch) ? ch : QString();
     Q_EMIT customKey2CodeChanged();
     Q_EMIT customKey2Changed();

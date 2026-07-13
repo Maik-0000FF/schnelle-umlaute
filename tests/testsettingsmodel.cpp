@@ -161,11 +161,10 @@ void testScalarRoundTrip() {
         // only ever written on the VALUE side (`CustomKey=#`), where it is just
         // text, but pin that: a parser that stripped it would silently blank the
         // leader's display character and its mapped-input collision check.
-        s.setCustomKey1(QStringLiteral("#"));
         // The captured physical key must survive the round-trip too: it is what
         // the addon matches and hand-classifies, so losing it would take the
         // leader and the dual split down with it. 20 = the '#' key.
-        s.setCustomKey1Code(20);
+        s.captureCustomKey1(QStringLiteral("#"), 20);
         s.setAppFilterMode(QStringLiteral("Blacklist"));
         s.setOverlayEnabled(true);
         s.setOverlayShowOnTrigger(true);
@@ -209,17 +208,33 @@ void testCaptureCustomKeyRoundTrip() {
     EXPECT(s2.customKey1HasKey() == true);
 }
 
-// A hand-edited keycode that cannot name a real key reads back as "no key",
-// so the editor shows it as unassigned instead of silently pretending it works.
+// A hand-edited keycode that cannot name a real key reads back as "no key", so
+// the editor shows it as unassigned instead of pretending it works. Both ends
+// of the range matter: an out-of-range code is as unpressable as a negative one,
+// and either would otherwise count as a configured leader and arm the split.
 void testInvalidKeyCodeReadsAsUnassigned() {
+    const char *unusable[] = {"-1", "0", "256", "99999", "notanumber"};
+    for (const char *code : unusable) {
+        resetTempdir();
+        writeConfig(std::string("[Leader/Custom]\n"
+                                "CustomKeyEnabled=True\n"
+                                "CustomKey=f\n"
+                                "CustomKeyCode=") +
+                    code + "\n");
+        SettingsModel s;
+        EXPECT(s.customKey1Code() == fcitx::kNoKeyCode);
+        EXPECT(s.customKey1HasKey() == false);
+    }
+
+    // The boundary itself is a real key and must survive.
     resetTempdir();
     writeConfig("[Leader/Custom]\n"
                 "CustomKeyEnabled=True\n"
                 "CustomKey=f\n"
-                "CustomKeyCode=-1\n");
+                "CustomKeyCode=255\n");
     SettingsModel s;
-    EXPECT(s.customKey1Code() == fcitx::kNoKeyCode);
-    EXPECT(s.customKey1HasKey() == false);
+    EXPECT(s.customKey1Code() == 255);
+    EXPECT(s.customKey1HasKey() == true);
 }
 
 void testBlacklistAddAndRoundTrip() {
