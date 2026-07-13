@@ -258,6 +258,25 @@ void testCaptureFoldsCaseIncludingNonAscii() {
     EXPECT(s2.customKey2() == QString::fromUtf8("ä"));
 }
 
+// Case mapping is allowed to expand a codepoint: Turkish 'İ' (U+0130) folds to
+// 'i' plus a combining dot. The stored character must stay a single codepoint
+// regardless, or the editor flags a working leader as invalid. The unfolded
+// character is kept in that case.
+void testCaptureKeepsSingleCodepointWhenFoldExpands() {
+    resetTempdir();
+    const QString dottedI = QString::fromUtf8("\xC4\xB0"); // U+0130
+    EXPECT(dottedI.toLower().toUcs4().size() == 2);        // the fold expands
+
+    SettingsModel s;
+    s.setCustomKey1Enabled(true);
+    s.captureCustomKey1(dottedI, 31);
+    EXPECT(s.customKey1().toUcs4().size() == 1);
+    EXPECT(s.customKey1() == dottedI);
+    EXPECT(SettingsModel::isValidLeaderKey(s.customKey1()));
+    // The key itself is unaffected: matching never looks at the character.
+    EXPECT(s.customKey1Code() == 31);
+}
+
 void testBlacklistAddAndRoundTrip() {
     resetTempdir();
     {
@@ -509,6 +528,8 @@ const TestCase kTests[] = {
     {"testCaptureCustomKeyRoundTrip", testCaptureCustomKeyRoundTrip},
     {"testCaptureFoldsCaseIncludingNonAscii",
      testCaptureFoldsCaseIncludingNonAscii},
+    {"testCaptureKeepsSingleCodepointWhenFoldExpands",
+     testCaptureKeepsSingleCodepointWhenFoldExpands},
     {"testInvalidKeyCodeReadsAsUnassigned", testInvalidKeyCodeReadsAsUnassigned},
     {"testBlacklistAddAndRoundTrip", testBlacklistAddAndRoundTrip},
     {"testWhitelistAddAndRemove", testWhitelistAddAndRemove},

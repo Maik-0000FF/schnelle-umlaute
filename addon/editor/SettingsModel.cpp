@@ -270,7 +270,15 @@ void SettingsModel::setCustomKey2(const QString &v) {
 // keycode is unaffected either way, so only the label and the mapped-input
 // collision check depend on getting this right.
 static QString leaderChar(const QString &raw) {
-    return SettingsModel::isValidLeaderKey(raw) ? raw.toLower() : QString();
+    if (!SettingsModel::isValidLeaderKey(raw))
+        return QString();
+    const QString folded = raw.toLower();
+    // Full case mapping can turn one codepoint into two: Turkish 'İ' (U+0130)
+    // folds to 'i' plus a combining dot. That would break the single-codepoint
+    // invariant the label and the collision check rely on, and the field would
+    // then flag a perfectly good leader as invalid. Keep the unfolded character
+    // in that case; it is still exactly one codepoint.
+    return SettingsModel::isValidLeaderKey(folded) ? folded : raw;
 }
 
 // The only way a keycode enters the config: both halves land together, then one
