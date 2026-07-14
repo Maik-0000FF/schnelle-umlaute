@@ -198,10 +198,6 @@ public:
         : QObject(ctrl), ctrl_(ctrl) {
         connect(ctrl, &OverlayController::stateChanged, this,
                 &OverlayRenderer::syncToController);
-        connect(ctrl, &OverlayController::animateChanged, this, [this]() {
-            if (!ctrl_->animate())
-                restoreTransitionsAfterFirstFrame();
-        });
     }
 
 private:
@@ -215,6 +211,12 @@ private:
 
         switch (schnelle_umlaute::render::decideRenderAction(req, state)) {
         case schnelle_umlaute::render::RenderAction::None:
+            // Content-only update on the surface that is already up. If this was
+            // a gesture start (the controller closed the gate before writing the
+            // new values), THIS surface is the one that will draw them, so it is
+            // the one to wait on before letting transitions run again.
+            if (!ctrl_->animate())
+                armTransitionRestore();
             return;
         case schnelle_umlaute::render::RenderAction::Hide:
             hideWindow();
@@ -297,40 +299,44 @@ private:
             qwin->setScreen(scr);
 #endif
         qwin_ = qwin;
-        // The gate for THIS gesture closed before the window existed (the
-        // controller runs ahead of the renderer), so its restore had nothing to
-        // arm on. Arm it now, on the window that is about to draw the snapped
-        // state.
-        if (!ctrl_->animate())
-            restoreTransitionsAfterFirstFrame();
         return true;
     }
 
-    // The controller turns transitions off when a new gesture overwrites the
-    // last one's values (see OverlayController::show). Turn them back on once
-    // the surface has actually DRAWN with the snapped values: any earlier and
-    // the very change we wanted to snap could still animate, any later and the
-    // cycling handover would lose its animation.
-    void restoreTransitionsAfterFirstFrame() {
-        // Exactly one restore may ever be pending. A placement that never draws
-        // (a cursor query that fails, a gesture cancelled before it revealed)
-        // leaves its arming behind, and every further gesture would add another.
-        QObject::disconnect(restore_);
+    // The controller turns transitions off when a gesture start overwrites the
+    // last one's values (see OverlayController::show). Turn them back on once the
+    // surface has actually DRAWN them: any earlier and the very change that was
+    // snapped could still animate, any later and the cycling handover would lose
+    // its animation.
+    //
+    // Call this from the paths that KNOW which surface is about to draw, never
+    // from the animateChanged signal: setAnimate(false) is idempotent, so the
+    // Show that follows a SetProgress emits nothing at all (the gate is already
+    // shut), and an arming made off that signal would still be pointed at the
+    // previous gesture's window.
+    void armTransitionRestore() {
         auto *qq = qobject_cast<QQuickWindow *>(qwin_.data());
-        if (!qq) {
-            // No window yet (the engine is built on the first show). Nothing can
-            // draw, so nothing can animate either; ensureEngine() arms this again
-            // as soon as there IS a window. Restoring here instead would undo the
-            // snap before the first frame ever appears.
+        if (!qq)
             return;
-        }
-        // Single-shot: frameSwapped fires on every frame from the render thread,
-        // and a standing connection would queue a call across threads 60 times a
-        // second only to hit setAnimate's early return.
-        restore_ = connect(qq, &QQuickWindow::frameSwapped, this, [this]() {
-            QObject::disconnect(restore_);
-            ctrl_->setAnimate(true);
-        });
+        // Exactly one restore may be pending. A placement that never draws (a
+        // cursor query that fails, a gesture cancelled before it revealed) would
+        // otherwise leave its arming behind and each gesture would add another.
+        QObject::disconnect(restore_);
+        const quint64 generation = ++restoreGeneration_;
+        // Single-shot: frameSwapped fires every frame, from the render thread,
+        // so a standing connection would queue a cross-thread call 60 times a
+        // second only to hit setAnimate's early return. The lambda holds its OWN
+        // connection and its own generation: a call already queued by the
+        // previous surface when a newer gesture arms must not tear that newer
+        // arming down, nor open the gate before the new surface has drawn.
+        auto conn = std::make_shared<QMetaObject::Connection>();
+        *conn = connect(qq, &QQuickWindow::frameSwapped, this,
+                        [this, conn, generation]() {
+                            if (generation != restoreGeneration_)
+                                return;
+                            QObject::disconnect(*conn);
+                            ctrl_->setAnimate(true);
+                        });
+        restore_ = *conn;
     }
 
     void hideWindow() {
@@ -421,6 +427,9 @@ private:
             ls2->setAnchors(a.anchors);
             ls2->setMargins(a.margins);
             qwinPtr->setVisible(true);
+            // This surface is the one that will draw the snapped state, so it is
+            // the one whose first frame reopens the gate.
+            armTransitionRestore();
         };
 
         if (!spec.atCursor) {
@@ -482,6 +491,7 @@ private:
                                                   LSWindow::AnchorLeft));
                 ls2->setMargins(QMargins(m.left, m.top, 0, 0));
                 qwinPtr->setVisible(true);
+                armTransitionRestore();
             });
     }
 
@@ -531,8 +541,10 @@ private:
     // off-center at fractional-column placements.
     bool lastLabel_ = false;
     schnelle_umlaute::CursorSource *cursorSource_ = nullptr;
-    // The one pending "restore transitions on the next drawn frame" connection.
+    // The one pending "restore transitions on the next drawn frame" connection,
+    // and the generation that says which placement armed it.
     QMetaObject::Connection restore_;
+    quint64 restoreGeneration_ = 0;
 };
 
 } // namespace

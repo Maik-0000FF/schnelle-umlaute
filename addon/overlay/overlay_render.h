@@ -8,6 +8,8 @@
 
 #include <string>
 
+#include "../overlay_protocol.h"
+
 namespace schnelle_umlaute {
 namespace render {
 
@@ -70,14 +72,26 @@ inline RenderAction decideRenderAction(const RenderRequest &req,
 }
 
 // The engine highlights no cell while a gesture's accent window is still open:
-// it sends a negative index until a leader press starts the cycling. Cycling and
-// the post-commit flash always name a real cell. A negative index is therefore
-// the engine saying "a gesture just opened", and it is the ONLY thing that can
-// say so: the flash leaves the committed variants on screen for 150 ms, so
-// pressing that same key again inside that window arrives with the same variant
-// list, on a still-visible overlay. Nothing about the content distinguishes it
-// from cycling.
-inline bool opensGesture(int currentIndex) { return currentIndex < 0; }
+// it sends kNoHighlightIndex (see overlay_protocol.h, the one definition both
+// processes read) until a leader press starts the cycling. Cycling and the
+// post-commit flash always name a real cell. That index is therefore the engine
+// saying "a gesture just opened", and it is the ONLY thing that can say so: the
+// flash leaves the committed variants on screen for 150 ms, so pressing that
+// same key again inside that window arrives with the same variant list, on a
+// still-visible overlay. Nothing about the content distinguishes it from
+// cycling.
+//
+// Caveat worth knowing: the engine only sends that index when the overlay is
+// configured to appear before the leader is pressed ([Overlay]/ShowOnTrigger or
+// /ProgressBar). With both off, the first Show of a gesture is the leader press
+// itself and names cell 0, so the snap falls back to the visibility/variants
+// test below. The residual case (a re-trigger landing inside the 150 ms flash)
+// needs the accent window's minimum hold to elapse first, so the flash is long
+// gone in practice, and what remains would read as a handover rather than a
+// flash.
+inline bool opensGesture(int currentIndex) {
+    return currentIndex <= kNoHighlightIndex;
+}
 
 // Does this Show have to snap the QML's transitions, or may it animate them?
 //

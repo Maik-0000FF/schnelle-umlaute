@@ -22,6 +22,7 @@
 #include "app_filter.h"
 #include "config.h"
 #include "hand_classifier.h"
+#include "overlay_protocol.h"
 #include "mappings_loader.h"
 #include "profile_cycle.h"
 #include "profile_paths.h"
@@ -1738,7 +1739,13 @@ private:
     // Index sent to the overlay for the trigger-window preview. No cell
     // matches it, so the picker shows the variants without a green highlight —
     // the active cell only lights up once a leader press starts cycling.
-    static constexpr int kPreviewNoHighlight = -1;
+    //
+    // The daemon also reads it as "a gesture opened" to decide whether its
+    // (persistent) QML may animate into the new state or has to snap, so the
+    // value is a contract between the two processes and is defined once, in
+    // overlay_protocol.h, rather than here and there.
+    static constexpr int kPreviewNoHighlight =
+        schnelle_umlaute::kNoHighlightIndex;
 
     // Trigger-window preview ([Overlay]/ShowOnTrigger). Show the mapping's
     // variants as soon as the accent window opens — for EVERY mapped key,
