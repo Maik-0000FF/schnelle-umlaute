@@ -10,6 +10,8 @@
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
+#include <QQuickItem>
+#include <QQuickWindow>
 #include <QRect>
 #include <QScreen>
 #include <QStandardPaths>
@@ -66,6 +68,28 @@ struct Anchored {
     LSWindow::Anchors anchors;
     QMargins margins;
 };
+
+// Run the layout pass NOW, depth-first, so implicit sizes are current.
+//
+// The panel's width comes from a RowLayout, and QQuickLayout does not compute
+// its implicit size when the model changes: it invalidates and defers the work
+// to the polish pass, which the render loop drives. A hidden window never
+// renders, so with a persistent engine nothing would run it, and the anchor
+// math below would read the PREVIOUS overlay's width: a 2-cell panel followed
+// by a 7-cell one would be anchored as if it were still 2 cells wide, landing
+// the panel off its column. (Measured on the layer-shell wire: set_margin was
+// one show behind.) Rebuilding the engine per show used to hide this, because a
+// fresh QML load lays out on completion.
+//
+// Children first: a parent's implicit size is derived from theirs.
+void polishTree(QQuickItem *item) {
+    if (!item)
+        return;
+    const auto children = item->childItems();
+    for (QQuickItem *child : children)
+        polishTree(child);
+    item->ensurePolished();
+}
 
 // Pre-1.2 used a 3×3 grid; 1.2 moved to 7×3. Map the old names onto
 // the equivalent column so legacy DBus callers and older configs keep
@@ -153,12 +177,21 @@ Anchored anchorsFor(const QString &position, int screenWidth,
     return {a, QMargins(left, top, right, bottom)};
 }
 
-// Rebuilds the QML window only when the overlay position changes. Wayland
-// layer-shell forbids changing anchors/margins/output after the first
-// commit, so moving between positions or monitors needs a fresh surface.
-// Plain variants/currentIndex updates (i.e. cycling) ride the existing
-// Q_PROPERTY bindings — rebuilding on every keystroke caused visible
-// flicker because each rebuild commits a new layer-shell surface.
+// Drives the QML window from the controller's state. The engine is built once
+// and lives for the daemon's lifetime; showing and hiding is
+// QWindow::setVisible(), and only a change of position or mode re-anchors.
+//
+// The surface still comes and goes with the window, and that is deliberate: a
+// layer surface bakes its anchors at the first commit, and Qt drops the
+// wl_surface on hide and creates a fresh layer surface on show, so a new
+// position always gets anchors that take effect. What the engine's lifetime
+// buys is the rest: no QML re-parse, no object tree, no scene graph rebuild per
+// open. That used to run on EVERY show, which with the timing bar enabled means
+// every keystroke of a mapped letter (the bar shows from t=0). Measured on the
+// wire, 40 open/close cycles cost 2.9 s of daemon CPU before and 0.4 s after.
+//
+// Plain variants/currentIndex/theme updates (i.e. cycling) never touch any of
+// this: they ride the Q_PROPERTY bindings on the surface that is already up.
 class OverlayRenderer : public QObject {
 public:
     explicit OverlayRenderer(OverlayController *ctrl)
@@ -169,18 +202,45 @@ public:
 
 private:
     void syncToController() {
-        if (!ctrl_->visible() || ctrl_->variants().isEmpty()) {
-            teardown();
-            return;
-        }
         const QString pos = ctrl_->position();
-        if (engine_ && pos == lastPosition_ && ctrl_->label() == lastLabel_) {
-            // Same position and mode, surface already committed; QML bindings
-            // on OverlayController.variants/currentIndex update the content. A
-            // label<->grid switch falls through to rebuild (different width).
+        const schnelle_umlaute::render::RenderRequest req{
+            ctrl_->visible(), !ctrl_->variants().isEmpty(), pos.toStdString(),
+            ctrl_->label()};
+        const schnelle_umlaute::render::RenderState state{
+            active_, lastPosition_.toStdString(), lastLabel_};
+
+        switch (schnelle_umlaute::render::decideRenderAction(req, state)) {
+        case schnelle_umlaute::render::RenderAction::None:
             return;
+        case schnelle_umlaute::render::RenderAction::Hide:
+            hideWindow();
+            return;
+        case schnelle_umlaute::render::RenderAction::Show:
+            break;
         }
-        teardown();
+
+        if (!ensureEngine())
+            return;
+        // Hide before re-anchoring. Layer-shell bakes the anchors of a surface
+        // at its first commit, and Qt drops the wl_surface when the window is
+        // hidden, so this is what gets the new position a surface of its own.
+        hideWindow();
+        // Mark the placement committed BEFORE the possibly-async cursor fetch,
+        // so a cycling update arriving mid-fetch takes the None branch above and
+        // rides the existing bindings instead of racing the reply.
+        lastPosition_ = pos;
+        lastLabel_ = ctrl_->label();
+        active_ = true;
+        epoch_ = schnelle_umlaute::render::nextEpoch(epoch_);
+        reveal(pos, epoch_);
+    }
+
+    // Builds the QML engine and its root window ONCE. Layer-shell properties
+    // that never change (layer, scope, keyboard interactivity, output policy)
+    // are set here; only anchors and margins are per-show.
+    bool ensureEngine() {
+        if (engine_)
+            return qwin_ != nullptr;
 
         engine_ = std::make_unique<QQmlApplicationEngine>();
         engine_->rootContext()->setContextProperty("OverlayController", ctrl_);
@@ -197,16 +257,18 @@ private:
 #endif
         if (engine_->rootObjects().isEmpty()) {
             engine_.reset();
-            return;
+            return false;
         }
         auto *qwin = qobject_cast<QWindow *>(engine_->rootObjects().first());
         if (!qwin) {
             engine_.reset();
-            return;
+            return false;
         }
         auto *ls = LSWindow::get(qwin);
-        if (!ls)
-            return;
+        if (!ls) {
+            engine_.reset();
+            return false;
+        }
         ls->setLayer(LSWindow::LayerOverlay);
         ls->setKeyboardInteractivity(LSWindow::KeyboardInteractivityNone);
         ls->setScope(QStringLiteral("schnelle-umlaute-overlay"));
@@ -230,12 +292,31 @@ private:
         if (auto *scr = QGuiApplication::primaryScreen())
             qwin->setScreen(scr);
 #endif
-        // Mark the surface configured now (before the possibly-async cursor
-        // fetch) so a cycling update that arrives mid-fetch reuses it via the
-        // pos == lastPosition_ check instead of tearing it down and racing the
-        // reply.
-        lastPosition_ = pos;
-        lastLabel_ = ctrl_->label();
+        qwin_ = qwin;
+        return true;
+    }
+
+    void hideWindow() {
+        if (qwin_)
+            qwin_->setVisible(false);
+        active_ = false;
+        // Whatever a still-pending cursor reply was going to place, it is not
+        // this. Close its epoch.
+        epoch_ = schnelle_umlaute::render::nextEpoch(epoch_);
+    }
+
+    // Settle the QML layout so implicit sizes (the panel width the anchor math
+    // reads) reflect the variants that are on screen right now. See polishTree.
+    void settleLayout() {
+        if (auto *qq = qobject_cast<QQuickWindow *>(qwin_.data()))
+            polishTree(qq->contentItem());
+    }
+
+    void reveal(const QString &pos,
+                const schnelle_umlaute::render::RenderEpoch epoch) {
+        QWindow *qwin = qwin_;
+        if (!qwin)
+            return;
 
         const schnelle_umlaute::CursorPositionSpec spec =
             schnelle_umlaute::parseCursorPosition(pos.toStdString());
@@ -248,9 +329,22 @@ private:
         // its leading edge). Col 1/4/7 don't use these, so a fallback is
         // harmless. Layer-shell props must be set before this first commit.
         QPointer<QWindow> qwinPtr(qwin);
-        auto revealGrid = [this, qwinPtr, grid]() {
+        auto revealGrid = [this, qwinPtr, grid, epoch]() {
+            // Deferred: reached from the cursor callback too, which may fire
+            // after this placement is over. `grid` is a copy of THAT gesture's
+            // position, so applying it to a later one would misplace it.
+            if (!schnelle_umlaute::render::isEpochCurrent(epoch, epoch_))
+                return;
             if (!qwinPtr)
                 return;
+            // Every caller lands here: the synchronous grid path, and both of the
+            // cursor callback's fallbacks (no pointer, no screen). This IS the
+            // pass that makes the implicit sizes current, so the anchor math
+            // below reads the width of the panel about to be shown rather than
+            // the last one's. On the deferred paths it additionally catches up
+            // with any cycling that happened while the pointer query was in
+            // flight.
+            settleLayout();
             auto *ls2 = LSWindow::get(qwinPtr);
             if (!ls2)
                 return;
@@ -302,10 +396,14 @@ private:
         // failure — unsupported compositor, query error, timeout — falls back
         // to the grid reveal above.
         cursorSource()->getCursor(
-            [this, qwinPtr, revealGrid](
+            [this, qwinPtr, revealGrid, epoch](
                 std::optional<schnelle_umlaute::CursorPos> cur) {
-                // The overlay may have been torn down (a quick hide) while the
-                // reply was in flight — QPointer goes null with the window.
+                // The gesture that asked for this pointer may be long over: hidden
+                // again, or superseded by the next one (which reopens the window,
+                // so ctrl_->visible() is true again and answers nothing). The
+                // window outlives the gesture now, so only the epoch can tell.
+                if (!schnelle_umlaute::render::isEpochCurrent(epoch, epoch_))
+                    return;
                 if (!qwinPtr || !ctrl_->visible())
                     return;
                 if (!cur) {
@@ -315,6 +413,11 @@ private:
                 auto *ls2 = LSWindow::get(qwinPtr);
                 if (!ls2)
                     return;
+                // This path reads the size itself rather than going through
+                // revealGrid(), so it settles the layout itself too: it runs event
+                // loops after the placement started, and a variants update in
+                // between would have invalidated the implicit sizes.
+                settleLayout();
                 QScreen *scr =
                     QGuiApplication::screenAt(QPoint(cur->x, cur->y));
                 if (!scr)
@@ -345,15 +448,6 @@ private:
             });
     }
 
-    void teardown() {
-        if (engine_) {
-            engine_->clearComponentCache();
-            engine_.reset();
-        }
-        lastPosition_.clear();
-        lastLabel_ = false;
-    }
-
     // Lazily build the cursor backend for the running compositor and wire the
     // KWin script reply path. Created on first cursor-mode open so a user who
     // never enables it pays nothing; lives for the daemon's lifetime.
@@ -382,6 +476,16 @@ private:
 
     OverlayController *ctrl_;
     std::unique_ptr<QQmlApplicationEngine> engine_;
+    // Root QML window, owned by the engine and alive for the daemon's lifetime.
+    QPointer<QWindow> qwin_;
+    // True from the moment we commit to showing at (lastPosition_, lastLabel_)
+    // until the window is hidden again. Replaces the old "engine_ != nullptr"
+    // proxy, which only worked because teardown() destroyed the engine.
+    bool active_ = false;
+    // Identifies the current placement, so async work started by an earlier one
+    // (the cursor fetch) can recognise that it is late and stand down.
+    schnelle_umlaute::render::RenderEpoch epoch_ =
+        schnelle_umlaute::render::kFirstEpoch;
     QString lastPosition_;
     // Part of the surface-reuse key: label and grid modes have very different
     // widths, and the layer-shell anchor margin is baked from the width at
