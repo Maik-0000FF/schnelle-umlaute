@@ -138,25 +138,29 @@ void testEpochsAdvance() {
 // Cycling: the overlay is up, the same variants come back with the highlight on
 // another cell. That handover is what the animation is for.
 void testCyclingAnimates() {
-    EXPECT(!showSnapsTransitions(/*wasVisible=*/true, /*variantsChanged=*/false));
+    EXPECT(!showSnapsTransitions(/*wasVisible=*/true, /*variantsChanged=*/false,
+                                 /*currentIndex=*/1));
 }
 
 // A new gesture while the previous overlay is still on screen (the engine hides
 // with a commit flash, so this is reachable). Its cells still hold the old
 // gesture's colours, so animating from them is the flash.
 void testNewVariantsWhileVisibleSnap() {
-    EXPECT(showSnapsTransitions(/*wasVisible=*/true, /*variantsChanged=*/true));
+    EXPECT(showSnapsTransitions(/*wasVisible=*/true, /*variantsChanged=*/true,
+                                /*currentIndex=*/-1));
 }
 
 // Re-triggering the SAME key after a commit: the variants are identical, so the
 // content alone cannot tell this from cycling. Coming from hidden is what does.
 // This is the reported bug: the previously active cell faded out green.
 void testSameVariantsFromHiddenSnap() {
-    EXPECT(showSnapsTransitions(/*wasVisible=*/false, /*variantsChanged=*/false));
+    EXPECT(showSnapsTransitions(/*wasVisible=*/false, /*variantsChanged=*/false,
+                                /*currentIndex=*/0));
 }
 
 void testNewVariantsFromHiddenSnap() {
-    EXPECT(showSnapsTransitions(/*wasVisible=*/false, /*variantsChanged=*/true));
+    EXPECT(showSnapsTransitions(/*wasVisible=*/false, /*variantsChanged=*/true,
+                                /*currentIndex=*/-1));
 }
 
 int main() {

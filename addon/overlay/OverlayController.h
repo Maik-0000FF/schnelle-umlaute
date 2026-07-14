@@ -22,11 +22,14 @@ class OverlayController : public QObject {
     // Gates the QML transitions (cell colours, panel fade). The engine outlives
     // a gesture now, so its properties still hold the LAST gesture's values when
     // the next one opens: the previously active cell is green, and in progress
-    // mode the panel is fully faded in. Letting those animate to their new
-    // values is exactly the flash the user sees, since the window is on screen
-    // while it plays. The renderer turns transitions off for the first frame of
-    // a fresh placement so those values snap, and back on once it is up, so
-    // cycling inside the gesture animates as before.
+    // mode the panel is fully faded in. Letting those animate to their new values
+    // is exactly the flash the user sees, since the window is on screen while it
+    // plays.
+    //
+    // show() and setProgress() clear this for a gesture start, BEFORE they write
+    // the new values, so the values snap; the renderer sets it again once the
+    // surface has drawn a frame with them. Cycling within a gesture leaves it
+    // alone, so the active-cell handover keeps its animation.
     Q_PROPERTY(bool animate READ animate NOTIFY animateChanged)
     // Progress bar state fires its own signal: like theme it only drives QML
     // property re-evaluation and must not trigger a layer-shell surface rebuild

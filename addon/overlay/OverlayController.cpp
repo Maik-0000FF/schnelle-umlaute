@@ -42,7 +42,7 @@ void OverlayController::show(const QStringList &variants, int currentIndex,
     // engine can leave the previous overlay on screen until its commit flash
     // times out). Cycling keeps its animation: same variants, moved index.
     if (schnelle_umlaute::render::showSnapsTransitions(
-            visible_, variants != variants_)) {
+            visible_, variants != variants_, currentIndex)) {
         setAnimate(false);
     }
     variants_ = variants;

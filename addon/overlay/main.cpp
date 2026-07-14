@@ -297,6 +297,12 @@ private:
             qwin->setScreen(scr);
 #endif
         qwin_ = qwin;
+        // The gate for THIS gesture closed before the window existed (the
+        // controller runs ahead of the renderer), so its restore had nothing to
+        // arm on. Arm it now, on the window that is about to draw the snapped
+        // state.
+        if (!ctrl_->animate())
+            restoreTransitionsAfterFirstFrame();
         return true;
     }
 
@@ -306,19 +312,23 @@ private:
     // the very change we wanted to snap could still animate, any later and the
     // cycling handover would lose its animation.
     void restoreTransitionsAfterFirstFrame() {
+        // Exactly one restore may ever be pending. A placement that never draws
+        // (a cursor query that fails, a gesture cancelled before it revealed)
+        // leaves its arming behind, and every further gesture would add another.
+        QObject::disconnect(restore_);
         auto *qq = qobject_cast<QQuickWindow *>(qwin_.data());
         if (!qq) {
-            // No window to wait on. Restore now rather than leave the daemon
-            // with animations off for the rest of its life.
-            ctrl_->setAnimate(true);
+            // No window yet (the engine is built on the first show). Nothing can
+            // draw, so nothing can animate either; ensureEngine() arms this again
+            // as soon as there IS a window. Restoring here instead would undo the
+            // snap before the first frame ever appears.
             return;
         }
         // Single-shot: frameSwapped fires on every frame from the render thread,
         // and a standing connection would queue a call across threads 60 times a
         // second only to hit setAnimate's early return.
-        auto conn = std::make_shared<QMetaObject::Connection>();
-        *conn = connect(qq, &QQuickWindow::frameSwapped, this, [this, conn]() {
-            QObject::disconnect(*conn);
+        restore_ = connect(qq, &QQuickWindow::frameSwapped, this, [this]() {
+            QObject::disconnect(restore_);
             ctrl_->setAnimate(true);
         });
     }
@@ -521,6 +531,8 @@ private:
     // off-center at fractional-column placements.
     bool lastLabel_ = false;
     schnelle_umlaute::CursorSource *cursorSource_ = nullptr;
+    // The one pending "restore transitions on the next drawn frame" connection.
+    QMetaObject::Connection restore_;
 };
 
 } // namespace

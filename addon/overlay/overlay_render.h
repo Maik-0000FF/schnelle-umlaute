@@ -69,21 +69,27 @@ inline RenderAction decideRenderAction(const RenderRequest &req,
     return RenderAction::Show;
 }
 
+// The engine highlights no cell while a gesture's accent window is still open:
+// it sends a negative index until a leader press starts the cycling. Cycling and
+// the post-commit flash always name a real cell. A negative index is therefore
+// the engine saying "a gesture just opened", and it is the ONLY thing that can
+// say so: the flash leaves the committed variants on screen for 150 ms, so
+// pressing that same key again inside that window arrives with the same variant
+// list, on a still-visible overlay. Nothing about the content distinguishes it
+// from cycling.
+inline bool opensGesture(int currentIndex) { return currentIndex < 0; }
+
 // Does this Show have to snap the QML's transitions, or may it animate them?
 //
 // The engine outlives a gesture, so its properties still hold the last one's
 // values: the cell that was active is green, the panel is faded in. A Show that
 // starts a NEW gesture must snap, or those values animate to the new ones on a
-// surface that is already on screen, which is the flash. A Show that merely
-// moves the highlight inside the gesture on screen is the handover the animation
-// exists for.
-//
-// The two are told apart by the content: cycling re-sends the same variants with
-// a different index, a new gesture brings different ones. Coming from hidden is
-// always a new gesture, whatever the variants say (the same key pressed twice in
-// a row sends an identical list).
-inline bool showSnapsTransitions(bool wasVisible, bool variantsChanged) {
-    return !wasVisible || variantsChanged;
+// surface that is already on screen, which is the flash the user sees. A Show
+// that merely moves the highlight within the gesture on screen is the handover
+// the animation exists for.
+inline bool showSnapsTransitions(bool wasVisible, bool variantsChanged,
+                                 int currentIndex) {
+    return !wasVisible || variantsChanged || opensGesture(currentIndex);
 }
 
 // Placement epoch. Cursor mode fetches the pointer asynchronously, so a reply
