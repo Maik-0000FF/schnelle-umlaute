@@ -133,6 +133,10 @@ KWinCursorSource::KWinCursorSource(QString scriptDir, QString serviceName,
 // get-cursor.js that daemons before the per-query naming left behind. The
 // source is built lazily on the first cursor-mode open and lives for the
 // daemon's lifetime, so this runs once, off the hot path.
+//
+// Safe because the daemon is single-instance: main() exits when the DBus service
+// name is already taken. A second daemon's sweep would delete the script file of
+// a query the first one still has in flight.
 void KWinCursorSource::sweepScriptDir() {
     QDir dir(scriptDir_);
     if (!dir.exists())
