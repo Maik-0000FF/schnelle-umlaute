@@ -211,6 +211,12 @@ private:
 
         switch (schnelle_umlaute::render::decideRenderAction(req, state)) {
         case schnelle_umlaute::render::RenderAction::None:
+            // Content-only update on the surface that is already up. If this was
+            // a gesture start (the controller closed the gate before writing the
+            // new values), THIS surface is the one that will draw them, so it is
+            // the one to wait on before letting transitions run again.
+            if (!ctrl_->animate())
+                armTransitionRestore();
             return;
         case schnelle_umlaute::render::RenderAction::Hide:
             hideWindow();
@@ -294,6 +300,51 @@ private:
 #endif
         qwin_ = qwin;
         return true;
+    }
+
+    // The controller turns transitions off when a gesture start overwrites the
+    // last one's values (see OverlayController::show). Turn them back on once the
+    // surface has actually DRAWN them: any earlier and the very change that was
+    // snapped could still animate, any later and the cycling handover would lose
+    // its animation.
+    //
+    // Call this from the paths that KNOW which surface is about to draw, never
+    // from the animateChanged signal: setAnimate(false) is idempotent, so the
+    // Show that follows a SetProgress emits nothing at all (the gate is already
+    // shut), and an arming made off that signal would still be pointed at the
+    // previous gesture's window.
+    void armTransitionRestore() {
+        auto *qq = qobject_cast<QQuickWindow *>(qwin_.data());
+        if (!qq)
+            return;
+        // Exactly one restore may be pending. frameSwapped fires every frame,
+        // from the render thread, so a standing connection would queue a
+        // cross-thread call 60 times a second only to hit setAnimate's early
+        // return, and a placement that never draws (a failed cursor query, a
+        // gesture cancelled before it revealed) would leave its arming behind for
+        // the next one to pile onto.
+        //
+        // Two things do that: the member holds the live connection so the next
+        // arming can drop it, and the generation makes a call the PREVIOUS
+        // surface already queued inert, since disconnecting does not unqueue what
+        // is already posted. Without it, such a call would reopen the gate before
+        // the new surface has drawn.
+        QObject::disconnect(restore_);
+        const quint64 generation = ++restoreGeneration_;
+        restore_ = connect(qq, &QQuickWindow::frameSwapped, this,
+                           [this, generation]() {
+                               if (generation != restoreGeneration_)
+                                   return;
+                               QObject::disconnect(restore_);
+                               ctrl_->setAnimate(true);
+                           });
+        // Do not assume a frame is coming. A gesture start can re-send exactly
+        // what is already on screen (the same variants at the same no-highlight
+        // index, e.g. the same key pressed again while its preview is still up):
+        // nothing in the scene changes, nothing renders, and the gate would stay
+        // shut until some later change happened to draw one. The first cycling
+        // handover would then snap instead of animating. Ask for the frame.
+        qq->requestUpdate();
     }
 
     void hideWindow() {
@@ -384,6 +435,9 @@ private:
             ls2->setAnchors(a.anchors);
             ls2->setMargins(a.margins);
             qwinPtr->setVisible(true);
+            // This surface is the one that will draw the snapped state, so it is
+            // the one whose first frame reopens the gate.
+            armTransitionRestore();
         };
 
         if (!spec.atCursor) {
@@ -445,6 +499,7 @@ private:
                                                   LSWindow::AnchorLeft));
                 ls2->setMargins(QMargins(m.left, m.top, 0, 0));
                 qwinPtr->setVisible(true);
+                armTransitionRestore();
             });
     }
 
@@ -494,6 +549,10 @@ private:
     // off-center at fractional-column placements.
     bool lastLabel_ = false;
     schnelle_umlaute::CursorSource *cursorSource_ = nullptr;
+    // The one pending "restore transitions on the next drawn frame" connection,
+    // and the generation that says which placement armed it.
+    QMetaObject::Connection restore_;
+    quint64 restoreGeneration_ = 0;
 };
 
 } // namespace

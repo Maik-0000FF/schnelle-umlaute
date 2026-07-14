@@ -1,6 +1,7 @@
 #include "OverlayController.h"
 #include "../overlay_protocol.h"
 #include "../themes.h"
+#include "overlay_render.h"
 #include "progress_overlay_geometry.h"
 
 #include <QCoreApplication>
@@ -33,6 +34,17 @@ OverlayController::OverlayController(QObject *parent) : QObject(parent) {}
 
 void OverlayController::show(const QStringList &variants, int currentIndex,
                              const QString &position, bool label) {
+    // Decide BEFORE the old values are gone, and stop the transitions BEFORE the
+    // new ones are written: an animation is started by the property write, so a
+    // gate flipped afterwards is too late. This is the protocol edge, the one
+    // place every show passes through, which the renderer is not (a new gesture
+    // at the same position with the same variants is a no-op for it, and the
+    // engine can leave the previous overlay on screen until its commit flash
+    // times out). Cycling keeps its animation: same variants, moved index.
+    if (schnelle_umlaute::render::showSnapsTransitions(
+            visible_, variants != variants_, currentIndex)) {
+        setAnimate(false);
+    }
     variants_ = variants;
     currentIndex_ = currentIndex;
     if (!position.isEmpty())
@@ -89,11 +101,24 @@ bool OverlayController::isValidTheme(const QString &name) {
     return schnelle_umlaute::isValidTheme(name);
 }
 
+void OverlayController::setAnimate(bool on) {
+    if (animate_ == on)
+        return;
+    animate_ = on;
+    Q_EMIT animateChanged();
+}
+
 void OverlayController::sendCursor(int requestId, int x, int y) {
     Q_EMIT cursorReported(requestId, x, y);
 }
 
 void OverlayController::setProgress(int leadMs, int windowMs, qint64 startUsec) {
+    // A gesture start, always. It arrives BEFORE this gesture's Show, and the
+    // previous overlay may still be on screen (the engine's commit flash hides
+    // with a delay), so without this the panel would animate down from its
+    // fully-revealed state of the last gesture while visible: a flash during the
+    // lead-in, before the timing window has even opened.
+    setAnimate(false);
     progressLeadMs_ = leadMs;
     progressWindowMs_ = windowMs;
     // Measure how much of the gesture already elapsed by the time this message

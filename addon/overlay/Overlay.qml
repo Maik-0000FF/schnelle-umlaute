@@ -42,6 +42,39 @@ Window {
     // theme switches feel like one motion rather than three offset ones.
     readonly property int animationDuration: 120
 
+    // One gate for every transition below. Two things must never animate:
+    //
+    // - Changes made while the window is HIDDEN. The daemon keeps this engine
+    //   (and its property values) across gestures, so a new gesture's variants,
+    //   index and progress land while nothing is on screen. An animation started
+    //   there does not advance (a hidden window does not render) and would simply
+    //   play out the moment the window is shown.
+    // - The first frame of a fresh placement. The properties still carry the
+    //   PREVIOUS gesture's values: its active cell is green, and in progress mode
+    //   the panel is faded fully in even though the timing window has not opened.
+    //   Animating from those is the flash. OverlayController.animate is false
+    //   until the surface has drawn once, so they snap instead.
+    //
+    // Cycling within an open gesture leaves both true, so the active-cell
+    // handover keeps its animation.
+    readonly property bool transitions: win.visible && OverlayController.animate
+
+    // Finish whatever is still in flight the moment transitions are switched off.
+    // See the Connections in the cell delegate for why: a running animation is
+    // not stopped by disabling its Behavior, and it would write its old target
+    // over the values the new gesture is about to snap in. The delegates handle
+    // their own; these are the ones this scope can reach.
+    onTransitionsChanged: {
+        if (win.transitions)
+            return
+        frameFade.complete()
+        frameFill.complete()
+        frameStroke.complete()
+        pillFill.complete()
+        pillStroke.complete()
+        pillInk.complete()
+    }
+
     // Layout constants — `cellSize` is the 44 px referenced in the
     // truncateDisplay comment below ("Three codepoints fit in JetBrains
     // Mono at pixelSize 16 (≈9.6 px each)" against a 44 px cell).
@@ -308,7 +341,7 @@ Window {
         opacity: OverlayController.progressActive
                  ? (win.progressWindowPhase ? 1 : 0)
                  : 1
-        Behavior on opacity { NumberAnimation { duration: win.animationDuration } }
+        Behavior on opacity { enabled: win.transitions; NumberAnimation { id: frameFade; duration: win.animationDuration } }
         color: Qt.alpha(win.p.frame, win.frameOpacity)
         radius: 16
         border.color: win.p.border
@@ -318,8 +351,8 @@ Window {
                        + 2 * win.framePadding
         implicitHeight: 64
 
-        Behavior on color { ColorAnimation { duration: win.animationDuration } }
-        Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
+        Behavior on color { enabled: win.transitions; ColorAnimation { id: frameFill; duration: win.animationDuration } }
+        Behavior on border.color { enabled: win.transitions; ColorAnimation { id: frameStroke; duration: win.animationDuration } }
 
         // Profile-switch name: a single full-width token rendered in the same
         // cell styling as the active mapped glyph (dark text on the bright
@@ -336,8 +369,8 @@ Window {
             implicitWidth: labelText.width + 2 * win.labelPadding
             implicitHeight: win.cellSize
 
-            Behavior on color { ColorAnimation { duration: win.animationDuration } }
-            Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
+            Behavior on color { enabled: win.transitions; ColorAnimation { id: pillFill; duration: win.animationDuration } }
+            Behavior on border.color { enabled: win.transitions; ColorAnimation { id: pillStroke; duration: win.animationDuration } }
 
             Text {
                 id: labelText
@@ -357,7 +390,7 @@ Window {
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
 
-                Behavior on color { ColorAnimation { duration: win.animationDuration } }
+                Behavior on color { enabled: win.transitions; ColorAnimation { id: pillInk; duration: win.animationDuration } }
             }
         }
 
@@ -380,8 +413,8 @@ Window {
                     border.color: active ? win.p.cellActiveBorder : win.p.cellInactiveBorder
                     border.width: 1
 
-                    Behavior on color { ColorAnimation { duration: win.animationDuration } }
-                    Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
+                    Behavior on color { enabled: win.transitions; ColorAnimation { id: cellFill; duration: win.animationDuration } }
+                    Behavior on border.color { enabled: win.transitions; ColorAnimation { id: cellStroke; duration: win.animationDuration } }
 
                     Text {
                         anchors.centerIn: parent
@@ -403,7 +436,28 @@ Window {
                         }
                         font.weight: Font.Medium
 
-                        Behavior on color { ColorAnimation { duration: win.animationDuration } }
+                        Behavior on color { enabled: win.transitions; ColorAnimation { id: cellInk; duration: win.animationDuration } }
+                    }
+
+                    // Disabling a Behavior stops it from starting NEW animations;
+                    // it does not stop one that is already running. A handover
+                    // caught mid-flight (they last animationDuration, and a fast
+                    // typist commits well inside that) would keep ticking toward
+                    // the previous gesture's colour and overwrite the values the
+                    // new gesture just snapped in, leaving a cell green with no
+                    // active index: an animation writes the property directly,
+                    // and the binding will not re-run until one of its own
+                    // dependencies next changes. So finish them here, before the
+                    // new values arrive.
+                    Connections {
+                        target: win
+                        function onTransitionsChanged() {
+                            if (win.transitions)
+                                return
+                            cellFill.complete()
+                            cellStroke.complete()
+                            cellInk.complete()
+                        }
                     }
                 }
             }
