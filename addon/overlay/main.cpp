@@ -338,10 +338,12 @@ private:
             if (!qwinPtr)
                 return;
             // Every caller lands here: the synchronous grid path, and both of the
-            // cursor callback's fallbacks (no pointer, no screen). The latter two
-            // run event loops later, by which time a variants update could have
-            // invalidated the implicit sizes the anchor math below reads. On the
-            // synchronous path this is already settled and costs nothing.
+            // cursor callback's fallbacks (no pointer, no screen). This IS the
+            // pass that makes the implicit sizes current, so the anchor math
+            // below reads the width of the panel about to be shown rather than
+            // the last one's. On the deferred paths it additionally catches up
+            // with any cycling that happened while the pointer query was in
+            // flight.
             settleLayout();
             auto *ls2 = LSWindow::get(qwinPtr);
             if (!ls2)
