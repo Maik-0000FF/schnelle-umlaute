@@ -317,9 +317,6 @@ private:
         QWindow *qwin = qwin_;
         if (!qwin)
             return;
-        // The controller's new variants have just been pushed into the QML
-        // bindings; settle the layout before any anchor math reads a width.
-        settleLayout();
 
         const schnelle_umlaute::CursorPositionSpec spec =
             schnelle_umlaute::parseCursorPosition(pos.toStdString());
@@ -340,6 +337,12 @@ private:
                 return;
             if (!qwinPtr)
                 return;
+            // Every caller lands here: the synchronous grid path, and both of the
+            // cursor callback's fallbacks (no pointer, no screen). The latter two
+            // run event loops later, by which time a variants update could have
+            // invalidated the implicit sizes the anchor math below reads. On the
+            // synchronous path this is already settled and costs nothing.
+            settleLayout();
             auto *ls2 = LSWindow::get(qwinPtr);
             if (!ls2)
                 return;
@@ -408,9 +411,10 @@ private:
                 auto *ls2 = LSWindow::get(qwinPtr);
                 if (!ls2)
                     return;
-                // Re-settle: this runs event loops later than reveal()'s pass, and
-                // a variants update that took the no-op branch in between would
-                // have invalidated the layout again.
+                // This path reads the size itself rather than going through
+                // revealGrid(), so it settles the layout itself too: it runs event
+                // loops after the placement started, and a variants update in
+                // between would have invalidated the implicit sizes.
                 settleLayout();
                 QScreen *scr =
                     QGuiApplication::screenAt(QPoint(cur->x, cur->y));
