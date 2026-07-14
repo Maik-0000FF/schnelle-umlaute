@@ -19,6 +19,15 @@ class OverlayController : public QObject {
     // theme fires its own signal: palette changes don't need a surface
     // rebuild, only QML property re-evaluation.
     Q_PROPERTY(QString theme READ theme NOTIFY themeChanged)
+    // Gates the QML transitions (cell colours, panel fade). The engine outlives
+    // a gesture now, so its properties still hold the LAST gesture's values when
+    // the next one opens: the previously active cell is green, and in progress
+    // mode the panel is fully faded in. Letting those animate to their new
+    // values is exactly the flash the user sees, since the window is on screen
+    // while it plays. The renderer turns transitions off for the first frame of
+    // a fresh placement so those values snap, and back on once it is up, so
+    // cycling inside the gesture animates as before.
+    Q_PROPERTY(bool animate READ animate NOTIFY animateChanged)
     // Progress bar state fires its own signal: like theme it only drives QML
     // property re-evaluation and must not trigger a layer-shell surface rebuild
     // in the renderer (which listens to stateChanged only).
@@ -43,6 +52,8 @@ public:
     bool visible() const { return visible_; }
     bool label() const { return label_; }
     QString theme() const { return theme_; }
+    bool animate() const { return animate_; }
+    void setAnimate(bool on);
     int progressLeadMs() const { return progressLeadMs_; }
     int progressWindowMs() const { return progressWindowMs_; }
     bool progressActive() const { return progressActive_; }
@@ -90,6 +101,7 @@ public:
 Q_SIGNALS:
     void stateChanged();
     void themeChanged();
+    void animateChanged();
     void cursorReported(int requestId, int x, int y);
     void progressChanged();
 
@@ -100,6 +112,7 @@ private:
     bool visible_ = false;
     bool label_ = false;
     QString theme_ = QStringLiteral("schnelle-umlaute");
+    bool animate_ = true;
     int progressLeadMs_ = 0;
     int progressWindowMs_ = 0;
     int progressElapsedMs_ = 0;

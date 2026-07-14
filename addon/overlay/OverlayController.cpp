@@ -89,6 +89,13 @@ bool OverlayController::isValidTheme(const QString &name) {
     return schnelle_umlaute::isValidTheme(name);
 }
 
+void OverlayController::setAnimate(bool on) {
+    if (animate_ == on)
+        return;
+    animate_ = on;
+    Q_EMIT animateChanged();
+}
+
 void OverlayController::sendCursor(int requestId, int x, int y) {
     Q_EMIT cursorReported(requestId, x, y);
 }

@@ -42,6 +42,23 @@ Window {
     // theme switches feel like one motion rather than three offset ones.
     readonly property int animationDuration: 120
 
+    // One gate for every transition below. Two things must never animate:
+    //
+    // - Changes made while the window is HIDDEN. The daemon keeps this engine
+    //   (and its property values) across gestures, so a new gesture's variants,
+    //   index and progress land while nothing is on screen. An animation started
+    //   there does not advance (a hidden window does not render) and would simply
+    //   play out the moment the window is shown.
+    // - The first frame of a fresh placement. The properties still carry the
+    //   PREVIOUS gesture's values: its active cell is green, and in progress mode
+    //   the panel is faded fully in even though the timing window has not opened.
+    //   Animating from those is the flash. OverlayController.animate is false
+    //   until the surface has drawn once, so they snap instead.
+    //
+    // Cycling within an open gesture leaves both true, so the active-cell
+    // handover keeps its animation.
+    readonly property bool transitions: win.visible && OverlayController.animate
+
     // Layout constants — `cellSize` is the 44 px referenced in the
     // truncateDisplay comment below ("Three codepoints fit in JetBrains
     // Mono at pixelSize 16 (≈9.6 px each)" against a 44 px cell).
@@ -308,7 +325,7 @@ Window {
         opacity: OverlayController.progressActive
                  ? (win.progressWindowPhase ? 1 : 0)
                  : 1
-        Behavior on opacity { NumberAnimation { duration: win.animationDuration } }
+        Behavior on opacity { enabled: win.transitions; NumberAnimation { duration: win.animationDuration } }
         color: Qt.alpha(win.p.frame, win.frameOpacity)
         radius: 16
         border.color: win.p.border
@@ -318,8 +335,8 @@ Window {
                        + 2 * win.framePadding
         implicitHeight: 64
 
-        Behavior on color { ColorAnimation { duration: win.animationDuration } }
-        Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
+        Behavior on color { enabled: win.transitions; ColorAnimation { duration: win.animationDuration } }
+        Behavior on border.color { enabled: win.transitions; ColorAnimation { duration: win.animationDuration } }
 
         // Profile-switch name: a single full-width token rendered in the same
         // cell styling as the active mapped glyph (dark text on the bright
@@ -336,8 +353,8 @@ Window {
             implicitWidth: labelText.width + 2 * win.labelPadding
             implicitHeight: win.cellSize
 
-            Behavior on color { ColorAnimation { duration: win.animationDuration } }
-            Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
+            Behavior on color { enabled: win.transitions; ColorAnimation { duration: win.animationDuration } }
+            Behavior on border.color { enabled: win.transitions; ColorAnimation { duration: win.animationDuration } }
 
             Text {
                 id: labelText
@@ -357,7 +374,7 @@ Window {
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
 
-                Behavior on color { ColorAnimation { duration: win.animationDuration } }
+                Behavior on color { enabled: win.transitions; ColorAnimation { duration: win.animationDuration } }
             }
         }
 
@@ -380,8 +397,8 @@ Window {
                     border.color: active ? win.p.cellActiveBorder : win.p.cellInactiveBorder
                     border.width: 1
 
-                    Behavior on color { ColorAnimation { duration: win.animationDuration } }
-                    Behavior on border.color { ColorAnimation { duration: win.animationDuration } }
+                    Behavior on color { enabled: win.transitions; ColorAnimation { duration: win.animationDuration } }
+                    Behavior on border.color { enabled: win.transitions; ColorAnimation { duration: win.animationDuration } }
 
                     Text {
                         anchors.centerIn: parent
@@ -403,7 +420,7 @@ Window {
                         }
                         font.weight: Font.Medium
 
-                        Behavior on color { ColorAnimation { duration: win.animationDuration } }
+                        Behavior on color { enabled: win.transitions; ColorAnimation { duration: win.animationDuration } }
                     }
                 }
             }
