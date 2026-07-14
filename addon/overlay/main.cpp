@@ -317,26 +317,27 @@ private:
         auto *qq = qobject_cast<QQuickWindow *>(qwin_.data());
         if (!qq)
             return;
-        // Exactly one restore may be pending. A placement that never draws (a
-        // cursor query that fails, a gesture cancelled before it revealed) would
-        // otherwise leave its arming behind and each gesture would add another.
+        // Exactly one restore may be pending. frameSwapped fires every frame,
+        // from the render thread, so a standing connection would queue a
+        // cross-thread call 60 times a second only to hit setAnimate's early
+        // return, and a placement that never draws (a failed cursor query, a
+        // gesture cancelled before it revealed) would leave its arming behind for
+        // the next one to pile onto.
+        //
+        // Two things do that: the member holds the live connection so the next
+        // arming can drop it, and the generation makes a call the PREVIOUS
+        // surface already queued inert, since disconnecting does not unqueue what
+        // is already posted. Without it, such a call would reopen the gate before
+        // the new surface has drawn.
         QObject::disconnect(restore_);
         const quint64 generation = ++restoreGeneration_;
-        // Single-shot: frameSwapped fires every frame, from the render thread,
-        // so a standing connection would queue a cross-thread call 60 times a
-        // second only to hit setAnimate's early return. The lambda holds its OWN
-        // connection and its own generation: a call already queued by the
-        // previous surface when a newer gesture arms must not tear that newer
-        // arming down, nor open the gate before the new surface has drawn.
-        auto conn = std::make_shared<QMetaObject::Connection>();
-        *conn = connect(qq, &QQuickWindow::frameSwapped, this,
-                        [this, conn, generation]() {
-                            if (generation != restoreGeneration_)
-                                return;
-                            QObject::disconnect(*conn);
-                            ctrl_->setAnimate(true);
-                        });
-        restore_ = *conn;
+        restore_ = connect(qq, &QQuickWindow::frameSwapped, this,
+                           [this, generation]() {
+                               if (generation != restoreGeneration_)
+                                   return;
+                               QObject::disconnect(restore_);
+                               ctrl_->setAnimate(true);
+                           });
         // Do not assume a frame is coming. A gesture start can re-send exactly
         // what is already on screen (the same variants at the same no-highlight
         // index, e.g. the same key pressed again while its preview is still up):

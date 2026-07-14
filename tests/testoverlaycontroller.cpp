@@ -272,6 +272,36 @@ void testGateClosesBeforeStateChanges() {
     EXPECT(animateWasOffWhenStateChanged);
 }
 
+// setAnimate is idempotent and stays silent when the value does not change. That
+// is not a detail: it is why the renderer must NOT arm its "reopen the gate on
+// the next drawn frame" off animateChanged. SetProgress closes the gate, and the
+// Show that follows closes it again, which emits nothing, so an arming hung off
+// that signal would never be renewed for the surface that is actually about to
+// draw. Every progress-mode gesture takes that path.
+void testSetAnimateIsIdempotentAndSilent() {
+    OverlayController ctrl;
+    EXPECT(ctrl.animate()); // transitions run until a gesture start closes them
+
+    QSignalSpy spy(&ctrl, &OverlayController::animateChanged);
+
+    ctrl.setProgress(300, 700, 0); // gesture start: closes the gate
+    EXPECT(!ctrl.animate());
+    EXPECT(spy.count() == 1);
+
+    // The gesture's Show follows and closes it again. No change, no signal.
+    ctrl.show({"ä", "à"}, -1, QStringLiteral("TopCol4"));
+    EXPECT(!ctrl.animate());
+    EXPECT(spy.count() == 1);
+
+    // Reopening (the renderer, once the surface has drawn) reports once.
+    ctrl.setAnimate(true);
+    EXPECT(ctrl.animate());
+    EXPECT(spy.count() == 2);
+
+    ctrl.setAnimate(true);
+    EXPECT(spy.count() == 2);
+}
+
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
@@ -291,6 +321,7 @@ int main(int argc, char *argv[]) {
     testNewVariantsWhileVisibleSnaps();
     testSetProgressSnaps();
     testGateClosesBeforeStateChanges();
+    testSetAnimateIsIdempotentAndSilent();
 
     std::fprintf(stderr, "testoverlaycontroller: all tests passed\n");
     return 0;
