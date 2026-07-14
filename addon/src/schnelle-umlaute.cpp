@@ -22,8 +22,8 @@
 #include "app_filter.h"
 #include "config.h"
 #include "hand_classifier.h"
-#include "overlay_protocol.h"
 #include "mappings_loader.h"
+#include "overlay_protocol.h"
 #include "profile_cycle.h"
 #include "profile_paths.h"
 #include <fcitx-utils/key.h>
@@ -1691,7 +1691,8 @@ private:
         auto list = std::make_unique<DisplayOnlyCandidateList>();
         list->setContent(variants);
         list->setLayoutHint(CandidateLayoutHint::Horizontal);
-        list->setCursorIndex(index >= 0 ? index : -1);
+        list->setCursorIndex(
+            index >= 0 ? index : schnelle_umlaute::kNoHighlightIndex);
         ic->inputPanel().setCandidateList(std::move(list));
         ic->updateUserInterface(UserInterfaceComponent::InputPanel);
         caretOverlayIc_ = ic->watch();

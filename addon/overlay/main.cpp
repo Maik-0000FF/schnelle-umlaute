@@ -337,6 +337,13 @@ private:
                             ctrl_->setAnimate(true);
                         });
         restore_ = *conn;
+        // Do not assume a frame is coming. A gesture start can re-send exactly
+        // what is already on screen (the same variants at the same no-highlight
+        // index, e.g. the same key pressed again while its preview is still up):
+        // nothing in the scene changes, nothing renders, and the gate would stay
+        // shut until some later change happened to draw one. The first cycling
+        // handover would then snap instead of animating. Ask for the frame.
+        qq->requestUpdate();
     }
 
     void hideWindow() {
