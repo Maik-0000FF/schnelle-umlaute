@@ -57,8 +57,9 @@ public:
     void setTheme(const QString &theme);
     // Forwards the KWin cursor script's reply (see CursorSource) on to any
     // listener via cursorReported(). The renderer connects its active
-    // KWinCursorSource to it.
-    void sendCursor(int x, int y);
+    // KWinCursorSource to it. requestId is the query id the script echoes back;
+    // the source drops a reply that does not belong to its live query.
+    void sendCursor(int requestId, int x, int y);
     // Starts the progress timeline: leadMs lead-in then windowMs window. Marks
     // it active and un-frozen. startUsec is the gesture's start on the engine's
     // CLOCK_MONOTONIC clock; the elapsed offset since then (measured here on the
@@ -89,7 +90,7 @@ public:
 Q_SIGNALS:
     void stateChanged();
     void themeChanged();
-    void cursorReported(int x, int y);
+    void cursorReported(int requestId, int x, int y);
     void progressChanged();
 
 private:
@@ -123,8 +124,10 @@ public Q_SLOTS:
     void Hide();
     void Quit();
     void SetTheme(const QString &theme);
-    // Called by the KWin cursor script with the live global pointer pixel.
-    void SendCursor(int x, int y);
+    // Called by the KWin cursor script with the id of the query it answers and
+    // the live global pointer pixel. The id is an int because KWin's callDBus()
+    // marshals a script number as int32 regardless of the declared signature.
+    void SendCursor(int requestId, int x, int y);
     void SetProgress(int leadMs, int windowMs, qlonglong startUsec);
     void FreezeProgress();
     // Wire-protocol version, so the engine can detect and restart a stale daemon

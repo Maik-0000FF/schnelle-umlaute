@@ -22,6 +22,7 @@
 #include "CursorSource.h"
 #include "OverlayController.h"
 #include "cursor_overlay_geometry.h"
+#include "overlay_render.h"
 #include "progress_overlay_geometry.h"
 
 namespace {
@@ -256,8 +257,11 @@ private:
             QScreen *scr = qwinPtr->screen();
             if (!scr)
                 scr = QGuiApplication::primaryScreen();
-            const int sw = scr ? scr->geometry().width() : 1920;
-            const int ow = qwinPtr->width() > 0 ? qwinPtr->width() : 200;
+            const int sw = scr ? scr->geometry().width()
+                               : schnelle_umlaute::render::kFallbackScreenWidth;
+            const int ow = qwinPtr->width() > 0
+                               ? qwinPtr->width()
+                               : schnelle_umlaute::render::kFallbackOverlayWidth;
             auto a = anchorsFor(grid, sw, ow);
             // In progress mode the surface includes the bar overhang to the
             // right of the panel; anchorsFor centres the whole surface, which
@@ -323,8 +327,14 @@ private:
                 }
                 qwinPtr->setScreen(scr);
                 const QRect geo = scr->geometry();
-                const int ow = qwinPtr->width() > 0 ? qwinPtr->width() : 200;
-                const int oh = qwinPtr->height() > 0 ? qwinPtr->height() : 64;
+                const int ow =
+                    qwinPtr->width() > 0
+                        ? qwinPtr->width()
+                        : schnelle_umlaute::render::kFallbackOverlayWidth;
+                const int oh =
+                    qwinPtr->height() > 0
+                        ? qwinPtr->height()
+                        : schnelle_umlaute::render::kFallbackOverlayHeight;
                 const auto m = schnelle_umlaute::cursorMargins(
                     cur->x, cur->y, geo.x(), geo.y(), geo.width(), geo.height(),
                     ow, oh);
@@ -363,8 +373,8 @@ private:
             // surfaces as cursorReported here; forward it to the source.
             // A no-op for the CLI / null sources.
             connect(ctrl_, &OverlayController::cursorReported, cursorSource_,
-                    [src = cursorSource_](int x, int y) {
-                        src->reportCursor(x, y);
+                    [src = cursorSource_](int requestId, int x, int y) {
+                        src->reportCursor(requestId, x, y);
                     });
         }
         return cursorSource_;
