@@ -11,23 +11,26 @@
 #include <algorithm>
 #include <cmath>
 
+#include "overlay_render.h"
+
 namespace schnelle_umlaute {
 namespace progress {
 
 // Pixels per millisecond the bar length encodes, the screen fraction it is
-// clamped to, the floor length, and the fallback screen width before the
-// surface is bound to an output.
+// clamped to, and the floor length. The fallback screen width lives in
+// overlay_render.h: the renderer's grid placement needs the same assumption, so
+// it is defined once for both.
 constexpr double kPxPerMs = 0.22;
 constexpr double kScreenFraction = 0.6;
 constexpr int kMinWidth = 80;
-constexpr int kFallbackScreenWidth = 1920;
 
 // Bar pixel length: the total gesture time (lead + window) scaled by kPxPerMs,
 // clamped to [kMinWidth, screenWidth * kScreenFraction] so a long timeout can't
 // run off-screen. screenWidth <= 0 (surface not yet on an output) falls back to
-// kFallbackScreenWidth.
+// render::kFallbackScreenWidth.
 inline int barLength(int totalMs, int screenWidth) {
-    const int sw = screenWidth > 0 ? screenWidth : kFallbackScreenWidth;
+    const int sw =
+        screenWidth > 0 ? screenWidth : render::kFallbackScreenWidth;
     const int maxWidth = static_cast<int>(std::lround(sw * kScreenFraction));
     const int raw = static_cast<int>(std::lround(totalMs * kPxPerMs));
     return std::clamp(raw, kMinWidth, std::max(kMinWidth, maxWidth));

@@ -25,6 +25,7 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Snippets: Map single keys to entire text phrases
 - Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
 - Configurable leader keys (Space, Arrow ←→↑↓, Alt/AltGr, or custom keys with hand-split), keep Space free for normal typing
+- Works with any keyboard layout (QWERTY, QWERTZ, AZERTY, Dvorak, Colemak and others): the addon reads the character a key actually produces instead of assuming a fixed key position, and a custom leader is stored as the physical key that was pressed, so it survives a layout switch. Programmable and self-built keyboards (QMK, ZMK, split, ortholinear) work as well, as long as they send standard key codes, which is the default
 - Unlimited mapping slots
 - App blacklist/whitelist, disable in games, password managers, or apps with conflicting shortcuts
 - Standalone QML editor (`schnelle-umlaute-editor`) for managing mappings, leader keys, app filter, and the cycle overlay
@@ -203,4 +204,4 @@ Thanks to [wengxt](https://github.com/wengxt) for creating Fcitx5 and for the gu
 
 ---
 
-**Version:** 1.4.1
+**Version:** 1.5.0

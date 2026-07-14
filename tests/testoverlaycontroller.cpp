@@ -188,6 +188,120 @@ void testPlainShowKeepsProgressBar() {
     EXPECT(ctrl.progressFrozen());
 }
 
+// ── Transition gate (the anti-flash sequencing) ───────────────────────────────
+//
+// The daemon keeps its QML engine across gestures, so its properties still hold
+// the last gesture's values when the next one opens. These verify WHEN the gate
+// closes, which is what the pure predicate alone cannot show: it has to happen
+// on the call that overwrites the values, before it writes them.
+
+// Cycling: the overlay is up and the highlight moves within the same variants.
+// That handover is the one thing that must keep its animation.
+void testCyclingKeepsTransitions() {
+    OverlayController ctrl;
+    ctrl.show({"ä", "à", "á"}, 0, QStringLiteral("TopCol4"));
+    ctrl.setAnimate(true); // as the renderer does once the first frame is drawn
+
+    ctrl.show({"ä", "à", "á"}, 1, QStringLiteral("TopCol4"));
+    EXPECT(ctrl.animate());
+    ctrl.show({"ä", "à", "á"}, 2, QStringLiteral("TopCol4"));
+    EXPECT(ctrl.animate());
+}
+
+// Re-triggering a key after its overlay was hidden. Same variants, so only the
+// hidden-to-visible step tells this apart from cycling.
+void testShowFromHiddenSnaps() {
+    OverlayController ctrl;
+    ctrl.show({"ä", "à"}, 1, QStringLiteral("TopCol4"));
+    ctrl.hide();
+    ctrl.setAnimate(true);
+
+    ctrl.show({"ä", "à"}, 0, QStringLiteral("TopCol4"));
+    EXPECT(!ctrl.animate());
+}
+
+// THE reported bug. The commit flash leaves the committed variants on screen for
+// 150 ms; pressing the same key again inside that window sends the SAME variants
+// on a still-visible overlay, so neither visibility nor content can tell it from
+// cycling. The engine's no-highlight index does: it only ever opens a gesture.
+void testRetriggerDuringCommitFlashSnaps() {
+    OverlayController ctrl;
+    ctrl.show({"ä", "à"}, 1, QStringLiteral("TopCol4")); // cycled to à
+    ctrl.show({"ä", "à"}, 0, QStringLiteral("TopCol4")); // commit flash, stays up
+    ctrl.setAnimate(true);
+
+    // Same key pressed again while the flash is still on screen.
+    ctrl.show({"ä", "à"}, -1, QStringLiteral("TopCol4"));
+    EXPECT(!ctrl.animate());
+}
+
+// A different key while the previous overlay is still up: different variants.
+void testNewVariantsWhileVisibleSnaps() {
+    OverlayController ctrl;
+    ctrl.show({"ä", "à"}, 0, QStringLiteral("TopCol4"));
+    ctrl.setAnimate(true);
+
+    ctrl.show({"ö", "ô", "ó"}, -1, QStringLiteral("TopCol4"));
+    EXPECT(!ctrl.animate());
+}
+
+// SetProgress opens a gesture and arrives BEFORE its Show, while the previous
+// overlay can still be on screen. Without the gate the panel would animate down
+// from its revealed state: a flash during the lead-in.
+void testSetProgressSnaps() {
+    OverlayController ctrl;
+    ctrl.show({"ä", "à"}, 0, QStringLiteral("TopCol4"));
+    ctrl.setAnimate(true);
+
+    ctrl.setProgress(300, 700, 0);
+    EXPECT(!ctrl.animate());
+}
+
+// The gate must close BEFORE the new values land, or the property write has
+// already started the animation it was meant to prevent.
+void testGateClosesBeforeStateChanges() {
+    OverlayController ctrl;
+    ctrl.show({"ä", "à"}, 0, QStringLiteral("TopCol4"));
+    ctrl.setAnimate(true);
+
+    bool animateWasOffWhenStateChanged = false;
+    QObject::connect(&ctrl, &OverlayController::stateChanged, &ctrl,
+                     [&]() { animateWasOffWhenStateChanged = !ctrl.animate(); });
+
+    ctrl.show({"ö", "ô"}, -1, QStringLiteral("TopCol4"));
+    EXPECT(animateWasOffWhenStateChanged);
+}
+
+// setAnimate is idempotent and stays silent when the value does not change. That
+// is not a detail: it is why the renderer must NOT arm its "reopen the gate on
+// the next drawn frame" off animateChanged. SetProgress closes the gate, and the
+// Show that follows closes it again, which emits nothing, so an arming hung off
+// that signal would never be renewed for the surface that is actually about to
+// draw. Every progress-mode gesture takes that path.
+void testSetAnimateIsIdempotentAndSilent() {
+    OverlayController ctrl;
+    EXPECT(ctrl.animate()); // transitions run until a gesture start closes them
+
+    QSignalSpy spy(&ctrl, &OverlayController::animateChanged);
+
+    ctrl.setProgress(300, 700, 0); // gesture start: closes the gate
+    EXPECT(!ctrl.animate());
+    EXPECT(spy.count() == 1);
+
+    // The gesture's Show follows and closes it again. No change, no signal.
+    ctrl.show({"ä", "à"}, -1, QStringLiteral("TopCol4"));
+    EXPECT(!ctrl.animate());
+    EXPECT(spy.count() == 1);
+
+    // Reopening (the renderer, once the surface has drawn) reports once.
+    ctrl.setAnimate(true);
+    EXPECT(ctrl.animate());
+    EXPECT(spy.count() == 2);
+
+    ctrl.setAnimate(true);
+    EXPECT(spy.count() == 2);
+}
+
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
@@ -201,6 +315,13 @@ int main(int argc, char *argv[]) {
     testQuitSchedulesAppExit();
     testLabelShowClearsProgressBar();
     testPlainShowKeepsProgressBar();
+    testCyclingKeepsTransitions();
+    testShowFromHiddenSnaps();
+    testRetriggerDuringCommitFlashSnaps();
+    testNewVariantsWhileVisibleSnaps();
+    testSetProgressSnaps();
+    testGateClosesBeforeStateChanges();
+    testSetAnimateIsIdempotentAndSilent();
 
     std::fprintf(stderr, "testoverlaycontroller: all tests passed\n");
     return 0;

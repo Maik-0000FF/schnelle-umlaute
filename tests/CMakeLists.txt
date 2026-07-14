@@ -1,5 +1,12 @@
 find_package(Fcitx5Module REQUIRED COMPONENTS TestFrontend TestIM)
 
+# xkbcommon is a TEST-only dependency. The addon itself no longer compiles a
+# keymap (it takes physical keycodes straight from the key events), so only
+# testschnelleumlaute needs it: it builds real de/fr/dvorak keymaps to work out
+# which physical key produces a given character on each layout, and then checks
+# the shipped classifier against those positions.
+pkg_check_modules(XKBCommon REQUIRED IMPORTED_TARGET xkbcommon)
+
 # Extra Qt components only tests need (DBus adaptor headers in
 # OverlayController.h, QSignalSpy for verifying signal emission).
 find_package(Qt${QT_MAJOR_VERSION} REQUIRED COMPONENTS DBus Test)
@@ -55,6 +62,28 @@ target_include_directories(testsyntheticautorepeat PRIVATE ${PROJECT_SOURCE_DIR}
 target_compile_options(testsyntheticautorepeat PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testsyntheticautorepeat COMMAND testsyntheticautorepeat)
 set_tests_properties(testsyntheticautorepeat PROPERTIES TIMEOUT 10)
+
+# Unit test for decideRenderAction(). Pure header-only logic that guards the
+# renderer's show/hide/no-op table, above all the no-op that keeps cycling from
+# rebuilding the window on every keystroke.
+add_executable(testoverlayrender testoverlayrender.cpp)
+target_include_directories(testoverlayrender PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testoverlayrender PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testoverlayrender COMMAND testoverlayrender)
+set_tests_properties(testoverlayrender PROPERTIES TIMEOUT 10)
+
+# Unit test for the KWin cursor source's query-id rules. Pure header-only logic
+# that guards which SendCursor reply the daemon may act on, so a reply that
+# outlived its own query cannot move the overlay that is open now.
+add_executable(testcursorrequest testcursorrequest.cpp)
+target_include_directories(testcursorrequest PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testcursorrequest PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testcursorrequest COMMAND testcursorrequest)
+set_tests_properties(testcursorrequest PROPERTIES TIMEOUT 10)
 
 # Unit test for the cursor-overlay geometry helpers. Pure header-only logic —
 # guards the "Cursor:" wire-format split and the lower-left-at-cursor margin

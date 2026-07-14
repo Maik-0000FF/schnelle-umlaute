@@ -19,6 +19,18 @@ class OverlayController : public QObject {
     // theme fires its own signal: palette changes don't need a surface
     // rebuild, only QML property re-evaluation.
     Q_PROPERTY(QString theme READ theme NOTIFY themeChanged)
+    // Gates the QML transitions (cell colours, panel fade). The engine outlives
+    // a gesture now, so its properties still hold the LAST gesture's values when
+    // the next one opens: the previously active cell is green, and in progress
+    // mode the panel is fully faded in. Letting those animate to their new values
+    // is exactly the flash the user sees, since the window is on screen while it
+    // plays.
+    //
+    // show() and setProgress() clear this for a gesture start, BEFORE they write
+    // the new values, so the values snap; the renderer sets it again once the
+    // surface has drawn a frame with them. Cycling within a gesture leaves it
+    // alone, so the active-cell handover keeps its animation.
+    Q_PROPERTY(bool animate READ animate NOTIFY animateChanged)
     // Progress bar state fires its own signal: like theme it only drives QML
     // property re-evaluation and must not trigger a layer-shell surface rebuild
     // in the renderer (which listens to stateChanged only).
@@ -43,6 +55,8 @@ public:
     bool visible() const { return visible_; }
     bool label() const { return label_; }
     QString theme() const { return theme_; }
+    bool animate() const { return animate_; }
+    void setAnimate(bool on);
     int progressLeadMs() const { return progressLeadMs_; }
     int progressWindowMs() const { return progressWindowMs_; }
     bool progressActive() const { return progressActive_; }
@@ -57,8 +71,9 @@ public:
     void setTheme(const QString &theme);
     // Forwards the KWin cursor script's reply (see CursorSource) on to any
     // listener via cursorReported(). The renderer connects its active
-    // KWinCursorSource to it.
-    void sendCursor(int x, int y);
+    // KWinCursorSource to it. requestId is the query id the script echoes back;
+    // the source drops a reply that does not belong to its live query.
+    void sendCursor(int requestId, int x, int y);
     // Starts the progress timeline: leadMs lead-in then windowMs window. Marks
     // it active and un-frozen. startUsec is the gesture's start on the engine's
     // CLOCK_MONOTONIC clock; the elapsed offset since then (measured here on the
@@ -89,7 +104,8 @@ public:
 Q_SIGNALS:
     void stateChanged();
     void themeChanged();
-    void cursorReported(int x, int y);
+    void animateChanged();
+    void cursorReported(int requestId, int x, int y);
     void progressChanged();
 
 private:
@@ -99,6 +115,7 @@ private:
     bool visible_ = false;
     bool label_ = false;
     QString theme_ = QStringLiteral("schnelle-umlaute");
+    bool animate_ = true;
     int progressLeadMs_ = 0;
     int progressWindowMs_ = 0;
     int progressElapsedMs_ = 0;
@@ -123,8 +140,10 @@ public Q_SLOTS:
     void Hide();
     void Quit();
     void SetTheme(const QString &theme);
-    // Called by the KWin cursor script with the live global pointer pixel.
-    void SendCursor(int x, int y);
+    // Called by the KWin cursor script with the id of the query it answers and
+    // the live global pointer pixel. The id is an int because KWin's callDBus()
+    // marshals a script number as int32 regardless of the declared signature.
+    void SendCursor(int requestId, int x, int y);
     void SetProgress(int leadMs, int windowMs, qlonglong startUsec);
     void FreezeProgress();
     // Wire-protocol version, so the engine can detect and restart a stale daemon

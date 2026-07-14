@@ -137,17 +137,23 @@ Alt=False
 [Leader/Custom]
 CustomKeyEnabled=False
 CustomKey=
+CustomKeyCode=0
 CustomKey2Enabled=False
 CustomKey2=
+CustomKey2Code=0
 ```
 
 > **Alt / AltGr Leader**
 > Enables <kbd>Alt</kbd> (Left/Right Alt) and <kbd>AltGr</kbd> (ISO_Level3_Shift on EU layouts) as leader keys. On KWin Wayland, auto-repeat sends release-press pairs which can cause input leaks. Works reliably under XIM (e.g. WezTerm).
 
 > **Custom Leader Keys**
-> Assign one or two single characters as additional leader keys (e.g. `f`, `j`). Multi-character input is trimmed to the first UTF-8 character, whitespace is ignored. Matching is case-insensitive for ASCII letters, so <kbd>Shift</kbd>+<kbd>f</kbd> matches custom leader `f`.
+> Assign one or two **physical keys** as additional leader keys. In the editor you click the field and press the key you want. That press stores the key's position (`CustomKeyCode`, an evdev+8 keycode), which is what triggers the leader, plus the character it printed (`CustomKey`), which is only shown in the UI and checked against the mappings.
 >
-> When both custom leaders are set on **opposite keyboard halves** (US QWERTY), dual-split mode activates: each leader only triggers mappings on the other hand (e.g. left-hand leader `;` triggers right-hand inputs `u`, `o`, `i`). Same-hand or identical keys disable the split, both trigger all mappings.
+> Because the leader is the key and not the character, it keeps working while <kbd>Shift</kbd> is held (<kbd>Shift</kbd>+<kbd>/</kbd> still fires the `/` leader), on every keyboard layout, and across a layout switch: the letter on the keycap may change, the key does not.
+>
+> When both custom leaders sit on **opposite keyboard halves**, dual-split mode activates: each leader only triggers mappings on the other hand (e.g. a left-hand leader triggers the right-hand inputs `u`, `o`, `i`). Leaders on the same half, or the same key twice, disable the split and both trigger all mappings. The half comes from the key's physical position, so this is correct on QWERTY, QWERTZ, AZERTY, Dvorak and Colemak alike.
+>
+> A leader with `CustomKeyCode=0` has no key assigned and triggers nothing; the editor flags it. If you are upgrading from a release that stored only the character, open the editor and press your leader key once to assign it.
 >
 > **Note:** A custom leader key must not be a mapped input key, it cannot trigger its own mapping. The editor surfaces a warning if a conflict is detected.
 

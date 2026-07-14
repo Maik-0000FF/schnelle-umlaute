@@ -39,6 +39,23 @@ constexpr const char *kKWinScriptIface = "org.kde.kwin.Script";
 QString kwinScriptPath(int id) {
     return QStringLiteral("/Scripting/Script") + QString::number(id);
 }
+
+// The script file is named per query ("get-cursor-<id>.js"). Writer and sweeper
+// derive their name and their glob from these two, so the pattern that creates
+// the files and the pattern that cleans them up cannot drift apart. The glob
+// also still catches the single fixed-name "get-cursor.js" that daemons before
+// the per-query naming wrote.
+constexpr QLatin1String kScriptStem("get-cursor");
+constexpr QLatin1String kScriptSuffix(".js");
+
+QString scriptFileName(int requestId) {
+    return kScriptStem + QStringLiteral("-") + QString::number(requestId) +
+           kScriptSuffix;
+}
+
+QString scriptFileGlob() {
+    return kScriptStem + QStringLiteral("*") + kScriptSuffix;
+}
 } // namespace
 
 std::optional<CursorPos> parseXyJson(const QByteArray &json) {
@@ -103,33 +120,73 @@ KWinCursorSource::KWinCursorSource(QString scriptDir, QString serviceName,
     : CursorSource(parent), scriptDir_(std::move(scriptDir)),
       serviceName_(std::move(serviceName)), objectPath_(std::move(objectPath)),
       interfaceName_(std::move(interfaceName)) {
-    scriptPath_ = scriptDir_ + QStringLiteral("/get-cursor.js");
     timer_ = new QTimer(this);
     timer_->setSingleShot(true);
     connect(timer_, &QTimer::timeout, this,
             [this]() { resolve(std::nullopt); });
+    sweepScriptDir();
 }
 
-bool KWinCursorSource::ensureScriptWritten() {
-    if (scriptWritten_)
-        return true;
-    QDir().mkpath(QFileInfo(scriptPath_).absolutePath());
-    QFile f(scriptPath_);
+// A query's script file is deleted when the query resolves, so a daemon that
+// dies between writing it and resolving (kill, crash, Quit mid-query) strands
+// it. One sweep at construction clears those, plus the single fixed-name
+// get-cursor.js that daemons before the per-query naming left behind. The
+// source is built lazily on the first cursor-mode open and lives for the
+// daemon's lifetime, so this runs once, off the hot path.
+//
+// Safe because the daemon is single-instance: main() exits when the DBus service
+// name is already taken. A second daemon's sweep would delete the script file of
+// a query the first one still has in flight.
+void KWinCursorSource::sweepScriptDir() {
+    QDir dir(scriptDir_);
+    if (!dir.exists())
+        return;
+    const QStringList stale = dir.entryList({scriptFileGlob()}, QDir::Files);
+    for (const QString &name : stale)
+        dir.remove(name);
+}
+
+int KWinCursorSource::takeRequestId() {
+    const int id = requestCounter_;
+    requestCounter_ = nextRequestId(requestCounter_);
+    return id;
+}
+
+QString KWinCursorSource::scriptFilePath(int requestId) const {
+    return scriptDir_ + QStringLiteral("/") + scriptFileName(requestId);
+}
+
+bool KWinCursorSource::writeScript(int requestId, const QString &filePath) {
+    QDir().mkpath(QFileInfo(filePath).absolutePath());
+    QFile f(filePath);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
         return false;
     // The script runs inside KWin's scripting engine, reads
     // workspace.cursorPos, then calls SendCursor back on the daemon's own
     // service so the daemon learns the live global cursor (a value a Wayland
-    // client otherwise cannot read).
+    // client otherwise cannot read). It echoes the query id so a reply that
+    // outlives its query can be told apart from the live one.
     const QString body =
         QStringLiteral("callDBus('%1', '%2', '%3', 'SendCursor', "
-                       "workspace.cursorPos.x, workspace.cursorPos.y, "
+                       "%4, workspace.cursorPos.x, workspace.cursorPos.y, "
                        "function() {});\n")
-            .arg(serviceName_, objectPath_, interfaceName_);
-    f.write(body.toUtf8());
+            .arg(serviceName_, objectPath_, interfaceName_)
+            .arg(requestId);
+    // Insist on the WHOLE body reaching the disk before KWin is pointed at the
+    // file. A short write or a failed flush would hand it a truncated script
+    // that loads happily and never calls SendCursor, and the query would then
+    // sit out the full kKwinTimeoutMs instead of failing here and falling back
+    // to the grid at once. close() flushes and records any error.
+    const QByteArray payload = body.toUtf8();
+    if (f.write(payload) != payload.size())
+        return false;
     f.close();
-    scriptWritten_ = true;
-    return true;
+    return f.error() == QFileDevice::NoError;
+}
+
+void KWinCursorSource::removeScriptFile(const QString &filePath) {
+    if (!filePath.isEmpty())
+        QFile::remove(filePath);
 }
 
 void KWinCursorSource::getCursor(CursorCallback cb) {
@@ -137,72 +194,105 @@ void KWinCursorSource::getCursor(CursorCallback cb) {
     // fallback). Only one overlay opens at a time, so this is a safety net.
     if (pending_)
         resolve(std::nullopt);
-    pending_ = std::move(cb);
 
-    if (!ensureScriptWritten()) {
-        resolve(std::nullopt);
+    const int id = takeRequestId();
+    const QString file = scriptFilePath(id);
+    if (!writeScript(id, file)) {
+        // Nothing started, so there is no query to resolve: answer directly.
+        removeScriptFile(file);
+        cb(std::nullopt);
         return;
     }
+    pending_ = std::move(cb);
+    activeRequestId_ = id;
+    currentScriptFile_ = file;
 
     QDBusMessage msg = QDBusMessage::createMethodCall(
         QString::fromLatin1(kKWinService),
         QString::fromLatin1(kKWinScriptingPath),
         QString::fromLatin1(kKWinScriptingIface), QStringLiteral("loadScript"));
-    msg << scriptPath_;
+    msg << file;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(msg), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this](QDBusPendingCallWatcher *w) {
+            [this, id, file](QDBusPendingCallWatcher *w) {
                 QDBusPendingReply<int> reply = *w;
                 w->deleteLater();
-                if (reply.isError()) {
-                    resolve(std::nullopt);
+                // KWin declines a load with a NEGATIVE id — most notably when
+                // it already has that path loaded (it deduplicates by file
+                // name). Per-query file names put that out of reach, but an
+                // unchecked negative would address a script object that does
+                // not exist, and the query would then sit out the full timeout
+                // instead of falling back to the grid right away.
+                if (reply.isError() || reply.value() < 0) {
+                    if (id == activeRequestId_)
+                        resolve(std::nullopt);
+                    else
+                        removeScriptFile(file);
                     return;
                 }
-                // runScript() is the single decision point: it runs the
-                // freshly loaded script while a query is pending, or unloads it
-                // when the query already timed out.
-                runScript(reply.value());
+                const QString dbusPath = kwinScriptPath(reply.value());
+                // The query was superseded or timed out while the load was in
+                // flight. KWin instantiated the script anyway, so unload it and
+                // drop its file rather than leaking one of each per abandoned
+                // query.
+                if (id != activeRequestId_) {
+                    stopScript(dbusPath);
+                    removeScriptFile(file);
+                    return;
+                }
+                currentScriptPath_ = dbusPath;
+                runScript(dbusPath);
             });
     timer_->start(kKwinTimeoutMs);
 }
 
-void KWinCursorSource::runScript(int id) {
-    // The query may have already timed out (resolve cleared pending_) before
-    // this load reply arrived. The script still got instantiated in KWin, so
-    // unload it rather than leaking one instance per timed-out open.
-    if (!pending_) {
-        stopScript(kwinScriptPath(id));
-        return;
-    }
-    currentScriptPath_ = kwinScriptPath(id);
+void KWinCursorSource::runScript(const QString &dbusPath) {
     QDBusMessage run = QDBusMessage::createMethodCall(
-        QString::fromLatin1(kKWinService), currentScriptPath_,
+        QString::fromLatin1(kKWinService), dbusPath,
         QString::fromLatin1(kKWinScriptIface), QStringLiteral("run"));
     QDBusConnection::sessionBus().asyncCall(run);
     // The reply arrives via SendCursor → reportCursor(); the timer covers a
     // silent failure.
 }
 
-void KWinCursorSource::stopScript(const QString &path) {
-    if (path.isEmpty())
+void KWinCursorSource::stopScript(const QString &dbusPath) {
+    if (dbusPath.isEmpty())
         return;
     QDBusMessage stop = QDBusMessage::createMethodCall(
-        QString::fromLatin1(kKWinService), path,
+        QString::fromLatin1(kKWinService), dbusPath,
         QString::fromLatin1(kKWinScriptIface), QStringLiteral("stop"));
     QDBusConnection::sessionBus().asyncCall(stop);
 }
 
-void KWinCursorSource::reportCursor(int x, int y) { resolve(CursorPos{x, y}); }
+void KWinCursorSource::reportCursor(int requestId, int x, int y) {
+    // Correlation only, see isReplyForActiveQuery(): it tells the live query's
+    // reply apart from one that outlived its own query, and it makes a call to
+    // an idle source a no-op. It is not an access check, the id sits in plain
+    // text in the script file.
+    if (!isReplyForActiveQuery(requestId, activeRequestId_))
+        return;
+    resolve(CursorPos{x, y});
+}
 
 void KWinCursorSource::resolve(std::optional<CursorPos> pos) {
     timer_->stop();
+    activeRequestId_ = kNoRequest;
     if (!currentScriptPath_.isEmpty()) {
         // Unload the one-shot script so repeated opens don't pile up script
-        // instances inside KWin.
+        // instances inside KWin. The script has already run by now, so its file
+        // is no longer needed either.
         stopScript(currentScriptPath_);
         currentScriptPath_.clear();
     }
+    // On the normal path the script has already run, so its file is spent. When
+    // a query is given up on instead (superseded, timed out), its loadScript may
+    // still be in flight and KWin may not have read the file yet: deleting it
+    // here makes that load fail, which is precisely what a dropped query wants,
+    // and the id != activeRequestId_ branch in getCursor() catches the reply
+    // either way. So the delete is unconditional on purpose.
+    removeScriptFile(currentScriptFile_);
+    currentScriptFile_.clear();
     if (pending_) {
         CursorCallback cb = std::move(pending_);
         pending_ = nullptr;

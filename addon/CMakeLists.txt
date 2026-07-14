@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(fcitx5-schnelle-umlaute VERSION 1.4.1)
+project(fcitx5-schnelle-umlaute VERSION 1.5.0)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,7 +17,6 @@ set(FCITX_INSTALL_USE_FCITX_SYS_PATHS ON CACHE BOOL
 find_package(Fcitx5Core REQUIRED)
 find_package(Gettext REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(XKBCommon REQUIRED IMPORTED_TARGET xkbcommon)
 
 set(QT_MAJOR_VERSION 6)
 find_package(Qt6 REQUIRED COMPONENTS Core Qml Quick QuickControls2)
@@ -27,7 +26,6 @@ include(GNUInstallDirs)
 # Sources
 set(SCHNELLE_UMLAUTE_SOURCES
     src/schnelle-umlaute.cpp
-    src/hand_classifier.cpp
     src/app_filter.cpp
     src/mappings_loader.cpp
     src/overlay_client.cpp
@@ -38,7 +36,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 # Build addon shared library
 add_library(schnelle-umlaute MODULE ${SCHNELLE_UMLAUTE_SOURCES})
-target_link_libraries(schnelle-umlaute Fcitx5::Core PkgConfig::XKBCommon)
+target_link_libraries(schnelle-umlaute Fcitx5::Core)
 target_compile_options(schnelle-umlaute PRIVATE -Wall -Wextra -Wpedantic)
 set_target_properties(schnelle-umlaute PROPERTIES PREFIX "")
 
