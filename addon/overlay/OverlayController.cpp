@@ -158,13 +158,13 @@ void OverlayDBusAdaptor::SetTheme(const QString &theme) {
     ctrl_->setTheme(theme);
 }
 
-// Trust note: this method is unauthenticated, so any session process can push
-// a cursor pixel. The blast radius is bounded — it can only misplace the
-// overlay on this session's screen — and the reply is not request-id matched
-// against the pending query, so the "only one overlay open at a time"
-// invariant (see OverlayRenderer) is the sole guard against a stale/spoofed
-// value landing on the wrong open. Acceptable for a session-local convenience
-// surface; revisit if the daemon ever gains a security boundary.
+// Trust note: this method is unauthenticated, so any session process can push a
+// cursor pixel. The blast radius is bounded: it can only misplace the overlay on
+// this session's screen. The requestId is matched against the query in flight
+// (see KWinCursorSource::reportCursor), which drops a reply that outlived its
+// own query, but it is correlation rather than authorisation: the id is written
+// in plain text into the script file. Acceptable for a session-local
+// convenience surface; revisit if the daemon ever gains a security boundary.
 void OverlayDBusAdaptor::SendCursor(int requestId, int x, int y) {
     ctrl_->sendCursor(requestId, x, y);
 }

@@ -21,6 +21,8 @@
 #include <QString>
 #include <QStringList>
 
+#include "cursor_request.h"
+
 QT_BEGIN_NAMESPACE
 class QTimer;
 QT_END_NAMESPACE
@@ -35,14 +37,6 @@ struct CursorPos {
 // Invoked exactly once per getCursor() call: a value on success, std::nullopt
 // when this backend can't answer (wrong compositor, failure, timeout).
 using CursorCallback = std::function<void(std::optional<CursorPos>)>;
-
-// Query ids for the KWin backend. kNoRequest means "no query in flight" and is
-// never handed to a script, so a reply can't accidentally match an idle source.
-// The id travels over D-Bus as a plain int: KWin's callDBus() marshals a script
-// number as int32 without knowing the declared signature, so a wider type would
-// make the call fail to match SendCursor at all.
-constexpr int kNoRequest = 0;
-constexpr int kFirstRequestId = 1;
 
 // Parse a `{"x":<num>,"y":<num>,...}` payload (hyprctl / mmsg both emit this
 // shape, possibly fractional) into a rounded global pixel, or std::nullopt
@@ -118,7 +112,9 @@ private:
     void resolve(std::optional<CursorPos> pos);
     bool writeScript(int requestId, const QString &filePath);
     QString scriptFilePath(int requestId) const;
-    int nextRequestId();
+    // Hand out the next query id and advance the counter (see nextRequestId()
+    // in cursor_request.h for the wrap rule).
+    int takeRequestId();
 
     QString scriptDir_;
     QString serviceName_;

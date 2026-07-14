@@ -110,12 +110,10 @@ KWinCursorSource::KWinCursorSource(QString scriptDir, QString serviceName,
             [this]() { resolve(std::nullopt); });
 }
 
-int KWinCursorSource::nextRequestId() {
-    // Wrap instead of overflowing (signed overflow is UB). An id only has to
-    // differ from the queries it could race, never to be unique for all time.
-    if (requestCounter_ == std::numeric_limits<int>::max())
-        requestCounter_ = kFirstRequestId;
-    return requestCounter_++;
+int KWinCursorSource::takeRequestId() {
+    const int id = requestCounter_;
+    requestCounter_ = nextRequestId(requestCounter_);
+    return id;
 }
 
 QString KWinCursorSource::scriptFilePath(int requestId) const {
@@ -139,7 +137,16 @@ bool KWinCursorSource::writeScript(int requestId, const QString &filePath) {
                        "function() {});\n")
             .arg(serviceName_, objectPath_, interfaceName_)
             .arg(requestId);
-    return f.write(body.toUtf8()) >= 0;
+    // Insist on the WHOLE body reaching the disk before KWin is pointed at the
+    // file. A short write or a failed flush would hand it a truncated script
+    // that loads happily and never calls SendCursor, and the query would then
+    // sit out the full kKwinTimeoutMs instead of failing here and falling back
+    // to the grid at once. close() flushes and records any error.
+    const QByteArray payload = body.toUtf8();
+    if (f.write(payload) != payload.size())
+        return false;
+    f.close();
+    return f.error() == QFileDevice::NoError;
 }
 
 void KWinCursorSource::removeScriptFile(const QString &filePath) {
@@ -153,7 +160,7 @@ void KWinCursorSource::getCursor(CursorCallback cb) {
     if (pending_)
         resolve(std::nullopt);
 
-    const int id = nextRequestId();
+    const int id = takeRequestId();
     const QString file = scriptFilePath(id);
     if (!writeScript(id, file)) {
         // Nothing started, so there is no query to resolve: answer directly.
@@ -224,12 +231,11 @@ void KWinCursorSource::stopScript(const QString &dbusPath) {
 }
 
 void KWinCursorSource::reportCursor(int requestId, int x, int y) {
-    // A reply from a query that was superseded or timed out carries the pointer
-    // of a gesture that is already over. Applying it would move the overlay
-    // that is open NOW to a stale point, so drop it. SendCursor is also
-    // unauthenticated (any session-bus peer can call it); an id it cannot guess
-    // makes a spurious call a no-op too.
-    if (requestId == kNoRequest || requestId != activeRequestId_)
+    // Correlation only, see isReplyForActiveQuery(): it tells the live query's
+    // reply apart from one that outlived its own query, and it makes a call to
+    // an idle source a no-op. It is not an access check, the id sits in plain
+    // text in the script file.
+    if (!isReplyForActiveQuery(requestId, activeRequestId_))
         return;
     resolve(CursorPos{x, y});
 }
@@ -244,6 +250,12 @@ void KWinCursorSource::resolve(std::optional<CursorPos> pos) {
         stopScript(currentScriptPath_);
         currentScriptPath_.clear();
     }
+    // On the normal path the script has already run, so its file is spent. When
+    // a query is given up on instead (superseded, timed out), its loadScript may
+    // still be in flight and KWin may not have read the file yet: deleting it
+    // here makes that load fail, which is precisely what a dropped query wants,
+    // and the id != activeRequestId_ branch in getCursor() catches the reply
+    // either way. So the delete is unconditional on purpose.
     removeScriptFile(currentScriptFile_);
     currentScriptFile_.clear();
     if (pending_) {
