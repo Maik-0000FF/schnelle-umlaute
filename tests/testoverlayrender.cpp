@@ -18,6 +18,7 @@ using schnelle_umlaute::render::RenderAction;
 using schnelle_umlaute::render::RenderEpoch;
 using schnelle_umlaute::render::RenderRequest;
 using schnelle_umlaute::render::RenderState;
+using schnelle_umlaute::render::showSnapsTransitions;
 
 namespace {
 RenderRequest shown(const char *pos, bool label = false) {
@@ -134,6 +135,30 @@ void testEpochsAdvance() {
     }
 }
 
+// Cycling: the overlay is up, the same variants come back with the highlight on
+// another cell. That handover is what the animation is for.
+void testCyclingAnimates() {
+    EXPECT(!showSnapsTransitions(/*wasVisible=*/true, /*variantsChanged=*/false));
+}
+
+// A new gesture while the previous overlay is still on screen (the engine hides
+// with a commit flash, so this is reachable). Its cells still hold the old
+// gesture's colours, so animating from them is the flash.
+void testNewVariantsWhileVisibleSnap() {
+    EXPECT(showSnapsTransitions(/*wasVisible=*/true, /*variantsChanged=*/true));
+}
+
+// Re-triggering the SAME key after a commit: the variants are identical, so the
+// content alone cannot tell this from cycling. Coming from hidden is what does.
+// This is the reported bug: the previously active cell faded out green.
+void testSameVariantsFromHiddenSnap() {
+    EXPECT(showSnapsTransitions(/*wasVisible=*/false, /*variantsChanged=*/false));
+}
+
+void testNewVariantsFromHiddenSnap() {
+    EXPECT(showSnapsTransitions(/*wasVisible=*/false, /*variantsChanged=*/true));
+}
+
 int main() {
     testHiddenControllerHides();
     testEmptyVariantsHide();
@@ -148,6 +173,10 @@ int main() {
     testDeferredWorkAfterHideIsStale();
     testDeferredWorkOfSupersededPlacementIsStale();
     testEpochsAdvance();
+    testCyclingAnimates();
+    testNewVariantsWhileVisibleSnap();
+    testSameVariantsFromHiddenSnap();
+    testNewVariantsFromHiddenSnap();
     std::printf("testoverlayrender: all passed\n");
     return 0;
 }

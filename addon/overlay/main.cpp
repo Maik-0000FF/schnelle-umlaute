@@ -198,6 +198,10 @@ public:
         : QObject(ctrl), ctrl_(ctrl) {
         connect(ctrl, &OverlayController::stateChanged, this,
                 &OverlayRenderer::syncToController);
+        connect(ctrl, &OverlayController::animateChanged, this, [this]() {
+            if (!ctrl_->animate())
+                restoreTransitionsAfterFirstFrame();
+        });
     }
 
 private:
@@ -221,11 +225,6 @@ private:
 
         if (!ensureEngine())
             return;
-        // A fresh placement inherits the previous gesture's QML values (its
-        // active cell, its progress phase). Snap them instead of animating: the
-        // window is on screen while a transition plays, so the old state would
-        // be visible fading out. Restored on the first frame, see ensureEngine.
-        ctrl_->setAnimate(false);
         // Hide before re-anchoring. Layer-shell bakes the anchors of a surface
         // at its first commit, and Qt drops the wl_surface when the window is
         // hidden, so this is what gets the new position a surface of its own.
@@ -298,14 +297,30 @@ private:
             qwin->setScreen(scr);
 #endif
         qwin_ = qwin;
-        // Transitions come back on as soon as the surface has actually drawn, so
-        // the snapped state is what the first frame shows and everything after
-        // it (the active-cell handover while cycling) animates as before.
-        if (auto *qq = qobject_cast<QQuickWindow *>(qwin)) {
-            connect(qq, &QQuickWindow::frameSwapped, this,
-                    [this]() { ctrl_->setAnimate(true); });
-        }
         return true;
+    }
+
+    // The controller turns transitions off when a new gesture overwrites the
+    // last one's values (see OverlayController::show). Turn them back on once
+    // the surface has actually DRAWN with the snapped values: any earlier and
+    // the very change we wanted to snap could still animate, any later and the
+    // cycling handover would lose its animation.
+    void restoreTransitionsAfterFirstFrame() {
+        auto *qq = qobject_cast<QQuickWindow *>(qwin_.data());
+        if (!qq) {
+            // No window to wait on. Restore now rather than leave the daemon
+            // with animations off for the rest of its life.
+            ctrl_->setAnimate(true);
+            return;
+        }
+        // Single-shot: frameSwapped fires on every frame from the render thread,
+        // and a standing connection would queue a call across threads 60 times a
+        // second only to hit setAnimate's early return.
+        auto conn = std::make_shared<QMetaObject::Connection>();
+        *conn = connect(qq, &QQuickWindow::frameSwapped, this, [this, conn]() {
+            QObject::disconnect(*conn);
+            ctrl_->setAnimate(true);
+        });
     }
 
     void hideWindow() {

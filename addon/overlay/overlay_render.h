@@ -69,6 +69,23 @@ inline RenderAction decideRenderAction(const RenderRequest &req,
     return RenderAction::Show;
 }
 
+// Does this Show have to snap the QML's transitions, or may it animate them?
+//
+// The engine outlives a gesture, so its properties still hold the last one's
+// values: the cell that was active is green, the panel is faded in. A Show that
+// starts a NEW gesture must snap, or those values animate to the new ones on a
+// surface that is already on screen, which is the flash. A Show that merely
+// moves the highlight inside the gesture on screen is the handover the animation
+// exists for.
+//
+// The two are told apart by the content: cycling re-sends the same variants with
+// a different index, a new gesture brings different ones. Coming from hidden is
+// always a new gesture, whatever the variants say (the same key pressed twice in
+// a row sends an identical list).
+inline bool showSnapsTransitions(bool wasVisible, bool variantsChanged) {
+    return !wasVisible || variantsChanged;
+}
+
 // Placement epoch. Cursor mode fetches the pointer asynchronously, so a reply
 // can land after the gesture that asked for it is over, carrying that gesture's
 // position and cursor. It must not be applied to whatever is on screen by then.
