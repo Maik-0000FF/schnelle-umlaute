@@ -16,7 +16,11 @@
 // reordered or retyped argument). Kept free of fcitx5/Qt dependencies so both
 // build targets can include it directly.
 namespace schnelle_umlaute {
-constexpr int kOverlayProtocolVersion = 1;
+// 2 (1.5.0): SendCursor gained a request id, so its signature changed from
+// (x, y) to (requestId, x, y). The bump is what makes the engine notice a daemon
+// still running from the previous install and restart it; without it the user
+// keeps the old daemon (and none of this cycle's overlay work) until logout.
+constexpr int kOverlayProtocolVersion = 2;
 
 // The currentIndex a Show carries when NO cell is highlighted. The engine sends
 // it while a gesture's accent window is still open (its preview shows the

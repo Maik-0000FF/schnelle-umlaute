@@ -1,5 +1,19 @@
 # Upgrading
 
+## Upgrading from v1.4.x to v1.5.0
+
+**If you use a custom leader key, you have to re-capture it once.** A custom leader is no longer stored as the character it prints but as the physical key you press, and your existing config has no key recorded. Until you set it again, the custom leader is inactive; every other leader (Space, arrows, Alt/AltGr) keeps working, and your mappings are untouched.
+
+Open the editor, go to the leader keys, click the custom leader field and press the key you want. The field now captures a real key press instead of taking a typed character. If you use the two-key hand split, do this for both.
+
+Nothing else migrates: your mappings, profiles and the rest of `schnelle-umlaute.conf` carry over unchanged. Pull / reinstall and restart fcitx5. If you have the overlay enabled, the engine detects an overlay daemon left over from the old build (its wire protocol changed this cycle) and restarts it automatically.
+
+### What changed
+
+- **A custom leader is a physical key.** It is captured as a key press and matched by its key code, so it no longer depends on the character printed on the cap: the same physical key stays the leader across a layout switch, and Shift cannot confuse it. The character is still shown in the editor, and still checked against your mappings, but it no longer drives the matching. This also removed a class of bug on non-US layouts, where the addon compiled its own keyboard map and could resolve the wrong key.
+- **The overlay is markedly cheaper.** Its daemon used to rebuild the whole QML engine every time the overlay appeared, which with the timing bar enabled happened on every keystroke of a mapped letter. It now builds once: 40 open/close cycles cost 2.9 s of daemon CPU before this release and 0.4 s after.
+- **Overlay placement and cursor fixes.** In the "at the mouse pointer" mode on KDE, a slow reply from the compositor could place the overlay where the pointer had been during the *previous* keystroke; replies are now matched to the query that asked for them. A repeated key no longer leaves the previously chosen accent lit for a moment, and with the timing bar on, the panel no longer flashes before the timing window opens.
+
 ## Upgrading from v1.3.0 to v1.4.0
 
 Your existing mappings and config carry over unchanged. On the first editor launch, v1.4.0 seeds a "Standard" profile that points at your current `mappings.txt` (the file is left exactly as it is, never rewritten) and records it in a new `profiles.conf`. The engine also falls back to `mappings.txt` when no profiles are configured, so nothing breaks even if you never open the editor. No manual config or mapping migration is required.
