@@ -63,9 +63,6 @@ target_compile_options(testsyntheticautorepeat PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testsyntheticautorepeat COMMAND testsyntheticautorepeat)
 set_tests_properties(testsyntheticautorepeat PROPERTIES TIMEOUT 10)
 
-# Unit test for the cursor-overlay geometry helpers. Pure header-only logic —
-# guards the "Cursor:" wire-format split and the lower-left-at-cursor margin
-# math (clamping to the cursor's output) that the overlay daemon relies on.
 # Unit test for the KWin cursor source's query-id rules. Pure header-only logic
 # that guards which SendCursor reply the daemon may act on, so a reply that
 # outlived its own query cannot move the overlay that is open now.
@@ -77,6 +74,9 @@ target_compile_options(testcursorrequest PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testcursorrequest COMMAND testcursorrequest)
 set_tests_properties(testcursorrequest PROPERTIES TIMEOUT 10)
 
+# Unit test for the cursor-overlay geometry helpers. Pure header-only logic —
+# guards the "Cursor:" wire-format split and the lower-left-at-cursor margin
+# math (clamping to the cursor's output) that the overlay daemon relies on.
 add_executable(testcursorgeometry testcursorgeometry.cpp)
 target_include_directories(testcursorgeometry PRIVATE
     ${PROJECT_SOURCE_DIR}

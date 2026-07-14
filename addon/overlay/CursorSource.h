@@ -106,6 +106,8 @@ private:
     // Drop a query's script file. One file exists per in-flight query, so they
     // must be cleaned up or the cache dir grows without bound.
     void removeScriptFile(const QString &filePath);
+    // Delete script files stranded by an earlier daemon (see the definition).
+    void sweepScriptDir();
     // Finish the ACTIVE query: stop its timer, unload and delete its script,
     // and hand `pos` to its callback. A no-op on the callback when none is
     // pending.

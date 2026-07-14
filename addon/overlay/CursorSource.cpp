@@ -1,6 +1,5 @@
 #include "CursorSource.h"
 
-#include <limits>
 #include <memory>
 #include <utility>
 
@@ -39,6 +38,23 @@ constexpr const char *kKWinScriptIface = "org.kde.kwin.Script";
 // simply never gets the callback and falls back to the grid position.
 QString kwinScriptPath(int id) {
     return QStringLiteral("/Scripting/Script") + QString::number(id);
+}
+
+// The script file is named per query ("get-cursor-<id>.js"). Writer and sweeper
+// derive their name and their glob from these two, so the pattern that creates
+// the files and the pattern that cleans them up cannot drift apart. The glob
+// also still catches the single fixed-name "get-cursor.js" that daemons before
+// the per-query naming wrote.
+constexpr QLatin1String kScriptStem("get-cursor");
+constexpr QLatin1String kScriptSuffix(".js");
+
+QString scriptFileName(int requestId) {
+    return kScriptStem + QStringLiteral("-") + QString::number(requestId) +
+           kScriptSuffix;
+}
+
+QString scriptFileGlob() {
+    return kScriptStem + QStringLiteral("*") + kScriptSuffix;
 }
 } // namespace
 
@@ -108,6 +124,22 @@ KWinCursorSource::KWinCursorSource(QString scriptDir, QString serviceName,
     timer_->setSingleShot(true);
     connect(timer_, &QTimer::timeout, this,
             [this]() { resolve(std::nullopt); });
+    sweepScriptDir();
+}
+
+// A query's script file is deleted when the query resolves, so a daemon that
+// dies between writing it and resolving (kill, crash, Quit mid-query) strands
+// it. One sweep at construction clears those, plus the single fixed-name
+// get-cursor.js that daemons before the per-query naming left behind. The
+// source is built lazily on the first cursor-mode open and lives for the
+// daemon's lifetime, so this runs once, off the hot path.
+void KWinCursorSource::sweepScriptDir() {
+    QDir dir(scriptDir_);
+    if (!dir.exists())
+        return;
+    const QStringList stale = dir.entryList({scriptFileGlob()}, QDir::Files);
+    for (const QString &name : stale)
+        dir.remove(name);
 }
 
 int KWinCursorSource::takeRequestId() {
@@ -117,8 +149,7 @@ int KWinCursorSource::takeRequestId() {
 }
 
 QString KWinCursorSource::scriptFilePath(int requestId) const {
-    return scriptDir_ + QStringLiteral("/get-cursor-") +
-           QString::number(requestId) + QStringLiteral(".js");
+    return scriptDir_ + QStringLiteral("/") + scriptFileName(requestId);
 }
 
 bool KWinCursorSource::writeScript(int requestId, const QString &filePath) {
