@@ -89,8 +89,8 @@ bool OverlayController::isValidTheme(const QString &name) {
     return schnelle_umlaute::isValidTheme(name);
 }
 
-void OverlayController::sendCursor(int x, int y) {
-    Q_EMIT cursorReported(x, y);
+void OverlayController::sendCursor(int requestId, int x, int y) {
+    Q_EMIT cursorReported(requestId, x, y);
 }
 
 void OverlayController::setProgress(int leadMs, int windowMs, qint64 startUsec) {
@@ -165,7 +165,9 @@ void OverlayDBusAdaptor::SetTheme(const QString &theme) {
 // invariant (see OverlayRenderer) is the sole guard against a stale/spoofed
 // value landing on the wrong open. Acceptable for a session-local convenience
 // surface; revisit if the daemon ever gains a security boundary.
-void OverlayDBusAdaptor::SendCursor(int x, int y) { ctrl_->sendCursor(x, y); }
+void OverlayDBusAdaptor::SendCursor(int requestId, int x, int y) {
+    ctrl_->sendCursor(requestId, x, y);
+}
 
 void OverlayDBusAdaptor::SetProgress(int leadMs, int windowMs,
                                     qlonglong startUsec) {

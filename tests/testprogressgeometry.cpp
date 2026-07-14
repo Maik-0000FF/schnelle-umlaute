@@ -21,9 +21,10 @@ int main() {
         EXPECT(pg::barLength(10, screen) == pg::kMinWidth);
         // Ceiling: a long timeout clamps down to the screen fraction.
         EXPECT(pg::barLength(100000, screen) == maxWidth);
-        // screenWidth <= 0 falls back to kFallbackScreenWidth (1920 here), so
-        // the result matches the explicit-1920 call.
-        EXPECT(pg::barLength(1250, 0) == pg::barLength(1250, pg::kFallbackScreenWidth));
+        // screenWidth <= 0 falls back to render::kFallbackScreenWidth (1920
+        // here), so the result matches the explicit-1920 call.
+        EXPECT(pg::barLength(1250, 0)
+               == pg::barLength(1250, schnelle_umlaute::render::kFallbackScreenWidth));
     }
 
     // ── leadLength: proportional split ───────────────────────────────────
