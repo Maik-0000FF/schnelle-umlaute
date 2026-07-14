@@ -11,7 +11,11 @@
 #include <cstdio>
 
 using schnelle_umlaute::render::decideRenderAction;
+using schnelle_umlaute::render::isEpochCurrent;
+using schnelle_umlaute::render::kFirstEpoch;
+using schnelle_umlaute::render::nextEpoch;
 using schnelle_umlaute::render::RenderAction;
+using schnelle_umlaute::render::RenderEpoch;
 using schnelle_umlaute::render::RenderRequest;
 using schnelle_umlaute::render::RenderState;
 
@@ -91,6 +95,45 @@ void testLabelModeChangeShows() {
            RenderAction::Show);
 }
 
+// The cursor fetch is async, so its reply can land after the gesture that asked
+// for it. Work that started in an epoch may only touch the window while that
+// epoch is still the current one.
+void testDeferredWorkOfTheLivePlacementRuns() {
+    const RenderEpoch started = kFirstEpoch;
+    EXPECT(isEpochCurrent(started, started));
+}
+
+// Hidden in the meantime: the reply carries a pointer for an overlay that is
+// gone, so it must not re-show the window.
+void testDeferredWorkAfterHideIsStale() {
+    const RenderEpoch started = kFirstEpoch;
+    const RenderEpoch afterHide = nextEpoch(started);
+    EXPECT(!isEpochCurrent(started, afterHide));
+}
+
+// The case the destroyed window used to catch for free: gesture 1's reply lands
+// while gesture 2 is already on screen. The window is alive and visible, so only
+// the epoch tells them apart. Applying it would place gesture 2's overlay at
+// gesture 1's position.
+void testDeferredWorkOfSupersededPlacementIsStale() {
+    const RenderEpoch gesture1 = kFirstEpoch;
+    // A new placement hides first, then shows: two bumps.
+    const RenderEpoch gesture2 = nextEpoch(nextEpoch(gesture1));
+    EXPECT(!isEpochCurrent(gesture1, gesture2));
+}
+
+// Epochs only ever move forward, so a stale one can never come back around and
+// be mistaken for the live placement.
+void testEpochsAdvance() {
+    RenderEpoch e = kFirstEpoch;
+    for (int i = 0; i < 100; ++i) {
+        const RenderEpoch previous = e;
+        e = nextEpoch(e);
+        EXPECT(e > previous);
+        EXPECT(!isEpochCurrent(previous, e));
+    }
+}
+
 int main() {
     testHiddenControllerHides();
     testEmptyVariantsHide();
@@ -101,6 +144,10 @@ int main() {
     testPositionChangeShows();
     testCursorModeChangeShows();
     testLabelModeChangeShows();
+    testDeferredWorkOfTheLivePlacementRuns();
+    testDeferredWorkAfterHideIsStale();
+    testDeferredWorkOfSupersededPlacementIsStale();
+    testEpochsAdvance();
     std::printf("testoverlayrender: all passed\n");
     return 0;
 }

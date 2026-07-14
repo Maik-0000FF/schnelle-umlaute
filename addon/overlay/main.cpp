@@ -231,7 +231,8 @@ private:
         lastPosition_ = pos;
         lastLabel_ = ctrl_->label();
         active_ = true;
-        reveal(pos);
+        epoch_ = schnelle_umlaute::render::nextEpoch(epoch_);
+        reveal(pos, epoch_);
     }
 
     // Builds the QML engine and its root window ONCE. Layer-shell properties
@@ -299,16 +300,26 @@ private:
         if (qwin_)
             qwin_->setVisible(false);
         active_ = false;
+        // Whatever a still-pending cursor reply was going to place, it is not
+        // this. Close its epoch.
+        epoch_ = schnelle_umlaute::render::nextEpoch(epoch_);
     }
 
-    void reveal(const QString &pos) {
+    // Settle the QML layout so implicit sizes (the panel width the anchor math
+    // reads) reflect the variants that are on screen right now. See polishTree.
+    void settleLayout() {
+        if (auto *qq = qobject_cast<QQuickWindow *>(qwin_.data()))
+            polishTree(qq->contentItem());
+    }
+
+    void reveal(const QString &pos,
+                const schnelle_umlaute::render::RenderEpoch epoch) {
         QWindow *qwin = qwin_;
         if (!qwin)
             return;
         // The controller's new variants have just been pushed into the QML
         // bindings; settle the layout before any anchor math reads a width.
-        if (auto *qq = qobject_cast<QQuickWindow *>(qwin))
-            polishTree(qq->contentItem());
+        settleLayout();
 
         const schnelle_umlaute::CursorPositionSpec spec =
             schnelle_umlaute::parseCursorPosition(pos.toStdString());
@@ -321,7 +332,12 @@ private:
         // its leading edge). Col 1/4/7 don't use these, so a fallback is
         // harmless. Layer-shell props must be set before this first commit.
         QPointer<QWindow> qwinPtr(qwin);
-        auto revealGrid = [this, qwinPtr, grid]() {
+        auto revealGrid = [this, qwinPtr, grid, epoch]() {
+            // Deferred: reached from the cursor callback too, which may fire
+            // after this placement is over. `grid` is a copy of THAT gesture's
+            // position, so applying it to a later one would misplace it.
+            if (!schnelle_umlaute::render::isEpochCurrent(epoch, epoch_))
+                return;
             if (!qwinPtr)
                 return;
             auto *ls2 = LSWindow::get(qwinPtr);
@@ -375,10 +391,14 @@ private:
         // failure — unsupported compositor, query error, timeout — falls back
         // to the grid reveal above.
         cursorSource()->getCursor(
-            [this, qwinPtr, revealGrid](
+            [this, qwinPtr, revealGrid, epoch](
                 std::optional<schnelle_umlaute::CursorPos> cur) {
-                // The overlay may have been torn down (a quick hide) while the
-                // reply was in flight — QPointer goes null with the window.
+                // The gesture that asked for this pointer may be long over: hidden
+                // again, or superseded by the next one (which reopens the window,
+                // so ctrl_->visible() is true again and answers nothing). The
+                // window outlives the gesture now, so only the epoch can tell.
+                if (!schnelle_umlaute::render::isEpochCurrent(epoch, epoch_))
+                    return;
                 if (!qwinPtr || !ctrl_->visible())
                     return;
                 if (!cur) {
@@ -388,6 +408,10 @@ private:
                 auto *ls2 = LSWindow::get(qwinPtr);
                 if (!ls2)
                     return;
+                // Re-settle: this runs event loops later than reveal()'s pass, and
+                // a variants update that took the no-op branch in between would
+                // have invalidated the layout again.
+                settleLayout();
                 QScreen *scr =
                     QGuiApplication::screenAt(QPoint(cur->x, cur->y));
                 if (!scr)
@@ -452,6 +476,10 @@ private:
     // until the window is hidden again. Replaces the old "engine_ != nullptr"
     // proxy, which only worked because teardown() destroyed the engine.
     bool active_ = false;
+    // Identifies the current placement, so async work started by an earlier one
+    // (the cursor fetch) can recognise that it is late and stand down.
+    schnelle_umlaute::render::RenderEpoch epoch_ =
+        schnelle_umlaute::render::kFirstEpoch;
     QString lastPosition_;
     // Part of the surface-reuse key: label and grid modes have very different
     // widths, and the layer-shell anchor margin is baked from the width at

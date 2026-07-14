@@ -69,6 +69,26 @@ inline RenderAction decideRenderAction(const RenderRequest &req,
     return RenderAction::Show;
 }
 
+// Placement epoch. Cursor mode fetches the pointer asynchronously, so a reply
+// can land after the gesture that asked for it is over, carrying that gesture's
+// position and cursor. It must not be applied to whatever is on screen by then.
+//
+// The window used to be destroyed on hide, so a stale reply found a dangling
+// QPointer and gave up on its own. With the window alive across gestures that
+// accidental guard is gone, and "is the overlay visible?" is no answer either:
+// it is visible again as soon as the NEXT gesture opens. So the placement gets
+// an explicit epoch: bumped on every hide and every show, captured by value in
+// the deferred work, and compared before that work touches the window.
+using RenderEpoch = unsigned long long;
+constexpr RenderEpoch kFirstEpoch = 1;
+
+inline RenderEpoch nextEpoch(RenderEpoch epoch) { return epoch + 1; }
+
+// True when deferred work still belongs to the placement that started it.
+inline bool isEpochCurrent(RenderEpoch captured, RenderEpoch current) {
+    return captured == current;
+}
+
 } // namespace render
 } // namespace schnelle_umlaute
 
