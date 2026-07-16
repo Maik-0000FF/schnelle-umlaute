@@ -25,7 +25,7 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 - Snippets: Map single keys to entire text phrases
 - Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
 - Configurable leader keys (Space, Arrow ←→↑↓, Alt/AltGr, or custom keys with hand-split), keep Space free for normal typing
-- Works with any keyboard layout (QWERTY, QWERTZ, AZERTY, Dvorak, Colemak and others): the addon reads the character a key actually produces instead of assuming a fixed key position, and a custom leader is stored as the physical key that was pressed, so it survives a layout switch. Programmable and self-built keyboards (QMK, ZMK, split, ortholinear) work as well, as long as they send standard key codes, which is the default
+- Works with any keyboard layout (QWERTY, QWERTZ, AZERTY, Dvorak, Colemak) and programmable keyboards (QMK, ZMK, split, ortholinear)
 - Unlimited mapping slots
 - App blacklist/whitelist, disable in games, password managers, or apps with conflicting shortcuts
 - Standalone QML editor (`schnelle-umlaute-editor`) for managing mappings, leader keys, app filter, and the cycle overlay
@@ -43,11 +43,11 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 
 **Overlay at the mouse cursor**: the accent indicator follows your pointer while you cycle through variants.
 
-https://github.com/user-attachments/assets/49cd0811-7b50-4e0d-8221-f8c18fe39872
+![Overlay at the mouse cursor](docs/assets/demo-cursor.gif)
 
 **Overlay at the text caret**: the indicator appears right where you type, so it also works on X11.
 
-https://github.com/user-attachments/assets/5c8e691c-a9b8-4f2b-bddb-98124294d622
+![Overlay at the text caret](docs/assets/demo-caret.gif)
 
 ### Documentation
 
