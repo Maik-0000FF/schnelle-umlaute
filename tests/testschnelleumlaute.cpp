@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (157 tests)
+// Test Suite for Schnelle Umlaute (158 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -37,6 +37,7 @@
 // 151     window-timeout test  per-window repeat: window-timeout arming clears per synthetic release (issue #92/#73)
 // 152-154 Reverse cycling      arrow reverse steps back + wraps, reverse-start lands at last variant, forward+reverse mix in one session
 // 155     AltGr reverse        AltGr flagged reverse steps back + wraps inside a Space-started session
+// 156     Alt/AltGr split      each disabled Alt-key stays inert mid-gesture (Alt/AltGr enable independently)
 // clang-format on
 
 #include <unistd.h>
@@ -198,8 +199,11 @@ static void configureLeaders(Instance *instance, bool space, bool left,
                              int custom2Code = fcitx::kNoKeyCode,
                              bool leftReverse = false, bool rightReverse = false,
                              bool upReverse = false, bool downReverse = false,
-                             bool altReverse = false,
-                             bool altGrReverse = false) {
+                             bool altReverse = false, bool altGrReverse = false,
+                             // Independent of alt: alt enables the left Alt,
+                             // altGr the right Alt / ISO_Level3_Shift. Appended
+                             // last so the many positional call sites stay valid.
+                             bool altGr = false) {
     auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
     RawConfig config;
     config.setValueByPath("Delay/Lowercase", "400");
@@ -210,7 +214,7 @@ static void configureLeaders(Instance *instance, bool space, bool left,
     config.setValueByPath("Leader/Up", up ? "True" : "False");
     config.setValueByPath("Leader/Down", down ? "True" : "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
-    config.setValueByPath("Leader/AltGr", alt ? "True" : "False");
+    config.setValueByPath("Leader/AltGr", altGr ? "True" : "False");
     config.setValueByPath("Leader/LeftReverse", leftReverse ? "True" : "False");
     config.setValueByPath("Leader/RightReverse",
                           rightReverse ? "True" : "False");
@@ -397,7 +401,9 @@ static void configureMultilingualCycling(Instance *instance, bool space,
     config.setValueByPath("Leader/Up", "False");
     config.setValueByPath("Leader/Down", "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
-    config.setValueByPath("Leader/AltGr", alt ? "True" : "False");
+    // AltGr is a separate leader; no test through this helper presses it, so it
+    // stays off rather than shadowing alt.
+    config.setValueByPath("Leader/AltGr", "False");
     config.setValueByPath("Leader/Custom/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey", custom);
@@ -441,7 +447,9 @@ static void configureWithDelay(Instance *instance, int delayLower,
     config.setValueByPath("Leader/Up", "False");
     config.setValueByPath("Leader/Down", "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
-    config.setValueByPath("Leader/AltGr", alt ? "True" : "False");
+    // AltGr is a separate leader; no test through this helper presses it, so it
+    // stays off rather than shadowing alt.
+    config.setValueByPath("Leader/AltGr", "False");
     config.setValueByPath("Leader/Custom/CustomKeyEnabled", "False");
     config.setValueByPath("Leader/Custom/CustomKey", "");
     config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
@@ -1396,11 +1404,12 @@ void scheduleTests(Instance *instance) {
     testDispatcher->schedule([instance]() {
         g_currentTest = 155;
         FCITX_INFO() << "=== Test 155: AltGr reverse steps back + wraps ===";
-        // Space forward; Alt + AltGr enabled, AltGr flagged reverse. 3 variants.
-        configureLeaders(instance, true, false, false, false, false, true, "",
-                         "", fcitx::kNoKeyCode, fcitx::kNoKeyCode, false, false,
-                         false, false, /*altReverse=*/false,
-                         /*altGrReverse=*/true);
+        // Space forward; AltGr enabled (Alt off) and flagged reverse. 3 variants.
+        configureLeaders(instance, true, false, false, false, false,
+                         /*alt=*/false, "", "", fcitx::kNoKeyCode,
+                         fcitx::kNoKeyCode, false, false, false, false,
+                         /*altReverse=*/false, /*altGrReverse=*/true,
+                         /*altGr=*/true);
         setMappings(instance, {{"a", "x,y,z"}});
 
         auto *tf = instance->addonManager().addon("testfrontend");
@@ -1421,6 +1430,52 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 155 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 156: Alt and AltGr are independent — the disabled one stays inert
+    // =========================================================================
+    // The positive direction (each key leads when its own flag is on) is
+    // covered by tests 21/23 (Alt-only) and 22 (AltGr-only). This guards the
+    // split the other way: with only one enabled, pressing the *other* Alt-key
+    // mid-gesture must not be consumed as a leader. No leader fires, so no
+    // deferred-commit timer is scheduled and the IC can be torn down directly.
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 156;
+        FCITX_INFO() << "=== Test 156: Alt and AltGr independence ===";
+        auto *tf = instance->addonManager().addon("testfrontend");
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+
+        // Alt enabled, AltGr disabled: the right Alt must not lead.
+        configureLeaders(instance, false, false, false, false, false,
+                         /*alt=*/true, "", "", fcitx::kNoKeyCode,
+                         fcitx::kNoKeyCode, false, false, false, false,
+                         /*altReverse=*/false, /*altGrReverse=*/false,
+                         /*altGr=*/false);
+        auto uuidA = createAndActivate(instance, tf, "test156a");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuidA, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        bool altGrLeaks = tf->call<ITestFrontend::sendKeyEvent>(
+            uuidA, Key(FcitxKey_Alt_R, KeyStates(), kCodeAltGr), false);
+        FCITX_ASSERT(!altGrLeaks)
+            << "AltGr must not be consumed as leader when AltGr is disabled";
+        tf->call<ITestFrontend::destroyInputContext>(uuidA);
+
+        // AltGr enabled, Alt disabled: the left Alt must not lead.
+        configureLeaders(instance, false, false, false, false, false,
+                         /*alt=*/false, "", "", fcitx::kNoKeyCode,
+                         fcitx::kNoKeyCode, false, false, false, false,
+                         /*altReverse=*/false, /*altGrReverse=*/false,
+                         /*altGr=*/true);
+        auto uuidB = createAndActivate(instance, tf, "test156b");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuidB, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        bool altLeaks = tf->call<ITestFrontend::sendKeyEvent>(
+            uuidB, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+        FCITX_ASSERT(!altLeaks)
+            << "Alt must not be consumed as leader when Alt is disabled";
+        tf->call<ITestFrontend::destroyInputContext>(uuidB);
+        FCITX_INFO() << "Test 156 PASSED";
     });
 
     // =========================================================================
@@ -1576,8 +1631,13 @@ void scheduleTests(Instance *instance) {
                 g_currentTest = 22;
                 FCITX_INFO()
                     << "=== Test 22: AltGr (ISO_Level3_Shift) as leader ===";
+                // AltGr enabled, Alt disabled: the split must let AltGr lead on
+                // its own.
                 configureLeaders(instance, false, false, false, false, false,
-                                 true);
+                                 /*alt=*/false, "", "", fcitx::kNoKeyCode,
+                                 fcitx::kNoKeyCode, false, false, false, false,
+                                 /*altReverse=*/false, /*altGrReverse=*/false,
+                                 /*altGr=*/true);
                 auto uuid22 = createAndActivate(instance, tf, "test22");
 
                 tf->call<ITestFrontend::sendKeyEvent>(
@@ -6679,7 +6739,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 157 tests PASSED ===";
+                                FCITX_INFO() << "=== All 158 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });

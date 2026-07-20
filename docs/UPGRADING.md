@@ -1,5 +1,14 @@
 # Upgrading
 
+## Upgrading from v1.6.x to v1.7.0
+
+**If you enabled the old combined Alt/AltGr leader and relied on the AltGr key, enable the new AltGr toggle once.** Alt and AltGr are now two independent leaders (previously a single toggle enabled both). An existing `Alt=True` config keeps the left Alt working, but the AltGr key (ISO_Level3_Shift, the right Alt on EU layouts) no longer triggers until you tick the separate **AltGr** toggle in the editor's leader keys. Nothing else migrates; your mappings and the rest of the config carry over unchanged. Pull / reinstall and restart fcitx5.
+
+### What changed
+
+- **Per-leader cycle direction.** Each arrow, and Alt and AltGr, can cycle forward or backward independently via a direction toggle next to its enable toggle. The `*Reverse` flags default to `False`, so existing setups keep stepping forward.
+- **Alt and AltGr are separate leaders.** The former combined toggle is split into an Alt and an AltGr toggle, each enabled and directed on its own.
+
 ## Upgrading from v1.5.x to v1.6.0
 
 No mapping or config migration required. v1.6.0 is config-compatible with v1.5.x. Pull / reinstall and restart fcitx5.
