@@ -1,3 +1,4 @@
+#include <QCommandLineParser>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QQmlApplicationEngine>
@@ -17,6 +18,17 @@ int main(int argc, char *argv[]) {
     QGuiApplication::setOrganizationName(QStringLiteral("schnelle-umlaute"));
     QGuiApplication::setWindowIcon(
         QIcon::fromTheme(QStringLiteral("schnelle-umlaute-editor")));
+    QGuiApplication::setApplicationVersion(
+        QStringLiteral(SCHNELLE_UMLAUTE_VERSION));
+
+    // Handle --version / --help before any window or single-instance work, so
+    // both print and exit immediately regardless of a running editor instance.
+    QCommandLineParser parser;
+    parser.setApplicationDescription(
+        QStringLiteral("Schnelle Umlaute profile editor"));
+    parser.addHelpOption();    // -h / --help
+    parser.addVersionOption(); // -v / --version
+    parser.process(app);
 
     // Single-instance check before any UI work. Two editor windows
     // editing the same on-disk config would race on save and silently
@@ -32,6 +44,9 @@ int main(int argc, char *argv[]) {
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("envSetup"),
                                              &envSetup);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("appVersion"),
+        QCoreApplication::applicationVersion());
     // loadFromModule is Qt 6.5+; fall back to a direct URL on older Qt
     // (Ubuntu 24.04 still ships Qt 6.4). Loaded by URL, Main.qml is not
     // associated with its module, so `import SchnelleUmlaute` (which provides

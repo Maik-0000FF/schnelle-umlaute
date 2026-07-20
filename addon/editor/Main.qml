@@ -73,6 +73,10 @@ ApplicationWindow {
         }
     }
 
+    AboutDialog {
+        id: aboutDialog
+    }
+
     ConfirmDialog {
         id: envDialog
         titleText: qsTr("Setup required")
@@ -188,6 +192,7 @@ ApplicationWindow {
         Header {
             Layout.fillWidth: true
             mappingCount: mappings.count
+            onAboutRequested: aboutDialog.open()
         }
 
         Item {

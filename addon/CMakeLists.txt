@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
 project(fcitx5-schnelle-umlaute VERSION 1.5.0)
 
+# Single source of the version for every target: the project() version above
+# is handed to the binaries as a compile define, so the CLI (--version) and the
+# editor's About dialog never hard-code the number a second time.
+add_compile_definitions(SCHNELLE_UMLAUTE_VERSION="${PROJECT_VERSION}")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
