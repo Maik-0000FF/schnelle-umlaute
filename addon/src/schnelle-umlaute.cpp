@@ -1127,8 +1127,10 @@ private:
             } else if (isLeftHandKeycode(cachedCustomKeyCode_) ==
                        isLeftHandKeycode(cachedCustomKey2Code_)) {
                 FCITX_WARN()
-                    << "Schnelle: CustomKey '" << cachedCustomKey_
-                    << "' and CustomKey2 '" << cachedCustomKey2_
+                    << "Schnelle: CustomKey '"
+                    << customLeaderLabel(cachedCustomKey_, cachedCustomKeyCode_)
+                    << "' and CustomKey2 '"
+                    << customLeaderLabel(cachedCustomKey2_, cachedCustomKey2Code_)
                     << "' are on the same keyboard half"
                     << " — dual split disabled, both trigger all mappings";
             }
@@ -1149,10 +1151,18 @@ private:
             leaders += "Alt ";
         if (*config_.leader->altGr)
             leaders += "AltGr ";
-        if (!cachedCustomKey_.empty())
-            leaders += "Custom1('" + cachedCustomKey_ + "') ";
-        if (!cachedCustomKey2_.empty())
-            leaders += "Custom2('" + cachedCustomKey2_ + "') ";
+        // Gate on the keycode, not the character: a keycode-only leader (a
+        // navigation key like Home) has an empty character but is still active,
+        // so show its keycode instead of dropping it from the summary.
+        if (cachedCustomKeyCode_ != kNoKeyCode)
+            leaders += "Custom1('" +
+                       customLeaderLabel(cachedCustomKey_, cachedCustomKeyCode_) +
+                       "') ";
+        if (cachedCustomKey2Code_ != kNoKeyCode)
+            leaders +=
+                "Custom2('" +
+                customLeaderLabel(cachedCustomKey2_, cachedCustomKey2Code_) +
+                "') ";
         if (leaders.empty())
             leaders = "None ";
 
@@ -1412,6 +1422,13 @@ private:
     // unconfigured leader (kNoKeyCode) matches nothing.
     static bool matchCustomLeader(int customKeyCode, int rawCode) {
         return customKeyCode != kNoKeyCode && rawCode == customKeyCode;
+    }
+
+    // A custom leader's label for diagnostics: its character, or "#<keycode>"
+    // for a keycode-only leader (a navigation key with no character). Keyed on
+    // the keycode, like matchCustomLeader, so logs name exactly what can fire.
+    static std::string customLeaderLabel(const std::string &ch, int keyCode) {
+        return ch.empty() ? "#" + std::to_string(keyCode) : ch;
     }
 
     // Leader classification for dual custom leader support.

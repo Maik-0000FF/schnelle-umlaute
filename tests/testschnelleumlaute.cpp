@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (160 tests)
+// Test Suite for Schnelle Umlaute (161 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -39,6 +39,7 @@
 // 155     AltGr reverse        AltGr flagged reverse steps back + wraps inside a Space-started session
 // 156     Alt/AltGr split      each disabled Alt-key stays inert mid-gesture (Alt/AltGr enable independently)
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
+// 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // clang-format on
 
 #include <unistd.h>
@@ -133,6 +134,7 @@ constexpr int kCodeLeft = 113;
 constexpr int kCodeRight = 114;
 constexpr int kCodeUp = 111;
 constexpr int kCodeDown = 116;
+constexpr int kCodeHome = 110;
 constexpr int kCodeAltL = 64;
 constexpr int kCodeAltGr = 108;
 constexpr int kCodeHash = 20;
@@ -1548,6 +1550,45 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 158 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 159: A keycode-only custom leader (no character) cycles
+    // =========================================================================
+    // The editor lets a no-character navigation key (Home, End, …) be a custom
+    // leader: enabled, a keycode, but an empty character. The addon matches
+    // custom leaders by keycode alone, so it must still trigger and cycle.
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 159;
+        FCITX_INFO() << "=== Test 159: keycode-only custom leader cycles ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "False");
+        config.setValueByPath("Leader/Custom/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/Custom/CustomKey", ""); // no character
+        config.setValueByPath("Leader/Custom/CustomKeyCode",
+                              std::to_string(kCodeHome));
+        addon->setConfig(config);
+        setMappings(instance, {{"a", "x,y,z"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test159");
+
+        // Hold 'a' + Home starts cycling at "x", a second Home steps to "y".
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Home, KeyStates(), kCodeHome), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Home, KeyStates(), kCodeHome), false);
+        // Release 'a' -> commits "y".
+        tf->call<ITestFrontend::pushCommitExpectation>("y");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 159 PASSED";
     });
 
     // =========================================================================
@@ -6811,7 +6852,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 160 tests PASSED ===";
+                                FCITX_INFO() << "=== All 161 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });
