@@ -1,5 +1,14 @@
 # Upgrading
 
+## Upgrading from v1.5.x to v1.6.0
+
+No mapping or config migration required. v1.6.0 is config-compatible with v1.5.x. Pull / reinstall and restart fcitx5.
+
+### What changed
+
+- **Version and help on the command line.** `schnelle-umlaute-editor` and `schnelle-umlaute-overlay` now accept `--version` / `-v` and `--help` / `-h`.
+- **About dialog in the editor.** An info button in the editor header opens an About dialog with the version, a short description, and links to the repository, the issue tracker, and the license.
+
 ## Upgrading from v1.4.x to v1.5.0
 
 **If you use a custom leader key, you have to re-capture it once.** A custom leader is no longer stored as the character it prints but as the physical key you press, and your existing config has no key recorded. Until you set it again, the custom leader is inactive; every other leader (Space, arrows, Alt/AltGr) keeps working, and your mappings are untouched.

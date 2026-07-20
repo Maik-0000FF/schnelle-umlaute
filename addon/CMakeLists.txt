@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(fcitx5-schnelle-umlaute VERSION 1.5.0)
+project(fcitx5-schnelle-umlaute VERSION 1.6.0)
 
 # Single source of the version for every target: the project() version above
 # is handed to the binaries as a compile define, so the CLI (--version) and the
