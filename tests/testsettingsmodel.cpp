@@ -12,6 +12,7 @@
 #include "test_tempdir.h"
 
 #include <QCoreApplication>
+#include <QSignalSpy>
 #include <QString>
 #include <QStringList>
 
@@ -162,8 +163,10 @@ void testScalarRoundTrip() {
         s.setDelayUppercase(800);
         s.setDelayLowercaseMin(150);
         s.setDelayUppercaseMin(225);
-        s.setLeaderSpace(false);
+        // Enable Left before disabling Space: the editor never lets the last
+        // effective leader be turned off, so a second leader must exist first.
         s.setLeaderLeft(true);
+        s.setLeaderSpace(false);
         // The "Alt forward, AltGr reverse" pairing, plus the orthogonality of
         // the enable and reverse flags, must survive the round-trip.
         s.setLeaderAlt(true);
@@ -218,6 +221,62 @@ void testScalarRoundTrip() {
     EXPECT(s2.overlayEnabled() == true);
     EXPECT(s2.overlayShowOnTrigger() == true);
     EXPECT(s2.theme() == QStringLiteral("dark"));
+}
+
+// The editor must never let the last effective leader be turned off, and a
+// custom leader counts as effective only when it is enabled AND has a key
+// captured. Each refused change leaves the value on and emits
+// leaderRemovalBlocked so the UI can explain the snap-back.
+void testLastLeaderGuard() {
+    resetTempdir();
+    SettingsModel s;
+    QSignalSpy blocked(&s, &SettingsModel::leaderRemovalBlocked);
+
+    // A fresh config has only Space as a leader.
+    EXPECT(s.leaderSpace() == true);
+    EXPECT(s.effectiveLeaderCount() == 1);
+
+    // Turning off the sole leader is refused: the value stays on and the block
+    // is signalled.
+    s.setLeaderSpace(false);
+    EXPECT(s.leaderSpace() == true);
+    EXPECT(s.effectiveLeaderCount() == 1);
+    EXPECT(blocked.count() == 1);
+
+    // With a second leader present, Space can be turned off.
+    s.setLeaderLeft(true);
+    EXPECT(s.effectiveLeaderCount() == 2);
+    s.setLeaderSpace(false);
+    EXPECT(s.leaderSpace() == false);
+    EXPECT(s.leaderLeft() == true);
+    EXPECT(s.effectiveLeaderCount() == 1);
+    EXPECT(blocked.count() == 1); // an allowed change does not signal a block
+
+    // Left is now the last one and cannot be turned off either.
+    s.setLeaderLeft(false);
+    EXPECT(s.leaderLeft() == true);
+    EXPECT(blocked.count() == 2);
+
+    // An enabled custom leader with NO key captured is not effective, so it does
+    // not rescue the guard: turning off Left is still refused.
+    s.setCustomKey1Enabled(true);
+    EXPECT(s.effectiveLeaderCount() == 1);
+    s.setLeaderLeft(false);
+    EXPECT(s.leaderLeft() == true);
+    EXPECT(blocked.count() == 3);
+
+    // Capturing a key makes the custom leader effective; Left may now go off.
+    s.captureCustomKey1(QStringLiteral("j"), 44);
+    EXPECT(s.effectiveLeaderCount() == 2);
+    s.setLeaderLeft(false);
+    EXPECT(s.leaderLeft() == false);
+    EXPECT(s.effectiveLeaderCount() == 1);
+
+    // The custom leader is now the last effective one: disabling it is refused.
+    s.setCustomKey1Enabled(false);
+    EXPECT(s.customKey1Enabled() == true);
+    EXPECT(s.effectiveLeaderCount() == 1);
+    EXPECT(blocked.count() == 4);
 }
 
 // One captured key press stores both halves of a leader together, so the file
@@ -558,6 +617,7 @@ const TestCase kTests[] = {
     {"testIsValidPlacement", testIsValidPlacement},
     {"testDefaultsOnMissingFile", testDefaultsOnMissingFile},
     {"testScalarRoundTrip", testScalarRoundTrip},
+    {"testLastLeaderGuard", testLastLeaderGuard},
     {"testCaptureCustomKeyRoundTrip", testCaptureCustomKeyRoundTrip},
     {"testCaptureFoldsCaseIncludingNonAscii",
      testCaptureFoldsCaseIncludingNonAscii},

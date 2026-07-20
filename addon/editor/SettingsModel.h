@@ -86,6 +86,8 @@ class SettingsModel : public QObject {
                    customKey2CodeChanged)
     Q_PROPERTY(bool customKey2Reverse READ customKey2Reverse WRITE
                    setCustomKey2Reverse NOTIFY customKey2ReverseChanged)
+    Q_PROPERTY(int effectiveLeaderCount READ effectiveLeaderCount NOTIFY
+                   leadersChanged)
 
     Q_PROPERTY(QString appFilterMode READ appFilterMode WRITE setAppFilterMode
                    NOTIFY appFilterModeChanged)
@@ -155,6 +157,10 @@ public:
     int customKey2Code() const { return customKey2Code_; }
     bool customKey2HasKey() const { return customKey2Code_ != kNoKeyCode; }
     bool customKey2Reverse() const { return customKey2Reverse_; }
+    // Leaders that can actually trigger/cycle right now: Space, any arrow, Alt,
+    // AltGr, and each custom leader that is enabled AND has a key captured. The
+    // editor keeps this from reaching zero (see setLeader*/setCustomKey*Enabled).
+    int effectiveLeaderCount() const;
 
     // One captured key press sets both halves of a leader. Going through the
     // individual setters would write the config file twice and, in between,
@@ -258,6 +264,9 @@ Q_SIGNALS:
     void customKey2Changed();
     void customKey2CodeChanged();
     void customKey2ReverseChanged();
+    // The editor refused to turn off the last effective leader; the UI shows a
+    // note explaining why the toggle snapped back.
+    void leaderRemovalBlocked();
     void leadersChanged();
     void appFilterModeChanged();
     void blacklistChanged();
@@ -273,6 +282,12 @@ Q_SIGNALS:
 private:
     void load();
     void save();
+    // Guard for a leader-disabling setter: returns true if the change may
+    // proceed, false if it would remove the last effective leader (in which
+    // case leaderRemovalBlocked() is emitted and the caller must return without
+    // applying). `stillEffective` is whether this leader counts right now, so a
+    // custom leader with no key captured is never treated as the last one.
+    bool allowLeaderOff(bool stillEffective);
     void reloadFcitx();
     // Write the generated fcitx5 theme.conf from the given colors and point
     // classicui at it (backing up the user's previous classicui theme first),

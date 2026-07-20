@@ -29,7 +29,15 @@ RowLayout {
 
     ThemedSwitch {
         checked: root.checked
-        onToggled: root.toggled(checked)
+        // A refused change (e.g. the leader guard in SettingsModel) must snap the
+        // switch back. An interactive toggle breaks the `checked` binding, so
+        // re-establish it and let the model stay the single source of truth: if
+        // the setter applies, the binding follows; if it refuses, it reverts.
+        onToggled: {
+            const requested = checked;
+            checked = Qt.binding(() => root.checked);
+            root.toggled(requested);
+        }
     }
 
     // Trailing free space keeps the toggle left-aligned in the shared column.

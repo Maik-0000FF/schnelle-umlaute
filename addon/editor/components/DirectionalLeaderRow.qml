@@ -36,7 +36,15 @@ RowLayout {
     // Enable toggle, in the shared toggle column.
     ThemedSwitch {
         checked: root.enabledValue
-        onToggled: root.enabledToggled(checked)
+        // A refused change (the leader guard in SettingsModel) must snap the
+        // switch back. An interactive toggle breaks the `checked` binding, so
+        // re-establish it and let the model stay the single source of truth: if
+        // the setter applies, the binding follows; if it refuses, it reverts.
+        onToggled: {
+            const requested = checked;
+            checked = Qt.binding(() => root.enabledValue);
+            root.enabledToggled(requested);
+        }
     }
 
     // Direction toggle. Extra left margin sets it apart from the enable
