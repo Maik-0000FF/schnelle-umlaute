@@ -127,6 +127,10 @@ void testDefaultsOnMissingFile() {
     EXPECT(s.leaderUp() == false);
     EXPECT(s.leaderDown() == false);
     EXPECT(s.leaderAlt() == false);
+    EXPECT(s.leaderLeftReverse() == false);
+    EXPECT(s.leaderRightReverse() == false);
+    EXPECT(s.leaderUpReverse() == false);
+    EXPECT(s.leaderDownReverse() == false);
     EXPECT(s.customKey1Enabled() == false);
     EXPECT(s.customKey2Enabled() == false);
     // No key captured yet. Never invent a position for an unset leader.
@@ -156,6 +160,11 @@ void testScalarRoundTrip() {
         s.setLeaderSpace(false);
         s.setLeaderLeft(true);
         s.setLeaderAlt(true);
+        // Reverse flags are orthogonal to the enable flags: leaderLeftReverse
+        // pairs with an enabled Left, leaderDownReverse is set while Down stays
+        // disabled, so the round-trip proves the flag persists on its own.
+        s.setLeaderLeftReverse(true);
+        s.setLeaderDownReverse(true);
         s.setCustomKey1Enabled(true);
         // '#' is the character that starts a comment in this INI-ish file. It is
         // only ever written on the VALUE side (`CustomKey=#`), where it is just
@@ -178,6 +187,10 @@ void testScalarRoundTrip() {
     EXPECT(s2.leaderSpace() == false);
     EXPECT(s2.leaderLeft() == true);
     EXPECT(s2.leaderAlt() == true);
+    EXPECT(s2.leaderLeftReverse() == true);
+    EXPECT(s2.leaderRightReverse() == false);
+    EXPECT(s2.leaderUpReverse() == false);
+    EXPECT(s2.leaderDownReverse() == true);
     EXPECT(s2.customKey1Enabled() == true);
     EXPECT(s2.customKey1() == QStringLiteral("#"));
     EXPECT(s2.customKey1Code() == 20);

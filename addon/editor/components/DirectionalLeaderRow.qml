@@ -3,14 +3,13 @@ import QtQuick.Layouts
 import SchnelleUmlaute
 
 // A leader row that also carries a cycle direction. Layout, left to right:
-// label, an arrow marker, the direction toggle, then the enable toggle (the
-// enable toggle keeps the same rightmost spot as the plain LabeledSwitch it
-// replaces). The arrow flips (→ forward, ← reverse) with the
-// direction toggle so the chosen direction reads at a glance.
+// fixed-width label, the enable toggle (aligned with every other toggle row),
+// then the direction group: direction toggle, the current direction word
+// (Forward / Reverse), the arrow marker (→ / ←), and trailing free space.
 //
 // Enable gates whether the key is a leader at all; direction only matters
-// while enabled, so the arrow and direction toggle dim and disable when enable
-// is off.
+// while enabled, so the direction toggle, word and arrow dim and the toggle
+// disables when enable is off.
 RowLayout {
     id: root
     Layout.fillWidth: true
@@ -22,26 +21,27 @@ RowLayout {
     signal enabledToggled(bool v)
     signal reverseToggled(bool v)
 
+    // Fixed-width label column, shared with LabeledSwitch so the enable toggle
+    // below lines up with every other toggle.
     Text {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBody
-        Layout.fillWidth: true
+        Layout.preferredWidth: Theme.settingLabelWidth
+        elide: Text.ElideRight
     }
 
-    // Direction marker.
-    Text {
-        text: root.reverseValue ? "←" : "→"
-        color: Theme.text
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontBody
-        opacity: root.enabledValue ? 1.0 : 0.4
-        Behavior on opacity { NumberAnimation { duration: Theme.animShort } }
-    }
-
-    // Direction toggle, left of the enable toggle.
+    // Enable toggle, in the shared toggle column.
     ThemedSwitch {
+        checked: root.enabledValue
+        onToggled: root.enabledToggled(checked)
+    }
+
+    // Direction toggle. Extra left margin sets it apart from the enable
+    // toggle, so the two are not read as one control.
+    ThemedSwitch {
+        Layout.leftMargin: Theme.spacingLg
         checked: root.reverseValue
         enabled: root.enabledValue
         opacity: root.enabledValue ? 1.0 : 0.4
@@ -49,9 +49,27 @@ RowLayout {
         onToggled: root.reverseToggled(checked)
     }
 
-    // Enable toggle.
-    ThemedSwitch {
-        checked: root.enabledValue
-        onToggled: root.enabledToggled(checked)
+    // Direction word, naming the current cycle direction.
+    Text {
+        text: root.reverseValue ? qsTr("Reverse") : qsTr("Forward")
+        color: Theme.textMuted
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontBody
+        opacity: root.enabledValue ? 1.0 : 0.4
+        Behavior on opacity { NumberAnimation { duration: Theme.animShort } }
     }
+
+    // Direction marker: bold and a touch larger so the arrow reads clearly.
+    Text {
+        text: root.reverseValue ? "←" : "→"
+        color: Theme.text
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontBody + 2
+        font.bold: true
+        opacity: root.enabledValue ? 1.0 : 0.4
+        Behavior on opacity { NumberAnimation { duration: Theme.animShort } }
+    }
+
+    // Trailing free space (the "freiraum" after the arrow).
+    Item { Layout.fillWidth: true }
 }

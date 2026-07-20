@@ -587,19 +587,31 @@ public:
                     // detection machinery protect against auto-repeat leaks.
                     // Non-Alt leaders: single output commits directly.
                     if (it->second.size() > 1 || isAlt) {
+                        // A reverse leader that starts a fresh multi-variant
+                        // session lands on the LAST variant, so a preset whose
+                        // rarer variants sit at the end is reached without
+                        // stepping past the common ones first. Forward start,
+                        // and every single-output/Alt path, stays at 0. Only
+                        // arrows reverse here; Alt/AltGr keep leaderStep == +1.
+                        const size_t startIdx =
+                            (it->second.size() > 1 &&
+                             leaderStep(key.sym()) < 0)
+                                ? it->second.size() - 1
+                                : 0;
                         state->cyclingInput_ = *state->waitingKey_;
-                        state->cyclingIndex_ = 0;
+                        state->cyclingIndex_ = startIdx;
                         if (isAlt)
                             state->altGestureSession_ = true;
 
-                        // Update preedit with first variant
-                        updateClientPreedit(ic, it->second[0]);
+                        // Update preedit with the starting variant
+                        updateClientPreedit(ic, it->second[startIdx]);
                         // Overlay is for choosing among variants; suppress it
                         // when there's nothing to cycle (single-output Alt
                         // still needs the cycling state above for the deferred
                         // commit / re-press machinery).
                         if (it->second.size() > 1) {
-                            overlayShow(ic, it->second, 0);
+                            overlayShow(ic, it->second,
+                                        static_cast<int>(startIdx));
                             // The leader caught the window; hold the timing bar
                             // where it is while the user cycles.
                             freezeProgressOverlay();
