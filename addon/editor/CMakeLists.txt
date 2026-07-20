@@ -59,6 +59,9 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/CycleShortcutRow.qml
         components/AppListEditor.qml
         components/ConfirmDialog.qml
+        components/AboutDialog.qml
+        components/Wordmark.qml
+        components/FocusRect.qml
         components/DropdownIndicator.qml
         components/KeyCaptureField.qml
         components/LibrarySelector.qml

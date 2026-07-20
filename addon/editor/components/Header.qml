@@ -9,6 +9,7 @@ Rectangle {
     implicitHeight: 56
 
     property int mappingCount: 0
+    signal aboutRequested()
 
     RowLayout {
         anchors.fill: parent
@@ -17,32 +18,16 @@ Rectangle {
         spacing: Theme.spacingMd
 
         Image {
-            source: "qrc:/qt/qml/SchnelleUmlaute/assets/schnelle-umlaute-icon.png"
-            sourceSize.width: 48
-            sourceSize.height: 48
-            width: 24
-            height: 24
+            source: Theme.appIconSource
+            sourceSize.width: Theme.appIconSizeSm * 2 // 2x for HiDPI crispness
+            sourceSize.height: Theme.appIconSizeSm * 2
+            width: Theme.appIconSizeSm
+            height: Theme.appIconSizeSm
             fillMode: Image.PreserveAspectFit
             smooth: true
         }
 
-        RowLayout {
-            spacing: 6
-            Text {
-                text: "Schnelle"
-                color: Theme.text
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontStrong
-                font.weight: Font.Medium
-            }
-            Text {
-                text: "Umlaute"
-                color: Theme.brand
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontStrong
-                font.weight: Font.Medium
-            }
-        }
+        Wordmark {}
 
         Rectangle {
             Layout.leftMargin: Theme.spacingSm
@@ -64,5 +49,36 @@ Rectangle {
         }
 
         Item { Layout.fillWidth: true }
+
+        // Opens the About dialog. Sits at the header's right edge, muted until
+        // hovered/focused so it stays unobtrusive.
+        FocusRect {
+            id: infoBtn
+            implicitWidth: Theme.controlHeightSm
+            implicitHeight: Theme.controlHeightSm
+            color: (infoBtn.hovered || infoBtn.activeFocus)
+                   ? Theme.surfaceHover : "transparent"
+            border.color: infoBtn.activeFocus ? Theme.borderFocus : "transparent"
+            border.width: 1
+            onActivated: root.aboutRequested()
+
+            // Icon-only control, so it carries an explicit accessible name and a
+            // tooltip that every text-labelled control gets for free.
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("About")
+
+            ThemedToolTip {
+                visible: infoBtn.hovered
+                text: qsTr("About")
+            }
+
+            Text {
+                anchors.centerIn: parent
+                text: Theme.iconInfo
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontStrong
+            }
+        }
     }
 }

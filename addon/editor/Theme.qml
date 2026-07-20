@@ -218,6 +218,23 @@ QtObject {
     readonly property string iconClear:       "✕"
     readonly property string iconStar:        "★"
     readonly property string iconAdd:         "+"
+    readonly property string iconInfo:        "ⓘ"
+
+    // External links shown in the About dialog, kept here as the single source
+    // so the dialog (and any later use) never hard-codes a URL.
+    readonly property string repoUrl:     "https://github.com/Maik-0000FF/schnelle-umlaute"
+    readonly property string issuesUrl:   "https://github.com/Maik-0000FF/schnelle-umlaute/issues/new"
+    readonly property string licenseName: "GPL-3.0"
+    readonly property string licenseUrl:  "https://github.com/Maik-0000FF/schnelle-umlaute/blob/main/LICENSE"
+
+    // App icon shared by the header and the About dialog, plus its two display
+    // sizes and the About dialog width, so none of these are hard-coded per use.
+    readonly property string appIconSource: "qrc:/qt/qml/SchnelleUmlaute/assets/schnelle-umlaute-icon.png"
+    readonly property int appIconSizeSm:    24 // header wordmark
+    readonly property int appIconSizeLg:    48 // About dialog identity
+    // Narrower than ConfirmDialog's 420 text column: this dialog holds short
+    // link rows, not paragraphs, so it needs less width.
+    readonly property int aboutDialogWidth: 380
 
     function setCurrent(name) {
         if (palettes[name] !== undefined && current !== name) {
