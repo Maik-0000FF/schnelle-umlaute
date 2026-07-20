@@ -164,6 +164,8 @@ CustomKey2Reverse=False
 >
 > Because the leader is the key and not the character, it keeps working while <kbd>Shift</kbd> is held (<kbd>Shift</kbd>+<kbd>/</kbd> still fires the `/` leader), on every keyboard layout, and across a layout switch: the letter on the keycap may change, the key does not.
 >
+> A navigation key that prints no character (<kbd>Home</kbd>, <kbd>End</kbd>, <kbd>Page Up</kbd>, <kbd>Page Down</kbd>, <kbd>Insert</kbd>, <kbd>Menu</kbd>) can be a custom leader too: it is stored by keycode with an empty `CustomKey`, and the editor shows its name. While the capture field is armed, <kbd>Backspace</kbd> or <kbd>Delete</kbd> clears the assignment instead of setting it.
+>
 > Each custom leader also carries its own cycle direction (`CustomKeyReverse` / `CustomKey2Reverse`, default `False`), set with the direction toggle in the editor just like the arrows (see **Cycle direction** above).
 >
 > When both custom leaders sit on **opposite keyboard halves**, dual-split mode activates: each leader only triggers mappings on the other hand (e.g. a left-hand leader triggers the right-hand inputs `u`, `o`, `i`). Leaders on the same half, or the same key twice, disable the split and both trigger all mappings. The half comes from the key's physical position, so this is correct on QWERTY, QWERTZ, AZERTY, Dvorak and Colemak alike.

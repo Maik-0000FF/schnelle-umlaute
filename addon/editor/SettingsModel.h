@@ -167,6 +167,15 @@ public:
     // leave the new keycode paired with the previous key's character.
     Q_INVOKABLE void captureCustomKey1(const QString &ch, int code);
     Q_INVOKABLE void captureCustomKey2(const QString &ch, int code);
+    // Clear a custom leader's captured key (keycode → none, character empty).
+    // Guarded like the toggles: clearing the sole effective leader is refused.
+    Q_INVOKABLE void clearCustomKey1();
+    Q_INVOKABLE void clearCustomKey2();
+    // Human name for a keycode-only leader key that produces no character
+    // (Home, End, Page Up/Down, Insert, Menu), or empty for any other key.
+    // Drives both which no-character keys the editor accepts as a leader and how
+    // the captured key is shown. The single source for both lives here.
+    Q_INVOKABLE QString specialLeaderName(int keyCode) const;
     QString appFilterMode() const { return appFilterMode_; }
     QStringList blacklist() const { return blacklist_; }
     QStringList whitelist() const { return whitelist_; }

@@ -446,6 +446,57 @@ void SettingsModel::captureCustomKey2(const QString &ch, int code) {
     Q_EMIT customKey2Changed();
     save();
 }
+namespace {
+// X keycodes (evdev code + 8) of the no-character navigation keys offered as
+// custom leaders. These are the values captured as nativeScanCode and matched
+// by the addon; on Linux/fcitx5 they are stable.
+constexpr int kKeyHome = 110;
+constexpr int kKeyEnd = 115;
+constexpr int kKeyPageUp = 112;
+constexpr int kKeyPageDown = 117;
+constexpr int kKeyInsert = 118;
+constexpr int kKeyMenu = 135;
+} // namespace
+QString SettingsModel::specialLeaderName(int keyCode) const {
+    switch (keyCode) {
+    case kKeyHome:
+        return QStringLiteral("Home");
+    case kKeyEnd:
+        return QStringLiteral("End");
+    case kKeyPageUp:
+        return QStringLiteral("Page Up");
+    case kKeyPageDown:
+        return QStringLiteral("Page Down");
+    case kKeyInsert:
+        return QStringLiteral("Insert");
+    case kKeyMenu:
+        return QStringLiteral("Menu");
+    default:
+        return QString();
+    }
+}
+void SettingsModel::clearCustomKey1() {
+    if (customKey1Code_ == kNoKeyCode && customKey1_.isEmpty())
+        return; // already clear
+    if (!allowLeaderOff(customKey1Enabled_ && customKey1HasKey()))
+        return; // would remove the last effective leader
+    customKey1Code_ = kNoKeyCode;
+    customKey1_.clear();
+    Q_EMIT customKey1CodeChanged();
+    Q_EMIT customKey1Changed();
+    save();
+}
+void SettingsModel::clearCustomKey2() {
+    if (customKey2Code_ == kNoKeyCode && customKey2_.isEmpty())
+        return; // already clear
+    if (!allowLeaderOff(customKey2Enabled_ && customKey2HasKey()))
+        return; // would remove the last effective leader
+    customKey2Code_ = kNoKeyCode;
+    customKey2_.clear();
+    Q_EMIT customKey2CodeChanged();
+    Q_EMIT customKey2Changed();
+    save();
+}
 
 void SettingsModel::setAppFilterMode(const QString &v) {
     if (appFilterMode_ == v)

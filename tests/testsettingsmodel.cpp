@@ -311,6 +311,48 @@ void testClearLastLeaderKeyGuard() {
     EXPECT(s.effectiveLeaderCount() == 1); // only Space
 }
 
+// The no-character navigation keys are named from their keycode; every other
+// key (printable or the "no key" sentinel) has no special name.
+void testSpecialLeaderName() {
+    resetTempdir();
+    SettingsModel s;
+    EXPECT(s.specialLeaderName(110) == QStringLiteral("Home"));
+    EXPECT(s.specialLeaderName(115) == QStringLiteral("End"));
+    EXPECT(s.specialLeaderName(112) == QStringLiteral("Page Up"));
+    EXPECT(s.specialLeaderName(117) == QStringLiteral("Page Down"));
+    EXPECT(s.specialLeaderName(118) == QStringLiteral("Insert"));
+    EXPECT(s.specialLeaderName(135) == QStringLiteral("Menu"));
+    EXPECT(s.specialLeaderName(38).isEmpty()); // 'a' key, printable
+    EXPECT(s.specialLeaderName(fcitx::kNoKeyCode).isEmpty());
+}
+
+// clearCustomKey unsets the captured key, but is guarded like the toggles: the
+// sole effective leader's key cannot be cleared.
+void testClearCustomKeyMethod() {
+    resetTempdir();
+    SettingsModel s;
+    QSignalSpy blocked(&s, &SettingsModel::leaderRemovalBlocked);
+
+    // Space is on, so clearing an enabled custom leader's key is allowed and
+    // leaves the enable flag untouched.
+    s.captureCustomKey1(QStringLiteral("j"), 44);
+    s.setCustomKey1Enabled(true);
+    EXPECT(s.customKey1HasKey() == true);
+    s.clearCustomKey1();
+    EXPECT(s.customKey1HasKey() == false);
+    EXPECT(s.customKey1().isEmpty());
+    EXPECT(s.customKey1Enabled() == true);
+
+    // Make the custom leader the sole effective leader: clearing its key is
+    // refused.
+    s.captureCustomKey1(QStringLiteral("j"), 44);
+    s.setLeaderSpace(false);
+    EXPECT(s.effectiveLeaderCount() == 1);
+    s.clearCustomKey1();
+    EXPECT(s.customKey1HasKey() == true);
+    EXPECT(blocked.count() == 1);
+}
+
 // One captured key press stores both halves of a leader together, so the file
 // never holds the new keycode next to the previous key's character, and QML can
 // ask hasKey instead of restating the "no key" sentinel.
@@ -651,6 +693,8 @@ const TestCase kTests[] = {
     {"testScalarRoundTrip", testScalarRoundTrip},
     {"testLastLeaderGuard", testLastLeaderGuard},
     {"testClearLastLeaderKeyGuard", testClearLastLeaderKeyGuard},
+    {"testSpecialLeaderName", testSpecialLeaderName},
+    {"testClearCustomKeyMethod", testClearCustomKeyMethod},
     {"testCaptureCustomKeyRoundTrip", testCaptureCustomKeyRoundTrip},
     {"testCaptureFoldsCaseIncludingNonAscii",
      testCaptureFoldsCaseIncludingNonAscii},
