@@ -168,12 +168,21 @@ ColumnLayout {
             }
 
             MouseArea {
+                id: fieldMouse
                 anchors.fill: parent
+                hoverEnabled: true
                 onClicked: {
                     captureField.forceActiveFocus();
                     root.modifierHeld = false;
                     root.capturing = true;
                 }
+            }
+
+            // The Backspace/Delete-clears behaviour is not obvious, so surface it
+            // on hover rather than crowding the field's own prompt.
+            ThemedToolTip {
+                hovered: fieldMouse.containsMouse
+                text: qsTr("Click, then press a key. Backspace or Delete clears it.")
             }
 
             // Dropping focus mid-capture would leave the field armed forever.

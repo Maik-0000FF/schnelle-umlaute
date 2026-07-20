@@ -42,7 +42,7 @@ RowLayout {
             root.toggled(requested);
         }
         ThemedToolTip {
-            visible: root.tooltipText.length > 0 && sw.hovered
+            hovered: root.tooltipText.length > 0 && sw.hovered
             text: root.tooltipText
         }
     }

@@ -278,7 +278,7 @@ Rectangle {
             text: root.editing ? Theme.iconCheck : Theme.iconEdit
             enabled: !root.editing || root.editValid
             ThemedToolTip {
-                visible: applyBtn.hovered
+                hovered: applyBtn.hovered
                 text: root.editing ? qsTr("Apply") : qsTr("Edit")
             }
             contentItem: Text {
@@ -304,7 +304,7 @@ Rectangle {
             focusPolicy: Qt.NoFocus
             text: root.editing ? Theme.iconCancel : Theme.iconTrash
             ThemedToolTip {
-                visible: deleteBtn.hovered
+                hovered: deleteBtn.hovered
                 text: root.editing ? qsTr("Cancel") : qsTr("Delete")
             }
             contentItem: Text {

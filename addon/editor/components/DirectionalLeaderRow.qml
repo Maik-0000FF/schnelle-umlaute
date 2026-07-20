@@ -53,7 +53,7 @@ RowLayout {
             root.enabledToggled(requested);
         }
         ThemedToolTip {
-            visible: root.tooltipText.length > 0 && enableSw.hovered
+            hovered: root.tooltipText.length > 0 && enableSw.hovered
             text: root.tooltipText
         }
     }
@@ -69,7 +69,7 @@ RowLayout {
         Behavior on opacity { NumberAnimation { duration: Theme.animShort } }
         onToggled: root.reverseToggled(checked)
         ThemedToolTip {
-            visible: root.directionTooltipText.length > 0 && directionSw.hovered
+            hovered: root.directionTooltipText.length > 0 && directionSw.hovered
             text: root.directionTooltipText
         }
     }
