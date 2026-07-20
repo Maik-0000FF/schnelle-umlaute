@@ -12,6 +12,7 @@
 
 using fcitx::classifySessionEnv;
 using fcitx::EnvMechanism;
+using fcitx::imEnvironmentdPayload;
 using fcitx::mergeCompositorEnv;
 
 #define EXPECT(cond)                                                           \
@@ -88,6 +89,41 @@ void testSessionTypeOnlyLabels() {
     EXPECT(classifySessionEnv(nullptr, "KDE").session == "KDE");
 }
 
+// KDE Plasma Wayland is the one desktop that drops GTK_IM_MODULE /
+// QT_IM_MODULE (fcitx5's "Wayland Diagnose" warning). The delivery mechanism
+// stays EnvironmentD (testKdeIsEnvironmentD); only the module-need axis changes.
+void testKdeWaylandDropsImModules() {
+    EXPECT(classifySessionEnv("wayland", "KDE").needsImModules == false);
+}
+
+// Every other session keeps the full module set: KDE X11 (no native protocol,
+// its X11 apps still need the modules), GNOME, wlroots compositors, and the
+// unknown default. Gating on Wayland alone, or desktop alone, would be wrong.
+void testImModulesNeededElsewhere() {
+    EXPECT(classifySessionEnv("x11", "KDE").needsImModules == true);
+    EXPECT(classifySessionEnv("wayland", "ubuntu:GNOME").needsImModules == true);
+    EXPECT(classifySessionEnv("x11", "ubuntu:GNOME").needsImModules == true);
+    EXPECT(classifySessionEnv("wayland", "Hyprland").needsImModules == true);
+    EXPECT(classifySessionEnv("wayland", "sway").needsImModules == true);
+    EXPECT(classifySessionEnv(nullptr, nullptr).needsImModules == true);
+}
+
+// The environment.d payload: the full set keeps GTK/QT, the reduced set drops
+// them; both always carry XMODIFIERS and GLFW_IM_MODULE.
+void testImEnvironmentdPayload() {
+    const std::string full = imEnvironmentdPayload(true);
+    EXPECT(full.find("GTK_IM_MODULE=fcitx") != std::string::npos);
+    EXPECT(full.find("QT_IM_MODULE=fcitx") != std::string::npos);
+    EXPECT(full.find("XMODIFIERS=@im=fcitx") != std::string::npos);
+    EXPECT(full.find("GLFW_IM_MODULE=ibus") != std::string::npos);
+
+    const std::string reduced = imEnvironmentdPayload(false);
+    EXPECT(reduced.find("GTK_IM_MODULE") == std::string::npos);
+    EXPECT(reduced.find("QT_IM_MODULE") == std::string::npos);
+    EXPECT(reduced.find("XMODIFIERS=@im=fcitx") != std::string::npos);
+    EXPECT(reduced.find("GLFW_IM_MODULE=ibus") != std::string::npos);
+}
+
 // The Hyprland snippet (env = KEY,VALUE lines), reused by the merge tests.
 // A function rather than a namespace-scope std::string: its construction can
 // throw, which during static initialization could not be caught
@@ -159,6 +195,9 @@ int main() {
     testGnomeIsEnvironmentD();
     testUnsetDesktopDefaultsToEnvironmentD();
     testSessionTypeOnlyLabels();
+    testKdeWaylandDropsImModules();
+    testImModulesNeededElsewhere();
+    testImEnvironmentdPayload();
     testMergeIntoEmptyFile();
     testMergeAllPresentIsNoOp();
     testMergeIgnoresCommentedLines();

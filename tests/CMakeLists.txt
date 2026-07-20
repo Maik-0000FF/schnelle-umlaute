@@ -118,6 +118,21 @@ target_compile_options(testsessionenv PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testsessionenv COMMAND testsessionenv)
 set_tests_properties(testsessionenv PROPERTIES TIMEOUT 10)
 
+# Unit test for EnvSetup::isConfigured(), the Plasma-aware environment check.
+# Compiles EnvSetup.cpp directly (Qt Core only, no DBus/QML) and drives the
+# desktop matrix through setenv(); isConfigured() reads only the environment.
+add_executable(testenvsetup
+    testenvsetup.cpp
+    ${PROJECT_SOURCE_DIR}/editor/EnvSetup.cpp)
+set_target_properties(testenvsetup PROPERTIES AUTOMOC ON)
+target_include_directories(testenvsetup PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testenvsetup PRIVATE ${SU_TEST_WARN_FLAGS})
+target_link_libraries(testenvsetup Qt${QT_MAJOR_VERSION}::Core)
+add_test(NAME testenvsetup COMMAND testenvsetup)
+set_tests_properties(testenvsetup PROPERTIES TIMEOUT 10)
+
 # Unit test for OverlayController state machine. Compiles OverlayController.cpp
 # directly (no LayerShellQt, no QML). Uses QSignalSpy to verify stateChanged
 # emissions and a short exec() loop to confirm quit() reaches QCoreApplication.

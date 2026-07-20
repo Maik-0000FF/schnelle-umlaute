@@ -306,12 +306,23 @@ echo -e "${BLUE}Setting up environment variables...${NC}"
 mkdir -p "$HOME/.config/environment.d"
 
 write_env_file() {
-    cat > "$ENV_FILE" << 'EOF'
+    # KDE Plasma Wayland drops the redundant GTK/QT modules (KWin serves the
+    # native text-input protocol; fcitx5 warns about them). XMODIFIERS still
+    # covers XWayland. Full set everywhere else, including KDE X11. Canonical
+    # spec: addon/src/session_env.h.
+    if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+        cat > "$ENV_FILE" << 'EOF'
+XMODIFIERS=@im=fcitx
+GLFW_IM_MODULE=ibus
+EOF
+    else
+        cat > "$ENV_FILE" << 'EOF'
 GTK_IM_MODULE=fcitx
 QT_IM_MODULE=fcitx
 XMODIFIERS=@im=fcitx
 GLFW_IM_MODULE=ibus
 EOF
+    fi
     echo -e "${GREEN}✓ Environment variables configured${NC}"
 }
 
@@ -323,7 +334,7 @@ if [ -f "$ENV_FILE" ]; then
     read -p "Overwrite with fcitx5 settings? [Y/n] " -r
     echo
     if [[ $REPLY =~ ^[Nn]$ ]]; then
-        echo -e "${YELLOW}Skipping environment setup. Make sure GTK_IM_MODULE, QT_IM_MODULE, and XMODIFIERS are set to fcitx.${NC}"
+        echo -e "${YELLOW}Skipping environment setup. Make sure the fcitx5 input-method variables are set.${NC}"
     else
         write_env_file
     fi
