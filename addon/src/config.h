@@ -123,6 +123,8 @@ FCITX_CONFIGURATION(
             "Single character. Must not be a mapped input key.")};
     Option<int> customKeyCode{this, "CustomKeyCode", "  \xe2\x86\xb3 Key code",
                               kNoKeyCode};
+    Option<bool> customKeyReverse{this, "CustomKeyReverse",
+                                  "Custom Leader 1 reverses", false};
     Option<bool> customKey2Enabled{this, "CustomKey2Enabled",
                                    "Custom Leader 2 (hand-split)", false};
     OptionWithAnnotation<std::string, PlaceholderAnnotation> customKey2{
@@ -136,17 +138,19 @@ FCITX_CONFIGURATION(
             "e.g. j or f", true,
             "Single character on the opposite keyboard half of Leader 1.")};
     Option<int> customKey2Code{this, "CustomKey2Code",
-                               "  \xe2\x86\xb3 Key code", kNoKeyCode};);
+                               "  \xe2\x86\xb3 Key code", kNoKeyCode};
+    Option<bool> customKey2Reverse{this, "CustomKey2Reverse",
+                                   "Custom Leader 2 reverses", false};);
 
 // Per-leader cycle direction. Each directional leader carries its own
 // "reverse" flag next to its enable flag: enable decides whether the key is a
 // leader at all, reverse decides whether it steps backward (-1) instead of
 // forward (+1). The two are orthogonal, so any mix is valid, including every
 // arrow reversed. Default false keeps configs stepping forward. Space is
-// intentionally forward-only (no directional meaning). Arrows and Alt / AltGr
-// carry a direction; Alt and AltGr are also enabled independently (Alt = the
-// left Alt, AltGr = ISO_Level3_Shift / the right Alt). The custom leaders gain
-// a direction in a later slice.
+// intentionally forward-only (no directional meaning). Every other leader
+// carries a direction: the arrows, Alt and AltGr (enabled independently, Alt =
+// the left Alt, AltGr = ISO_Level3_Shift / the right Alt), and each custom
+// leader (its reverse flag lives in CustomLeaderConfig next to its key).
 FCITX_CONFIGURATION(LeaderConfig,
                     Option<bool> space{this, "Space", "Space", true};
                     Option<bool> left{this, "Left", "Left Arrow", false};

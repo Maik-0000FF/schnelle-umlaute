@@ -195,20 +195,24 @@ Item {
                     CustomLeaderRow {
                         labelText: qsTr("Custom Leader 1")
                         enabledValue: root.settingsModel ? root.settingsModel.customKey1Enabled : false
+                        reverseValue: root.settingsModel ? root.settingsModel.customKey1Reverse : false
                         keyValue: root.settingsModel ? root.settingsModel.customKey1 : ""
                         keyAssigned: root.settingsModel ? root.settingsModel.customKey1HasKey : false
                         mappingsModel: root.mappingsModel
                         onEnabledEdited: (v) => root.settingsModel.customKey1Enabled = v
+                        onReverseEdited: (v) => root.settingsModel.customKey1Reverse = v
                         onKeyCaptured: (ch, code) => root.settingsModel.captureCustomKey1(ch, code)
                     }
 
                     CustomLeaderRow {
                         labelText: qsTr("Custom Leader 2 (hand-split)")
                         enabledValue: root.settingsModel ? root.settingsModel.customKey2Enabled : false
+                        reverseValue: root.settingsModel ? root.settingsModel.customKey2Reverse : false
                         keyValue: root.settingsModel ? root.settingsModel.customKey2 : ""
                         keyAssigned: root.settingsModel ? root.settingsModel.customKey2HasKey : false
                         mappingsModel: root.mappingsModel
                         onEnabledEdited: (v) => root.settingsModel.customKey2Enabled = v
+                        onReverseEdited: (v) => root.settingsModel.customKey2Reverse = v
                         onKeyCaptured: (ch, code) => root.settingsModel.captureCustomKey2(ch, code)
                     }
                 }

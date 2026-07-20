@@ -136,6 +136,8 @@ void testDefaultsOnMissingFile() {
     EXPECT(s.leaderDownReverse() == false);
     EXPECT(s.customKey1Enabled() == false);
     EXPECT(s.customKey2Enabled() == false);
+    EXPECT(s.customKey1Reverse() == false);
+    EXPECT(s.customKey2Reverse() == false);
     // No key captured yet. Never invent a position for an unset leader.
     EXPECT(s.customKey1Code() == fcitx::kNoKeyCode);
     EXPECT(s.customKey2Code() == fcitx::kNoKeyCode);
@@ -181,6 +183,11 @@ void testScalarRoundTrip() {
         // the addon matches and hand-classifies, so losing it would take the
         // leader and the dual split down with it. 20 = the '#' key.
         s.captureCustomKey1(QStringLiteral("#"), 20);
+        // Custom-leader direction is orthogonal too: Custom 1 is enabled and
+        // reversed, while Custom 2 stays disabled but still carries a reverse
+        // flag, so the round-trip proves each persists on its own.
+        s.setCustomKey1Reverse(true);
+        s.setCustomKey2Reverse(true);
         s.setAppFilterMode(QStringLiteral("Blacklist"));
         s.setOverlayEnabled(true);
         s.setOverlayShowOnTrigger(true);
@@ -204,6 +211,9 @@ void testScalarRoundTrip() {
     EXPECT(s2.customKey1Enabled() == true);
     EXPECT(s2.customKey1() == QStringLiteral("#"));
     EXPECT(s2.customKey1Code() == 20);
+    EXPECT(s2.customKey1Reverse() == true);
+    EXPECT(s2.customKey2Enabled() == false);
+    EXPECT(s2.customKey2Reverse() == true);
     EXPECT(s2.appFilterMode() == QStringLiteral("Blacklist"));
     EXPECT(s2.overlayEnabled() == true);
     EXPECT(s2.overlayShowOnTrigger() == true);

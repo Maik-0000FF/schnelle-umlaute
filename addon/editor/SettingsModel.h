@@ -75,6 +75,8 @@ class SettingsModel : public QObject {
     // defined in exactly one place (hand_classifier.h) and is never restated.
     Q_PROPERTY(bool customKey1HasKey READ customKey1HasKey NOTIFY
                    customKey1CodeChanged)
+    Q_PROPERTY(bool customKey1Reverse READ customKey1Reverse WRITE
+                   setCustomKey1Reverse NOTIFY customKey1ReverseChanged)
     Q_PROPERTY(bool customKey2Enabled READ customKey2Enabled WRITE
                    setCustomKey2Enabled NOTIFY customKey2EnabledChanged)
     Q_PROPERTY(QString customKey2 READ customKey2 WRITE setCustomKey2 NOTIFY
@@ -82,6 +84,8 @@ class SettingsModel : public QObject {
     Q_PROPERTY(int customKey2Code READ customKey2Code NOTIFY customKey2CodeChanged)
     Q_PROPERTY(bool customKey2HasKey READ customKey2HasKey NOTIFY
                    customKey2CodeChanged)
+    Q_PROPERTY(bool customKey2Reverse READ customKey2Reverse WRITE
+                   setCustomKey2Reverse NOTIFY customKey2ReverseChanged)
 
     Q_PROPERTY(QString appFilterMode READ appFilterMode WRITE setAppFilterMode
                    NOTIFY appFilterModeChanged)
@@ -145,10 +149,12 @@ public:
     QString customKey1() const { return customKey1_; }
     int customKey1Code() const { return customKey1Code_; }
     bool customKey1HasKey() const { return customKey1Code_ != kNoKeyCode; }
+    bool customKey1Reverse() const { return customKey1Reverse_; }
     bool customKey2Enabled() const { return customKey2Enabled_; }
     QString customKey2() const { return customKey2_; }
     int customKey2Code() const { return customKey2Code_; }
     bool customKey2HasKey() const { return customKey2Code_ != kNoKeyCode; }
+    bool customKey2Reverse() const { return customKey2Reverse_; }
 
     // One captured key press sets both halves of a leader. Going through the
     // individual setters would write the config file twice and, in between,
@@ -199,8 +205,10 @@ public:
     void setLeaderDownReverse(bool v);
     void setCustomKey1Enabled(bool v);
     void setCustomKey1(const QString &v);
+    void setCustomKey1Reverse(bool v);
     void setCustomKey2Enabled(bool v);
     void setCustomKey2(const QString &v);
+    void setCustomKey2Reverse(bool v);
     void setAppFilterMode(const QString &v);
     void setOverlayEnabled(bool v);
     void setOverlayShowOnTrigger(bool v);
@@ -245,9 +253,11 @@ Q_SIGNALS:
     void customKey1EnabledChanged();
     void customKey1Changed();
     void customKey1CodeChanged();
+    void customKey1ReverseChanged();
     void customKey2EnabledChanged();
     void customKey2Changed();
     void customKey2CodeChanged();
+    void customKey2ReverseChanged();
     void leadersChanged();
     void appFilterModeChanged();
     void blacklistChanged();
@@ -293,9 +303,11 @@ private:
     bool customKey1Enabled_ = false;
     QString customKey1_;
     int customKey1Code_ = kNoKeyCode;
+    bool customKey1Reverse_ = false;
     bool customKey2Enabled_ = false;
     QString customKey2_;
     int customKey2Code_ = kNoKeyCode;
+    bool customKey2Reverse_ = false;
     QString appFilterMode_ = "Disabled";
     QStringList blacklist_;
     QStringList whitelist_;

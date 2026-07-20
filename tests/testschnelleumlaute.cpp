@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (158 tests)
+// Test Suite for Schnelle Umlaute (160 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -38,6 +38,7 @@
 // 152-154 Reverse cycling      arrow reverse steps back + wraps, reverse-start lands at last variant, forward+reverse mix in one session
 // 155     AltGr reverse        AltGr flagged reverse steps back + wraps inside a Space-started session
 // 156     Alt/AltGr split      each disabled Alt-key stays inert mid-gesture (Alt/AltGr enable independently)
+// 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // clang-format on
 
 #include <unistd.h>
@@ -201,9 +202,11 @@ static void configureLeaders(Instance *instance, bool space, bool left,
                              bool upReverse = false, bool downReverse = false,
                              bool altReverse = false, bool altGrReverse = false,
                              // Independent of alt: alt enables the left Alt,
-                             // altGr the right Alt / ISO_Level3_Shift. Appended
-                             // last so the many positional call sites stay valid.
-                             bool altGr = false) {
+                             // altGr the right Alt / ISO_Level3_Shift. These and
+                             // the custom-leader reverse flags are appended last
+                             // so the many positional call sites stay valid.
+                             bool altGr = false, bool customReverse = false,
+                             bool custom2Reverse = false) {
     auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
     RawConfig config;
     config.setValueByPath("Delay/Lowercase", "400");
@@ -228,11 +231,15 @@ static void configureLeaders(Instance *instance, bool space, bool left,
     config.setValueByPath("Leader/Custom/CustomKey", custom);
     config.setValueByPath("Leader/Custom/CustomKeyCode",
                           std::to_string(customCode));
+    config.setValueByPath("Leader/Custom/CustomKeyReverse",
+                          customReverse ? "True" : "False");
     config.setValueByPath("Leader/Custom/CustomKey2Enabled",
                           custom2.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey2", custom2);
     config.setValueByPath("Leader/Custom/CustomKey2Code",
                           std::to_string(custom2Code));
+    config.setValueByPath("Leader/Custom/CustomKey2Reverse",
+                          custom2Reverse ? "True" : "False");
     config.setValueByPath("AppFilter/Mode", "Disabled");
     addon->setConfig(config);
     setMappings(instance, {
@@ -1476,6 +1483,71 @@ void scheduleTests(Instance *instance) {
             << "Alt must not be consumed as leader when Alt is disabled";
         tf->call<ITestFrontend::destroyInputContext>(uuidB);
         FCITX_INFO() << "Test 156 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 157: Custom leader reverse steps back within a session
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 157;
+        FCITX_INFO() << "=== Test 157: Custom leader reverse steps back ===";
+        // Space forward; custom leader 'z' enabled and flagged reverse. The
+        // trailing customReverse flag reaches the custom key by its keycode.
+        configureLeaders(instance, true, false, false, false, false,
+                         /*alt=*/false, "z", "", kCodeZ, fcitx::kNoKeyCode,
+                         false, false, false, false, /*altReverse=*/false,
+                         /*altGrReverse=*/false, /*altGr=*/false,
+                         /*customReverse=*/true);
+        setMappings(instance, {{"a", "1,2,3"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test157");
+
+        // Hold 'a' + Space -> cycling starts at index 0 ("1").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Custom 'z' (reverse) from index 0 wraps to the last variant ("3").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_z, KeyStates(), kCodeZ), false);
+        // Release 'a' -> commits "3".
+        tf->call<ITestFrontend::pushCommitExpectation>("3");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 157 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 158: Custom leader reverse starts a fresh session at last variant
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 158;
+        FCITX_INFO()
+            << "=== Test 158: Custom reverse starts at last variant ===";
+        // Only the custom leader 'z', flagged reverse; no forward leader.
+        configureLeaders(instance, false, false, false, false, false,
+                         /*alt=*/false, "z", "", kCodeZ, fcitx::kNoKeyCode,
+                         false, false, false, false, /*altReverse=*/false,
+                         /*altGrReverse=*/false, /*altGr=*/false,
+                         /*customReverse=*/true);
+        setMappings(instance, {{"a", "1,2,3"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test158");
+
+        // Hold 'a' + custom 'z' (reverse) starts the session at the LAST
+        // variant "3".
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_z, KeyStates(), kCodeZ), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("3");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 158 PASSED";
     });
 
     // =========================================================================
@@ -6739,7 +6811,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 158 tests PASSED ===";
+                                FCITX_INFO() << "=== All 160 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });

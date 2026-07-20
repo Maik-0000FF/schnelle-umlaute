@@ -522,7 +522,7 @@ public:
                         const int n = static_cast<int>(it->second.size());
                         const int next =
                             (static_cast<int>(state->cyclingIndex_) +
-                             leaderStep(key.sym()) + n) %
+                             leaderStep(key, rawCode) + n) %
                             n;
                         state->cyclingIndex_ = static_cast<size_t>(next);
                         updateClientPreedit(ic,
@@ -591,12 +591,12 @@ public:
                         // session lands on the LAST variant, so a preset whose
                         // rarer variants sit at the end is reached without
                         // stepping past the common ones first. Any reverse
-                        // leader (arrow or Alt / AltGr) triggers this via
-                        // leaderStep; a forward start, and any single-output
+                        // leader (arrow, Alt / AltGr or custom) triggers this
+                        // via leaderStep; a forward start, and any single-output
                         // path (nothing to reverse), stays at 0.
                         const size_t startIdx =
                             (it->second.size() > 1 &&
-                             leaderStep(key.sym()) < 0)
+                             leaderStep(key, rawCode) < 0)
                                 ? it->second.size() - 1
                                 : 0;
                         state->cyclingInput_ = *state->waitingKey_;
@@ -1374,16 +1374,28 @@ private:
     }
 
     // Cycle step for a leader press: -1 when that key's reverse flag is set,
-    // +1 otherwise. Each arrow and each of Alt / AltGr carries its own flag, so
-    // any of them can go forward or backward independently. The step sign only
-    // moves the index; it is orthogonal to the Alt-gesture machinery (which
-    // keys off isAltLeaderSym, unchanged), so reversing Alt / AltGr needs
-    // nothing beyond this flag. Forward and reverse presses act on the same
-    // cyclingIndex_, so both can be mixed freely inside one session. Space is
-    // forward-only by design; custom leaders gain a direction in a later slice.
-    int leaderStep(KeySym sym) const {
+    // +1 otherwise. Each arrow, each of Alt / AltGr, and each custom leader
+    // carries its own flag, so any of them can go forward or backward
+    // independently. Arrows and Alt / AltGr are matched by keysym; a custom
+    // leader IS its physical key, so it is matched by keycode. The precedence
+    // (Alt / AltGr, then custom, then arrows) mirrors classifyLeader, so the
+    // step direction always comes from the same flag that classified the press.
+    // The step sign only moves the index; it is orthogonal to the Alt-gesture
+    // machinery (which keys off isAltLeaderSym, unchanged). Forward and reverse
+    // presses act on the same cyclingIndex_, so both can be mixed freely inside
+    // one session. Space is forward-only by design.
+    int leaderStep(const Key &key, int rawCode) const {
+        KeySym sym = key.sym();
         bool reverse = false;
-        if (sym == FcitxKey_Left)
+        if (isAltSym(sym))
+            reverse = *config_.leader->altReverse;
+        else if (isAltGrSym(sym))
+            reverse = *config_.leader->altGrReverse;
+        else if (matchCustomLeader(cachedCustomKeyCode_, rawCode))
+            reverse = *config_.leader->custom->customKeyReverse;
+        else if (matchCustomLeader(cachedCustomKey2Code_, rawCode))
+            reverse = *config_.leader->custom->customKey2Reverse;
+        else if (sym == FcitxKey_Left)
             reverse = *config_.leader->leftReverse;
         else if (sym == FcitxKey_Right)
             reverse = *config_.leader->rightReverse;
@@ -1391,10 +1403,6 @@ private:
             reverse = *config_.leader->upReverse;
         else if (sym == FcitxKey_Down)
             reverse = *config_.leader->downReverse;
-        else if (isAltSym(sym))
-            reverse = *config_.leader->altReverse;
-        else if (isAltGrSym(sym))
-            reverse = *config_.leader->altGrReverse;
         return reverse ? -1 : +1;
     }
 

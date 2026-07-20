@@ -6,7 +6,7 @@
 
 ### What changed
 
-- **Per-leader cycle direction.** Each arrow, and Alt and AltGr, can cycle forward or backward independently via a direction toggle next to its enable toggle. The `*Reverse` flags default to `False`, so existing setups keep stepping forward.
+- **Per-leader cycle direction.** Each arrow, Alt, AltGr, and each custom leader can cycle forward or backward independently via a direction toggle next to its enable toggle. The `*Reverse` flags default to `False`, so existing setups keep stepping forward.
 - **Alt and AltGr are separate leaders.** The former combined toggle is split into an Alt and an AltGr toggle, each enabled and directed on its own.
 
 ## Upgrading from v1.5.x to v1.6.0

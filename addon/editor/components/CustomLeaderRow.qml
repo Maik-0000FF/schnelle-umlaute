@@ -14,6 +14,8 @@ ColumnLayout {
 
     property string labelText: ""
     property bool enabledValue: false
+    // Cycle direction, like the built-in leaders: false = forward, true = reverse.
+    property bool reverseValue: false
     property string keyValue: ""
     // Whether a physical key has been captured. The model answers this, so the
     // "no key" sentinel keeps a single definition in C++ and is never restated
@@ -21,6 +23,7 @@ ColumnLayout {
     property bool keyAssigned: false
     property var mappingsModel: null
     signal enabledEdited(bool v)
+    signal reverseEdited(bool v)
     // One key press, one signal: the character and the physical key belong
     // together and are stored in a single write.
     signal keyCaptured(string ch, int code)
@@ -77,10 +80,15 @@ ColumnLayout {
         return Array.from(s).length === 1 && !/\s/.test(s);
     }
 
-    LabeledSwitch {
+    // Enable and direction share the same row and column layout as the built-in
+    // directional leaders, so a custom leader lines up with and reads like them.
+    // The key-capture field sits below (visible only while enabled).
+    DirectionalLeaderRow {
         labelText: root.labelText
-        checked: root.enabledValue
-        onToggled: (v) => root.enabledEdited(v)
+        enabledValue: root.enabledValue
+        reverseValue: root.reverseValue
+        onEnabledToggled: (v) => root.enabledEdited(v)
+        onReverseToggled: (v) => root.reverseEdited(v)
     }
 
     RowLayout {
