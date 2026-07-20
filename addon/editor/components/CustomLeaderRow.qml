@@ -16,6 +16,8 @@ ColumnLayout {
     property bool enabledValue: false
     // Cycle direction, like the built-in leaders: false = forward, true = reverse.
     property bool reverseValue: false
+    // Hover description for the enable toggle (see issue #120).
+    property string tooltipText: ""
     property string keyValue: ""
     // Whether a physical key has been captured. The model answers this, so the
     // "no key" sentinel keeps a single definition in C++ and is never restated
@@ -103,6 +105,7 @@ ColumnLayout {
         labelText: root.labelText
         enabledValue: root.enabledValue
         reverseValue: root.reverseValue
+        tooltipText: root.tooltipText
         onEnabledToggled: (v) => root.enabledEdited(v)
         onReverseToggled: (v) => root.reverseEdited(v)
     }
@@ -145,7 +148,7 @@ ColumnLayout {
             Text {
                 anchors.centerIn: parent
                 text: root.capturing
-                    ? (root.modifierHeld ? qsTr("Without modifiers") : qsTr("Press a key, or Backspace to clear"))
+                    ? (root.modifierHeld ? qsTr("Without modifiers") : qsTr("Press a key…"))
                     : (root.keyValue.length > 0
                         ? root.keyValue
                         : (root.specialKeyName.length > 0
