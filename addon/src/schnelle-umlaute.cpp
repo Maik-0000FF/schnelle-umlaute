@@ -1149,10 +1149,21 @@ private:
             leaders += "Alt ";
         if (*config_.leader->altGr)
             leaders += "AltGr ";
-        if (!cachedCustomKey_.empty())
-            leaders += "Custom1('" + cachedCustomKey_ + "') ";
-        if (!cachedCustomKey2_.empty())
-            leaders += "Custom2('" + cachedCustomKey2_ + "') ";
+        // Gate on the keycode, not the character: a keycode-only leader (a
+        // navigation key like Home) has an empty character but is still active,
+        // so show its keycode instead of dropping it from the summary.
+        if (cachedCustomKeyCode_ != kNoKeyCode)
+            leaders += "Custom1('" +
+                       (cachedCustomKey_.empty()
+                            ? "#" + std::to_string(cachedCustomKeyCode_)
+                            : cachedCustomKey_) +
+                       "') ";
+        if (cachedCustomKey2Code_ != kNoKeyCode)
+            leaders += "Custom2('" +
+                       (cachedCustomKey2_.empty()
+                            ? "#" + std::to_string(cachedCustomKey2Code_)
+                            : cachedCustomKey2_) +
+                       "') ";
         if (leaders.empty())
             leaders = "None ";
 
