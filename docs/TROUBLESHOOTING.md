@@ -309,6 +309,16 @@ A correctly behaving field replaces the preedit with the commit, so the characte
 **Workaround:**
 - Switch to your base keyboard layout (<kbd>Ctrl</kbd> + <kbd>Space</kbd>) in the affected field, then switch back afterwards
 
+## Web app doesn't react to a mapped character's keypress (auto-advance, shortcuts)
+
+**Symptom:** In some web apps, an action that normally fires while you type does not trigger for mapped characters. A reported example is Memrise, whose auto-advance to the next question stops working when a correct answer contains a mapped letter, while answers with only unmapped letters advance as usual.
+
+**Cause:** This is **not a bug in the addon**, and it is inherent to how input methods deliver text. A mapped character is delivered as committed text (composition), not as a raw key event, so typing it produces no `keydown`/`keyup` for that letter, only a text change. An unmapped letter still produces a normal key event. If a web app's action listens for key events rather than for the text changing, it won't fire for mapped characters. The character itself is still inserted correctly; only the app's key-triggered reaction is missing.
+
+**Affected:** Web apps whose behavior is driven by key events, such as auto-advance on keypress or single-key shortcuts. Native application fields, terminals, and plain HTML inputs are not affected.
+
+**Note:** This can't be addressed per site, since it follows from how input methods deliver text rather than from the addon or the browser.
+
 ## General compatibility note
 
 Not all applications fully support Fcitx5's input method protocol. The addon relies on the application correctly handling:
