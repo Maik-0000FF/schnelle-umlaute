@@ -413,7 +413,7 @@ Item {
                             Layout.preferredWidth: 20
                             horizontalAlignment: Text.AlignHCenter
                             ThemedToolTip {
-                                visible: activeMouse.containsMouse
+                                hovered: activeMouse.containsMouse
                                 text: prow.isActive ? qsTr("Active profile")
                                                     : qsTr("Set as active (A)")
                             }
@@ -448,7 +448,7 @@ Item {
                             Layout.preferredWidth: 20
                             horizontalAlignment: Text.AlignHCenter
                             ThemedToolTip {
-                                visible: favMouse.containsMouse
+                                hovered: favMouse.containsMouse
                                 text: prow.favorite
                                       ? qsTr("Favorite (in cycle)")
                                       : qsTr("Add to cycle favorites (F)")
@@ -558,7 +558,7 @@ Item {
                             }
                             background: Rectangle { color: "transparent" }
                             ThemedToolTip {
-                                visible: parent.hovered
+                                hovered: parent.hovered
                                 text: qsTr("Rename profile (F2)")
                             }
                             onClicked: list.renamingIndex = prow.index
@@ -584,7 +584,7 @@ Item {
                             }
                             background: Rectangle { color: "transparent" }
                             ThemedToolTip {
-                                visible: parent.hovered
+                                hovered: parent.hovered
                                 text: qsTr("Delete profile (Del)")
                             }
                             onClicked: {

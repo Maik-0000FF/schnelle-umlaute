@@ -215,6 +215,11 @@ QtObject {
     readonly property int animShort: 150
     readonly property int animMed:   220
 
+    // Hover tooltips: one delay before they appear and one max width (so long
+    // text wraps instead of running off), shared by every ThemedToolTip.
+    readonly property int tooltipDelay: 1500
+    readonly property int tooltipMaxWidth: 280
+
     // Action icon glyphs, one source so the editor uses a consistent set.
     // iconCancel (✗, abort an edit) and iconClear (✕, empty a field) are
     // intentionally distinct glyphs for their distinct meanings.

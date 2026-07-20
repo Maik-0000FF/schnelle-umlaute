@@ -151,6 +151,7 @@ Item {
 
                     LabeledSwitch {
                         labelText: qsTr("Space")
+                        tooltipText: qsTr("Use Space to trigger and cycle accents.")
                         checked: root.settingsModel ? root.settingsModel.leaderSpace : false
                         onToggled: (v) => root.settingsModel.leaderSpace = v
                     }
@@ -160,6 +161,7 @@ Item {
                     // way, independently.
                     DirectionalLeaderRow {
                         labelText: qsTr("Left Arrow")
+                        tooltipText: qsTr("Use the Left arrow to trigger and cycle accents.")
                         enabledValue: root.settingsModel ? root.settingsModel.leaderLeft : false
                         reverseValue: root.settingsModel ? root.settingsModel.leaderLeftReverse : false
                         onEnabledToggled: (v) => root.settingsModel.leaderLeft = v
@@ -167,6 +169,7 @@ Item {
                     }
                     DirectionalLeaderRow {
                         labelText: qsTr("Right Arrow")
+                        tooltipText: qsTr("Use the Right arrow to trigger and cycle accents.")
                         enabledValue: root.settingsModel ? root.settingsModel.leaderRight : false
                         reverseValue: root.settingsModel ? root.settingsModel.leaderRightReverse : false
                         onEnabledToggled: (v) => root.settingsModel.leaderRight = v
@@ -174,6 +177,7 @@ Item {
                     }
                     DirectionalLeaderRow {
                         labelText: qsTr("Up Arrow")
+                        tooltipText: qsTr("Use the Up arrow to trigger and cycle accents.")
                         enabledValue: root.settingsModel ? root.settingsModel.leaderUp : false
                         reverseValue: root.settingsModel ? root.settingsModel.leaderUpReverse : false
                         onEnabledToggled: (v) => root.settingsModel.leaderUp = v
@@ -181,6 +185,7 @@ Item {
                     }
                     DirectionalLeaderRow {
                         labelText: qsTr("Down Arrow")
+                        tooltipText: qsTr("Use the Down arrow to trigger and cycle accents.")
                         enabledValue: root.settingsModel ? root.settingsModel.leaderDown : false
                         reverseValue: root.settingsModel ? root.settingsModel.leaderDownReverse : false
                         onEnabledToggled: (v) => root.settingsModel.leaderDown = v
@@ -188,6 +193,7 @@ Item {
                     }
                     DirectionalLeaderRow {
                         labelText: qsTr("Alt")
+                        tooltipText: qsTr("Use the left Alt key to trigger and cycle accents.")
                         enabledValue: root.settingsModel ? root.settingsModel.leaderAlt : false
                         reverseValue: root.settingsModel ? root.settingsModel.leaderAltReverse : false
                         onEnabledToggled: (v) => root.settingsModel.leaderAlt = v
@@ -195,6 +201,7 @@ Item {
                     }
                     DirectionalLeaderRow {
                         labelText: qsTr("AltGr")
+                        tooltipText: qsTr("Use AltGr (the right Alt) to trigger and cycle accents.")
                         enabledValue: root.settingsModel ? root.settingsModel.leaderAltGr : false
                         reverseValue: root.settingsModel ? root.settingsModel.leaderAltGrReverse : false
                         onEnabledToggled: (v) => root.settingsModel.leaderAltGr = v
@@ -209,6 +216,7 @@ Item {
 
                     CustomLeaderRow {
                         labelText: qsTr("Custom Leader 1")
+                        tooltipText: qsTr("Use a custom physical key to trigger and cycle accents.")
                         enabledValue: root.settingsModel ? root.settingsModel.customKey1Enabled : false
                         reverseValue: root.settingsModel ? root.settingsModel.customKey1Reverse : false
                         keyValue: root.settingsModel ? root.settingsModel.customKey1 : ""
@@ -224,6 +232,7 @@ Item {
 
                     CustomLeaderRow {
                         labelText: qsTr("Custom Leader 2 (hand-split)")
+                        tooltipText: qsTr("Use a second custom key on the opposite hand to trigger and cycle accents.")
                         enabledValue: root.settingsModel ? root.settingsModel.customKey2Enabled : false
                         reverseValue: root.settingsModel ? root.settingsModel.customKey2Reverse : false
                         keyValue: root.settingsModel ? root.settingsModel.customKey2 : ""
@@ -258,6 +267,7 @@ Item {
                         // the plain master switch, not "while cycling" which
                         // undersold its scope.
                         labelText: qsTr("Show overlay")
+                        tooltipText: qsTr("Show the on-screen overlay during the accent gesture.")
                         // Always available: the "At text cursor" placement
                         // renders through fcitx5's input panel and needs no
                         // layer-shell. Only the Grid/MouseCursor placements and
@@ -371,6 +381,7 @@ Item {
 
                     LabeledSwitch {
                         labelText: qsTr("Show timing progress bar")
+                        tooltipText: qsTr("Show a bar counting down the accent gesture timing.")
                         // Daemon-only visual (needs layer-shell, no effect in
                         // caret placement). Hide it there like the position
                         // picker instead of leaving a dead disabled switch.
@@ -405,6 +416,7 @@ Item {
                     // global candidate window (see warning below).
                     LabeledSwitch {
                         labelText: qsTr("Match candidate window to this theme")
+                        tooltipText: qsTr("Style fcitx5's candidate window to match this theme (At-text-cursor placement).")
                         visible: root.settingsModel
                             && root.settingsModel.overlayEnabled
                             && root.settingsModel.overlayPlacement === "TextCaret"
@@ -436,6 +448,7 @@ Item {
 
                     LabeledSwitch {
                         labelText: qsTr("Preview in the trigger window")
+                        tooltipText: qsTr("Show the accent preview the moment the gesture fires.")
                         // Applies to every placement (the caret path shows the
                         // same preview), so it only depends on the overlay
                         // being enabled, not on layer-shell.

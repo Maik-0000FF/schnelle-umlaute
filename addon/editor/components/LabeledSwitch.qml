@@ -9,6 +9,8 @@ RowLayout {
 
     property string labelText: ""
     property bool checked: false
+    // Optional hover description for the toggle (see issue #120). Empty = none.
+    property string tooltipText: ""
     signal toggled(bool v)
 
     opacity: root.enabled ? 1.0 : 0.4
@@ -28,6 +30,7 @@ RowLayout {
     }
 
     ThemedSwitch {
+        id: sw
         checked: root.checked
         // A refused change (e.g. the leader guard in SettingsModel) must snap the
         // switch back. An interactive toggle breaks the `checked` binding, so
@@ -37,6 +40,10 @@ RowLayout {
             const requested = checked;
             checked = Qt.binding(() => root.checked);
             root.toggled(requested);
+        }
+        ThemedToolTip {
+            hovered: root.tooltipText.length > 0 && sw.hovered
+            text: root.tooltipText
         }
     }
 

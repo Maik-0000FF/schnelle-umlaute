@@ -18,6 +18,12 @@ RowLayout {
     property string labelText: ""
     property bool enabledValue: false   // is this key a leader
     property bool reverseValue: false   // false = forward (+1), true = reverse (-1)
+    // Hover descriptions (see issue #120): one for the enable toggle, one for
+    // the direction toggle. The direction meaning is the same for every leader,
+    // so it carries a shared default.
+    property string tooltipText: ""
+    property string directionTooltipText:
+        qsTr("Cycle backward through the variants instead of forward.")
     signal enabledToggled(bool v)
     signal reverseToggled(bool v)
 
@@ -35,6 +41,7 @@ RowLayout {
 
     // Enable toggle, in the shared toggle column.
     ThemedSwitch {
+        id: enableSw
         checked: root.enabledValue
         // A refused change (the leader guard in SettingsModel) must snap the
         // switch back. An interactive toggle breaks the `checked` binding, so
@@ -45,17 +52,26 @@ RowLayout {
             checked = Qt.binding(() => root.enabledValue);
             root.enabledToggled(requested);
         }
+        ThemedToolTip {
+            hovered: root.tooltipText.length > 0 && enableSw.hovered
+            text: root.tooltipText
+        }
     }
 
     // Direction toggle. Extra left margin sets it apart from the enable
     // toggle, so the two are not read as one control.
     ThemedSwitch {
+        id: directionSw
         Layout.leftMargin: Theme.spacingLg
         checked: root.reverseValue
         enabled: root.enabledValue
         opacity: root.enabledValue ? 1.0 : 0.4
         Behavior on opacity { NumberAnimation { duration: Theme.animShort } }
         onToggled: root.reverseToggled(checked)
+        ThemedToolTip {
+            hovered: root.directionTooltipText.length > 0 && directionSw.hovered
+            text: root.directionTooltipText
+        }
     }
 
     // Direction word, naming the current cycle direction.
