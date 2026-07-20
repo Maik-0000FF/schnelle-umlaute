@@ -22,14 +22,15 @@ RowLayout {
     signal reverseToggled(bool v)
 
     // Fixed-width label column, shared with LabeledSwitch so the enable toggle
-    // below lines up with every other toggle.
+    // below lines up with every other toggle. A label longer than the column
+    // wraps onto a second line instead of truncating, matching LabeledSwitch.
     Text {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBody
         Layout.preferredWidth: Theme.settingLabelWidth
-        elide: Text.ElideRight
+        wrapMode: Text.WordWrap
     }
 
     // Enable toggle, in the shared toggle column.

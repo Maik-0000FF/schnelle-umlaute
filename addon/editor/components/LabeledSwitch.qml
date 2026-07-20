@@ -15,14 +15,16 @@ RowLayout {
     Behavior on opacity { NumberAnimation { duration: Theme.animShort } }
 
     // Fixed-width label column so the toggle lines up with every other toggle
-    // row across the settings cards.
+    // row across the settings cards. A label longer than the column (e.g. a
+    // longer translation) wraps onto a second line instead of being truncated,
+    // so no text is lost and the column keeps its shared width.
     Text {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBody
         Layout.preferredWidth: Theme.settingLabelWidth
-        elide: Text.ElideRight
+        wrapMode: Text.WordWrap
     }
 
     ThemedSwitch {

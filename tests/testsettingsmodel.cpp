@@ -127,12 +127,17 @@ void testDefaultsOnMissingFile() {
     EXPECT(s.leaderUp() == false);
     EXPECT(s.leaderDown() == false);
     EXPECT(s.leaderAlt() == false);
+    EXPECT(s.leaderAltReverse() == false);
+    EXPECT(s.leaderAltGr() == false);
+    EXPECT(s.leaderAltGrReverse() == false);
     EXPECT(s.leaderLeftReverse() == false);
     EXPECT(s.leaderRightReverse() == false);
     EXPECT(s.leaderUpReverse() == false);
     EXPECT(s.leaderDownReverse() == false);
     EXPECT(s.customKey1Enabled() == false);
     EXPECT(s.customKey2Enabled() == false);
+    EXPECT(s.customKey1Reverse() == false);
+    EXPECT(s.customKey2Reverse() == false);
     // No key captured yet. Never invent a position for an unset leader.
     EXPECT(s.customKey1Code() == fcitx::kNoKeyCode);
     EXPECT(s.customKey2Code() == fcitx::kNoKeyCode);
@@ -159,7 +164,11 @@ void testScalarRoundTrip() {
         s.setDelayUppercaseMin(225);
         s.setLeaderSpace(false);
         s.setLeaderLeft(true);
+        // The "Alt forward, AltGr reverse" pairing, plus the orthogonality of
+        // the enable and reverse flags, must survive the round-trip.
         s.setLeaderAlt(true);
+        s.setLeaderAltGr(true);
+        s.setLeaderAltGrReverse(true);
         // Reverse flags are orthogonal to the enable flags: leaderLeftReverse
         // pairs with an enabled Left, leaderDownReverse is set while Down stays
         // disabled, so the round-trip proves the flag persists on its own.
@@ -174,6 +183,11 @@ void testScalarRoundTrip() {
         // the addon matches and hand-classifies, so losing it would take the
         // leader and the dual split down with it. 20 = the '#' key.
         s.captureCustomKey1(QStringLiteral("#"), 20);
+        // Custom-leader direction is orthogonal too: Custom 1 is enabled and
+        // reversed, while Custom 2 stays disabled but still carries a reverse
+        // flag, so the round-trip proves each persists on its own.
+        s.setCustomKey1Reverse(true);
+        s.setCustomKey2Reverse(true);
         s.setAppFilterMode(QStringLiteral("Blacklist"));
         s.setOverlayEnabled(true);
         s.setOverlayShowOnTrigger(true);
@@ -187,6 +201,9 @@ void testScalarRoundTrip() {
     EXPECT(s2.leaderSpace() == false);
     EXPECT(s2.leaderLeft() == true);
     EXPECT(s2.leaderAlt() == true);
+    EXPECT(s2.leaderAltReverse() == false);
+    EXPECT(s2.leaderAltGr() == true);
+    EXPECT(s2.leaderAltGrReverse() == true);
     EXPECT(s2.leaderLeftReverse() == true);
     EXPECT(s2.leaderRightReverse() == false);
     EXPECT(s2.leaderUpReverse() == false);
@@ -194,6 +211,9 @@ void testScalarRoundTrip() {
     EXPECT(s2.customKey1Enabled() == true);
     EXPECT(s2.customKey1() == QStringLiteral("#"));
     EXPECT(s2.customKey1Code() == 20);
+    EXPECT(s2.customKey1Reverse() == true);
+    EXPECT(s2.customKey2Enabled() == false);
+    EXPECT(s2.customKey2Reverse() == true);
     EXPECT(s2.appFilterMode() == QStringLiteral("Blacklist"));
     EXPECT(s2.overlayEnabled() == true);
     EXPECT(s2.overlayShowOnTrigger() == true);
