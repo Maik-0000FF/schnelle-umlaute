@@ -217,7 +217,7 @@ QtObject {
 
     // Hover tooltips: one delay before they appear and one max width (so long
     // text wraps instead of running off), shared by every ThemedToolTip.
-    readonly property int tooltipDelay: 600
+    readonly property int tooltipDelay: 1500
     readonly property int tooltipMaxWidth: 280
 
     // Action icon glyphs, one source so the editor uses a consistent set.

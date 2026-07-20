@@ -17,6 +17,13 @@ ToolTip {
     font.pixelSize: Theme.fontBody
     padding: Theme.spacingSm
 
+    // Cap the tooltip's own width so the box is never wider than the cap; the
+    // content Text (below) then wraps to fill it. Sizing the Text alone would
+    // not shrink the box, since a ToolTip sizes to its content's natural
+    // single-line width. Short text keeps its natural width.
+    implicitWidth: Math.min(implicitContentWidth + leftPadding + rightPadding,
+                            Theme.tooltipMaxWidth)
+
     // Hover trigger with the shared delay. `visible` is driven imperatively
     // here, so binding `visible` directly stays available for non-hover callers.
     property bool hovered: false
@@ -39,9 +46,8 @@ ToolTip {
         color: Theme.text
         font: tip.font
         wrapMode: Text.WordWrap
-        // Cap the width so long text wraps onto more lines instead of running
-        // off the window; short text keeps its natural single-line width.
-        width: Math.min(implicitWidth, Theme.tooltipMaxWidth)
+        // Fill the tooltip's (capped) content area, so long text wraps.
+        width: tip.availableWidth
     }
 
     background: Rectangle {
