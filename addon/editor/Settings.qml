@@ -132,7 +132,22 @@ Item {
                 }
 
                 SettingsCard {
+                    id: leaderCard
                     titleText: qsTr("Leader Keys")
+
+                    // Reactive note for the "at least one leader" guard: the
+                    // model refuses to turn off the last effective leader and
+                    // the switch snaps back, so surface why. Cleared once a
+                    // leader is added again (effective count rises above one).
+                    property bool guardHint: false
+                    Connections {
+                        target: root.settingsModel
+                        function onLeaderRemovalBlocked() { leaderCard.guardHint = true; }
+                        function onLeadersChanged() {
+                            if (root.settingsModel && root.settingsModel.effectiveLeaderCount > 1)
+                                leaderCard.guardHint = false;
+                        }
+                    }
 
                     LabeledSwitch {
                         labelText: qsTr("Space")
@@ -214,6 +229,17 @@ Item {
                         onEnabledEdited: (v) => root.settingsModel.customKey2Enabled = v
                         onReverseEdited: (v) => root.settingsModel.customKey2Reverse = v
                         onKeyCaptured: (ch, code) => root.settingsModel.captureCustomKey2(ch, code)
+                    }
+
+                    Text {
+                        visible: leaderCard.guardHint
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.spacingXs
+                        text: qsTr("At least one leader must stay active, so this one can't be turned off.")
+                        color: Theme.warning
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontBody
+                        wrapMode: Text.WordWrap
                     }
                 }
 
