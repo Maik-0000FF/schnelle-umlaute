@@ -41,6 +41,16 @@ class SettingsModel : public QObject {
                    leaderDownChanged)
     Q_PROPERTY(bool leaderAlt READ leaderAlt WRITE setLeaderAlt NOTIFY
                    leaderAltChanged)
+    // Per-arrow cycle direction: false steps forward, true steps backward.
+    // Orthogonal to the enable flags above, so any arrow can go either way.
+    Q_PROPERTY(bool leaderLeftReverse READ leaderLeftReverse WRITE
+                   setLeaderLeftReverse NOTIFY leaderLeftReverseChanged)
+    Q_PROPERTY(bool leaderRightReverse READ leaderRightReverse WRITE
+                   setLeaderRightReverse NOTIFY leaderRightReverseChanged)
+    Q_PROPERTY(bool leaderUpReverse READ leaderUpReverse WRITE
+                   setLeaderUpReverse NOTIFY leaderUpReverseChanged)
+    Q_PROPERTY(bool leaderDownReverse READ leaderDownReverse WRITE
+                   setLeaderDownReverse NOTIFY leaderDownReverseChanged)
 
     // Each custom leader is a physical key. One key press in CustomLeaderRow
     // captures both halves: the character, which is only displayed, and the
@@ -118,6 +128,10 @@ public:
     bool leaderUp() const { return leaderUp_; }
     bool leaderDown() const { return leaderDown_; }
     bool leaderAlt() const { return leaderAlt_; }
+    bool leaderLeftReverse() const { return leaderLeftReverse_; }
+    bool leaderRightReverse() const { return leaderRightReverse_; }
+    bool leaderUpReverse() const { return leaderUpReverse_; }
+    bool leaderDownReverse() const { return leaderDownReverse_; }
     bool customKey1Enabled() const { return customKey1Enabled_; }
     QString customKey1() const { return customKey1_; }
     int customKey1Code() const { return customKey1Code_; }
@@ -167,6 +181,10 @@ public:
     void setLeaderUp(bool v);
     void setLeaderDown(bool v);
     void setLeaderAlt(bool v);
+    void setLeaderLeftReverse(bool v);
+    void setLeaderRightReverse(bool v);
+    void setLeaderUpReverse(bool v);
+    void setLeaderDownReverse(bool v);
     void setCustomKey1Enabled(bool v);
     void setCustomKey1(const QString &v);
     void setCustomKey2Enabled(bool v);
@@ -205,6 +223,10 @@ Q_SIGNALS:
     void leaderUpChanged();
     void leaderDownChanged();
     void leaderAltChanged();
+    void leaderLeftReverseChanged();
+    void leaderRightReverseChanged();
+    void leaderUpReverseChanged();
+    void leaderDownReverseChanged();
     void customKey1EnabledChanged();
     void customKey1Changed();
     void customKey1CodeChanged();
@@ -246,6 +268,10 @@ private:
     bool leaderUp_ = false;
     bool leaderDown_ = false;
     bool leaderAlt_ = false;
+    bool leaderLeftReverse_ = false;
+    bool leaderRightReverse_ = false;
+    bool leaderUpReverse_ = false;
+    bool leaderDownReverse_ = false;
     bool customKey1Enabled_ = false;
     QString customKey1_;
     int customKey1Code_ = kNoKeyCode;
