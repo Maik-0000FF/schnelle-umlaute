@@ -79,7 +79,7 @@ elif [ -f "$ENV_FILE" ]; then
         write_env_file
         echo -e "  ${GREEN}✓ Updated: $ENV_FILE${NC}"
     else
-        echo -e "  ${YELLOW}Skipped — make sure the fcitx5 input-method variables are set elsewhere.${NC}"
+        echo -e "  ${YELLOW}Skipped. Make sure the fcitx5 input-method variables are set elsewhere.${NC}"
     fi
 else
     write_env_file
