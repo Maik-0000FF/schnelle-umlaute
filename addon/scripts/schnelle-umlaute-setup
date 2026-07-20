@@ -23,24 +23,51 @@ fi
 echo -e "${BLUE}=== Schnelle Umlaute — User Setup ===${NC}"
 echo
 
+# Session/desktop, needed both for the environment payload (KDE Plasma Wayland
+# drops the redundant GTK/QT modules) and for the autostart choice below. The
+# canonical spec for the reduced-vs-full decision is addon/src/session_env.h;
+# this mirrors it because the AUR helper ships without the source tree.
+SESSION="${XDG_SESSION_TYPE:-unknown}"
+DESKTOP="${XDG_CURRENT_DESKTOP:-unknown}"
+
+# True when GTK_IM_MODULE/QT_IM_MODULE should be dropped: KDE Plasma Wayland
+# only (KWin serves the native text-input protocol; XMODIFIERS still covers
+# XWayland). KDE X11 and everything else keep the full set.
+reduced_env() { [ "$SESSION" = "wayland" ] && [ "$DESKTOP" = "KDE" ]; }
+
 # --- 1. Environment variables ---------------------------------------------
 ENV_FILE="$HOME/.config/environment.d/fcitx5.conf"
 mkdir -p "$(dirname "$ENV_FILE")"
 
 write_env_file() {
-    cat > "$ENV_FILE" <<'EOF'
+    if reduced_env; then
+        cat > "$ENV_FILE" <<'EOF'
+XMODIFIERS=@im=fcitx
+GLFW_IM_MODULE=ibus
+EOF
+    else
+        cat > "$ENV_FILE" <<'EOF'
 GTK_IM_MODULE=fcitx
 QT_IM_MODULE=fcitx
 XMODIFIERS=@im=fcitx
 GLFW_IM_MODULE=ibus
 EOF
+    fi
+}
+
+# "Already configured" == the file holds what this desktop needs: on KDE Plasma
+# Wayland just XMODIFIERS (a legacy full file also passes); otherwise all three
+# canonical lines.
+env_already_configured() {
+    [ -f "$ENV_FILE" ] || return 1
+    grep -q "^XMODIFIERS=@im=fcitx$" "$ENV_FILE" || return 1
+    reduced_env && return 0
+    grep -q "^GTK_IM_MODULE=fcitx$" "$ENV_FILE" \
+        && grep -q "^QT_IM_MODULE=fcitx$" "$ENV_FILE"
 }
 
 echo -e "${BLUE}[1/2] Environment variables${NC}"
-if [ -f "$ENV_FILE" ] \
-        && grep -q "^GTK_IM_MODULE=fcitx$" "$ENV_FILE" \
-        && grep -q "^QT_IM_MODULE=fcitx$" "$ENV_FILE" \
-        && grep -q "^XMODIFIERS=@im=fcitx$" "$ENV_FILE"; then
+if env_already_configured; then
     echo -e "  ${GREEN}✓ Already configured: $ENV_FILE${NC}"
 elif [ -f "$ENV_FILE" ]; then
     echo -e "  ${YELLOW}Existing file: $ENV_FILE${NC}"
@@ -52,7 +79,7 @@ elif [ -f "$ENV_FILE" ]; then
         write_env_file
         echo -e "  ${GREEN}✓ Updated: $ENV_FILE${NC}"
     else
-        echo -e "  ${YELLOW}Skipped — make sure GTK/QT_IM_MODULE=fcitx and XMODIFIERS=@im=fcitx are set elsewhere.${NC}"
+        echo -e "  ${YELLOW}Skipped — make sure the fcitx5 input-method variables are set elsewhere.${NC}"
     fi
 else
     write_env_file
@@ -61,8 +88,6 @@ fi
 echo
 
 # --- 2. Autostart (session-aware) -----------------------------------------
-SESSION="${XDG_SESSION_TYPE:-unknown}"
-DESKTOP="${XDG_CURRENT_DESKTOP:-unknown}"
 AUTOSTART_FILE="$HOME/.config/autostart/org.fcitx.Fcitx5.desktop"
 mkdir -p "$(dirname "$AUTOSTART_FILE")"
 

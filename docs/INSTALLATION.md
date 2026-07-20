@@ -88,7 +88,7 @@ sudo cmake --install .
 schnelle-umlaute-setup
 ```
 
-Writes `~/.config/environment.d/fcitx5.conf` (env-vars: GTK/Qt/X11) and configures autostart for your session (KDE Wayland gets `Hidden=true` because KWin handles startup; other sessions get a regular XDG autostart entry). Idempotent, safe to re-run.
+Writes `~/.config/environment.d/fcitx5.conf` (the fcitx5 input-method env-vars; on KDE Plasma Wayland the `GTK_IM_MODULE`/`QT_IM_MODULE` pair is omitted because KWin makes it redundant, keeping only `XMODIFIERS` and `GLFW_IM_MODULE`) and configures autostart for your session (KDE Wayland gets `Hidden=true` because KWin handles startup; other sessions get a regular XDG autostart entry). Idempotent, safe to re-run.
 
 **5. Logout and Login**
 

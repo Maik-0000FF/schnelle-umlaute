@@ -223,6 +223,21 @@ If you see a warning about Fcitx5 not being launched by KWin, fix it for optimal
 
 This enables the native Wayland input method protocol and eliminates the warning.
 
+## KDE Wayland users: "Wayland Diagnose" warning (`GTK_IM_MODULE`/`QT_IM_MODULE`)
+
+**Symptom:** On KDE Plasma Wayland, fcitx5 shows an advisory pop-up on login: *"Detect GTK_IM_MODULE and QT_IM_MODULE being set and Wayland input method frontend is working. It is recommended to use Wayland input method frontend."* This is fcitx5's own diagnostic, not an error, and is separate from the "should be launched by KWin" warning above.
+
+**Cause:** On KDE Plasma Wayland, KWin serves the native text-input protocol, so `GTK_IM_MODULE=fcitx` and `QT_IM_MODULE=fcitx` are redundant and fcitx5 flags them. Fresh installs no longer write those two on KDE Wayland (only `XMODIFIERS` and `GLFW_IM_MODULE`), but a file created by an earlier version still has them.
+
+**Fix:** Get the reduced environment file. Either:
+
+- Re-run the installer (`schnelle-umlaute-setup`, or `./install.sh`), which overwrites the file with the reduced set, then log out and back in; or
+- Edit `~/.config/environment.d/fcitx5.conf` by hand: remove the `GTK_IM_MODULE` and `QT_IM_MODULE` lines, keep `XMODIFIERS=@im=fcitx`, then log out and back in.
+
+Your apps keep working, including Chromium with `--ozone-platform=x11` (X11/XWayland apps reach fcitx5 through `XMODIFIERS`). If a single app ever loses fcitx, set `GTK_IM_MODULE`/`QT_IM_MODULE` just for that one app.
+
+Upstream background (optional, dense): the fcitx5 wiki [Using Fcitx 5 on Wayland → KDE Plasma](https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland#KDE_Plasma), the same page the warning links to.
+
 ## Input method not shared across applications
 
 By default, Fcitx5 remembers the input method **per application**. If you switch to "Schnelle Umlaute" in Firefox, the terminal may still use the US keyboard.

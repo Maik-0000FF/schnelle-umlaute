@@ -43,7 +43,30 @@ struct SessionEnvInfo {
     // Compositor config file the snippet belongs in, e.g.
     // "~/.config/hypr/hyprland.conf". Empty when not known precisely.
     std::string configPath;
+    // Whether this desktop needs GTK_IM_MODULE / QT_IM_MODULE set. False only on
+    // KDE Plasma Wayland, where KWin drives the native text-input protocol and
+    // fcitx5 flags those two variables as redundant ("Wayland Diagnose"). True
+    // everywhere else, including KDE X11 whose apps still need them. Orthogonal
+    // to `mechanism`: this answers "which variables", not "how delivered".
+    bool needsImModules = true;
 };
+
+// The ~/.config/environment.d/fcitx5.conf payload for a session, and the single
+// canonical source of it. XMODIFIERS (XWayland / X11 apps reach fcitx5 through
+// its own XIM server) and GLFW_IM_MODULE are always written; GTK_IM_MODULE /
+// QT_IM_MODULE are added only when the desktop needs them (see
+// SessionEnvInfo::needsImModules). EnvSetup.cpp consumes this; the install.sh
+// and schnelle-umlaute-setup shell payloads mirror it and point back here.
+inline std::string imEnvironmentdPayload(bool needsImModules) {
+    std::string out;
+    if (needsImModules) {
+        out += "GTK_IM_MODULE=fcitx\n";
+        out += "QT_IM_MODULE=fcitx\n";
+    }
+    out += "XMODIFIERS=@im=fcitx\n";
+    out += "GLFW_IM_MODULE=ibus\n";
+    return out;
+}
 
 namespace session_env_detail {
 
@@ -224,6 +247,16 @@ inline SessionEnvInfo classifySessionEnv(const char *sessionType,
                        "QT_IM_MODULE=fcitx\n"
                        "XMODIFIERS=@im=fcitx";
         return info;
+    }
+
+    // KDE Plasma Wayland: KWin serves the native text-input protocol, so
+    // GTK_IM_MODULE / QT_IM_MODULE are redundant and fcitx5 warns about them.
+    // Drop them here (XMODIFIERS still covers XWayland / X11 apps). Gated on
+    // Wayland, never desktop alone: on KDE X11 there is no native protocol, so
+    // its apps still need the modules and keep the full set.
+    if (sessionType && std::strcmp(sessionType, "wayland") == 0 &&
+        containsCI(currentDesktop, "KDE")) {
+        info.needsImModules = false;
     }
 
     return info;
