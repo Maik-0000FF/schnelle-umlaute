@@ -138,12 +138,29 @@ FCITX_CONFIGURATION(
     Option<int> customKey2Code{this, "CustomKey2Code",
                                "  \xe2\x86\xb3 Key code", kNoKeyCode};);
 
+// Per-leader cycle direction. Each directional leader carries its own
+// "reverse" flag next to its enable flag: enable decides whether the key is a
+// leader at all, reverse decides whether it steps backward (-1) instead of
+// forward (+1). The two are orthogonal, so any mix is valid, including every
+// arrow reversed. Default false keeps existing configs stepping forward
+// exactly as before. Space is intentionally forward-only (no directional
+// meaning). Alt/AltGr and the custom leaders gain a direction in a later
+// slice; the arrows take effect now, as the pure step-only path that does not
+// cross the Alt-gesture machinery.
 FCITX_CONFIGURATION(LeaderConfig,
                     Option<bool> space{this, "Space", "Space", true};
                     Option<bool> left{this, "Left", "Left Arrow", false};
+                    Option<bool> leftReverse{this, "LeftReverse",
+                                             "Left Arrow reverses", false};
                     Option<bool> right{this, "Right", "Right Arrow", false};
+                    Option<bool> rightReverse{this, "RightReverse",
+                                              "Right Arrow reverses", false};
                     Option<bool> up{this, "Up", "Up Arrow", false};
+                    Option<bool> upReverse{this, "UpReverse",
+                                           "Up Arrow reverses", false};
                     Option<bool> down{this, "Down", "Down Arrow", false};
+                    Option<bool> downReverse{this, "DownReverse",
+                                             "Down Arrow reverses", false};
                     Option<bool> alt{this, "Alt", "Alt/AltGr", false};
                     Option<CustomLeaderConfig> custom{this, "Custom",
                                                       "Custom Leader Keys"};);

@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (151 tests)
+// Test Suite for Schnelle Umlaute (156 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -35,6 +35,7 @@
 // 144-145 reset() repeat guard reset() preserves committed_ arming for single-output and min-hold sites (issue #92)
 // 146-150 wayland repeat fix   issue #92 hole 2 fixed: held-key repeat suppressed at all 3 arming sites, elapsed-ref + injected-pair guards
 // 151     window-timeout test  per-window repeat: window-timeout arming clears per synthetic release (issue #92/#73)
+// 152-154 Reverse cycling      arrow reverse steps back + wraps, reverse-start lands at last variant, forward+reverse mix in one session
 // clang-format on
 
 #include <unistd.h>
@@ -193,7 +194,9 @@ static void configureLeaders(Instance *instance, bool space, bool left,
                              const std::string &custom = "",
                              const std::string &custom2 = "",
                              int customCode = fcitx::kNoKeyCode,
-                             int custom2Code = fcitx::kNoKeyCode) {
+                             int custom2Code = fcitx::kNoKeyCode,
+                             bool leftReverse = false, bool rightReverse = false,
+                             bool upReverse = false, bool downReverse = false) {
     auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
     RawConfig config;
     config.setValueByPath("Delay/Lowercase", "400");
@@ -204,6 +207,11 @@ static void configureLeaders(Instance *instance, bool space, bool left,
     config.setValueByPath("Leader/Up", up ? "True" : "False");
     config.setValueByPath("Leader/Down", down ? "True" : "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
+    config.setValueByPath("Leader/LeftReverse", leftReverse ? "True" : "False");
+    config.setValueByPath("Leader/RightReverse",
+                          rightReverse ? "True" : "False");
+    config.setValueByPath("Leader/UpReverse", upReverse ? "True" : "False");
+    config.setValueByPath("Leader/DownReverse", downReverse ? "True" : "False");
     config.setValueByPath("Leader/Custom/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey", custom);
@@ -1273,6 +1281,104 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 16 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 152: Reverse leader steps backward and wraps 0 -> last
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 152;
+        FCITX_INFO() << "=== Test 152: Reverse leader steps back + wraps ===";
+        // Space forward, Left enabled and flagged reverse. 3 variants.
+        configureLeaders(instance, true, true, false, false, false, false, "",
+                         "", fcitx::kNoKeyCode, fcitx::kNoKeyCode,
+                         /*leftReverse=*/true);
+        setMappings(instance, {{"a", "x,y,z"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test152");
+
+        // Hold 'a' + Space -> cycling starts at index 0 ("x").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Left (reverse) from index 0 wraps to the last variant ("z").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Left, KeyStates(), kCodeLeft), false);
+        // Release 'a' -> commits "z".
+        tf->call<ITestFrontend::pushCommitExpectation>("z");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 152 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 153: Reverse leader starts a fresh session at the last variant
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 153;
+        FCITX_INFO() << "=== Test 153: Reverse leader starts at last variant ===";
+        // Only Left, flagged reverse; no forward leader.
+        configureLeaders(instance, false, true, false, false, false, false, "",
+                         "", fcitx::kNoKeyCode, fcitx::kNoKeyCode,
+                         /*leftReverse=*/true);
+        setMappings(instance, {{"a", "x,y,z"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test153");
+
+        // Hold 'a' + Left (reverse) starts the session at the LAST variant "z".
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Left, KeyStates(), kCodeLeft), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("z");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 153 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 154: Forward and reverse leaders mix within one session
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 154;
+        FCITX_INFO() << "=== Test 154: Mix forward + reverse in one session ===";
+        // Space forward, Left reverse. 4 variants: 1,2,3,4.
+        configureLeaders(instance, true, true, false, false, false, false, "",
+                         "", fcitx::kNoKeyCode, fcitx::kNoKeyCode,
+                         /*leftReverse=*/true);
+        setMappings(instance, {{"a", "1,2,3,4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test154");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        // Space start -> 0 ("1"), Space -> 1 ("2"), Space -> 2 ("3").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Left (reverse) -> 1 ("2"), Left -> 0 ("1").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Left, KeyStates(), kCodeLeft), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Left, KeyStates(), kCodeLeft), false);
+        // Space (forward) -> 1 ("2").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Release 'a' -> commits "2".
+        tf->call<ITestFrontend::pushCommitExpectation>("2");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 154 PASSED";
     });
 
     // =========================================================================
@@ -6531,7 +6637,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 153 tests PASSED ===";
+                                FCITX_INFO() << "=== All 156 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });

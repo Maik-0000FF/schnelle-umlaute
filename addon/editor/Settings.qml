@@ -139,25 +139,37 @@ Item {
                         checked: root.settingsModel ? root.settingsModel.leaderSpace : false
                         onToggled: (v) => root.settingsModel.leaderSpace = v
                     }
-                    LabeledSwitch {
+                    // Arrows carry a direction: the toggle left of the enable
+                    // switch flips the cycle direction, and the arrow marker
+                    // (→ forward, ← reverse) shows it. Any arrow can go either
+                    // way, independently.
+                    DirectionalLeaderRow {
                         labelText: qsTr("Left Arrow")
-                        checked: root.settingsModel ? root.settingsModel.leaderLeft : false
-                        onToggled: (v) => root.settingsModel.leaderLeft = v
+                        enabledValue: root.settingsModel ? root.settingsModel.leaderLeft : false
+                        reverseValue: root.settingsModel ? root.settingsModel.leaderLeftReverse : false
+                        onEnabledToggled: (v) => root.settingsModel.leaderLeft = v
+                        onReverseToggled: (v) => root.settingsModel.leaderLeftReverse = v
                     }
-                    LabeledSwitch {
+                    DirectionalLeaderRow {
                         labelText: qsTr("Right Arrow")
-                        checked: root.settingsModel ? root.settingsModel.leaderRight : false
-                        onToggled: (v) => root.settingsModel.leaderRight = v
+                        enabledValue: root.settingsModel ? root.settingsModel.leaderRight : false
+                        reverseValue: root.settingsModel ? root.settingsModel.leaderRightReverse : false
+                        onEnabledToggled: (v) => root.settingsModel.leaderRight = v
+                        onReverseToggled: (v) => root.settingsModel.leaderRightReverse = v
                     }
-                    LabeledSwitch {
+                    DirectionalLeaderRow {
                         labelText: qsTr("Up Arrow")
-                        checked: root.settingsModel ? root.settingsModel.leaderUp : false
-                        onToggled: (v) => root.settingsModel.leaderUp = v
+                        enabledValue: root.settingsModel ? root.settingsModel.leaderUp : false
+                        reverseValue: root.settingsModel ? root.settingsModel.leaderUpReverse : false
+                        onEnabledToggled: (v) => root.settingsModel.leaderUp = v
+                        onReverseToggled: (v) => root.settingsModel.leaderUpReverse = v
                     }
-                    LabeledSwitch {
+                    DirectionalLeaderRow {
                         labelText: qsTr("Down Arrow")
-                        checked: root.settingsModel ? root.settingsModel.leaderDown : false
-                        onToggled: (v) => root.settingsModel.leaderDown = v
+                        enabledValue: root.settingsModel ? root.settingsModel.leaderDown : false
+                        reverseValue: root.settingsModel ? root.settingsModel.leaderDownReverse : false
+                        onEnabledToggled: (v) => root.settingsModel.leaderDown = v
+                        onReverseToggled: (v) => root.settingsModel.leaderDownReverse = v
                     }
                     LabeledSwitch {
                         labelText: qsTr("Alt / AltGr")

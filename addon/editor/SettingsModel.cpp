@@ -151,6 +151,14 @@ SettingsModel::SettingsModel(QObject *parent) : QObject(parent) {
             &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::leaderAltChanged, this,
             &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderLeftReverseChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderRightReverseChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderUpReverseChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderDownReverseChanged, this,
+            &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::customKey1EnabledChanged, this,
             &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::customKey1Changed, this,
@@ -231,6 +239,34 @@ void SettingsModel::setLeaderAlt(bool v) {
         return;
     leaderAlt_ = v;
     Q_EMIT leaderAltChanged();
+    save();
+}
+void SettingsModel::setLeaderLeftReverse(bool v) {
+    if (leaderLeftReverse_ == v)
+        return;
+    leaderLeftReverse_ = v;
+    Q_EMIT leaderLeftReverseChanged();
+    save();
+}
+void SettingsModel::setLeaderRightReverse(bool v) {
+    if (leaderRightReverse_ == v)
+        return;
+    leaderRightReverse_ = v;
+    Q_EMIT leaderRightReverseChanged();
+    save();
+}
+void SettingsModel::setLeaderUpReverse(bool v) {
+    if (leaderUpReverse_ == v)
+        return;
+    leaderUpReverse_ = v;
+    Q_EMIT leaderUpReverseChanged();
+    save();
+}
+void SettingsModel::setLeaderDownReverse(bool v) {
+    if (leaderDownReverse_ == v)
+        return;
+    leaderDownReverse_ = v;
+    Q_EMIT leaderDownReverseChanged();
     save();
 }
 void SettingsModel::setCustomKey1Enabled(bool v) {
@@ -543,6 +579,14 @@ void SettingsModel::load() {
                 leaderDown_ = fromBool(val);
             else if (key == "Alt")
                 leaderAlt_ = fromBool(val);
+            else if (key == "LeftReverse")
+                leaderLeftReverse_ = fromBool(val);
+            else if (key == "RightReverse")
+                leaderRightReverse_ = fromBool(val);
+            else if (key == "UpReverse")
+                leaderUpReverse_ = fromBool(val);
+            else if (key == "DownReverse")
+                leaderDownReverse_ = fromBool(val);
         } else if (section == QLatin1String("Leader/Custom")) {
             if (key == "CustomKeyEnabled")
                 customKey1Enabled_ = fromBool(val);
@@ -635,6 +679,10 @@ void SettingsModel::load() {
     Q_EMIT leaderUpChanged();
     Q_EMIT leaderDownChanged();
     Q_EMIT leaderAltChanged();
+    Q_EMIT leaderLeftReverseChanged();
+    Q_EMIT leaderRightReverseChanged();
+    Q_EMIT leaderUpReverseChanged();
+    Q_EMIT leaderDownReverseChanged();
     Q_EMIT customKey1EnabledChanged();
     Q_EMIT customKey1Changed();
     Q_EMIT customKey1CodeChanged();
@@ -678,10 +726,18 @@ void SettingsModel::save() {
     out << "\n";
     out << "[Leader]\n";
     out << "# Space\n" << "Space=" << toBool(leaderSpace_) << "\n";
-    out << "# Left Arrow\n" << "Left=" << toBool(leaderLeft_) << "\n";
-    out << "# Right Arrow\n" << "Right=" << toBool(leaderRight_) << "\n";
-    out << "# Up Arrow\n" << "Up=" << toBool(leaderUp_) << "\n";
-    out << "# Down Arrow\n" << "Down=" << toBool(leaderDown_) << "\n";
+    out << "# Left Arrow (+ reverse direction)\n"
+        << "Left=" << toBool(leaderLeft_) << "\n"
+        << "LeftReverse=" << toBool(leaderLeftReverse_) << "\n";
+    out << "# Right Arrow (+ reverse direction)\n"
+        << "Right=" << toBool(leaderRight_) << "\n"
+        << "RightReverse=" << toBool(leaderRightReverse_) << "\n";
+    out << "# Up Arrow (+ reverse direction)\n"
+        << "Up=" << toBool(leaderUp_) << "\n"
+        << "UpReverse=" << toBool(leaderUpReverse_) << "\n";
+    out << "# Down Arrow (+ reverse direction)\n"
+        << "Down=" << toBool(leaderDown_) << "\n"
+        << "DownReverse=" << toBool(leaderDownReverse_) << "\n";
     out << "# Alt/AltGr\n" << "Alt=" << toBool(leaderAlt_) << "\n";
     out << "\n";
     out << "[Leader/Custom]\n";

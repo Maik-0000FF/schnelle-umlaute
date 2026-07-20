@@ -21,7 +21,7 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 
 **Features:**
 - Hold letter + space/arrow keys for accent characters
-- Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã)
+- Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã), forward or backward (per-arrow reverse-direction toggle)
 - Snippets: Map single keys to entire text phrases
 - Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
 - Configurable leader keys (Space, Arrow ←→↑↓, Alt/AltGr, or custom keys with hand-split), keep Space free for normal typing

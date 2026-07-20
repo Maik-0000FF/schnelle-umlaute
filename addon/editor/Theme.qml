@@ -198,6 +198,13 @@ QtObject {
     // and the cycle fields.
     readonly property int shortcutFieldWidth: 184
 
+    // Fixed label column for the settings toggle rows. Every toggle (leader
+    // enable, cycle direction, overlay options) sits right after a label of
+    // this width, so all toggles line up in one column across the cards.
+    // Sized to fit the longest toggle label ("Match candidate window to this
+    // theme"); tune here if labels change.
+    readonly property int settingLabelWidth: 240
+
     readonly property int spacingXxs: 2
     readonly property int spacingXs: 4
     readonly property int spacingSm: 8

@@ -516,9 +516,15 @@ public:
                 auto it = umlautMap_.find(*state->cyclingInput_);
                 if (it != umlautMap_.end() && !it->second.empty()) {
                     if (it->second.size() > 1) {
-                        // Cycle to next variant
-                        state->cyclingIndex_ =
-                            (state->cyclingIndex_ + 1) % it->second.size();
+                        // Cycle to the next variant. Forward leaders step +1,
+                        // the reverse leader steps -1; +n keeps the modulo
+                        // positive for the -1 case.
+                        const int n = static_cast<int>(it->second.size());
+                        const int next =
+                            (static_cast<int>(state->cyclingIndex_) +
+                             leaderStep(key.sym()) + n) %
+                            n;
+                        state->cyclingIndex_ = static_cast<size_t>(next);
                         updateClientPreedit(ic,
                                             it->second[state->cyclingIndex_]);
                         overlayShow(ic, it->second,
@@ -581,19 +587,31 @@ public:
                     // detection machinery protect against auto-repeat leaks.
                     // Non-Alt leaders: single output commits directly.
                     if (it->second.size() > 1 || isAlt) {
+                        // A reverse leader that starts a fresh multi-variant
+                        // session lands on the LAST variant, so a preset whose
+                        // rarer variants sit at the end is reached without
+                        // stepping past the common ones first. Forward start,
+                        // and every single-output/Alt path, stays at 0. Only
+                        // arrows reverse here; Alt/AltGr keep leaderStep == +1.
+                        const size_t startIdx =
+                            (it->second.size() > 1 &&
+                             leaderStep(key.sym()) < 0)
+                                ? it->second.size() - 1
+                                : 0;
                         state->cyclingInput_ = *state->waitingKey_;
-                        state->cyclingIndex_ = 0;
+                        state->cyclingIndex_ = startIdx;
                         if (isAlt)
                             state->altGestureSession_ = true;
 
-                        // Update preedit with first variant
-                        updateClientPreedit(ic, it->second[0]);
+                        // Update preedit with the starting variant
+                        updateClientPreedit(ic, it->second[startIdx]);
                         // Overlay is for choosing among variants; suppress it
                         // when there's nothing to cycle (single-output Alt
                         // still needs the cycling state above for the deferred
                         // commit / re-press machinery).
                         if (it->second.size() > 1) {
-                            overlayShow(ic, it->second, 0);
+                            overlayShow(ic, it->second,
+                                        static_cast<int>(startIdx));
                             // The leader caught the window; hold the timing bar
                             // where it is while the user cycles.
                             freezeProgressOverlay();
@@ -1342,6 +1360,26 @@ private:
     static bool isAltLeaderSym(KeySym sym) {
         return sym == FcitxKey_Alt_L || sym == FcitxKey_Alt_R ||
                sym == FcitxKey_ISO_Level3_Shift;
+    }
+
+    // Cycle step for a leader press: -1 when that key's reverse flag is set,
+    // +1 otherwise. Each arrow carries its own flag, so any of them can go
+    // forward or backward independently. Forward and reverse presses act on
+    // the same cyclingIndex_, so the two can be mixed freely inside one
+    // session. Space is forward-only by design; Alt/AltGr and custom leaders
+    // stay +1 until a later slice (reversing Alt/AltGr crosses the Alt-gesture
+    // machinery).
+    int leaderStep(KeySym sym) const {
+        bool reverse = false;
+        if (sym == FcitxKey_Left)
+            reverse = *config_.leader->leftReverse;
+        else if (sym == FcitxKey_Right)
+            reverse = *config_.leader->rightReverse;
+        else if (sym == FcitxKey_Up)
+            reverse = *config_.leader->upReverse;
+        else if (sym == FcitxKey_Down)
+            reverse = *config_.leader->downReverse;
+        return reverse ? -1 : +1;
     }
 
     // A custom leader IS its physical key, so matching is a keycode comparison

@@ -129,9 +129,13 @@ Customize which keys activate the umlaut transformation. Multiple leader keys ca
 [Leader]
 Space=True
 Left=False
+LeftReverse=False
 Right=False
+RightReverse=False
 Up=False
+UpReverse=False
 Down=False
+DownReverse=False
 Alt=False
 
 [Leader/Custom]
@@ -142,6 +146,9 @@ CustomKey2Enabled=False
 CustomKey2=
 CustomKey2Code=0
 ```
+
+> **Cycle direction (arrow keys)**
+> Each arrow leader has its own direction. Forward steps to the next variant, reverse steps to the previous one. Set an arrow to reverse with the direction toggle next to its enable toggle in the editor (the arrow marker shows <kbd>→</kbd> forward or <kbd>←</kbd> reverse). Forward and reverse leaders act on the same position, so within one cycle you can step both ways freely, e.g. Space forward and <kbd>←</kbd> reverse: overshoot by one, then step back instead of wrapping all the way around. A reverse leader that starts a cycle lands on the **last** variant, so variants at the end of a long list (e.g. a second language) are reached directly. Space, Alt/AltGr and custom leaders always cycle forward. The `*Reverse` flags default to `False`, so existing setups are unchanged.
 
 > **Alt / AltGr Leader**
 > Enables <kbd>Alt</kbd> (Left/Right Alt) and <kbd>AltGr</kbd> (ISO_Level3_Shift on EU layouts) as leader keys. On KWin Wayland, auto-repeat sends release-press pairs which can cause input leaks. Works reliably under XIM (e.g. WezTerm).
