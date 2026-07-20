@@ -218,6 +218,14 @@ QtObject {
     readonly property string iconClear:       "✕"
     readonly property string iconStar:        "★"
     readonly property string iconAdd:         "+"
+    readonly property string iconInfo:        "ⓘ"
+
+    // External links shown in the About dialog, kept here as the single source
+    // so the dialog (and any later use) never hard-codes a URL.
+    readonly property string repoUrl:     "https://github.com/Maik-0000FF/schnelle-umlaute"
+    readonly property string issuesUrl:   "https://github.com/Maik-0000FF/schnelle-umlaute/issues/new"
+    readonly property string licenseName: "GPL-3.0"
+    readonly property string licenseUrl:  "https://github.com/Maik-0000FF/schnelle-umlaute/blob/main/LICENSE"
 
     function setCurrent(name) {
         if (palettes[name] !== undefined && current !== name) {

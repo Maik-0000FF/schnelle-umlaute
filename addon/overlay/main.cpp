@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <memory>
 #include <optional>
+#include <QCommandLineParser>
 #include <QDBusConnection>
 #include <QFile>
 #include <QGuiApplication>
@@ -569,7 +570,18 @@ int main(int argc, char *argv[]) {
     QGuiApplication::setApplicationName(
         QStringLiteral("schnelle-umlaute-overlay"));
     QGuiApplication::setOrganizationName(QStringLiteral("schnelle-umlaute"));
+    QGuiApplication::setApplicationVersion(
+        QStringLiteral(SCHNELLE_UMLAUTE_VERSION));
     QGuiApplication::setQuitOnLastWindowClosed(false);
+
+    // Handle --version / --help before registering the D-Bus service, so both
+    // print and exit immediately without touching the session bus.
+    QCommandLineParser parser;
+    parser.setApplicationDescription(
+        QStringLiteral("Schnelle Umlaute overlay daemon"));
+    parser.addHelpOption();    // -h / --help
+    parser.addVersionOption(); // -v / --version
+    parser.process(app);
 
     auto *ctrl = new OverlayController(&app);
     const QString initialTheme = loadInitialTheme();
