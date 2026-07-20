@@ -279,6 +279,38 @@ void testLastLeaderGuard() {
     EXPECT(blocked.count() == 4);
 }
 
+// The same guard covers the other way a custom leader loses effectiveness:
+// clearing its key (a capture that resolves to kNoKeyCode). Unassigning the sole
+// effective leader's key is refused, so a future clear affordance cannot reach
+// zero leaders.
+void testClearLastLeaderKeyGuard() {
+    resetTempdir();
+    SettingsModel s;
+    QSignalSpy blocked(&s, &SettingsModel::leaderRemovalBlocked);
+
+    // Make the custom leader the sole effective leader.
+    s.captureCustomKey1(QStringLiteral("j"), 44);
+    s.setCustomKey1Enabled(true);
+    EXPECT(s.effectiveLeaderCount() == 2); // Space + custom1
+    s.setLeaderSpace(false);
+    EXPECT(s.effectiveLeaderCount() == 1); // only custom1
+    EXPECT(s.customKey1HasKey() == true);
+
+    // Clearing its key would leave zero effective leaders: the capture is
+    // refused, so the key and the count stay.
+    s.captureCustomKey1(QString(), fcitx::kNoKeyCode);
+    EXPECT(s.customKey1HasKey() == true);
+    EXPECT(s.effectiveLeaderCount() == 1);
+    EXPECT(blocked.count() == 1);
+
+    // With a second leader present, the key may be cleared.
+    s.setLeaderSpace(true);
+    EXPECT(s.effectiveLeaderCount() == 2);
+    s.captureCustomKey1(QString(), fcitx::kNoKeyCode);
+    EXPECT(s.customKey1HasKey() == false);
+    EXPECT(s.effectiveLeaderCount() == 1); // only Space
+}
+
 // One captured key press stores both halves of a leader together, so the file
 // never holds the new keycode next to the previous key's character, and QML can
 // ask hasKey instead of restating the "no key" sentinel.
@@ -618,6 +650,7 @@ const TestCase kTests[] = {
     {"testDefaultsOnMissingFile", testDefaultsOnMissingFile},
     {"testScalarRoundTrip", testScalarRoundTrip},
     {"testLastLeaderGuard", testLastLeaderGuard},
+    {"testClearLastLeaderKeyGuard", testClearLastLeaderKeyGuard},
     {"testCaptureCustomKeyRoundTrip", testCaptureCustomKeyRoundTrip},
     {"testCaptureFoldsCaseIncludingNonAscii",
      testCaptureFoldsCaseIncludingNonAscii},

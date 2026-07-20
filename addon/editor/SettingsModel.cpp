@@ -421,14 +421,26 @@ static QString leaderChar(const QString &raw) {
 // save. A code that cannot name a pressable key is stored as kNoKeyCode, which
 // reads as "no key assigned" rather than as a leader that can never fire.
 void SettingsModel::captureCustomKey1(const QString &ch, int code) {
-    customKey1Code_ = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
+    const int newCode = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
+    // Unassigning the key (kNoKeyCode) drops this leader's effectiveness, so
+    // guard it exactly like the enable-off case: refuse when it is the sole
+    // effective leader. Assigning a real key only adds effectiveness, never
+    // guarded.
+    if (newCode == kNoKeyCode &&
+        !allowLeaderOff(customKey1Enabled_ && customKey1HasKey()))
+        return;
+    customKey1Code_ = newCode;
     customKey1_ = leaderChar(ch);
     Q_EMIT customKey1CodeChanged();
     Q_EMIT customKey1Changed();
     save();
 }
 void SettingsModel::captureCustomKey2(const QString &ch, int code) {
-    customKey2Code_ = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
+    const int newCode = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
+    if (newCode == kNoKeyCode &&
+        !allowLeaderOff(customKey2Enabled_ && customKey2HasKey()))
+        return;
+    customKey2Code_ = newCode;
     customKey2_ = leaderChar(ch);
     Q_EMIT customKey2CodeChanged();
     Q_EMIT customKey2Changed();
