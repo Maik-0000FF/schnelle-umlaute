@@ -80,27 +80,21 @@ Popup {
 
             Item { Layout.fillWidth: true }
 
-            // Plain Rectangle + MouseArea instead of Button: the Quick
-            // Controls Basic Button silently substitutes a system-palette
-            // colour for the contentItem text on light desktops, even when
-            // contentItem.color and palette.buttonText are both bound to
-            // a theme colour. Same workaround pattern as PositionPicker's
-            // selection cell — Rectangle leaves the colour pipeline alone.
-            Rectangle {
+            // Neutral cancel button. FocusRect supplies the hover + focus +
+            // Space/Enter handling (and the reason these are Rectangles rather
+            // than Quick Controls Buttons).
+            FocusRect {
                 id: cancelBtn
                 visible: !root.singleButton
                 implicitHeight: Theme.controlHeight
                 implicitWidth: cancelLabel.implicitWidth + 2 * Theme.spacingMd
-                radius: Theme.radiusSm
-                color: (cancelMouse.containsMouse || cancelBtn.activeFocus)
+                color: (cancelBtn.hovered || cancelBtn.activeFocus)
                        ? Theme.surfaceHover : Theme.background
                 // Keyboard focus adds an accent border on top of the hover fill.
                 border.color: cancelBtn.activeFocus ? Theme.borderFocus
                                                     : Theme.border
                 border.width: 1
-                activeFocusOnTab: true
-                Behavior on color { ColorAnimation { duration: Theme.animShort } }
-                Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
+                onActivated: root.close()
 
                 Text {
                     id: cancelLabel
@@ -110,34 +104,20 @@ Popup {
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontBody
                 }
-                MouseArea {
-                    id: cancelMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.close()
-                }
-                Keys.onPressed: (event) => {
-                    if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
-                        || event.key === Qt.Key_Enter) {
-                        root.close();
-                        event.accepted = true;
-                    }
-                }
-                Keys.onEscapePressed: root.close()
             }
 
-            Rectangle {
+            // Filled confirm button: hover and keyboard focus both show as the
+            // hover shade of the fill, no separate ring.
+            FocusRect {
                 id: confirmBtn
                 implicitHeight: Theme.controlHeight
                 implicitWidth: confirmLabel.implicitWidth + 2 * Theme.spacingMd
-                radius: Theme.radiusSm
-                // Filled button: keyboard focus (and hover) show as the hover
-                // shade of the fill, no separate ring.
-                color: (confirmMouse.containsMouse || confirmBtn.activeFocus)
+                color: (confirmBtn.hovered || confirmBtn.activeFocus)
                        ? root._confirmHover : root._confirmBase
-                activeFocusOnTab: true
-                Behavior on color { ColorAnimation { duration: Theme.animShort } }
+                onActivated: {
+                    if (root.onConfirmed) root.onConfirmed();
+                    root.close();
+                }
 
                 Text {
                     id: confirmLabel
@@ -148,29 +128,6 @@ Popup {
                     font.pixelSize: Theme.fontBody
                     font.weight: Font.Medium
                 }
-                MouseArea {
-                    id: confirmMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (root.onConfirmed) root.onConfirmed();
-                        root.close();
-                    }
-                }
-                function trigger() {
-                    if (root.onConfirmed)
-                        root.onConfirmed();
-                    root.close();
-                }
-                Keys.onPressed: (event) => {
-                    if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
-                        || event.key === Qt.Key_Enter) {
-                        confirmBtn.trigger();
-                        event.accepted = true;
-                    }
-                }
-                Keys.onEscapePressed: root.close()
             }
         }
     }

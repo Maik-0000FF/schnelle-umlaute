@@ -227,6 +227,15 @@ QtObject {
     readonly property string licenseName: "GPL-3.0"
     readonly property string licenseUrl:  "https://github.com/Maik-0000FF/schnelle-umlaute/blob/main/LICENSE"
 
+    // App icon shared by the header and the About dialog, plus its two display
+    // sizes and the About dialog width, so none of these are hard-coded per use.
+    readonly property string appIconSource: "qrc:/qt/qml/SchnelleUmlaute/assets/schnelle-umlaute-icon.png"
+    readonly property int appIconSizeSm:    24 // header wordmark
+    readonly property int appIconSizeLg:    48 // About dialog identity
+    // Narrower than ConfirmDialog's 420 text column: this dialog holds short
+    // link rows, not paragraphs, so it needs less width.
+    readonly property int aboutDialogWidth: 380
+
     function setCurrent(name) {
         if (palettes[name] !== undefined && current !== name) {
             current = name

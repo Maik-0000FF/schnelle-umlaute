@@ -18,32 +18,16 @@ Rectangle {
         spacing: Theme.spacingMd
 
         Image {
-            source: "qrc:/qt/qml/SchnelleUmlaute/assets/schnelle-umlaute-icon.png"
-            sourceSize.width: 48
-            sourceSize.height: 48
-            width: 24
-            height: 24
+            source: Theme.appIconSource
+            sourceSize.width: Theme.appIconSizeSm * 2 // 2x for HiDPI crispness
+            sourceSize.height: Theme.appIconSizeSm * 2
+            width: Theme.appIconSizeSm
+            height: Theme.appIconSizeSm
             fillMode: Image.PreserveAspectFit
             smooth: true
         }
 
-        RowLayout {
-            spacing: 6
-            Text {
-                text: "Schnelle"
-                color: Theme.text
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontStrong
-                font.weight: Font.Medium
-            }
-            Text {
-                text: "Umlaute"
-                color: Theme.brand
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontStrong
-                font.weight: Font.Medium
-            }
-        }
+        Wordmark {}
 
         Rectangle {
             Layout.leftMargin: Theme.spacingSm
@@ -68,17 +52,25 @@ Rectangle {
 
         // Opens the About dialog. Sits at the header's right edge, muted until
         // hovered/focused so it stays unobtrusive.
-        Rectangle {
+        FocusRect {
             id: infoBtn
             implicitWidth: Theme.controlHeightSm
             implicitHeight: Theme.controlHeightSm
-            radius: Theme.radiusSm
-            color: (infoMouse.containsMouse || infoBtn.activeFocus)
+            color: (infoBtn.hovered || infoBtn.activeFocus)
                    ? Theme.surfaceHover : "transparent"
             border.color: infoBtn.activeFocus ? Theme.borderFocus : "transparent"
             border.width: 1
-            activeFocusOnTab: true
-            Behavior on color { ColorAnimation { duration: Theme.animShort } }
+            onActivated: root.aboutRequested()
+
+            // Icon-only control, so it carries an explicit accessible name and a
+            // tooltip that every text-labelled control gets for free.
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("About")
+
+            ThemedToolTip {
+                visible: infoBtn.hovered
+                text: qsTr("About")
+            }
 
             Text {
                 anchors.centerIn: parent
@@ -86,20 +78,6 @@ Rectangle {
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontStrong
-            }
-            MouseArea {
-                id: infoMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.aboutRequested()
-            }
-            Keys.onPressed: (event) => {
-                if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
-                    || event.key === Qt.Key_Enter) {
-                    root.aboutRequested();
-                    event.accepted = true;
-                }
             }
         }
     }

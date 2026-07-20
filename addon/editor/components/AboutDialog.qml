@@ -15,7 +15,7 @@ Popup {
     anchors.centerIn: Overlay.overlay
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     padding: 0
-    implicitWidth: 380
+    implicitWidth: Theme.aboutDialogWidth
 
     background: Rectangle {
         color: Theme.surface
@@ -28,21 +28,17 @@ Popup {
     // One reusable link row: an accent-coloured label that opens `url`
     // externally on click, Space or Enter. Keyboard-reachable like the rest
     // of the editor.
-    component LinkRow: Rectangle {
+    component LinkRow: FocusRect {
         id: link
         property string label: ""
         property string url: ""
         Layout.fillWidth: true
         implicitHeight: Theme.controlHeight
-        radius: Theme.radiusSm
-        color: (linkMouse.containsMouse || link.activeFocus)
+        color: (link.hovered || link.activeFocus)
                ? Theme.surfaceHover : "transparent"
         border.color: link.activeFocus ? Theme.borderFocus : "transparent"
         border.width: 1
-        activeFocusOnTab: true
-        Behavior on color { ColorAnimation { duration: Theme.animShort } }
-
-        function open() { Qt.openUrlExternally(link.url); }
+        onActivated: Qt.openUrlExternally(link.url)
 
         Text {
             anchors.left: parent.left
@@ -52,20 +48,6 @@ Popup {
             color: Theme.accent
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody
-        }
-        MouseArea {
-            id: linkMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: link.open()
-        }
-        Keys.onPressed: (event) => {
-            if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
-                || event.key === Qt.Key_Enter) {
-                link.open();
-                event.accepted = true;
-            }
         }
     }
 
@@ -80,33 +62,17 @@ Popup {
             spacing: Theme.spacingMd
 
             Image {
-                source: "qrc:/qt/qml/SchnelleUmlaute/assets/schnelle-umlaute-icon.png"
-                sourceSize.width: 96
-                sourceSize.height: 96
-                width: 48
-                height: 48
+                source: Theme.appIconSource
+                sourceSize.width: Theme.appIconSizeLg * 2 // 2x for HiDPI crispness
+                sourceSize.height: Theme.appIconSizeLg * 2
+                width: Theme.appIconSizeLg
+                height: Theme.appIconSizeLg
                 fillMode: Image.PreserveAspectFit
                 smooth: true
             }
             ColumnLayout {
                 spacing: Theme.spacingXxs
-                RowLayout {
-                    spacing: 6
-                    Text {
-                        text: "Schnelle"
-                        color: Theme.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontStrong
-                        font.weight: Font.Medium
-                    }
-                    Text {
-                        text: "Umlaute"
-                        color: Theme.brand
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontStrong
-                        font.weight: Font.Medium
-                    }
-                }
+                Wordmark {}
                 Text {
                     text: qsTr("Version %1").arg(appVersion)
                     color: Theme.textMuted
@@ -120,7 +86,7 @@ Popup {
             Layout.fillWidth: true
             Layout.leftMargin: Theme.spacingLg
             Layout.rightMargin: Theme.spacingLg
-            text: qsTr("Fast diacritics for Wayland via fcitx5.")
+            text: qsTr("Fast input of any Unicode character via fcitx5.")
             color: Theme.textMuted
             wrapMode: Text.WordWrap
             font.family: Theme.fontFamily
@@ -147,18 +113,15 @@ Popup {
             Layout.margins: Theme.spacingLg
             Layout.topMargin: 0
             Item { Layout.fillWidth: true }
-            Rectangle {
+            FocusRect {
                 id: closeBtn
                 implicitHeight: Theme.controlHeight
                 implicitWidth: closeLabel.implicitWidth + 2 * Theme.spacingMd
-                radius: Theme.radiusSm
-                color: (closeMouse.containsMouse || closeBtn.activeFocus)
+                color: (closeBtn.hovered || closeBtn.activeFocus)
                        ? Theme.surfaceHover : Theme.background
                 border.color: closeBtn.activeFocus ? Theme.borderFocus : Theme.border
                 border.width: 1
-                activeFocusOnTab: true
-                Behavior on color { ColorAnimation { duration: Theme.animShort } }
-                Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
+                onActivated: root.close()
 
                 Text {
                     id: closeLabel
@@ -168,21 +131,6 @@ Popup {
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontBody
                 }
-                MouseArea {
-                    id: closeMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.close()
-                }
-                Keys.onPressed: (event) => {
-                    if (event.key === Qt.Key_Space || event.key === Qt.Key_Return
-                        || event.key === Qt.Key_Enter) {
-                        root.close();
-                        event.accepted = true;
-                    }
-                }
-                Keys.onEscapePressed: root.close()
             }
         }
     }
