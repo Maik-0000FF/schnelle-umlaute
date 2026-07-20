@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (154 tests)
+// Test Suite for Schnelle Umlaute (156 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
