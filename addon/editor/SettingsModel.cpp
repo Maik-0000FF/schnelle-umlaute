@@ -151,6 +151,12 @@ SettingsModel::SettingsModel(QObject *parent) : QObject(parent) {
             &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::leaderAltChanged, this,
             &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderAltReverseChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderAltGrChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderAltGrReverseChanged, this,
+            &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::leaderLeftReverseChanged, this,
             &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::leaderRightReverseChanged, this,
@@ -239,6 +245,27 @@ void SettingsModel::setLeaderAlt(bool v) {
         return;
     leaderAlt_ = v;
     Q_EMIT leaderAltChanged();
+    save();
+}
+void SettingsModel::setLeaderAltReverse(bool v) {
+    if (leaderAltReverse_ == v)
+        return;
+    leaderAltReverse_ = v;
+    Q_EMIT leaderAltReverseChanged();
+    save();
+}
+void SettingsModel::setLeaderAltGr(bool v) {
+    if (leaderAltGr_ == v)
+        return;
+    leaderAltGr_ = v;
+    Q_EMIT leaderAltGrChanged();
+    save();
+}
+void SettingsModel::setLeaderAltGrReverse(bool v) {
+    if (leaderAltGrReverse_ == v)
+        return;
+    leaderAltGrReverse_ = v;
+    Q_EMIT leaderAltGrReverseChanged();
     save();
 }
 void SettingsModel::setLeaderLeftReverse(bool v) {
@@ -579,6 +606,12 @@ void SettingsModel::load() {
                 leaderDown_ = fromBool(val);
             else if (key == "Alt")
                 leaderAlt_ = fromBool(val);
+            else if (key == "AltReverse")
+                leaderAltReverse_ = fromBool(val);
+            else if (key == "AltGr")
+                leaderAltGr_ = fromBool(val);
+            else if (key == "AltGrReverse")
+                leaderAltGrReverse_ = fromBool(val);
             else if (key == "LeftReverse")
                 leaderLeftReverse_ = fromBool(val);
             else if (key == "RightReverse")
@@ -679,6 +712,9 @@ void SettingsModel::load() {
     Q_EMIT leaderUpChanged();
     Q_EMIT leaderDownChanged();
     Q_EMIT leaderAltChanged();
+    Q_EMIT leaderAltReverseChanged();
+    Q_EMIT leaderAltGrChanged();
+    Q_EMIT leaderAltGrReverseChanged();
     Q_EMIT leaderLeftReverseChanged();
     Q_EMIT leaderRightReverseChanged();
     Q_EMIT leaderUpReverseChanged();
@@ -738,7 +774,12 @@ void SettingsModel::save() {
     out << "# Down Arrow (+ reverse direction)\n"
         << "Down=" << toBool(leaderDown_) << "\n"
         << "DownReverse=" << toBool(leaderDownReverse_) << "\n";
-    out << "# Alt/AltGr\n" << "Alt=" << toBool(leaderAlt_) << "\n";
+    out << "# Alt (+ reverse direction)\n"
+        << "Alt=" << toBool(leaderAlt_) << "\n"
+        << "AltReverse=" << toBool(leaderAltReverse_) << "\n";
+    out << "# AltGr (+ reverse direction)\n"
+        << "AltGr=" << toBool(leaderAltGr_) << "\n"
+        << "AltGrReverse=" << toBool(leaderAltGrReverse_) << "\n";
     out << "\n";
     out << "[Leader/Custom]\n";
     out << "# Custom Leader 1\n"

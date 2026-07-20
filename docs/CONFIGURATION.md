@@ -121,7 +121,8 @@ Customize which keys activate the umlaut transformation. Multiple leader keys ca
 | Right | disabled | <kbd>→</kbd> |
 | Up | disabled | <kbd>↑</kbd> |
 | Down | disabled | <kbd>↓</kbd> |
-| Alt | disabled | <kbd>Alt</kbd> / <kbd>AltGr</kbd> |
+| Alt | disabled | <kbd>Alt</kbd> |
+| AltGr | disabled | <kbd>AltGr</kbd> |
 | Custom Leader 1 | disabled | Any single key |
 | Custom Leader 2 | disabled | Any single key (hand-split) |
 
@@ -137,6 +138,9 @@ UpReverse=False
 Down=False
 DownReverse=False
 Alt=False
+AltReverse=False
+AltGr=False
+AltGrReverse=False
 
 [Leader/Custom]
 CustomKeyEnabled=False
@@ -147,11 +151,11 @@ CustomKey2=
 CustomKey2Code=0
 ```
 
-> **Cycle direction (arrow keys)**
-> Each arrow leader has its own direction. Forward steps to the next variant, reverse steps to the previous one. Set an arrow to reverse with the direction toggle next to its enable toggle in the editor (the arrow marker shows <kbd>→</kbd> forward or <kbd>←</kbd> reverse). Forward and reverse leaders act on the same position, so within one cycle you can step both ways freely, e.g. Space forward and <kbd>←</kbd> reverse: overshoot by one, then step back instead of wrapping all the way around. A reverse leader that starts a cycle lands on the **last** variant, so variants at the end of a long list (e.g. a second language) are reached directly. Space, Alt/AltGr and custom leaders always cycle forward. The `*Reverse` flags default to `False`, so existing setups are unchanged.
+> **Cycle direction (arrows, Alt, AltGr)**
+> Each arrow, and Alt and AltGr, has its own direction. Forward steps to the next variant, reverse steps to the previous one. Set a leader to reverse with the direction toggle next to its enable toggle in the editor (the arrow marker shows <kbd>→</kbd> forward or <kbd>←</kbd> reverse). Forward and reverse leaders act on the same position, so within one cycle you can step both ways freely, e.g. Space forward and <kbd>←</kbd> reverse: overshoot by one, then step back instead of wrapping all the way around. A reverse leader that starts a cycle lands on the **last** variant, so variants at the end of a long list (e.g. a second language) are reached directly. Space and custom leaders always cycle forward. The `*Reverse` flags default to `False`, so existing setups are unchanged.
 
-> **Alt / AltGr Leader**
-> Enables <kbd>Alt</kbd> (Left/Right Alt) and <kbd>AltGr</kbd> (ISO_Level3_Shift on EU layouts) as leader keys. On KWin Wayland, auto-repeat sends release-press pairs which can cause input leaks. Works reliably under XIM (e.g. WezTerm).
+> **Alt and AltGr Leaders**
+> Enables <kbd>Alt</kbd> (the left Alt) and <kbd>AltGr</kbd> (ISO_Level3_Shift, i.e. the right Alt on EU layouts) as leader keys. The two are enabled independently, and each carries its own direction (see **Cycle direction** above). On KWin Wayland, auto-repeat sends release-press pairs which can cause input leaks. Works reliably under XIM (e.g. WezTerm).
 
 > **Custom Leader Keys**
 > Assign one or two **physical keys** as additional leader keys. In the editor you click the field and press the key you want. That press stores the key's position (`CustomKeyCode`, an evdev+8 keycode), which is what triggers the leader, plus the character it printed (`CustomKey`), which is only shown in the UI and checked against the mappings.

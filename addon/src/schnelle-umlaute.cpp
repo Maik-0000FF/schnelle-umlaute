@@ -172,8 +172,8 @@ public:
             // Allow Alt_L/Alt_R through as leader when configured and gesture
             // active. ISO_Level3_Shift (AltGr on EU layouts, 0xfe03) is outside
             // this range and passes through naturally.
-            if (*config_.leader->alt &&
-                (key.sym() == FcitxKey_Alt_L || key.sym() == FcitxKey_Alt_R) &&
+            if (((*config_.leader->alt && key.sym() == FcitxKey_Alt_L) ||
+                 (*config_.leader->altGr && key.sym() == FcitxKey_Alt_R)) &&
                 (state->waitingKey_ || state->cyclingInput_)) {
                 // Fall through to leader key handling
             } else {
@@ -392,7 +392,7 @@ public:
             // Alt-only modifier state — input key repeats with Alt held
             // should not commit the gesture and leak through.
             bool altLeaderBypass =
-                *config_.leader->alt &&
+                (*config_.leader->alt || *config_.leader->altGr) &&
                 (state->waitingKey_ || state->cyclingInput_ ||
                  state->consumedAltCode_ != 0 || state->altGestureSession_);
             if (altLeaderBypass) {
@@ -590,9 +590,10 @@ public:
                         // A reverse leader that starts a fresh multi-variant
                         // session lands on the LAST variant, so a preset whose
                         // rarer variants sit at the end is reached without
-                        // stepping past the common ones first. Forward start,
-                        // and every single-output/Alt path, stays at 0. Only
-                        // arrows reverse here; Alt/AltGr keep leaderStep == +1.
+                        // stepping past the common ones first. Any reverse
+                        // leader (arrow or Alt / AltGr) triggers this via
+                        // leaderStep; a forward start, and any single-output
+                        // path (nothing to reverse), stays at 0.
                         const size_t startIdx =
                             (it->second.size() > 1 &&
                              leaderStep(key.sym()) < 0)
@@ -1145,7 +1146,9 @@ private:
         if (*config_.leader->down)
             leaders += "Down ";
         if (*config_.leader->alt)
-            leaders += "Alt/AltGr ";
+            leaders += "Alt ";
+        if (*config_.leader->altGr)
+            leaders += "AltGr ";
         if (!cachedCustomKey_.empty())
             leaders += "Custom1('" + cachedCustomKey_ + "') ";
         if (!cachedCustomKey2_.empty())
@@ -1357,18 +1360,27 @@ private:
         return it == baseCharByCode_.end() ? std::string() : it->second;
     }
 
+    // Alt vs AltGr, split only for enabling and direction. The left Alt is
+    // "Alt"; AltGr is ISO_Level3_Shift plus the right Alt (Alt_R), which on EU
+    // layouts is the AltGr key. isAltLeaderSym stays the union of both and keeps
+    // driving the shared Alt-gesture machinery (deferred commit, gesture
+    // session, repeat suppression) for either key.
+    static bool isAltSym(KeySym sym) { return sym == FcitxKey_Alt_L; }
+    static bool isAltGrSym(KeySym sym) {
+        return sym == FcitxKey_Alt_R || sym == FcitxKey_ISO_Level3_Shift;
+    }
     static bool isAltLeaderSym(KeySym sym) {
-        return sym == FcitxKey_Alt_L || sym == FcitxKey_Alt_R ||
-               sym == FcitxKey_ISO_Level3_Shift;
+        return isAltSym(sym) || isAltGrSym(sym);
     }
 
     // Cycle step for a leader press: -1 when that key's reverse flag is set,
-    // +1 otherwise. Each arrow carries its own flag, so any of them can go
-    // forward or backward independently. Forward and reverse presses act on
-    // the same cyclingIndex_, so the two can be mixed freely inside one
-    // session. Space is forward-only by design; Alt/AltGr and custom leaders
-    // stay +1 until a later slice (reversing Alt/AltGr crosses the Alt-gesture
-    // machinery).
+    // +1 otherwise. Each arrow and each of Alt / AltGr carries its own flag, so
+    // any of them can go forward or backward independently. The step sign only
+    // moves the index; it is orthogonal to the Alt-gesture machinery (which
+    // keys off isAltLeaderSym, unchanged), so reversing Alt / AltGr needs
+    // nothing beyond this flag. Forward and reverse presses act on the same
+    // cyclingIndex_, so both can be mixed freely inside one session. Space is
+    // forward-only by design; custom leaders gain a direction in a later slice.
     int leaderStep(KeySym sym) const {
         bool reverse = false;
         if (sym == FcitxKey_Left)
@@ -1379,6 +1391,10 @@ private:
             reverse = *config_.leader->upReverse;
         else if (sym == FcitxKey_Down)
             reverse = *config_.leader->downReverse;
+        else if (isAltSym(sym))
+            reverse = *config_.leader->altReverse;
+        else if (isAltGrSym(sym))
+            reverse = *config_.leader->altGrReverse;
         return reverse ? -1 : +1;
     }
 
@@ -1398,8 +1414,10 @@ private:
     LeaderType classifyLeader(const Key &key, int rawCode) const {
         KeySym sym = key.sym();
 
-        // Alt/AltGr — built-in, unrestricted
-        if (*config_.leader->alt && isAltLeaderSym(sym))
+        // Alt and AltGr — built-in, unrestricted, each enabled independently.
+        if (*config_.leader->alt && isAltSym(sym))
+            return LeaderType::BuiltIn;
+        if (*config_.leader->altGr && isAltGrSym(sym))
             return LeaderType::BuiltIn;
 
         // Custom leaders: the captured physical keys

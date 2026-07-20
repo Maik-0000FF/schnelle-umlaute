@@ -127,6 +127,9 @@ void testDefaultsOnMissingFile() {
     EXPECT(s.leaderUp() == false);
     EXPECT(s.leaderDown() == false);
     EXPECT(s.leaderAlt() == false);
+    EXPECT(s.leaderAltReverse() == false);
+    EXPECT(s.leaderAltGr() == false);
+    EXPECT(s.leaderAltGrReverse() == false);
     EXPECT(s.leaderLeftReverse() == false);
     EXPECT(s.leaderRightReverse() == false);
     EXPECT(s.leaderUpReverse() == false);
@@ -159,7 +162,11 @@ void testScalarRoundTrip() {
         s.setDelayUppercaseMin(225);
         s.setLeaderSpace(false);
         s.setLeaderLeft(true);
+        // The "Alt forward, AltGr reverse" pairing, plus the orthogonality of
+        // the enable and reverse flags, must survive the round-trip.
         s.setLeaderAlt(true);
+        s.setLeaderAltGr(true);
+        s.setLeaderAltGrReverse(true);
         // Reverse flags are orthogonal to the enable flags: leaderLeftReverse
         // pairs with an enabled Left, leaderDownReverse is set while Down stays
         // disabled, so the round-trip proves the flag persists on its own.
@@ -187,6 +194,9 @@ void testScalarRoundTrip() {
     EXPECT(s2.leaderSpace() == false);
     EXPECT(s2.leaderLeft() == true);
     EXPECT(s2.leaderAlt() == true);
+    EXPECT(s2.leaderAltReverse() == false);
+    EXPECT(s2.leaderAltGr() == true);
+    EXPECT(s2.leaderAltGrReverse() == true);
     EXPECT(s2.leaderLeftReverse() == true);
     EXPECT(s2.leaderRightReverse() == false);
     EXPECT(s2.leaderUpReverse() == false);

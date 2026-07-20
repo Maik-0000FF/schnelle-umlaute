@@ -142,11 +142,11 @@ FCITX_CONFIGURATION(
 // "reverse" flag next to its enable flag: enable decides whether the key is a
 // leader at all, reverse decides whether it steps backward (-1) instead of
 // forward (+1). The two are orthogonal, so any mix is valid, including every
-// arrow reversed. Default false keeps existing configs stepping forward
-// exactly as before. Space is intentionally forward-only (no directional
-// meaning). Alt/AltGr and the custom leaders gain a direction in a later
-// slice; the arrows take effect now, as the pure step-only path that does not
-// cross the Alt-gesture machinery.
+// arrow reversed. Default false keeps configs stepping forward. Space is
+// intentionally forward-only (no directional meaning). Arrows and Alt / AltGr
+// carry a direction; Alt and AltGr are also enabled independently (Alt = the
+// left Alt, AltGr = ISO_Level3_Shift / the right Alt). The custom leaders gain
+// a direction in a later slice.
 FCITX_CONFIGURATION(LeaderConfig,
                     Option<bool> space{this, "Space", "Space", true};
                     Option<bool> left{this, "Left", "Left Arrow", false};
@@ -161,7 +161,12 @@ FCITX_CONFIGURATION(LeaderConfig,
                     Option<bool> down{this, "Down", "Down Arrow", false};
                     Option<bool> downReverse{this, "DownReverse",
                                              "Down Arrow reverses", false};
-                    Option<bool> alt{this, "Alt", "Alt/AltGr", false};
+                    Option<bool> alt{this, "Alt", "Alt", false};
+                    Option<bool> altReverse{this, "AltReverse",
+                                            "Alt reverses", false};
+                    Option<bool> altGr{this, "AltGr", "AltGr", false};
+                    Option<bool> altGrReverse{this, "AltGrReverse",
+                                              "AltGr reverses", false};
                     Option<CustomLeaderConfig> custom{this, "Custom",
                                                       "Custom Leader Keys"};);
 

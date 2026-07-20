@@ -171,10 +171,19 @@ Item {
                         onEnabledToggled: (v) => root.settingsModel.leaderDown = v
                         onReverseToggled: (v) => root.settingsModel.leaderDownReverse = v
                     }
-                    LabeledSwitch {
-                        labelText: qsTr("Alt / AltGr")
-                        checked: root.settingsModel ? root.settingsModel.leaderAlt : false
-                        onToggled: (v) => root.settingsModel.leaderAlt = v
+                    DirectionalLeaderRow {
+                        labelText: qsTr("Alt")
+                        enabledValue: root.settingsModel ? root.settingsModel.leaderAlt : false
+                        reverseValue: root.settingsModel ? root.settingsModel.leaderAltReverse : false
+                        onEnabledToggled: (v) => root.settingsModel.leaderAlt = v
+                        onReverseToggled: (v) => root.settingsModel.leaderAltReverse = v
+                    }
+                    DirectionalLeaderRow {
+                        labelText: qsTr("AltGr")
+                        enabledValue: root.settingsModel ? root.settingsModel.leaderAltGr : false
+                        reverseValue: root.settingsModel ? root.settingsModel.leaderAltGrReverse : false
+                        onEnabledToggled: (v) => root.settingsModel.leaderAltGr = v
+                        onReverseToggled: (v) => root.settingsModel.leaderAltGrReverse = v
                     }
 
                     Rectangle {

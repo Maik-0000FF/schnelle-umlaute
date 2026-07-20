@@ -41,6 +41,12 @@ class SettingsModel : public QObject {
                    leaderDownChanged)
     Q_PROPERTY(bool leaderAlt READ leaderAlt WRITE setLeaderAlt NOTIFY
                    leaderAltChanged)
+    Q_PROPERTY(bool leaderAltReverse READ leaderAltReverse WRITE
+                   setLeaderAltReverse NOTIFY leaderAltReverseChanged)
+    Q_PROPERTY(bool leaderAltGr READ leaderAltGr WRITE setLeaderAltGr NOTIFY
+                   leaderAltGrChanged)
+    Q_PROPERTY(bool leaderAltGrReverse READ leaderAltGrReverse WRITE
+                   setLeaderAltGrReverse NOTIFY leaderAltGrReverseChanged)
     // Per-arrow cycle direction: false steps forward, true steps backward.
     // Orthogonal to the enable flags above, so any arrow can go either way.
     Q_PROPERTY(bool leaderLeftReverse READ leaderLeftReverse WRITE
@@ -128,6 +134,9 @@ public:
     bool leaderUp() const { return leaderUp_; }
     bool leaderDown() const { return leaderDown_; }
     bool leaderAlt() const { return leaderAlt_; }
+    bool leaderAltReverse() const { return leaderAltReverse_; }
+    bool leaderAltGr() const { return leaderAltGr_; }
+    bool leaderAltGrReverse() const { return leaderAltGrReverse_; }
     bool leaderLeftReverse() const { return leaderLeftReverse_; }
     bool leaderRightReverse() const { return leaderRightReverse_; }
     bool leaderUpReverse() const { return leaderUpReverse_; }
@@ -181,6 +190,9 @@ public:
     void setLeaderUp(bool v);
     void setLeaderDown(bool v);
     void setLeaderAlt(bool v);
+    void setLeaderAltReverse(bool v);
+    void setLeaderAltGr(bool v);
+    void setLeaderAltGrReverse(bool v);
     void setLeaderLeftReverse(bool v);
     void setLeaderRightReverse(bool v);
     void setLeaderUpReverse(bool v);
@@ -223,6 +235,9 @@ Q_SIGNALS:
     void leaderUpChanged();
     void leaderDownChanged();
     void leaderAltChanged();
+    void leaderAltReverseChanged();
+    void leaderAltGrChanged();
+    void leaderAltGrReverseChanged();
     void leaderLeftReverseChanged();
     void leaderRightReverseChanged();
     void leaderUpReverseChanged();
@@ -268,6 +283,9 @@ private:
     bool leaderUp_ = false;
     bool leaderDown_ = false;
     bool leaderAlt_ = false;
+    bool leaderAltReverse_ = false;
+    bool leaderAltGr_ = false;
+    bool leaderAltGrReverse_ = false;
     bool leaderLeftReverse_ = false;
     bool leaderRightReverse_ = false;
     bool leaderUpReverse_ = false;

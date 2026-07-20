@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (156 tests)
+// Test Suite for Schnelle Umlaute (157 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -36,6 +36,7 @@
 // 146-150 wayland repeat fix   issue #92 hole 2 fixed: held-key repeat suppressed at all 3 arming sites, elapsed-ref + injected-pair guards
 // 151     window-timeout test  per-window repeat: window-timeout arming clears per synthetic release (issue #92/#73)
 // 152-154 Reverse cycling      arrow reverse steps back + wraps, reverse-start lands at last variant, forward+reverse mix in one session
+// 155     AltGr reverse        AltGr flagged reverse steps back + wraps inside a Space-started session
 // clang-format on
 
 #include <unistd.h>
@@ -196,7 +197,9 @@ static void configureLeaders(Instance *instance, bool space, bool left,
                              int customCode = fcitx::kNoKeyCode,
                              int custom2Code = fcitx::kNoKeyCode,
                              bool leftReverse = false, bool rightReverse = false,
-                             bool upReverse = false, bool downReverse = false) {
+                             bool upReverse = false, bool downReverse = false,
+                             bool altReverse = false,
+                             bool altGrReverse = false) {
     auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
     RawConfig config;
     config.setValueByPath("Delay/Lowercase", "400");
@@ -207,11 +210,15 @@ static void configureLeaders(Instance *instance, bool space, bool left,
     config.setValueByPath("Leader/Up", up ? "True" : "False");
     config.setValueByPath("Leader/Down", down ? "True" : "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
+    config.setValueByPath("Leader/AltGr", alt ? "True" : "False");
     config.setValueByPath("Leader/LeftReverse", leftReverse ? "True" : "False");
     config.setValueByPath("Leader/RightReverse",
                           rightReverse ? "True" : "False");
     config.setValueByPath("Leader/UpReverse", upReverse ? "True" : "False");
     config.setValueByPath("Leader/DownReverse", downReverse ? "True" : "False");
+    config.setValueByPath("Leader/AltReverse", altReverse ? "True" : "False");
+    config.setValueByPath("Leader/AltGrReverse",
+                          altGrReverse ? "True" : "False");
     config.setValueByPath("Leader/Custom/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey", custom);
@@ -390,6 +397,7 @@ static void configureMultilingualCycling(Instance *instance, bool space,
     config.setValueByPath("Leader/Up", "False");
     config.setValueByPath("Leader/Down", "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
+    config.setValueByPath("Leader/AltGr", alt ? "True" : "False");
     config.setValueByPath("Leader/Custom/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey", custom);
@@ -433,6 +441,7 @@ static void configureWithDelay(Instance *instance, int delayLower,
     config.setValueByPath("Leader/Up", "False");
     config.setValueByPath("Leader/Down", "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
+    config.setValueByPath("Leader/AltGr", alt ? "True" : "False");
     config.setValueByPath("Leader/Custom/CustomKeyEnabled", "False");
     config.setValueByPath("Leader/Custom/CustomKey", "");
     config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
@@ -1379,6 +1388,39 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 154 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 155: AltGr reverse steps back within a Space-started session
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 155;
+        FCITX_INFO() << "=== Test 155: AltGr reverse steps back + wraps ===";
+        // Space forward; Alt + AltGr enabled, AltGr flagged reverse. 3 variants.
+        configureLeaders(instance, true, false, false, false, false, true, "",
+                         "", fcitx::kNoKeyCode, fcitx::kNoKeyCode, false, false,
+                         false, false, /*altReverse=*/false,
+                         /*altGrReverse=*/true);
+        setMappings(instance, {{"a", "x,y,z"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test155");
+
+        // Hold 'a' + Space -> cycling starts at index 0 ("x").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // AltGr (reverse) from index 0 wraps to the last variant ("z").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr),
+            false);
+        // Release 'a' -> commits "z".
+        tf->call<ITestFrontend::pushCommitExpectation>("z");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 155 PASSED";
     });
 
     // =========================================================================
@@ -6637,7 +6679,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 156 tests PASSED ===";
+                                FCITX_INFO() << "=== All 157 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });
