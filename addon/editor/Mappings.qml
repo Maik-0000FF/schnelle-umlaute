@@ -229,10 +229,12 @@ Item {
                     required property int index
                     required property string input
                     required property string output
+                    required property string source
                     width: listView.width
                     rowIndex: index
                     inputText: input
                     outputText: output
+                    sourceRole: source
                     modelRef: root.mappingsModel
                     settingsModel: root.settingsModel
                     editing: listView.editingIndex === index

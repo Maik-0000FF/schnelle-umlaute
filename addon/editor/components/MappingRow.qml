@@ -63,6 +63,13 @@ Rectangle {
     property var modelRef: null
     property var settingsModel: null
     property bool editing: false
+    // "own" | "merged" | "inherited": in the composed merge view a row whose
+    // output carries overlay-contributed variants is shown as removable chips
+    // instead of one editable string (editing the whole string would flatten
+    // the merge into the own profile).
+    property string sourceRole: "own"
+    readonly property bool isComposedRow:
+        sourceRole === "merged" || sourceRole === "inherited"
 
     // Read-only input cell width, shared with the error/warning rows below so
     // their text lines up under the output column.
@@ -233,7 +240,7 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            visible: !root.editing
+            visible: !root.editing && !root.isComposedRow
             text: root.outputText
             color: Theme.text
             font.family: Theme.fontFamilyMono
@@ -243,6 +250,109 @@ Rectangle {
             // the currency preset's rial ﷼) would otherwise flip the column to
             // the right edge.
             horizontalAlignment: Text.AlignLeft
+        }
+
+        // Composed merge view: the output's variants as chips. Drag a chip to
+        // reorder (an order override; the source profile is untouched), or click
+        // its ✕ to drop that variant (an own variant leaves the .txt, an
+        // inherited one gets a sidecar remove op).
+        Flow {
+            id: chipFlow
+            Layout.fillWidth: true
+            visible: !root.editing && root.isComposedRow
+            spacing: Theme.spacingXs
+            move: Transition {
+                NumberAnimation { properties: "x,y"; duration: Theme.animShort }
+            }
+            Repeater {
+                // Naive comma split (a variant containing a literal comma is
+                // rare); empty segments are dropped.
+                model: root.outputText.split(",").filter((v) => v.length > 0)
+                delegate: DropArea {
+                    id: chipDrop
+                    required property string modelData
+                    implicitWidth: chip.implicitWidth
+                    implicitHeight: chip.implicitHeight
+                    // On drop, rebuild the order from the current output and move
+                    // the dragged variant to this chip's position.
+                    onDropped: (drop) => {
+                        if (!drop.source || !root.modelRef)
+                            return;
+                        let order = root.outputText.split(",")
+                            .filter((v) => v.length > 0);
+                        const from = order.indexOf(drop.source.variant);
+                        if (from < 0)
+                            return;
+                        order.splice(from, 1);
+                        let to = order.indexOf(chipDrop.modelData);
+                        if (to < 0)
+                            to = order.length;
+                        order.splice(to, 0, drop.source.variant);
+                        root.modelRef.setComposedOrder(root.inputText, order);
+                    }
+                    Rectangle {
+                        id: chip
+                        property string variant: chipDrop.modelData
+                        width: implicitWidth
+                        height: implicitHeight
+                        implicitWidth: chipRow.implicitWidth + Theme.spacingSm
+                        implicitHeight: Theme.controlHeightSm
+                        radius: Theme.radiusSm
+                        color: chip.Drag.active ? Theme.surfaceHover
+                                                : Theme.background
+                        border.color: Theme.border
+                        border.width: 1
+                        Drag.active: dragMouse.drag.active
+                        Drag.hotSpot.x: width / 2
+                        Drag.hotSpot.y: height / 2
+                        // Reparent to the row while dragging so the chip renders
+                        // above the flow and follows the cursor; reverts (snaps
+                        // back) when the drag ends.
+                        states: State {
+                            when: chip.Drag.active
+                            ParentChange { target: chip; parent: root }
+                        }
+
+                        // Below the ✕ so the ✕ still gets its own clicks; drags
+                        // the chip body otherwise.
+                        MouseArea {
+                            id: dragMouse
+                            anchors.fill: parent
+                            drag.target: chip
+                            cursorShape: Qt.SizeAllCursor
+                            onReleased: chip.Drag.drop()
+                        }
+
+                        RowLayout {
+                            id: chipRow
+                            anchors.centerIn: parent
+                            spacing: Theme.spacingXxs
+                            Text {
+                                text: chip.variant
+                                color: Theme.text
+                                font.family: Theme.fontFamilyMono
+                                font.pixelSize: Theme.fontBody
+                            }
+                            Text {
+                                text: Theme.iconClear
+                                color: chipX.containsMouse ? Theme.error
+                                                           : Theme.textMuted
+                                font.pixelSize: Theme.fontBody
+                                MouseArea {
+                                    id: chipX
+                                    anchors.fill: parent
+                                    anchors.margins: -3
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (root.modelRef)
+                                        root.modelRef.removeComposedVariant(
+                                            root.inputText, chip.variant);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         ThemedTextField {
@@ -272,6 +382,9 @@ Rectangle {
 
         ToolButton {
             id: applyBtn
+            // Hidden on composed rows: their variants are edited via the chips
+            // (the whole-string edit would flatten the merge into the own .txt).
+            visible: !root.isComposedRow
             // Mouse affordance only: keyboard uses the roving list (Enter/F2),
             // and grabbing focus on click would let Space re-fire the button.
             focusPolicy: Qt.NoFocus
