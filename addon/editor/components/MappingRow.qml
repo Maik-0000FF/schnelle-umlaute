@@ -285,8 +285,11 @@ Rectangle {
                             return;
                         order.splice(from, 1);
                         let to = order.indexOf(chipDrop.modelData);
+                        // Dropped on its own chip: modelData is the variant we
+                        // just spliced out, so indexOf is -1. Reinsert at its
+                        // original slot (a no-op) instead of appending to the end.
                         if (to < 0)
-                            to = order.length;
+                            to = from;
                         order.splice(to, 0, drop.source.variant);
                         root.modelRef.setComposedOrder(root.inputText, order);
                     }
@@ -412,6 +415,10 @@ Rectangle {
 
         ToolButton {
             id: deleteBtn
+            // Hidden on composed (merged/inherited) rows: whole-row delete is a
+            // no-op there (the model guards it), variants are removed via the
+            // per-chip ✕. Own rows keep the trash even while composing.
+            visible: !root.isComposedRow
             // Mouse affordance only: keyboard uses the roving list (Delete), and
             // grabbing focus on click would let Space re-open the delete dialog.
             focusPolicy: Qt.NoFocus

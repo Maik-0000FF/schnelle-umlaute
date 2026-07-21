@@ -352,12 +352,17 @@ void MappingListModel::rebuildDisplay() {
             overlayOrdered;
         std::vector<schnelle_umlaute::VariantMap> overlayMaps;
         for (const QString &ref : mergeOverlay_) {
-            static const QString kPrefix = QStringLiteral("profile:");
-            if (!ref.startsWith(kPrefix))
-                continue;
-            const QString relFile = ref.mid(kPrefix.size());
+            const QString relFile = QString::fromStdString(
+                schnelle_umlaute::fileForProfileRef(ref.toStdString()));
             if (relFile.isEmpty() ||
                 !schnelle_umlaute::isSafeProfileFile(relFile.toStdString()))
+                continue;
+            // The active profile is already the base (its own entries). If it
+            // also sits in the overlay (kept there after being made active),
+            // skip it here so its mappings are not loaded a second time and
+            // misclassified as inherited/merged. composing() guarantees
+            // profileFile_ == the active profile.
+            if (relFile == profileFile_)
                 continue;
             auto ordered = loadOrderedProfile(relFile);
             schnelle_umlaute::VariantMap m;
@@ -440,7 +445,7 @@ void MappingListModel::load() {
     setSaveStatus(tr("Loaded"));
 }
 
-bool MappingListModel::save() {
+bool MappingListModel::save(bool reloadAddon) {
     QString path = resolveProfilePath(profileFile_);
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile file(path);
@@ -467,7 +472,8 @@ bool MappingListModel::save() {
         return false;
     }
     setSaveStatus(tr("Saved"));
-    reloadSchnelleUmlauteAddon();
+    if (reloadAddon)
+        reloadSchnelleUmlauteAddon();
     return true;
 }
 
@@ -479,12 +485,8 @@ void MappingListModel::setSaveStatus(const QString &status) {
 }
 
 QString MappingListModel::sidecarPath() const {
-    QString rel = profileFile_;
-    if (rel.endsWith(QStringLiteral(".txt")))
-        rel = rel.left(rel.size() - 4) + QStringLiteral(".merge");
-    else
-        rel += QStringLiteral(".merge");
-    return resolveProfilePath(rel);
+    return resolveProfilePath(QString::fromStdString(
+        schnelle_umlaute::sidecarRelPathForProfile(profileFile_.toStdString())));
 }
 
 schnelle_umlaute::OverrideLayer MappingListModel::loadSidecar() const {
@@ -497,13 +499,14 @@ schnelle_umlaute::OverrideLayer MappingListModel::loadSidecar() const {
 }
 
 void MappingListModel::saveSidecar(
-    const schnelle_umlaute::OverrideLayer &layer) {
+    const schnelle_umlaute::OverrideLayer &layer, bool reloadAddon) {
     const QString path = sidecarPath();
     const std::string text = schnelle_umlaute::serializeMergeOverride(layer);
     if (text.empty()) {
         // No overrides left: drop the sidecar so the config stays clean.
         QFile::remove(path);
-        reloadSchnelleUmlauteAddon();
+        if (reloadAddon)
+            reloadSchnelleUmlauteAddon();
         return;
     }
     QDir().mkpath(QFileInfo(path).absolutePath());
@@ -517,18 +520,22 @@ void MappingListModel::saveSidecar(
         Q_EMIT errorOccurred(file.errorString());
         return;
     }
-    reloadSchnelleUmlauteAddon();
+    if (reloadAddon)
+        reloadSchnelleUmlauteAddon();
 }
 
 bool MappingListModel::inheritedHasVariant(const std::string &base,
                                            const std::string &variant) const {
     for (const QString &ref : mergeOverlay_) {
-        static const QString kPrefix = QStringLiteral("profile:");
-        if (!ref.startsWith(kPrefix))
-            continue;
-        const QString file = ref.mid(kPrefix.size());
+        const QString file = QString::fromStdString(
+            schnelle_umlaute::fileForProfileRef(ref.toStdString()));
         if (file.isEmpty() ||
             !schnelle_umlaute::isSafeProfileFile(file.toStdString()))
+            continue;
+        // The active profile is the base, not an inherited source (see
+        // rebuildDisplay); skip it so its own variants are not treated as
+        // inherited and removed via the sidecar instead of the own .txt.
+        if (file == profileFile_)
             continue;
         for (const auto &kv : loadOrderedProfile(file)) {
             if (kv.first == base) {
@@ -548,7 +555,8 @@ bool MappingListModel::removeComposedVariant(const QString &input,
         return false;
     const std::string base = input.toStdString();
     const std::string var = variant.toStdString();
-    bool changed = false;
+    bool ownChanged = false;
+    bool inheritedChanged = false;
     // If it is an own variant, drop it from this profile's own .txt entry.
     for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
         if (entries_[i].input != input)
@@ -563,8 +571,9 @@ bool MappingListModel::removeComposedVariant(const QString &input,
             else
                 entries_[i].output = QString::fromStdString(
                     schnelle_umlaute::joinOutputs(vars));
-            save(); // rewrites the own .txt
-            changed = true;
+            // Defer the addon reload; a paired sidecar write below reloads once.
+            save(/*reloadAddon=*/false); // rewrites the own .txt
+            ownChanged = true;
         }
         break;
     }
@@ -574,13 +583,16 @@ bool MappingListModel::removeComposedVariant(const QString &input,
         auto &rem = layer.perBase[base].remove;
         if (std::find(rem.begin(), rem.end(), var) == rem.end()) {
             rem.push_back(var);
-            saveSidecar(layer);
-            changed = true;
+            saveSidecar(layer, /*reloadAddon=*/false);
+            inheritedChanged = true;
         }
     }
-    if (changed)
-        rebuildDisplay();
-    return changed;
+    if (!ownChanged && !inheritedChanged)
+        return false;
+    // Both writes are done; reload the engine exactly once for the whole change.
+    reloadSchnelleUmlauteAddon();
+    rebuildDisplay();
+    return true;
 }
 
 bool MappingListModel::setComposedOrder(const QString &input,

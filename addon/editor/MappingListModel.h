@@ -95,7 +95,10 @@ private:
     static bool isValidOutputChar(const QString &output);
     bool hasInput(const QString &input, int excludeRow) const;
     void load();
-    bool save();
+    // Write the own mappings file. reloadAddon triggers the engine reload; pass
+    // false to batch a following sidecar write into a single reload (see
+    // removeComposedVariant).
+    bool save(bool reloadAddon = true);
     void setSaveStatus(const QString &status);
     // True when the displayed rows should be the composed effective mapping:
     // the edit target is the active profile and the overlay is non-empty.
@@ -109,8 +112,10 @@ private:
     QString sidecarPath() const;
     schnelle_umlaute::OverrideLayer loadSidecar() const;
     // Write the sidecar (or delete it when the layer is empty) and reload the
-    // addon so the change takes effect at runtime.
-    void saveSidecar(const schnelle_umlaute::OverrideLayer &layer);
+    // addon so the change takes effect at runtime. reloadAddon false defers the
+    // reload so a paired own-file write reloads only once.
+    void saveSidecar(const schnelle_umlaute::OverrideLayer &layer,
+                     bool reloadAddon = true);
     // Whether any overlay source provides `variant` for `base` (i.e. it is an
     // inherited variant, removed via the sidecar rather than the own .txt).
     bool inheritedHasVariant(const std::string &base,

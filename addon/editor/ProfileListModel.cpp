@@ -16,10 +16,12 @@
 
 namespace {
 
+using schnelle_umlaute::fileForProfileRef;
 using schnelle_umlaute::kMappingsFile;
 using schnelle_umlaute::kProfilesConf;
 using schnelle_umlaute::kProfilesSubdir;
 using schnelle_umlaute::kStandardProfile;
+using schnelle_umlaute::profileRefForFile;
 
 // Longest slug accepted, so a pathological profile name can't produce a
 // filename that hits the filesystem's NAME_MAX on save.
@@ -476,16 +478,17 @@ bool ProfileListModel::removeProfile(int row) {
             Q_EMIT dataChanged(idx, idx, {IsActiveRole});
         }
     }
-    // Let the editor reset its edit target if it was pointing at this file.
-    Q_EMIT profileRemoved(file);
     // Drop the deleted profile from the merge overlay so its ref does not linger
     // as a dangling entry, which would leave a gap in the merge numbering (and
-    // make a re-imported profile that reuses the slug look pre-merged). save()
-    // below persists it and emits changed(), which refreshes the badges.
-    const int overlayIdx =
-        mergeOverlay_.indexOf(QStringLiteral("profile:") + file);
+    // make a re-imported profile that reuses the slug look pre-merged). Prune
+    // before signalling so a handler that re-reads mergeOverlay never sees the
+    // stale ref; save() below persists it and emits changed(), refreshing the
+    // badges.
+    const qsizetype overlayIdx = mergeOverlay_.indexOf(refForFile(file));
     if (overlayIdx >= 0)
         mergeOverlay_.removeAt(overlayIdx);
+    // Let the editor reset its edit target if it was pointing at this file.
+    Q_EMIT profileRemoved(file);
     save();
     return true;
 }
@@ -621,7 +624,7 @@ void ProfileListModel::toggleMergeOverlay(const QString &ref) {
     if (r.isEmpty())
         return;
     QStringList next = mergeOverlay_;
-    const int i = next.indexOf(r);
+    const qsizetype i = next.indexOf(r);
     if (i >= 0)
         next.removeAt(i); // un-merge
     else
@@ -630,7 +633,7 @@ void ProfileListModel::toggleMergeOverlay(const QString &ref) {
 }
 
 int ProfileListModel::mergeBadge(const QString &ref) const {
-    const int idx = mergeOverlay_.indexOf(ref);
+    const qsizetype idx = mergeOverlay_.indexOf(ref);
     if (idx < 0)
         return 0; // not merged
     // The active profile is the merge base: it carries no badge and does not
@@ -642,7 +645,7 @@ int ProfileListModel::mergeBadge(const QString &ref) const {
             break;
         }
     }
-    const QString activeRef = QStringLiteral("profile:") + activeFile;
+    const QString activeRef = refForFile(activeFile);
     if (ref == activeRef)
         return 0;
     int pos = 0;
@@ -651,6 +654,14 @@ int ProfileListModel::mergeBadge(const QString &ref) const {
             ++pos;
     }
     return pos;
+}
+
+bool ProfileListModel::isMerged(const QString &ref) const {
+    return mergeOverlay_.contains(ref);
+}
+
+QString ProfileListModel::refForFile(const QString &file) const {
+    return QString::fromLatin1(schnelle_umlaute::kProfileRefPrefix) + file;
 }
 
 void ProfileListModel::seedStandardIfEmpty(bool persist) {
@@ -793,6 +804,23 @@ void ProfileListModel::load() {
         }
     if (!activeKnown)
         active_ = entries_.front().name;
+    // Drop merge-overlay refs whose profile no longer exists (deleted outside
+    // the editor, or a hand-edited profiles.conf). A dangling ref would reopen
+    // the very numbering gap the delete-cleanup avoids, and a re-created profile
+    // reusing the file would look pre-merged.
+    if (!mergeOverlay_.isEmpty()) {
+        QStringList liveOverlay;
+        for (const QString &ref : mergeOverlay_) {
+            const QString file =
+                QString::fromStdString(fileForProfileRef(ref.toStdString()));
+            if (!file.isEmpty() && fileExists(file, -1))
+                liveOverlay.push_back(ref);
+        }
+        if (liveOverlay != mergeOverlay_) {
+            mergeOverlay_ = liveOverlay;
+            dirty = true;
+        }
+    }
     // Persist once if the Standard was seeded or loose profiles were adopted;
     // save() also fires the engine reload so the new entries take effect.
     if (dirty)
@@ -837,6 +865,14 @@ void ProfileListModel::reloadActiveFromDisk() {
             Q_EMIT dataChanged(idx, idx, {IsActiveRole});
         }
     }
+    // A runtime profile switch (e.g. a cycle hotkey) rewrote profiles.conf and
+    // we adopted it here. The active profile is the merge base, so this changes
+    // which file the composed view builds against and renumbers every merge
+    // badge. Both are bound to revision in QML (not to individual rows), so bump
+    // it as every persisted mutation does, otherwise the composed mapping list
+    // and the badges stay stale until an unrelated save() next bumps it.
+    ++revision_;
+    Q_EMIT changed();
 }
 
 bool ProfileListModel::save() {

@@ -35,7 +35,7 @@ class ProfileListModel : public QAbstractListModel {
     Q_PROPERTY(QString cyclePrev READ cyclePrev WRITE setCyclePrev NOTIFY
                    cyclePrevChanged)
     // The global merge overlay: the ordered list of profile refs
-    // ("profile:<slug>") composed on top of the active profile (issue #112).
+    // ("profile:<file>") composed on top of the active profile (issue #112).
     Q_PROPERTY(QStringList mergeOverlay READ mergeOverlay NOTIFY changed)
     // Bumped on every persisted change; lets QML combos that build a plain
     // name list rebind when profiles are added/renamed/removed.
@@ -76,6 +76,14 @@ public:
     // not occupy a number, so the remaining merged profiles stay 1..N with no
     // gap. Returns 0 if the ref is not in the overlay or is the active profile.
     Q_INVOKABLE int mergeBadge(const QString &ref) const;
+    // Whether a profile ref is in the merge overlay at all, including the active
+    // profile (which carries no badge number but can still sit in the overlay
+    // and be toggled out of it). Drives the merge glyph's merged state so the
+    // active profile shows it is merged and its toggle un-merges it.
+    Q_INVOKABLE bool isMerged(const QString &ref) const;
+    // Build a merge ref from a profile File, so QML has the "profile:" prefix
+    // from the one shared source instead of a duplicated literal.
+    Q_INVOKABLE QString refForFile(const QString &file) const;
     void setCycleNext(const QString &combo);
     void setCyclePrev(const QString &combo);
 
