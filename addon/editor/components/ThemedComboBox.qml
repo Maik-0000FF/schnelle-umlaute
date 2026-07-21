@@ -86,6 +86,16 @@ ComboBox {
         // placement that needs a missing protocol). Uses the shared predicate
         // on the combo root; string models render unchanged.
         readonly property bool itemUnavailable: combo.isUnavailable(modelData)
+
+        // Mouse-hover state comes from a HoverHandler, not ItemDelegate's
+        // built-in `hovered`. The built-in flickers in the popup: it also
+        // fires as rows scroll under a still cursor and while
+        // highlightedIndex momentarily drops to -1 during pointer movement,
+        // which the colour Behavior renders as a pulse. HoverHandler reports
+        // only genuine pointer presence, so it stays steady. This is the same
+        // mechanism the Profile/Library dropdown rows use, so hover now looks
+        // identical across every dropdown.
+        HoverHandler { id: itemHover }
         contentItem: Text {
             text: item.itemLabel
             // Use Theme.accent (varies per theme) instead of Theme.brand
@@ -106,7 +116,7 @@ ComboBox {
             // through, matching the Profile/Library dropdown rows; the hovered
             // row and the keyboard-highlighted row both lift to surfaceHover so
             // the active target stays visible whether reached by mouse or keys.
-            color: (item.hovered || item.highlighted) ? Theme.surfaceHover : "transparent"
+            color: (itemHover.hovered || item.highlighted) ? Theme.surfaceHover : "transparent"
             Behavior on color { ColorAnimation { duration: Theme.animShort } }
         }
     }
