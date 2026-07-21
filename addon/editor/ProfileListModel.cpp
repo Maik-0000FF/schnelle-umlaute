@@ -35,6 +35,7 @@ constexpr int kMaxSlugLength = 64;
 const QLatin1String kKeyActive("Active");
 const QLatin1String kKeyCycleNext("CycleNext");
 const QLatin1String kKeyCyclePrev("CyclePrev");
+const QLatin1String kKeyMergeOverlay("MergeOverlay");
 const QLatin1String kKeyName("Name");
 const QLatin1String kKeyFile("File");
 const QLatin1String kKeySelectKey("SelectKey");
@@ -591,6 +592,22 @@ void ProfileListModel::setCyclePrev(const QString &combo) {
     save();
 }
 
+void ProfileListModel::setMergeOverlay(const QStringList &refs) {
+    reloadActiveFromDisk();
+    QStringList cleaned;
+    for (const QString &r : refs) {
+        const QString t = r.trimmed();
+        if (!t.isEmpty())
+            cleaned.push_back(t);
+    }
+    if (cleaned == mergeOverlay_)
+        return;
+    mergeOverlay_ = cleaned;
+    // save() persists and fires the addon reload; changed() notifies the
+    // mergeOverlay property.
+    save();
+}
+
 void ProfileListModel::seedStandardIfEmpty(bool persist) {
     if (!entries_.empty())
         return;
@@ -641,6 +658,7 @@ void ProfileListModel::load() {
     active_.clear();
     cycleNext_.clear();
     cyclePrev_.clear();
+    mergeOverlay_.clear();
 
     QFile f(profilesConfPath());
     if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -683,6 +701,10 @@ void ProfileListModel::load() {
                     cycleNext_ = val;
                 else if (key == kKeyCyclePrev)
                     cyclePrev_ = val;
+                else if (key == kKeyMergeOverlay)
+                    // One comma-separated string of profile refs; refs are
+                    // comma-free, so a plain split reconstructs the order.
+                    mergeOverlay_ = val.split(QChar(','), Qt::SkipEmptyParts);
             } else if (inEntry) {
                 if (key == kKeyName)
                     cur.name = val;
@@ -788,6 +810,8 @@ bool ProfileListModel::save() {
     ts << kKeyActive << "=" << escapeValue(active_) << "\n";
     ts << kKeyCycleNext << "=" << escapeValue(cycleNext_) << "\n";
     ts << kKeyCyclePrev << "=" << escapeValue(cyclePrev_) << "\n";
+    ts << kKeyMergeOverlay << "="
+       << escapeValue(mergeOverlay_.join(QChar(','))) << "\n";
     for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
         const auto &e = entries_[i];
         ts << "\n[" << kSectionPrefix << i << "]\n";

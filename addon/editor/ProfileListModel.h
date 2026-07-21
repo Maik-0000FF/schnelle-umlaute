@@ -19,8 +19,9 @@ class QFileSystemWatcher;
 //
 // This model owns profiles.conf exclusively (kept out of schnelle-umlaute.conf,
 // which SettingsModel fully rewrites). The file format is the fcitx INI the
-// engine's ProfilesConfig reads: top-level Active/CycleNext/CyclePrev plus
-// [Profiles/<i>] sections with Name/File/SelectKey/Favorite. The editor does
+// engine's ProfilesConfig reads: top-level Active/CycleNext/CyclePrev/
+// MergeOverlay plus [Profiles/<i>] sections with Name/File/SelectKey/Favorite.
+// The editor does
 // not link fcitx-config, so it reads/writes that format by hand; the key names
 // and True/False bool spelling must stay in sync with the engine's
 // FCITX_CONFIGURATION in config.h (see the CONTRACT note there).
@@ -33,6 +34,9 @@ class ProfileListModel : public QAbstractListModel {
                    cycleNextChanged)
     Q_PROPERTY(QString cyclePrev READ cyclePrev WRITE setCyclePrev NOTIFY
                    cyclePrevChanged)
+    // The global merge overlay: the ordered list of profile refs
+    // ("profile:<slug>") composed on top of the active profile (issue #112).
+    Q_PROPERTY(QStringList mergeOverlay READ mergeOverlay NOTIFY changed)
     // Bumped on every persisted change; lets QML combos that build a plain
     // name list rebind when profiles are added/renamed/removed.
     Q_PROPERTY(int revision READ revision NOTIFY changed)
@@ -59,6 +63,10 @@ public:
     Q_INVOKABLE QStringList profileNames() const;
     QString cycleNext() const { return cycleNext_; }
     QString cyclePrev() const { return cyclePrev_; }
+    QStringList mergeOverlay() const { return mergeOverlay_; }
+    // Replace the whole ordered merge overlay (profile refs) and persist. Empty
+    // entries are dropped. The UI toggles/reorders profiles into this list.
+    Q_INVOKABLE void setMergeOverlay(const QStringList &refs);
     void setCycleNext(const QString &combo);
     void setCyclePrev(const QString &combo);
 
@@ -154,6 +162,7 @@ private:
     QString active_;
     QString cycleNext_;
     QString cyclePrev_;
+    QStringList mergeOverlay_;
     int revision_ = 0;
     // Watches profiles.conf for external writes (the engine persists Active=
     // on every shortcut switch). Owned via the QObject parent.

@@ -254,11 +254,12 @@ FCITX_CONFIGURATION(
 // unlike a KeyList which serializes as a nested sub-section.
 //
 // CONTRACT: the INI key names below ("Name", "File", "SelectKey", "Favorite",
-// and "Active"/"CycleNext"/"CyclePrev" in ProfilesConfig) plus the True/False
-// bool spelling are the on-disk format. The editor's ProfileListModel reads and
-// writes the exact same strings by hand (load()/save()). The FCITX_CONFIGURATION
-// macro requires string literals here, so they cannot be shared as a constant;
-// keep the two sides in sync when changing any key.
+// and "Active"/"CycleNext"/"CyclePrev"/"MergeOverlay" in ProfilesConfig) plus
+// the True/False bool spelling are the on-disk format. The editor's
+// ProfileListModel reads and writes the exact same strings by hand
+// (load()/save()). The FCITX_CONFIGURATION macro requires string literals here,
+// so they cannot be shared as a constant; keep the two sides in sync when
+// changing any key.
 FCITX_CONFIGURATION(
     ProfileEntryConfig, Option<std::string> name{this, "Name", "Name", ""};
     Option<std::string> file{this, "File", "File", ""};
@@ -276,7 +277,12 @@ FCITX_CONFIGURATION(
     Option<std::string> cycleNext{this, "CycleNext", "Cycle to next profile",
                                   ""};
     Option<std::string> cyclePrev{this, "CyclePrev", "Cycle to previous profile",
-                                  ""};);
+                                  ""};
+    // The global merge overlay (issue #112): an ordered, comma-separated list of
+    // profile refs ("profile:<slug>") composed on top of whichever profile is
+    // active. Empty = no merge. Stored as one string (refs are comma-free) so
+    // the editor's hand-written parser handles it like the other top-level keys.
+    Option<std::string> mergeOverlay{this, "MergeOverlay", "Merge overlay", ""};);
 
 // What fcitx5-config-qt and the KDE KCM render when the user clicks the
 // gear icon next to "Schnelle Umlaute". Exposing exactly one ExternalOption

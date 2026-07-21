@@ -63,6 +63,10 @@ int main(int argc, char **argv) try {
         EXPECT(m.setFavorite(1, true));
         m.setCycleNext(QStringLiteral("Control+Alt+period"));
         m.setCyclePrev(QStringLiteral("Control+Alt+comma"));
+        // The global merge overlay: an ordered list of profile refs. Stored as
+        // one comma-joined top-level string that the engine reads back verbatim.
+        m.setMergeOverlay(QStringList{QStringLiteral("profile:mathematik"),
+                                      QStringLiteral("profile:mein-profil")});
     }
 
     ProfilesConfig cfg;
@@ -87,6 +91,9 @@ int main(int argc, char **argv) try {
     const auto *spaced = findEntry(cfg, "Mein Profil");
     EXPECT(spaced != nullptr);
     EXPECT(*spaced->file == std::string("profiles/mein-profil.txt"));
+    // The overlay round-trips as one ordered, comma-joined string.
+    EXPECT(*cfg.mergeOverlay ==
+           std::string("profile:mathematik,profile:mein-profil"));
     std::fprintf(stderr, "ok direction1_editor_write_engine_read\n");
 
     // -- Direction 2: engine writes (canonical fcitx INI) -> editor reads ----
@@ -106,6 +113,9 @@ int main(int argc, char **argv) try {
     EXPECT(m2.data(m2.index(1), ProfileListModel::SelectKeyRole).toString()
            == QStringLiteral("Control+Alt+1"));
     EXPECT(m2.data(m2.index(1), ProfileListModel::FavoriteRole).toBool());
+    EXPECT(m2.mergeOverlay() ==
+           (QStringList{QStringLiteral("profile:mathematik"),
+                        QStringLiteral("profile:mein-profil")}));
     std::fprintf(stderr, "ok direction2_engine_write_editor_read\n");
 
     return 0;
