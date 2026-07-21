@@ -60,6 +60,45 @@ inline bool isStandardProfile(std::string_view file) {
            file == std::string(kConfigSubdir) + "/" + kMappingsFile;
 }
 
+// A merge-overlay entry (issue #112) references a profile by its File field,
+// with this prefix so the ref format can later distinguish other kinds. The
+// overlay is a comma-joined list of these in profiles.conf's MergeOverlay key;
+// both the editor and the engine build and split refs, so the prefix and the
+// two conversions below live here once instead of as scattered literals.
+inline constexpr const char *kProfileRefPrefix = "profile:";
+
+// Build a merge ref from a profile File ("profiles/x.txt" ->
+// "profile:profiles/x.txt").
+inline std::string profileRefForFile(std::string_view file) {
+    return std::string(kProfileRefPrefix) + std::string(file);
+}
+
+// The File a merge ref names, or an empty string when it is not a profile ref.
+inline std::string fileForProfileRef(std::string_view ref) {
+    const std::string_view prefix(kProfileRefPrefix);
+    if (ref.size() < prefix.size() ||
+        ref.compare(0, prefix.size(), prefix) != 0) {
+        return std::string();
+    }
+    return std::string(ref.substr(prefix.size()));
+}
+
+// A profile's merge-override sidecar path: the profile File with a ".txt"
+// suffix swapped for ".merge" (a suffix-less name just gains ".merge"). The
+// engine and the editor derive it identically so they never read from and write
+// to different sidecars for the same profile.
+inline std::string sidecarRelPathForProfile(std::string_view file) {
+    const std::string_view kTxt(".txt");
+    std::string rel(file);
+    if (rel.size() >= kTxt.size() &&
+        rel.compare(rel.size() - kTxt.size(), kTxt.size(), kTxt) == 0) {
+        rel.replace(rel.size() - kTxt.size(), kTxt.size(), ".merge");
+    } else {
+        rel += ".merge";
+    }
+    return rel;
+}
+
 } // namespace schnelle_umlaute
 
 #endif

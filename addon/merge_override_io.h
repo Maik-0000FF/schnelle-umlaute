@@ -17,9 +17,11 @@
 #include "mappings-io.h"     // utf8FirstCharBytes, splitOutputs, joinOutputs
 #include "profile_compose.h" // OverrideLayer, BaseOverride
 
+#include <algorithm>
 #include <cstdio>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace schnelle_umlaute {
 
@@ -59,23 +61,34 @@ inline OverrideLayer parseMergeOverride(FILE *fp) {
 
 inline std::string serializeMergeOverride(const OverrideLayer &layer) {
     std::string out;
-    for (const auto &base : layer.removedBases) {
+    // Both containers are unordered, so sort the bases before emitting: a
+    // rewrite with unchanged content then produces a byte-identical file
+    // instead of churning the line order on every save.
+    std::vector<std::string> removed(layer.removedBases.begin(),
+                                     layer.removedBases.end());
+    std::sort(removed.begin(), removed.end());
+    for (const auto &base : removed) {
         out += '-';
         out += base;
         out += '\n';
     }
-    for (const auto &kv : layer.perBase) {
-        const auto &ops = kv.second;
+    std::vector<std::string> bases;
+    bases.reserve(layer.perBase.size());
+    for (const auto &kv : layer.perBase)
+        bases.push_back(kv.first);
+    std::sort(bases.begin(), bases.end());
+    for (const auto &base : bases) {
+        const auto &ops = layer.perBase.at(base);
         if (!ops.remove.empty()) {
             out += '!';
-            out += kv.first;
+            out += base;
             out += '=';
             out += joinOutputs(ops.remove);
             out += '\n';
         }
         if (!ops.order.empty()) {
             out += '~';
-            out += kv.first;
+            out += base;
             out += '=';
             out += joinOutputs(ops.order);
             out += '\n';

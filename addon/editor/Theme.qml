@@ -190,6 +190,7 @@ QtObject {
     // Type scale: the single source for every text size in the editor. Roles,
     // not raw pixels, so a size change is one edit here. Glyphs get their own
     // token (fontIcon) so action icons can be rescaled independently of text.
+    readonly property int fontBadge:   9  // count badge on the merge toggle
     readonly property int fontBody:   12  // body, hints, labels, errors (hierarchy via colour/weight)
     readonly property int fontIcon:   14  // action-glyph size (✎ ✗ 🗑 ✓ ★ ✕ ⠿ →)
     readonly property int fontStrong: 16  // mono mapping cells, titles, add-card display
@@ -214,6 +215,10 @@ QtObject {
     // reserved clear-button slot. Shared by the per-profile select-key field
     // and the cycle fields.
     readonly property int shortcutFieldWidth: 184
+
+    // Merge-toggle position badge: a small pill overlapping the glyph's corner.
+    readonly property int badgeSize: 14   // min diameter / pill height
+    readonly property int badgeOffset: 3  // overlap onto the toggle's corner
 
     readonly property int spacingXxs: 2
     readonly property int spacingXs: 4

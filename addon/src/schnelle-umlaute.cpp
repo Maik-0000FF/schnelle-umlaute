@@ -946,14 +946,8 @@ private:
     // the per-base remove/order/removed tweaks the user applied to the composed
     // result. Empty (a no-op) when the file is absent.
     schnelle_umlaute::OverrideLayer loadActiveOverride() const {
-        std::string rel = activeProfileFile();
-        static const std::string kTxt = ".txt";
-        if (rel.size() >= kTxt.size() &&
-            rel.compare(rel.size() - kTxt.size(), kTxt.size(), kTxt) == 0)
-            rel = rel.substr(0, rel.size() - kTxt.size()) + ".merge";
-        else
-            rel += ".merge";
-        return schnelle_umlaute::loadOverrideFromFile(rel);
+        return schnelle_umlaute::loadOverrideFromFile(
+            schnelle_umlaute::sidecarRelPathForProfile(activeProfileFile()));
     }
 
     // Compose a base (active-profile) map with the global merge overlay
@@ -968,13 +962,10 @@ private:
     composeActiveWithOverlay(schnelle_umlaute::UmlautMap active) const {
         std::vector<schnelle_umlaute::UmlautMap> maps;
         maps.push_back(std::move(active));
-        static const std::string kProfileRefPrefix = "profile:";
         for (const std::string &ref : overlayRefs(*profiles_.mergeOverlay)) {
-            if (ref.rfind(kProfileRefPrefix, 0) != 0)
-                continue; // only profile refs are understood
-            const std::string file = ref.substr(kProfileRefPrefix.size());
+            const std::string file = schnelle_umlaute::fileForProfileRef(ref);
             if (file.empty() || !schnelle_umlaute::isSafeProfileFile(file))
-                continue; // dangling / unsafe -> skip
+                continue; // not a profile ref / dangling / unsafe -> skip
             maps.push_back(
                 schnelle_umlaute::loadMappingsFromFile(profileRelPath(file)));
         }
