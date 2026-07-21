@@ -177,6 +177,26 @@ inline std::vector<std::string> splitOutputs(const std::string &output) {
     return outputs;
 }
 
+// Join cycling variants back into a raw output string, the inverse of
+// splitOutputs: a literal comma inside a variant is doubled (",,") so the split
+// round-trips it, variants separated by a single comma. Lives next to
+// splitOutputs so the split/join pair stays symmetric and callers that rebuild
+// an output field from a variant list (e.g. the composed merge view) never
+// hand-roll the escaping.
+inline std::string joinOutputs(const std::vector<std::string> &outputs) {
+    std::string joined;
+    for (size_t i = 0; i < outputs.size(); ++i) {
+        if (i > 0)
+            joined += ',';
+        for (char c : outputs[i]) {
+            if (c == ',')
+                joined += ','; // double a literal comma
+            joined += c;
+        }
+    }
+    return joined;
+}
+
 } // namespace schnelle_umlaute
 
 #endif

@@ -2,10 +2,14 @@
 #include "FcitxReload.h"
 #include "editor_paths.h"
 #include "mappings-io.h"
+#include "profile_compose.h"
 
 #include <QDir>
 #include <QFile>
 #include <QSaveFile>
+
+#include <unordered_set>
+#include <utility>
 
 namespace {
 
@@ -13,6 +17,25 @@ namespace {
 // an absolute path under ~/.config/fcitx5/<config subdir>/.
 QString resolveProfilePath(const QString &relFile) {
     return schnelle_umlaute::configDirPath() + relFile;
+}
+
+// Load an overlay profile's file as an ordered list of (base, variants).
+// The order matters for the composed display: overlay-only bases keep the
+// source profile's order. Entries that split into zero variants are skipped,
+// matching the engine loader.
+std::vector<std::pair<std::string, std::vector<std::string>>>
+loadOrderedProfile(const QString &relFile) {
+    std::vector<std::pair<std::string, std::vector<std::string>>> out;
+    const QString path = resolveProfilePath(relFile);
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        for (const auto &m : schnelle_umlaute::parseMappings(fp)) {
+            auto vars = schnelle_umlaute::splitOutputs(m.output);
+            if (!vars.empty())
+                out.emplace_back(m.input, std::move(vars));
+        }
+        std::fclose(fp);
+    }
+    return out;
 }
 
 } // namespace
@@ -25,19 +48,39 @@ MappingListModel::MappingListModel(QObject *parent)
 int MappingListModel::rowCount(const QModelIndex &parent) const {
     if (parent.isValid())
         return 0;
-    return static_cast<int>(entries_.size());
+    // While composing, the view shows the composed rows; otherwise the own
+    // entries directly (the unchanged, granular-edit path).
+    return composing() ? static_cast<int>(display_.size())
+                       : static_cast<int>(entries_.size());
 }
 
 QVariant MappingListModel::data(const QModelIndex &index, int role) const {
-    if (index.row() < 0 || index.row() >= static_cast<int>(entries_.size())) {
-        return {};
+    const int row = index.row();
+    if (composing()) {
+        if (row < 0 || row >= static_cast<int>(display_.size()))
+            return {};
+        const auto &d = display_[row];
+        switch (role) {
+        case InputRole:
+            return d.input;
+        case OutputRole:
+            return d.output;
+        case SourceRole:
+            return d.source;
+        default:
+            return {};
+        }
     }
-    const auto &e = entries_[index.row()];
+    if (row < 0 || row >= static_cast<int>(entries_.size()))
+        return {};
+    const auto &e = entries_[row];
     switch (role) {
     case InputRole:
         return e.input;
     case OutputRole:
         return e.output;
+    case SourceRole:
+        return QStringLiteral("own");
     default:
         return {};
     }
@@ -47,6 +90,7 @@ QHash<int, QByteArray> MappingListModel::roleNames() const {
     return {
         {InputRole, "input"},
         {OutputRole, "output"},
+        {SourceRole, "source"},
     };
 }
 
@@ -126,6 +170,15 @@ bool MappingListModel::addMapping(const QString &input, const QString &output) {
         Q_EMIT errorOccurred(tr("Invalid entry"));
         return false;
     }
+    // A new own entry may override an inherited base; validateInput checks
+    // uniqueness only against own entries, which is what we want.
+    if (composing()) {
+        entries_.push_back({input, output});
+        Q_EMIT countChanged();
+        save();
+        rebuildDisplay();
+        return true;
+    }
     int row = static_cast<int>(entries_.size());
     beginInsertRows(QModelIndex(), row, row);
     entries_.push_back({input, output});
@@ -136,6 +189,23 @@ bool MappingListModel::addMapping(const QString &input, const QString &output) {
 }
 
 void MappingListModel::removeMapping(int row) {
+    if (composing()) {
+        if (row < 0 || row >= static_cast<int>(display_.size()))
+            return;
+        const int idx = display_[row].ownIndex;
+        if (idx < 0) {
+            // An inherited (overlay-only) row: removing it is a per-variant
+            // override (a later increment); for now, direct it to the source.
+            Q_EMIT errorOccurred(
+                tr("Inherited from the merge overlay; edit its source profile"));
+            return;
+        }
+        entries_.erase(entries_.begin() + idx);
+        Q_EMIT countChanged();
+        save();
+        rebuildDisplay();
+        return;
+    }
     if (row < 0 || row >= static_cast<int>(entries_.size()))
         return;
     beginRemoveRows(QModelIndex(), row, row);
@@ -147,6 +217,29 @@ void MappingListModel::removeMapping(int row) {
 
 bool MappingListModel::updateMapping(int row, const QString &input,
                                      const QString &output) {
+    if (composing()) {
+        if (row < 0 || row >= static_cast<int>(display_.size()))
+            return false;
+        const int idx = display_[row].ownIndex;
+        if (idx < 0) {
+            Q_EMIT errorOccurred(
+                tr("Inherited from the merge overlay; edit its source profile"));
+            return false;
+        }
+        if (!isValidInputChar(input) || hasInput(input, idx)) {
+            Q_EMIT errorOccurred(inputErrorFor(input, idx));
+            return false;
+        }
+        if (!validateOutput(output)) {
+            Q_EMIT errorOccurred(outputErrorFor(output));
+            return false;
+        }
+        entries_[idx].input = input;
+        entries_[idx].output = output;
+        save();
+        rebuildDisplay();
+        return true;
+    }
     if (row < 0 || row >= static_cast<int>(entries_.size()))
         return false;
     if (!isValidInputChar(input) || hasInput(input, row)) {
@@ -166,6 +259,10 @@ bool MappingListModel::updateMapping(int row, const QString &input,
 }
 
 void MappingListModel::moveMapping(int from, int to) {
+    // Reordering the composed view is a per-variant/base override (a later
+    // increment); the own order is not what the merged display shows.
+    if (composing())
+        return;
     int n = static_cast<int>(entries_.size());
     if (from < 0 || from >= n || to < 0 || to >= n || from == to)
         return;
@@ -196,10 +293,108 @@ void MappingListModel::setProfileFile(const QString &file) {
         return;
     profileFile_ = f;
     Q_EMIT profileFileChanged();
-    // Reload the model from the newly selected edit target. Wrapped in
-    // begin/endResetModel so the QML view rebinds to the new rows.
-    beginResetModel();
+    // Reload from the new edit target, then rebuild the (possibly composed)
+    // display. rebuildDisplay does the model reset and the count signal.
     load();
+    rebuildDisplay();
+}
+
+void MappingListModel::setMergeOverlay(const QStringList &refs) {
+    if (refs == mergeOverlay_)
+        return;
+    mergeOverlay_ = refs;
+    Q_EMIT mergeOverlayChanged();
+    rebuildDisplay();
+}
+
+void MappingListModel::setActiveProfileFile(const QString &file) {
+    if (file == activeProfileFile_)
+        return;
+    activeProfileFile_ = file;
+    Q_EMIT activeProfileFileChanged();
+    rebuildDisplay();
+}
+
+bool MappingListModel::composing() const {
+    return !mergeOverlay_.isEmpty() && !activeProfileFile_.isEmpty() &&
+           profileFile_ == activeProfileFile_;
+}
+
+void MappingListModel::rebuildDisplay() {
+    beginResetModel();
+    display_.clear();
+    if (composing()) {
+        // The edit target's own mappings as a base -> variants map.
+        schnelle_umlaute::VariantMap own;
+        for (const auto &e : entries_) {
+            own[e.input.toStdString()] =
+                schnelle_umlaute::splitOutputs(e.output.toStdString());
+        }
+        // Load each overlay profile (ordered), and build its map for compose.
+        std::vector<std::vector<
+            std::pair<std::string, std::vector<std::string>>>>
+            overlayOrdered;
+        std::vector<schnelle_umlaute::VariantMap> overlayMaps;
+        for (const QString &ref : mergeOverlay_) {
+            static const QString kPrefix = QStringLiteral("profile:");
+            if (!ref.startsWith(kPrefix))
+                continue;
+            const QString relFile = ref.mid(kPrefix.size());
+            if (relFile.isEmpty() ||
+                !schnelle_umlaute::isSafeProfileFile(relFile.toStdString()))
+                continue;
+            auto ordered = loadOrderedProfile(relFile);
+            schnelle_umlaute::VariantMap m;
+            for (const auto &kv : ordered)
+                m[kv.first] = kv.second;
+            overlayOrdered.push_back(std::move(ordered));
+            overlayMaps.push_back(std::move(m));
+        }
+        std::vector<const schnelle_umlaute::VariantMap *> sources;
+        sources.push_back(&own);
+        for (const auto &m : overlayMaps)
+            sources.push_back(&m);
+        // No per-variant override layer yet (a later increment): pure union.
+        schnelle_umlaute::VariantMap effective = schnelle_umlaute::compose(
+            sources, schnelle_umlaute::OverrideLayer{});
+
+        auto overlayHas = [&](const std::string &base) {
+            for (const auto &m : overlayMaps) {
+                if (m.count(base))
+                    return true;
+            }
+            return false;
+        };
+        std::unordered_set<std::string> emitted;
+        // Own bases first, in the edit target's own order.
+        for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
+            const std::string base = entries_[i].input.toStdString();
+            auto it = effective.find(base);
+            if (it == effective.end())
+                continue;
+            const QString out =
+                QString::fromStdString(schnelle_umlaute::joinOutputs(it->second));
+            const QString src = overlayHas(base) ? QStringLiteral("merged")
+                                                 : QStringLiteral("own");
+            display_.push_back({entries_[i].input, out, src, i});
+            emitted.insert(base);
+        }
+        // Then overlay-only bases, in overlay order.
+        for (const auto &ordered : overlayOrdered) {
+            for (const auto &kv : ordered) {
+                if (emitted.count(kv.first))
+                    continue;
+                auto it = effective.find(kv.first);
+                if (it == effective.end())
+                    continue;
+                const QString out = QString::fromStdString(
+                    schnelle_umlaute::joinOutputs(it->second));
+                display_.push_back({QString::fromStdString(kv.first), out,
+                                    QStringLiteral("inherited"), -1});
+                emitted.insert(kv.first);
+            }
+        }
+    }
     endResetModel();
     Q_EMIT countChanged();
 }

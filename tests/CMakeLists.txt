@@ -206,6 +206,25 @@ target_link_libraries(testmappinglistmodelio
 add_test(NAME testmappinglistmodelio COMMAND testmappinglistmodelio)
 set_tests_properties(testmappinglistmodelio PROPERTIES TIMEOUT 10)
 
+# The composed merge view: MappingListModel shows own + overlay with a source
+# role when editing the active profile, while save() stays own-only (issue
+# #112). Same XDG_CONFIG_HOME redirect / DBus-no-op setup.
+add_executable(testmappingcompose
+    testmappingcompose.cpp
+    ${PROJECT_SOURCE_DIR}/editor/MappingListModel.cpp)
+set_target_properties(testmappingcompose PROPERTIES AUTOMOC ON)
+target_include_directories(testmappingcompose PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testmappingcompose PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testmappingcompose PRIVATE QT_NO_KEYWORDS)
+target_link_libraries(testmappingcompose
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Qml)
+add_test(NAME testmappingcompose COMMAND testmappingcompose)
+set_tests_properties(testmappingcompose PROPERTIES TIMEOUT 10)
+
 # Standalone editor — SettingsModel validators, legacy position migration,
 # app-filter list dedup, and the save/load round-trip against
 # schnelle-umlaute.conf. SettingsModel depends on OverlayDBusClient for
