@@ -39,6 +39,22 @@ ComboBox {
         combo.isUnavailable(combo.model && combo.currentIndex >= 0
             ? combo.model[combo.currentIndex] : null)
 
+    // Navigating the open popup by keyboard switches its highlight into
+    // keyboard mode (see the delegate); accepted stays false so the ComboBox
+    // still performs the move. A row hover switches it back to mouse mode.
+    Keys.onPressed: (event) => {
+        switch (event.key) {
+        case Qt.Key_Up:
+        case Qt.Key_Down:
+        case Qt.Key_PageUp:
+        case Qt.Key_PageDown:
+        case Qt.Key_Home:
+        case Qt.Key_End:
+            popupList.keyboardActive = true;
+        }
+        event.accepted = false;
+    }
+
     contentItem: Text {
         text: combo.displayText
         color: combo.currentUnavailable ? Theme.textMuted : Theme.text
@@ -66,17 +82,15 @@ ComboBox {
         id: item
         required property int index
         required property var modelData
-        width: combo.width
+        // Match the list's own width (not combo.width) so the rounded row
+        // highlight sits inside the popup padding, exactly like the
+        // Profile/Library rows.
+        width: item.ListView.view.width
         // Custom contentItem supplies its own padding; clear the style's so
         // the row height is fixed at Theme.controlHeight regardless of style /
         // Qt version.
         padding: 0
         implicitHeight: Theme.controlHeight
-        // Mirror the combo's keyboard cursor so arrow-key navigation lifts the
-        // targeted row (the delegate is transparent-until-hovered, which
-        // otherwise leaves the highlighted row invisible when navigating
-        // without the mouse).
-        highlighted: combo.highlightedIndex === index
         readonly property bool current: combo.currentIndex === index
         readonly property string itemLabel:
             combo.textRole && modelData && typeof modelData === "object"
@@ -87,15 +101,14 @@ ComboBox {
         // on the combo root; string models render unchanged.
         readonly property bool itemUnavailable: combo.isUnavailable(modelData)
 
-        // Mouse-hover state comes from a HoverHandler, not ItemDelegate's
-        // built-in `hovered`. The built-in flickers in the popup: it also
-        // fires as rows scroll under a still cursor and while
-        // highlightedIndex momentarily drops to -1 during pointer movement,
-        // which the colour Behavior renders as a pulse. HoverHandler reports
-        // only genuine pointer presence, so it stays steady. This is the same
-        // mechanism the Profile/Library dropdown rows use, so hover now looks
-        // identical across every dropdown.
-        HoverHandler { id: itemHover }
+        // Mouse-hover state comes from a HoverHandler, exactly like the
+        // Profile/Library dropdown rows, so hover looks and feels identical
+        // across every dropdown. Hovering a row also switches the popup back to
+        // mouse mode so a stale keyboard highlight never lingers.
+        HoverHandler {
+            id: itemHover
+            onHoveredChanged: if (hovered) popupList.keyboardActive = false
+        }
         contentItem: Text {
             text: item.itemLabel
             // Use Theme.accent (varies per theme) instead of Theme.brand
@@ -112,12 +125,17 @@ ComboBox {
             verticalAlignment: Text.AlignVCenter
         }
         background: Rectangle {
-            // Transparent by default so the darker dropdown surface shows
-            // through, matching the Profile/Library dropdown rows; the hovered
-            // row and the keyboard-highlighted row both lift to surfaceHover so
-            // the active target stays visible whether reached by mouse or keys.
-            color: (itemHover.hovered || item.highlighted) ? Theme.surfaceHover : "transparent"
-            Behavior on color { ColorAnimation { duration: Theme.animShort } }
+            radius: Theme.radiusSm
+            // Exactly one highlight at a time, following the popup's active
+            // input mode (mirrors the Profile/Library lists): the
+            // keyboard-current row while navigating by keys, otherwise the
+            // mouse-hovered row. Both use surfaceHover, and there is no colour
+            // Behavior, so the highlight snaps instantly instead of smearing
+            // into a flicker as the rows or the pointer move.
+            color: (popupList.keyboardActive
+                    ? item.ListView.isCurrentItem
+                    : itemHover.hovered)
+                   ? Theme.surfaceHover : "transparent"
         }
     }
 
@@ -131,11 +149,17 @@ ComboBox {
         padding: Theme.spacingXs
 
         contentItem: ListView {
+            id: popupList
             clip: true
             implicitHeight: contentHeight
             model: combo.delegateModel
             currentIndex: combo.highlightedIndex
             ScrollIndicator.vertical: ScrollIndicator {}
+            // Active input mode for the single-highlight rule (mirrors the
+            // Profile/Library lists): a navigation key means keyboard, a row
+            // hover means mouse. Set true by the combo's key handler, back to
+            // false by a row's HoverHandler.
+            property bool keyboardActive: false
         }
 
         background: Rectangle {
