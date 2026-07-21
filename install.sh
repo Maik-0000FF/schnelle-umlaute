@@ -305,12 +305,21 @@ echo -e "${BLUE}Setting up environment variables...${NC}"
 
 mkdir -p "$HOME/.config/environment.d"
 
+# True on KDE Plasma Wayland. Matches the desktop with a case-insensitive
+# substring test to mirror containsCI() in addon/src/session_env.h, so a
+# colon-list or differently-cased XDG_CURRENT_DESKTOP (e.g. "KDE:plasma") is
+# still recognised as KDE, exactly like the canonical C++ decision.
+is_kde_wayland() {
+    [ "$XDG_SESSION_TYPE" = "wayland" ] || return 1
+    case "$XDG_CURRENT_DESKTOP" in *[Kk][Dd][Ee]*) return 0 ;; *) return 1 ;; esac
+}
+
 write_env_file() {
     # KDE Plasma Wayland drops the redundant GTK/QT modules (KWin serves the
     # native text-input protocol; fcitx5 warns about them). XMODIFIERS still
     # covers XWayland. Full set everywhere else, including KDE X11. Canonical
     # spec: addon/src/session_env.h.
-    if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+    if is_kde_wayland; then
         cat > "$ENV_FILE" << 'EOF'
 XMODIFIERS=@im=fcitx
 GLFW_IM_MODULE=ibus
@@ -410,7 +419,7 @@ echo
 
 # --- KDE Wayland: Disable Duplicate Autostart ---
 
-if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+if is_kde_wayland; then
     AUTOSTART_FILE="$HOME/.config/autostart/org.fcitx.Fcitx5.desktop"
     if [ ! -f "$AUTOSTART_FILE" ] || ! grep -q "Hidden=true" "$AUTOSTART_FILE"; then
         echo -e "${BLUE}Disabling redundant fcitx5 autostart (KWin handles this)...${NC}"
@@ -426,7 +435,7 @@ fi
 # --- Non-Arch (non-KDE-Wayland): Setup Autostart ---
 
 if [ "$DISTRO" != "arch" ]; then
-    if ! ([ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]); then
+    if ! is_kde_wayland; then
         echo -e "${BLUE}Setting up autostart...${NC}"
         AUTOSTART_DIR="$HOME/.config/autostart"
         mkdir -p "$AUTOSTART_DIR"
@@ -449,7 +458,7 @@ echo
 
 echo -e "${BLUE}Checking Fcitx5 status...${NC}"
 if pgrep -x fcitx5 > /dev/null; then
-    if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+    if is_kde_wayland; then
         fcitx5-remote -r 2>/dev/null && \
             echo -e "${GREEN}✓ Fcitx5 config reloaded${NC}" || \
             echo -e "${YELLOW}Could not reload fcitx5 config${NC}"
@@ -537,7 +546,7 @@ if [ "$DISTRO" != "arch" ]; then
 fi
 echo "  - See README.md for more help"
 echo
-if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ "$XDG_CURRENT_DESKTOP" = "KDE" ]; then
+if is_kde_wayland; then
     echo -e "${BLUE}For KDE Wayland users:${NC}"
     echo "  Set 'System Settings → Virtual Keyboard' to 'Fcitx 5'"
     echo "  (This eliminates KWin warnings)"
