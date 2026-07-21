@@ -19,6 +19,11 @@ TextField {
     verticalAlignment: TextInput.AlignVCenter
     color: Theme.text
     placeholderTextColor: Theme.textMuted
+    // Theme the text-selection highlight too, so selecting (or the rename
+    // field's initial selectAll) uses the accent instead of the unstyled
+    // platform selection colour. One place, so every field matches.
+    selectionColor: Theme.accent
+    selectedTextColor: Theme.onAccent
     selectByMouse: true
 
     // One styling for every menu row, so the four entries below don't each

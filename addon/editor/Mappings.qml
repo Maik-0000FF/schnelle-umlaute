@@ -256,6 +256,13 @@ Item {
         }
     }
 
+    // Click anywhere empty to drop keyboard focus, disarming an armed cycle or
+    // per-profile select-key capture field. Topmost among the page content so
+    // it sees every press first, but passes them through so the list drag and
+    // controls keep working. (The dialogs below are modal popups on their own
+    // layer, unaffected by this.)
+    FocusSink {}
+
     ConfirmDialog {
         id: confirmDialog
         titleText: qsTr("Delete mapping")

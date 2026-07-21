@@ -555,4 +555,9 @@ Item {
             }
         }
     }
+
+    // Click anywhere empty to drop keyboard focus, disarming an armed
+    // custom-leader capture field. Topmost so it sees every press first, but
+    // passes them through so the ScrollView and controls keep working.
+    FocusSink {}
 }

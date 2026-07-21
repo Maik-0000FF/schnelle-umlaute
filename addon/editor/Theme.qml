@@ -249,6 +249,10 @@ QtObject {
     readonly property string licenseName: "GPL-3.0"
     readonly property string licenseUrl:  "https://github.com/Maik-0000FF/schnelle-umlaute/blob/main/LICENSE"
 
+    // Developer credit shown in the About dialog. The name lives here as the
+    // single source; the dialog supplies the surrounding (translatable) wording.
+    readonly property string developerName: "Maik-0000FF"
+
     // App icon shared by the header and the About dialog, plus its two display
     // sizes and the About dialog width, so none of these are hard-coded per use.
     readonly property string appIconSource: "qrc:/qt/qml/SchnelleUmlaute/assets/schnelle-umlaute-icon.png"
