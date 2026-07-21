@@ -8,6 +8,7 @@
 #include <QString>
 #include <QStringList>
 
+#include "profile_compose.h" // OverrideLayer (composed-view override storage)
 #include "profile_paths.h"
 
 class MappingListModel : public QAbstractListModel {
@@ -65,6 +66,18 @@ public:
     Q_INVOKABLE bool validateInput(const QString &input,
                                    int excludeRow = -1) const;
     Q_INVOKABLE bool validateOutput(const QString &output) const;
+
+    // Composed-view mutations (issue #112), valid only while composing(). They
+    // tune the merged result without touching any source profile: an own
+    // variant is edited in this profile's own .txt, an inherited one via the
+    // active profile's merge-override sidecar.
+    // Remove one variant from a base's composed output.
+    Q_INVOKABLE bool removeComposedVariant(const QString &input,
+                                           const QString &variant);
+    // Arrange a base's composed variants in the given order (stored as an
+    // order override; new upstream variants still append).
+    Q_INVOKABLE bool setComposedOrder(const QString &input,
+                                      const QStringList &order);
     Q_INVOKABLE QString inputErrorFor(const QString &input,
                                       int excludeRow = -1) const;
     Q_INVOKABLE QString outputErrorFor(const QString &output) const;
@@ -91,6 +104,17 @@ private:
     // composing(), the overlay profiles. Own edits and save() always act on
     // entries_ (the own mappings); this only rebuilds what the view shows.
     void rebuildDisplay();
+    // The active profile's merge-override sidecar: same path as its .txt with
+    // ".txt" swapped for ".merge". Load/serialize the per-base remove/order ops.
+    QString sidecarPath() const;
+    schnelle_umlaute::OverrideLayer loadSidecar() const;
+    // Write the sidecar (or delete it when the layer is empty) and reload the
+    // addon so the change takes effect at runtime.
+    void saveSidecar(const schnelle_umlaute::OverrideLayer &layer);
+    // Whether any overlay source provides `variant` for `base` (i.e. it is an
+    // inherited variant, removed via the sidecar rather than the own .txt).
+    bool inheritedHasVariant(const std::string &base,
+                             const std::string &variant) const;
 
     struct Entry {
         QString input;

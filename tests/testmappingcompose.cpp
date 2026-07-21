@@ -85,6 +85,35 @@ int main(int argc, char **argv) {
                QStringLiteral("A"));
     }
 
+    // -- Composed-view mutations (issue #112) --------------------------------
+    // At this point the active/base 'a' composes to [A, B, C] (own A + overlay
+    // B, C). Reorder it to C, A, B via an order override.
+    EXPECT(m.setComposedOrder(QStringLiteral("a"),
+                              QStringList{QStringLiteral("C"),
+                                          QStringLiteral("A"),
+                                          QStringLiteral("B")}));
+    EXPECT(roleAt(m, 0, MappingListModel::OutputRole) ==
+           QStringLiteral("C,A,B"));
+
+    // Remove the inherited variant B: the overlay copy drops, and the order op
+    // keeps the rest arranged -> C, A. The overlay source stays untouched.
+    EXPECT(m.removeComposedVariant(QStringLiteral("a"), QStringLiteral("B")));
+    EXPECT(roleAt(m, 0, MappingListModel::OutputRole) == QStringLiteral("C,A"));
+
+    // The overrides persist to the sidecar: a fresh composed model reflects
+    // them without any in-memory carry-over.
+    {
+        MappingListModel again;
+        again.setProfileFile(QStringLiteral("profiles/base.txt"));
+        again.setActiveProfileFile(QStringLiteral("profiles/base.txt"));
+        again.setMergeOverlay(
+            QStringList{QStringLiteral("profile:profiles/spanish.txt")});
+        EXPECT(roleAt(again, 0, MappingListModel::InputRole) ==
+               QStringLiteral("a"));
+        EXPECT(roleAt(again, 0, MappingListModel::OutputRole) ==
+               QStringLiteral("C,A"));
+    }
+
     std::fprintf(stderr, "testmappingcompose: all passed\n");
     return 0;
 }

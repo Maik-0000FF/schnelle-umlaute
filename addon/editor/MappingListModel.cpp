@@ -2,12 +2,14 @@
 #include "FcitxReload.h"
 #include "editor_paths.h"
 #include "mappings-io.h"
+#include "merge_override_io.h"
 #include "profile_compose.h"
 
 #include <QDir>
 #include <QFile>
 #include <QSaveFile>
 
+#include <algorithm>
 #include <unordered_set>
 #include <utility>
 
@@ -368,9 +370,10 @@ void MappingListModel::rebuildDisplay() {
         sources.push_back(&own);
         for (const auto &m : overlayMaps)
             sources.push_back(&m);
-        // No per-variant override layer yet (a later increment): pure union.
-        schnelle_umlaute::VariantMap effective = schnelle_umlaute::compose(
-            sources, schnelle_umlaute::OverrideLayer{});
+        // Apply the active profile's merge-override sidecar (remove/order/
+        // removed ops) so the composed view matches what the engine produces.
+        schnelle_umlaute::VariantMap effective =
+            schnelle_umlaute::compose(sources, loadSidecar());
 
         auto overlayHas = [&](const std::string &base) {
             for (const auto &m : overlayMaps) {
@@ -473,4 +476,124 @@ void MappingListModel::setSaveStatus(const QString &status) {
         saveStatus_ = status;
         Q_EMIT saveStatusChanged();
     }
+}
+
+QString MappingListModel::sidecarPath() const {
+    QString rel = profileFile_;
+    if (rel.endsWith(QStringLiteral(".txt")))
+        rel = rel.left(rel.size() - 4) + QStringLiteral(".merge");
+    else
+        rel += QStringLiteral(".merge");
+    return resolveProfilePath(rel);
+}
+
+schnelle_umlaute::OverrideLayer MappingListModel::loadSidecar() const {
+    schnelle_umlaute::OverrideLayer layer;
+    if (FILE *fp = std::fopen(sidecarPath().toUtf8().constData(), "r")) {
+        layer = schnelle_umlaute::parseMergeOverride(fp);
+        std::fclose(fp);
+    }
+    return layer;
+}
+
+void MappingListModel::saveSidecar(
+    const schnelle_umlaute::OverrideLayer &layer) {
+    const QString path = sidecarPath();
+    const std::string text = schnelle_umlaute::serializeMergeOverride(layer);
+    if (text.empty()) {
+        // No overrides left: drop the sidecar so the config stays clean.
+        QFile::remove(path);
+        reloadSchnelleUmlauteAddon();
+        return;
+    }
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        Q_EMIT errorOccurred(file.errorString());
+        return;
+    }
+    const QByteArray buf = QByteArray::fromStdString(text);
+    if (file.write(buf) != buf.size() || !file.commit()) {
+        Q_EMIT errorOccurred(file.errorString());
+        return;
+    }
+    reloadSchnelleUmlauteAddon();
+}
+
+bool MappingListModel::inheritedHasVariant(const std::string &base,
+                                           const std::string &variant) const {
+    for (const QString &ref : mergeOverlay_) {
+        static const QString kPrefix = QStringLiteral("profile:");
+        if (!ref.startsWith(kPrefix))
+            continue;
+        const QString file = ref.mid(kPrefix.size());
+        if (file.isEmpty() ||
+            !schnelle_umlaute::isSafeProfileFile(file.toStdString()))
+            continue;
+        for (const auto &kv : loadOrderedProfile(file)) {
+            if (kv.first == base) {
+                for (const auto &v : kv.second) {
+                    if (v == variant)
+                        return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool MappingListModel::removeComposedVariant(const QString &input,
+                                             const QString &variant) {
+    if (!composing())
+        return false;
+    const std::string base = input.toStdString();
+    const std::string var = variant.toStdString();
+    bool changed = false;
+    // If it is an own variant, drop it from this profile's own .txt entry.
+    for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
+        if (entries_[i].input != input)
+            continue;
+        auto vars =
+            schnelle_umlaute::splitOutputs(entries_[i].output.toStdString());
+        auto it = std::find(vars.begin(), vars.end(), var);
+        if (it != vars.end()) {
+            vars.erase(it);
+            if (vars.empty())
+                entries_.erase(entries_.begin() + i); // no own variants left
+            else
+                entries_[i].output = QString::fromStdString(
+                    schnelle_umlaute::joinOutputs(vars));
+            save(); // rewrites the own .txt
+            changed = true;
+        }
+        break;
+    }
+    // If it is (also) inherited, record a remove op so the overlay copy drops.
+    if (inheritedHasVariant(base, var)) {
+        auto layer = loadSidecar();
+        auto &rem = layer.perBase[base].remove;
+        if (std::find(rem.begin(), rem.end(), var) == rem.end()) {
+            rem.push_back(var);
+            saveSidecar(layer);
+            changed = true;
+        }
+    }
+    if (changed)
+        rebuildDisplay();
+    return changed;
+}
+
+bool MappingListModel::setComposedOrder(const QString &input,
+                                        const QStringList &order) {
+    if (!composing())
+        return false;
+    auto layer = loadSidecar();
+    std::vector<std::string> ord;
+    ord.reserve(order.size());
+    for (const QString &v : order)
+        ord.push_back(v.toStdString());
+    layer.perBase[input.toStdString()].order = std::move(ord);
+    saveSidecar(layer);
+    rebuildDisplay();
+    return true;
 }
