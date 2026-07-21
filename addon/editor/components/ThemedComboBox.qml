@@ -68,7 +68,8 @@ ComboBox {
     background: Rectangle {
         radius: Theme.radiusSm
         color: Theme.comboBoxSurface
-        border.color: combo.activeFocus ? Theme.borderFocus : Theme.border
+        border.color: (combo.activeFocus || combo.popup.visible)
+                      ? Theme.borderFocus : Theme.border
         border.width: 1
         Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
     }
@@ -76,6 +77,19 @@ ComboBox {
     indicator: DropdownIndicator {
         x: combo.width - width - Theme.spacingMd
         y: (combo.height - height) / 2
+    }
+
+    // Drive the popup open/closed from one explicit click, mirroring the
+    // Profile/Library dropdown headers instead of the built-in ComboBox toggle.
+    // The built-in one, together with the popup's close-on-press-outside,
+    // closes then immediately reopens the popup on a click on the box while it
+    // is open. Consuming the click here keeps the ComboBox's own toggle out of
+    // it; CloseOnPressOutsideParent on the popup stops a click on the box from
+    // auto-closing, so this handler alone decides open vs closed.
+    MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        onClicked: combo.popup.visible ? combo.popup.close() : combo.popup.open()
     }
 
     delegate: ItemDelegate {
@@ -142,6 +156,11 @@ ComboBox {
     popup: Popup {
         y: combo.height + 2
         width: combo.width
+        // Close on a press outside the box (the popup's parent), not on the box
+        // itself, so the explicit toggle above owns the box click instead of the
+        // popup auto-closing and reopening. A click anywhere else still
+        // dismisses it. Matches the Profile/Library dropdowns.
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         // Cap the dropdown so very large models still fit on small screens:
         // 6 rows plus the popup's top and bottom padding.
         implicitHeight: Math.min(contentItem.implicitHeight + 2 * Theme.spacingXs,
