@@ -259,10 +259,24 @@ bool MappingListModel::updateMapping(int row, const QString &input,
 }
 
 void MappingListModel::moveMapping(int from, int to) {
-    // Reordering the composed view is a per-variant/base override (a later
-    // increment); the own order is not what the merged display shows.
-    if (composing())
+    if (composing()) {
+        // In the composed view only own rows reorder (they form the leading
+        // block); moving an inherited/merged row is a per-base override (a
+        // later step). Map the display rows to own entries and reorder there.
+        const int nd = static_cast<int>(display_.size());
+        if (from < 0 || from >= nd || to < 0 || to >= nd || from == to)
+            return;
+        const int fromOwn = display_[from].ownIndex;
+        const int toOwn = display_[to].ownIndex;
+        if (fromOwn < 0 || toOwn < 0)
+            return; // an inherited row is involved
+        auto entry = std::move(entries_[fromOwn]);
+        entries_.erase(entries_.begin() + fromOwn);
+        entries_.insert(entries_.begin() + toOwn, std::move(entry));
+        save();
+        rebuildDisplay();
         return;
+    }
     int n = static_cast<int>(entries_.size());
     if (from < 0 || from >= n || to < 0 || to >= n || from == to)
         return;
