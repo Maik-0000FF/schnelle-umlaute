@@ -148,6 +148,23 @@ QtObject {
     readonly property color switchThumb:  p.switchThumb
     readonly property color scrim:        p.scrim
 
+    // Dropdown popup surface: the single source for every open dropdown panel
+    // (ThemedComboBox, ProfileSelector, LibrarySelector). Uses the darker page
+    // background plus a focus-coloured border so the floating menu reads as a
+    // distinct layer above the Theme.surface cards instead of blending into
+    // them. Change the dropdown look here once, not per component.
+    readonly property color dropdownSurface: p.background
+    readonly property color dropdownBorder:  p.borderFocus
+
+    // Collapsed combo-box fill: a semantic alias for the closed control's
+    // resting surface. It resolves to the same page background as
+    // dropdownSurface today, but is named separately on purpose: the closed
+    // box is meant to sit flush with the surrounding row/card, while the open
+    // popup (dropdownSurface) floats above it as a distinct layer. Keeping the
+    // two states as their own tokens lets either shift without dragging the
+    // other along.
+    readonly property color comboBoxSurface: p.background
+
     // Resolve to the first installed family from a preference list rather than
     // hard-coding one. Inter and JetBrains Mono are preferred (the branded
     // look) but neither ships on a default install; when absent, fontconfig
@@ -198,13 +215,6 @@ QtObject {
     // and the cycle fields.
     readonly property int shortcutFieldWidth: 184
 
-    // Fixed label column for the settings toggle rows. Every toggle (leader
-    // enable, cycle direction, overlay options) sits right after a label of
-    // this width, so all toggles line up in one column across the cards.
-    // Sized to fit the longest toggle label ("Match candidate window to this
-    // theme"); tune here if labels change.
-    readonly property int settingLabelWidth: 240
-
     readonly property int spacingXxs: 2
     readonly property int spacingXs: 4
     readonly property int spacingSm: 8
@@ -217,7 +227,7 @@ QtObject {
 
     // Hover tooltips: one delay before they appear and one max width (so long
     // text wraps instead of running off), shared by every ThemedToolTip.
-    readonly property int tooltipDelay: 1500
+    readonly property int tooltipDelay: 750
     readonly property int tooltipMaxWidth: 280
 
     // Action icon glyphs, one source so the editor uses a consistent set.

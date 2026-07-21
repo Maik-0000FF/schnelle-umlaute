@@ -20,7 +20,10 @@ Rectangle {
 
     radius: Theme.radiusSm
     activeFocusOnTab: true
-    Behavior on color { ColorAnimation { duration: Theme.animShort } }
+    // Fill highlight switches instantly (no Behavior on color), matching the
+    // mapping-row hover. A fade would leave a dark afterglow trailing the old
+    // row when the pointer moves across a list of these (e.g. the About links).
+    // Only the focus border animates, like MappingRow.
     Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
 
     HoverHandler { id: hoverHandler; cursorShape: Qt.PointingHandCursor }

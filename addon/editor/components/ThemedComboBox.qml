@@ -51,7 +51,7 @@ ComboBox {
 
     background: Rectangle {
         radius: Theme.radiusSm
-        color: Theme.background
+        color: Theme.comboBoxSurface
         border.color: combo.activeFocus ? Theme.borderFocus : Theme.border
         border.width: 1
         Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
@@ -72,6 +72,11 @@ ComboBox {
         // Qt version.
         padding: 0
         implicitHeight: Theme.controlHeight
+        // Mirror the combo's keyboard cursor so arrow-key navigation lifts the
+        // targeted row (the delegate is transparent-until-hovered, which
+        // otherwise leaves the highlighted row invisible when navigating
+        // without the mouse).
+        highlighted: combo.highlightedIndex === index
         readonly property bool current: combo.currentIndex === index
         readonly property string itemLabel:
             combo.textRole && modelData && typeof modelData === "object"
@@ -97,7 +102,11 @@ ComboBox {
             verticalAlignment: Text.AlignVCenter
         }
         background: Rectangle {
-            color: item.hovered ? Theme.surfaceHover : Theme.surface
+            // Transparent by default so the darker dropdown surface shows
+            // through, matching the Profile/Library dropdown rows; the hovered
+            // row and the keyboard-highlighted row both lift to surfaceHover so
+            // the active target stays visible whether reached by mouse or keys.
+            color: (item.hovered || item.highlighted) ? Theme.surfaceHover : "transparent"
             Behavior on color { ColorAnimation { duration: Theme.animShort } }
         }
     }
@@ -120,9 +129,12 @@ ComboBox {
         }
 
         background: Rectangle {
-            color: Theme.surface
+            // Shared dropdown look (Theme.dropdownSurface/Border): darker than
+            // the surface cards behind it, so the open list reads as a distinct
+            // floating layer like the Profile/Library dropdowns.
+            color: Theme.dropdownSurface
             radius: Theme.radiusSm
-            border.color: Theme.border
+            border.color: Theme.dropdownBorder
             border.width: 1
         }
     }

@@ -153,13 +153,13 @@ Item {
         // add-row and separator always stay visible above it.
         implicitHeight: Math.min(popupCol.implicitHeight + 2 * Theme.spacingSm,
                                  360)
-        // Darker than the surface cards behind it, plus a focus-coloured border,
-        // so the open menu reads as a distinct floating layer instead of blending
-        // into the page (the surrounding cards are Theme.surface).
+        // Shared dropdown look (Theme.dropdownSurface/Border): darker than the
+        // surface cards behind it, plus a focus-coloured border, so the open menu
+        // reads as a distinct floating layer instead of blending into the page.
         background: Rectangle {
-            color: Theme.background
+            color: Theme.dropdownSurface
             radius: Theme.radiusSm
-            border.color: Theme.borderFocus
+            border.color: Theme.dropdownBorder
             border.width: 1
         }
 

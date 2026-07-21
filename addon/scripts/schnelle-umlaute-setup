@@ -30,10 +30,19 @@ echo
 SESSION="${XDG_SESSION_TYPE:-unknown}"
 DESKTOP="${XDG_CURRENT_DESKTOP:-unknown}"
 
+# True on KDE Plasma Wayland. Matches the desktop with a case-insensitive
+# substring test to mirror containsCI() in addon/src/session_env.h, so a
+# colon-list or differently-cased XDG_CURRENT_DESKTOP (e.g. "KDE:plasma") is
+# still recognised as KDE, exactly like the canonical C++ decision.
+is_kde_wayland() {
+    [ "$SESSION" = "wayland" ] || return 1
+    case "$DESKTOP" in *[Kk][Dd][Ee]*) return 0 ;; *) return 1 ;; esac
+}
+
 # True when GTK_IM_MODULE/QT_IM_MODULE should be dropped: KDE Plasma Wayland
 # only (KWin serves the native text-input protocol; XMODIFIERS still covers
 # XWayland). KDE X11 and everything else keep the full set.
-reduced_env() { [ "$SESSION" = "wayland" ] && [ "$DESKTOP" = "KDE" ]; }
+reduced_env() { is_kde_wayland; }
 
 # --- 1. Environment variables ---------------------------------------------
 ENV_FILE="$HOME/.config/environment.d/fcitx5.conf"
@@ -93,7 +102,7 @@ mkdir -p "$(dirname "$AUTOSTART_FILE")"
 
 echo -e "${BLUE}[2/2] Autostart (session: $SESSION, desktop: $DESKTOP)${NC}"
 
-if [ "$SESSION" = "wayland" ] && [ "$DESKTOP" = "KDE" ]; then
+if is_kde_wayland; then
     # KDE Wayland: KWin auto-starts fcitx5 if Virtual Keyboard is set to
     # "Fcitx 5". An XDG autostart entry would launch a SECOND instance and
     # cause duplicate-IM conflicts.
