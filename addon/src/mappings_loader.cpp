@@ -63,4 +63,24 @@ UmlautMap loadMappingsFromFile() {
                                kMappingsFile);
 }
 
+OverrideLayer loadOverrideFromFile(const std::string &relPath) {
+    using namespace fcitx;
+    OverrideLayer layer;
+#if SU_HAS_NEW_STDPATHS
+    auto file =
+        StandardPaths::global().open(StandardPathsType::PkgConfig, relPath);
+    if (file.isValid()) {
+        auto fp = fs::openFD(file, "r");
+#else
+    auto file = StandardPath::global().open(StandardPath::Type::PkgConfig,
+                                            relPath, O_RDONLY);
+    if (file.fd() >= 0) {
+        auto fp = fs::openFD(file, "r");
+#endif
+        if (fp)
+            layer = parseMergeOverride(fp.get());
+    }
+    return layer;
+}
+
 } // namespace schnelle_umlaute

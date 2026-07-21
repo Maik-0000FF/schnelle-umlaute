@@ -941,6 +941,21 @@ private:
         return refs;
     }
 
+    // The merge-override sidecar for the active profile: the same relative path
+    // as its mapping file with the ".txt" suffix replaced by ".merge". Carries
+    // the per-base remove/order/removed tweaks the user applied to the composed
+    // result. Empty (a no-op) when the file is absent.
+    schnelle_umlaute::OverrideLayer loadActiveOverride() const {
+        std::string rel = activeProfileFile();
+        static const std::string kTxt = ".txt";
+        if (rel.size() >= kTxt.size() &&
+            rel.compare(rel.size() - kTxt.size(), kTxt.size(), kTxt) == 0)
+            rel = rel.substr(0, rel.size() - kTxt.size()) + ".merge";
+        else
+            rel += ".merge";
+        return schnelle_umlaute::loadOverrideFromFile(rel);
+    }
+
     // Compose a base (active-profile) map with the global merge overlay
     // (issue #112): the base leads, then each overlay profile
     // ("profile:<relative file>") appends its variants in overlay order
@@ -967,8 +982,7 @@ private:
         sources.reserve(maps.size());
         for (const auto &m : maps)
             sources.push_back(&m);
-        return schnelle_umlaute::compose(sources,
-                                         schnelle_umlaute::OverrideLayer{});
+        return schnelle_umlaute::compose(sources, loadActiveOverride());
     }
 
     // The effective mapping table: the active profile file composed with the

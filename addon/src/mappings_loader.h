@@ -6,7 +6,8 @@
 // comma-separated cycling variants (respecting the double-comma escape) and
 // knows how to find the file via fcitx5's StandardPaths lookup.
 
-#include "mappings-io.h" // splitOutputs (format-level output splitting)
+#include "mappings-io.h"       // splitOutputs (format-level output splitting)
+#include "merge_override_io.h" // OverrideLayer + the sidecar parser
 
 #include <string>
 #include <unordered_map>
@@ -29,6 +30,12 @@ UmlautMap loadMappingsFromFile(const std::string &relPath);
 // Convenience overload for the Standard profile
 // ("schnelle-umlaute/mappings.txt").
 UmlautMap loadMappingsFromFile();
+
+// Load a profile's merge-override sidecar (per-base remove/order/removed ops,
+// issue #112) from a config-relative path, e.g.
+// "schnelle-umlaute/profiles/<slug>.merge". Returns an empty layer when the
+// file is absent, so a profile with no overrides composes unchanged.
+OverrideLayer loadOverrideFromFile(const std::string &relPath);
 
 } // namespace schnelle_umlaute
 
