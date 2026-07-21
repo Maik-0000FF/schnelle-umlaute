@@ -97,7 +97,10 @@ ComboBox {
             verticalAlignment: Text.AlignVCenter
         }
         background: Rectangle {
-            color: item.hovered ? Theme.surfaceHover : Theme.surface
+            // Transparent by default so the darker dropdown surface shows
+            // through, matching the Profile/Library dropdown rows; only the
+            // hovered row lifts to surfaceHover.
+            color: item.hovered ? Theme.surfaceHover : "transparent"
             Behavior on color { ColorAnimation { duration: Theme.animShort } }
         }
     }
@@ -120,9 +123,12 @@ ComboBox {
         }
 
         background: Rectangle {
-            color: Theme.surface
+            // Shared dropdown look (Theme.dropdownSurface/Border): darker than
+            // the surface cards behind it, so the open list reads as a distinct
+            // floating layer like the Profile/Library dropdowns.
+            color: Theme.dropdownSurface
             radius: Theme.radiusSm
-            border.color: Theme.border
+            border.color: Theme.dropdownBorder
             border.width: 1
         }
     }

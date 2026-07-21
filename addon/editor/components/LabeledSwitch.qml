@@ -2,10 +2,10 @@ import QtQuick
 import QtQuick.Layouts
 import SchnelleUmlaute
 
-RowLayout {
+// A plain label + toggle settings row. Built on SettingRow, so the whole strip
+// gets a hover highlight linking the left label to the right-aligned switch.
+SettingRow {
     id: root
-    Layout.fillWidth: true
-    spacing: Theme.spacingMd
 
     property string labelText: ""
     property bool checked: false
@@ -16,16 +16,15 @@ RowLayout {
     opacity: root.enabled ? 1.0 : 0.4
     Behavior on opacity { NumberAnimation { duration: Theme.animShort } }
 
-    // Fixed-width label column so the toggle lines up with every other toggle
-    // row across the settings cards. A label longer than the column (e.g. a
-    // longer translation) wraps onto a second line instead of being truncated,
-    // so no text is lost and the column keeps its shared width.
+    // The label fills the row so the toggle lands flush at the right edge, the
+    // platform-standard settings layout; every toggle row lines up on that edge.
+    // A long label wraps onto a second line instead of being truncated.
     Text {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBody
-        Layout.preferredWidth: Theme.settingLabelWidth
+        Layout.fillWidth: true
         wrapMode: Text.WordWrap
     }
 
@@ -46,7 +45,4 @@ RowLayout {
             text: root.tooltipText
         }
     }
-
-    // Trailing free space keeps the toggle left-aligned in the shared column.
-    Item { Layout.fillWidth: true }
 }

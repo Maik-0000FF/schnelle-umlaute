@@ -52,6 +52,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/EmptyState.qml
         components/Footer.qml
         components/SettingsCard.qml
+        components/SettingRow.qml
         components/LabeledSlider.qml
         components/LabeledRangeSlider.qml
         components/LabeledSwitch.qml
