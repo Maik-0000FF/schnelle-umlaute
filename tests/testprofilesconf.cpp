@@ -65,8 +65,11 @@ int main(int argc, char **argv) try {
         m.setCyclePrev(QStringLiteral("Control+Alt+comma"));
         // The global merge overlay: an ordered list of profile refs. Stored as
         // one comma-joined top-level string that the engine reads back verbatim.
-        m.setMergeOverlay(QStringList{QStringLiteral("profile:mathematik"),
-                                      QStringLiteral("profile:mein-profil")});
+        // Real refs pointing at the two profiles created above: load() prunes
+        // refs to non-existent profiles, so the round-trip must use live ones.
+        m.setMergeOverlay(
+            QStringList{QStringLiteral("profile:profiles/mathematik.txt"),
+                        QStringLiteral("profile:profiles/mein-profil.txt")});
     }
 
     ProfilesConfig cfg;
@@ -93,7 +96,8 @@ int main(int argc, char **argv) try {
     EXPECT(*spaced->file == std::string("profiles/mein-profil.txt"));
     // The overlay round-trips as one ordered, comma-joined string.
     EXPECT(*cfg.mergeOverlay ==
-           std::string("profile:mathematik,profile:mein-profil"));
+           std::string("profile:profiles/mathematik.txt,"
+                       "profile:profiles/mein-profil.txt"));
     std::fprintf(stderr, "ok direction1_editor_write_engine_read\n");
 
     // -- Direction 2: engine writes (canonical fcitx INI) -> editor reads ----
@@ -114,8 +118,8 @@ int main(int argc, char **argv) try {
            == QStringLiteral("Control+Alt+1"));
     EXPECT(m2.data(m2.index(1), ProfileListModel::FavoriteRole).toBool());
     EXPECT(m2.mergeOverlay() ==
-           (QStringList{QStringLiteral("profile:mathematik"),
-                        QStringLiteral("profile:mein-profil")}));
+           (QStringList{QStringLiteral("profile:profiles/mathematik.txt"),
+                        QStringLiteral("profile:profiles/mein-profil.txt")}));
     std::fprintf(stderr, "ok direction2_engine_write_editor_read\n");
 
     return 0;

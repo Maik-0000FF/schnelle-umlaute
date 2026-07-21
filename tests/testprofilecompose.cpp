@@ -114,6 +114,18 @@ void testRemovedBases() {
     EXPECT(eff.at("a") == Vec({"A"}));
 }
 
+// removedBases wins over an add: a whole-base removal is absolute, so even a
+// variant the override would add cannot resurrect the base.
+void testRemovedBasesBeatsAdd() {
+    VariantMap active{{"a", {"A"}}};
+    std::vector<const VariantMap *> ptrs{&active};
+    OverrideLayer layer;
+    layer.perBase["a"].add = {"X"}; // would add X to base 'a'
+    layer.removedBases.insert("a"); // but the base is removed outright
+    VariantMap eff = compose(ptrs, layer);
+    EXPECT(eff.find("a") == eff.end());
+}
+
 // compose() gathers bases from every source and applies per-base ops.
 void testComposeFullMap() {
     VariantMap active{{"a", {"A"}}};
@@ -146,6 +158,7 @@ int main() {
     testOrderReorderLiveFriendly();
     testEmptyPoolDropsBase();
     testRemovedBases();
+    testRemovedBasesBeatsAdd();
     testComposeFullMap();
     testSelfMergeDedup();
     std::fprintf(stderr, "testprofilecompose: all passed\n");
