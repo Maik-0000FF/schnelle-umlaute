@@ -478,6 +478,14 @@ bool ProfileListModel::removeProfile(int row) {
     }
     // Let the editor reset its edit target if it was pointing at this file.
     Q_EMIT profileRemoved(file);
+    // Drop the deleted profile from the merge overlay so its ref does not linger
+    // as a dangling entry, which would leave a gap in the merge numbering (and
+    // make a re-imported profile that reuses the slug look pre-merged). save()
+    // below persists it and emits changed(), which refreshes the badges.
+    const int overlayIdx =
+        mergeOverlay_.indexOf(QStringLiteral("profile:") + file);
+    if (overlayIdx >= 0)
+        mergeOverlay_.removeAt(overlayIdx);
     save();
     return true;
 }
@@ -619,6 +627,30 @@ void ProfileListModel::toggleMergeOverlay(const QString &ref) {
     else
         next.append(r); // merge: appended, so it takes the next position
     setMergeOverlay(next);
+}
+
+int ProfileListModel::mergeBadge(const QString &ref) const {
+    const int idx = mergeOverlay_.indexOf(ref);
+    if (idx < 0)
+        return 0; // not merged
+    // The active profile is the merge base: it carries no badge and does not
+    // occupy a number, so the other merged profiles stay 1..N with no gap.
+    QString activeFile;
+    for (const auto &e : entries_) {
+        if (e.name == active_) {
+            activeFile = e.file;
+            break;
+        }
+    }
+    const QString activeRef = QStringLiteral("profile:") + activeFile;
+    if (ref == activeRef)
+        return 0;
+    int pos = 0;
+    for (int i = 0; i <= idx; ++i) {
+        if (mergeOverlay_[i] != activeRef)
+            ++pos;
+    }
+    return pos;
 }
 
 void ProfileListModel::seedStandardIfEmpty(bool persist) {

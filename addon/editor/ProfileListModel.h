@@ -71,6 +71,11 @@ public:
     // next merge position) if absent, remove it (renumbering the rest) if
     // present. The per-row merge button calls this.
     Q_INVOKABLE void toggleMergeOverlay(const QString &ref);
+    // The 1-based position badge for a profile ref in the merge overlay,
+    // counting only NON-active entries: the active profile is the base and does
+    // not occupy a number, so the remaining merged profiles stay 1..N with no
+    // gap. Returns 0 if the ref is not in the overlay or is the active profile.
+    Q_INVOKABLE int mergeBadge(const QString &ref) const;
     void setCycleNext(const QString &combo);
     void setCyclePrev(const QString &combo);
 

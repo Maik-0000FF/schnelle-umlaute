@@ -345,12 +345,14 @@ Item {
                     required property bool favorite
                     required property string selectKey
                     required property string file
-                    // The overlay ref for this profile and its merge position
-                    // (0-based, -1 if not merged); drives the merge toggle.
+                    // The overlay ref for this profile and its badge number
+                    // among the non-active merged profiles (0 = not merged or is
+                    // the active base). Reading revision re-evaluates the badge
+                    // when the overlay or the active profile changes.
                     readonly property string mergeRef: "profile:" + prow.file
-                    readonly property int mergePos: root.profilesModel
-                        ? root.profilesModel.mergeOverlay.indexOf(prow.mergeRef)
-                        : -1
+                    readonly property int mergeBadge: (root.profilesModel
+                        && root.profilesModel.revision >= 0)
+                        ? root.profilesModel.mergeBadge(prow.mergeRef) : 0
                     width: ListView.view.width
                     height: Theme.rowHeight
                     radius: Theme.radiusSm
@@ -477,25 +479,33 @@ Item {
                         // order); accent glyph = merged, muted = not.
                         Text {
                             id: mergeIcon
-                            readonly property int pos: prow.mergePos
+                            // The active profile IS the merge base, so it cannot
+                            // merge onto itself: the toggle is dimmed and inert
+                            // there, and shows no position badge (mergeBadge is 0
+                            // for the active profile).
+                            readonly property bool isBase: prow.isActive
                             text: Theme.iconMerge
-                            color: mergeIcon.pos >= 0
-                                   ? Theme.accent
-                                   : (mergeMouse.containsMouse ? Theme.text
-                                                               : Theme.textMuted)
+                            color: mergeIcon.isBase
+                                   ? Theme.border
+                                   : (prow.mergeBadge > 0
+                                      ? Theme.accent
+                                      : (mergeMouse.containsMouse ? Theme.text
+                                                                  : Theme.textMuted))
                             font.pixelSize: Theme.fontIcon
                             Layout.preferredWidth: 20
                             horizontalAlignment: Text.AlignHCenter
                             ThemedToolTip {
                                 hovered: mergeMouse.containsMouse
-                                text: mergeIcon.pos >= 0
-                                      ? qsTr("Merged (position %1), click to remove")
-                                        .arg(mergeIcon.pos + 1)
-                                      : qsTr("Merge this profile onto the active profile")
+                                text: mergeIcon.isBase
+                                      ? qsTr("Active profile: the merge base")
+                                      : (prow.mergeBadge > 0
+                                         ? qsTr("Merged (position %1), click to remove")
+                                           .arg(prow.mergeBadge)
+                                         : qsTr("Merge this profile onto the active profile"))
                             }
-                            // Position badge, only while merged.
+                            // Position badge, only while merged and not the base.
                             Rectangle {
-                                visible: mergeIcon.pos >= 0
+                                visible: prow.mergeBadge > 0
                                 anchors.right: parent.right
                                 anchors.top: parent.top
                                 anchors.rightMargin: -3
@@ -507,8 +517,7 @@ Item {
                                 Text {
                                     id: badgeText
                                     anchors.centerIn: parent
-                                    text: mergeIcon.pos >= 0
-                                          ? (mergeIcon.pos + 1) : ""
+                                    text: prow.mergeBadge > 0 ? prow.mergeBadge : ""
                                     color: Theme.onAccent
                                     font.family: Theme.fontFamily
                                     font.pixelSize: 9
@@ -518,9 +527,16 @@ Item {
                             MouseArea {
                                 id: mergeMouse
                                 anchors.fill: parent
+                                // Stay enabled (not `enabled: !isBase`) so hover
+                                // still tracks and the tooltip shows on the
+                                // active/base profile too; only the click is
+                                // inert there.
                                 hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: if (root.profilesModel)
+                                cursorShape: mergeIcon.isBase
+                                             ? Qt.ArrowCursor
+                                             : Qt.PointingHandCursor
+                                onClicked: if (root.profilesModel
+                                               && !mergeIcon.isBase)
                                     root.profilesModel.toggleMergeOverlay(
                                         prow.mergeRef);
                             }
