@@ -24,6 +24,7 @@
 #include "hand_classifier.h"
 #include "mappings_loader.h"
 #include "overlay_protocol.h"
+#include "profile_compose.h"
 #include "profile_cycle.h"
 #include "profile_paths.h"
 #include <fcitx-utils/key.h>
@@ -100,7 +101,7 @@ public:
             wipeAllGestureState();
             // If RawConfig contains mapping data, use it directly.
             // Otherwise, reload from file (normal configtool path).
-            umlautMap_.clear();
+            schnelle_umlaute::UmlautMap pushed;
             for (int i = 0;; ++i) {
                 auto input = config.valueByPath(std::to_string(i) + "/Input");
                 auto output = config.valueByPath(std::to_string(i) + "/Output");
@@ -114,13 +115,15 @@ public:
                                      << " — skipped";
                         continue;
                     }
-                    umlautMap_[*input] = std::move(outputs);
+                    pushed[*input] = std::move(outputs);
                 }
             }
-            if (umlautMap_.empty()) {
-                umlautMap_ =
-                    schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
-            }
+            // Compose whatever was loaded (the pushed data, or the active
+            // profile file when nothing was pushed) with the merge overlay, so
+            // the overlay applies on every reload path.
+            umlautMap_ = pushed.empty()
+                             ? buildComposedMap()
+                             : composeActiveWithOverlay(std::move(pushed));
             FCITX_INFO() << "Schnelle: Mappings reloaded, count="
                          << umlautMap_.size();
         }
@@ -917,6 +920,64 @@ private:
         return profileRelPath(*profs.front().file);
     }
 
+    // Split the comma-separated MergeOverlay string into refs. Refs are
+    // comma-free ("profile:<relative file>"), so a plain split reconstructs the
+    // order; empty segments are dropped.
+    static std::vector<std::string> overlayRefs(const std::string &overlay) {
+        std::vector<std::string> refs;
+        std::string cur;
+        for (char c : overlay) {
+            if (c == ',') {
+                if (!cur.empty()) {
+                    refs.push_back(cur);
+                    cur.clear();
+                }
+            } else {
+                cur += c;
+            }
+        }
+        if (!cur.empty())
+            refs.push_back(cur);
+        return refs;
+    }
+
+    // Compose a base (active-profile) map with the global merge overlay
+    // (issue #112): the base leads, then each overlay profile
+    // ("profile:<relative file>") appends its variants in overlay order
+    // (compose does the ordered union with dedup). A missing, unsafe, or
+    // dangling overlay ref contributes nothing. With no overlay configured this
+    // is compose over a single source, i.e. the base unchanged. There is no
+    // per-profile override layer yet (a later increment), so the empty layer
+    // makes compose a pure ordered union.
+    schnelle_umlaute::UmlautMap
+    composeActiveWithOverlay(schnelle_umlaute::UmlautMap active) const {
+        std::vector<schnelle_umlaute::UmlautMap> maps;
+        maps.push_back(std::move(active));
+        static const std::string kProfileRefPrefix = "profile:";
+        for (const std::string &ref : overlayRefs(*profiles_.mergeOverlay)) {
+            if (ref.rfind(kProfileRefPrefix, 0) != 0)
+                continue; // only profile refs are understood
+            const std::string file = ref.substr(kProfileRefPrefix.size());
+            if (file.empty() || !schnelle_umlaute::isSafeProfileFile(file))
+                continue; // dangling / unsafe -> skip
+            maps.push_back(
+                schnelle_umlaute::loadMappingsFromFile(profileRelPath(file)));
+        }
+        std::vector<const schnelle_umlaute::VariantMap *> sources;
+        sources.reserve(maps.size());
+        for (const auto &m : maps)
+            sources.push_back(&m);
+        return schnelle_umlaute::compose(sources,
+                                         schnelle_umlaute::OverrideLayer{});
+    }
+
+    // The effective mapping table: the active profile file composed with the
+    // merge overlay.
+    schnelle_umlaute::UmlautMap buildComposedMap() const {
+        return composeActiveWithOverlay(
+            schnelle_umlaute::loadMappingsFromFile(activeProfileFile()));
+    }
+
     // Parse a combo string to a Key, or an invalid Key if it is empty or
     // carries no real (non-Shift) modifier. The modifier requirement stops a
     // bare key like "1" from matching and swallowing every plain press of it.
@@ -1011,7 +1072,7 @@ private:
         st->heldRawCodes_ = std::move(heldKeys);
         st->committed_ = heldCommitted;
         profiles_.active.setValue(name);
-        umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
+        umlautMap_ = buildComposedMap();
         safeSaveAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
                                      "/" + schnelle_umlaute::kProfilesConf);
         flashProfileName(ic, name);
@@ -1068,7 +1129,7 @@ private:
     // Shared by setConfig (values already loaded) and reloadConfig (read from
     // disk).
     void applyConfig() {
-        umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
+        umlautMap_ = buildComposedMap();
         rebuildProfileShortcuts();
 
         // Sanitize custom leader key: trim whitespace, keep only first
