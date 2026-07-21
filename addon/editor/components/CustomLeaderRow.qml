@@ -14,16 +14,37 @@ ColumnLayout {
 
     property string labelText: ""
     property bool enabledValue: false
+    // Cycle direction, like the built-in leaders: false = forward, true = reverse.
+    property bool reverseValue: false
+    // Hover description for the enable toggle (see issue #120).
+    property string tooltipText: ""
     property string keyValue: ""
     // Whether a physical key has been captured. The model answers this, so the
     // "no key" sentinel keeps a single definition in C++ and is never restated
     // as a bare number here.
     property bool keyAssigned: false
+    // The captured keycode, used to name no-character keys (Home, End, …). The
+    // model owns the name map, so it stays the single source.
+    property int keyValueCode: -1
     property var mappingsModel: null
+    property var settingsModel: null
     signal enabledEdited(bool v)
+    signal reverseEdited(bool v)
     // One key press, one signal: the character and the physical key belong
-    // together and are stored in a single write.
+    // together and are stored in a single write. A no-character key (Home, End,
+    // …) is captured with an empty character and named from its keycode.
     signal keyCaptured(string ch, int code)
+    // Backspace/Delete clear the assignment instead of becoming a leader.
+    signal keyCleared()
+
+    // Human name of a captured no-character key, empty for a printable or unset
+    // key. Sourced from the model's map so QML never restates it.
+    readonly property string specialKeyName:
+        settingsModel && keyValueCode >= 0
+            ? settingsModel.specialLeaderName(keyValueCode) : ""
+    // Whether a key is set to show (a printable character or a named key).
+    readonly property bool hasShownKey:
+        keyValue.length > 0 || specialKeyName.length > 0
 
     property bool capturing: false
     // Set while the user holds a modifier during capture, so the field can say
@@ -77,10 +98,16 @@ ColumnLayout {
         return Array.from(s).length === 1 && !/\s/.test(s);
     }
 
-    LabeledSwitch {
+    // Enable and direction share the same row and column layout as the built-in
+    // directional leaders, so a custom leader lines up with and reads like them.
+    // The key-capture field sits below (visible only while enabled).
+    DirectionalLeaderRow {
         labelText: root.labelText
-        checked: root.enabledValue
-        onToggled: (v) => root.enabledEdited(v)
+        enabledValue: root.enabledValue
+        reverseValue: root.reverseValue
+        tooltipText: root.tooltipText
+        onEnabledToggled: (v) => root.enabledEdited(v)
+        onReverseToggled: (v) => root.reverseEdited(v)
     }
 
     RowLayout {
@@ -124,25 +151,38 @@ ColumnLayout {
                     ? (root.modifierHeld ? qsTr("Without modifiers") : qsTr("Press a key…"))
                     : (root.keyValue.length > 0
                         ? root.keyValue
-                        : qsTr("Click to set"))
-                color: root.capturing || root.keyValue.length === 0
-                    ? Theme.textMuted
-                    : Theme.text
-                font.family: root.capturing || root.keyValue.length === 0
-                    ? Theme.fontFamily
-                    : Theme.fontFamilyMono
-                font.pixelSize: root.capturing || root.keyValue.length === 0
-                    ? Theme.fontBody
-                    : Theme.fontStrong
+                        : (root.specialKeyName.length > 0
+                            ? root.specialKeyName
+                            : qsTr("Click to set")))
+                color: (!root.capturing && root.hasShownKey)
+                    ? Theme.text
+                    : Theme.textMuted
+                // Mono only for a printable single character; a key name reads
+                // as a word, so it uses the normal font.
+                font.family: (!root.capturing && root.keyValue.length > 0)
+                    ? Theme.fontFamilyMono
+                    : Theme.fontFamily
+                font.pixelSize: (!root.capturing && root.hasShownKey)
+                    ? Theme.fontStrong
+                    : Theme.fontBody
             }
 
             MouseArea {
+                id: fieldMouse
                 anchors.fill: parent
+                hoverEnabled: true
                 onClicked: {
                     captureField.forceActiveFocus();
                     root.modifierHeld = false;
                     root.capturing = true;
                 }
+            }
+
+            // The Backspace/Delete-clears behaviour is not obvious, so surface it
+            // on hover rather than crowding the field's own prompt.
+            ThemedToolTip {
+                hovered: fieldMouse.containsMouse
+                text: qsTr("Click, then press a key. Backspace or Delete clears it.")
             }
 
             // Dropping focus mid-capture would leave the field armed forever.
@@ -187,18 +227,38 @@ ColumnLayout {
                 }
                 root.modifierHeld = false;
 
-                // The character is shown to the user and checked against the
-                // mappings, so a key that produces none (F1, arrows) cannot
-                // serve as a leader. Stay armed and let them press another.
-                const ch = event.text;
-                if (!root.isValidSingleChar(ch)) {
+                // Backspace/Delete clear the assignment instead of becoming a
+                // leader, so a captured key can be unset.
+                if (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) {
+                    root.capturing = false;
                     event.accepted = true;
+                    root.keyCleared();
                     return;
                 }
 
-                root.capturing = false;
+                // A printable character is stored as the leader's character and
+                // also matched by keycode.
+                const ch = event.text;
+                if (root.isValidSingleChar(ch)) {
+                    root.capturing = false;
+                    event.accepted = true;
+                    root.keyCaptured(ch, event.nativeScanCode);
+                    return;
+                }
+
+                // No character: accept only recognized navigation keys (Home,
+                // End, …), captured by keycode with an empty character. Any other
+                // no-character key (F-keys, arrows) stays armed.
+                if (root.settingsModel
+                    && root.settingsModel.specialLeaderName(event.nativeScanCode).length > 0) {
+                    root.capturing = false;
+                    event.accepted = true;
+                    root.keyCaptured("", event.nativeScanCode);
+                    return;
+                }
+
+                // Unrecognized key: stay armed and let them press another.
                 event.accepted = true;
-                root.keyCaptured(ch, event.nativeScanCode);
             }
         }
 

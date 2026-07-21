@@ -52,9 +52,12 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/EmptyState.qml
         components/Footer.qml
         components/SettingsCard.qml
+        components/SettingRow.qml
         components/LabeledSlider.qml
         components/LabeledRangeSlider.qml
         components/LabeledSwitch.qml
+        components/ThemedSwitch.qml
+        components/DirectionalLeaderRow.qml
         components/CustomLeaderRow.qml
         components/CycleShortcutRow.qml
         components/AppListEditor.qml
@@ -62,6 +65,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/AboutDialog.qml
         components/Wordmark.qml
         components/FocusRect.qml
+        components/FocusSink.qml
         components/DropdownIndicator.qml
         components/KeyCaptureField.qml
         components/LibrarySelector.qml

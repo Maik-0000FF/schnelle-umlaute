@@ -1,59 +1,48 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import SchnelleUmlaute
 
-RowLayout {
+// A plain label + toggle settings row. Built on SettingRow, so the whole strip
+// gets a hover highlight linking the left label to the right-aligned switch.
+SettingRow {
     id: root
-    Layout.fillWidth: true
-    spacing: Theme.spacingMd
 
     property string labelText: ""
     property bool checked: false
+    // Optional hover description for the toggle (see issue #120). Empty = none.
+    property string tooltipText: ""
     signal toggled(bool v)
 
     opacity: root.enabled ? 1.0 : 0.4
     Behavior on opacity { NumberAnimation { duration: Theme.animShort } }
 
+    // The label fills the row so the toggle lands flush at the right edge, the
+    // platform-standard settings layout; every toggle row lines up on that edge.
+    // A long label wraps onto a second line instead of being truncated.
     Text {
         text: root.labelText
         color: Theme.text
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBody
         Layout.fillWidth: true
+        wrapMode: Text.WordWrap
     }
 
-    Switch {
+    ThemedSwitch {
         id: sw
         checked: root.checked
-
-        // Pin geometry to the indicator so the row height does not depend on
-        // the active Quick Controls style. Different styles (and Qt versions)
-        // give Switch different default padding/implicitSize, which otherwise
-        // grows the row, the card, and shifts every label inside it.
-        padding: 0
-        spacing: 0
-        implicitWidth: sw.indicator.implicitWidth
-        implicitHeight: sw.indicator.implicitHeight
-
-        indicator: Rectangle {
-            implicitWidth: 40
-            implicitHeight: 22
-            radius: 11
-            color: sw.checked ? Theme.accent : Theme.border
-            Behavior on color { ColorAnimation { duration: Theme.animShort } }
-
-            Rectangle {
-                x: sw.checked ? parent.width - width - 2 : 2
-                y: 2
-                width: 18
-                height: 18
-                radius: 9
-                color: Theme.switchThumb
-                Behavior on x { NumberAnimation { duration: Theme.animShort } }
-            }
+        // A refused change (e.g. the leader guard in SettingsModel) must snap the
+        // switch back. An interactive toggle breaks the `checked` binding, so
+        // re-establish it and let the model stay the single source of truth: if
+        // the setter applies, the binding follows; if it refuses, it reverts.
+        onToggled: {
+            const requested = checked;
+            checked = Qt.binding(() => root.checked);
+            root.toggled(requested);
         }
-        background: Rectangle { color: "transparent" }
-        onToggled: root.toggled(checked)
+        ThemedToolTip {
+            hovered: root.tooltipText.length > 0 && sw.hovered
+            text: root.tooltipText
+        }
     }
 }

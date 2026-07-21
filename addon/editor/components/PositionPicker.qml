@@ -145,7 +145,7 @@ ColumnLayout {
                         }
 
                         ThemedToolTip {
-                            visible: mouse.containsMouse
+                            hovered: mouse.containsMouse
                             text: cell.pos
                         }
 

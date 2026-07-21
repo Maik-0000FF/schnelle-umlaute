@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (151 tests)
+// Test Suite for Schnelle Umlaute (161 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -35,6 +35,11 @@
 // 144-145 reset() repeat guard reset() preserves committed_ arming for single-output and min-hold sites (issue #92)
 // 146-150 wayland repeat fix   issue #92 hole 2 fixed: held-key repeat suppressed at all 3 arming sites, elapsed-ref + injected-pair guards
 // 151     window-timeout test  per-window repeat: window-timeout arming clears per synthetic release (issue #92/#73)
+// 152-154 Reverse cycling      arrow reverse steps back + wraps, reverse-start lands at last variant, forward+reverse mix in one session
+// 155     AltGr reverse        AltGr flagged reverse steps back + wraps inside a Space-started session
+// 156     Alt/AltGr split      each disabled Alt-key stays inert mid-gesture (Alt/AltGr enable independently)
+// 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
+// 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // clang-format on
 
 #include <unistd.h>
@@ -129,6 +134,7 @@ constexpr int kCodeLeft = 113;
 constexpr int kCodeRight = 114;
 constexpr int kCodeUp = 111;
 constexpr int kCodeDown = 116;
+constexpr int kCodeHome = 110;
 constexpr int kCodeAltL = 64;
 constexpr int kCodeAltGr = 108;
 constexpr int kCodeHash = 20;
@@ -193,7 +199,16 @@ static void configureLeaders(Instance *instance, bool space, bool left,
                              const std::string &custom = "",
                              const std::string &custom2 = "",
                              int customCode = fcitx::kNoKeyCode,
-                             int custom2Code = fcitx::kNoKeyCode) {
+                             int custom2Code = fcitx::kNoKeyCode,
+                             bool leftReverse = false, bool rightReverse = false,
+                             bool upReverse = false, bool downReverse = false,
+                             bool altReverse = false, bool altGrReverse = false,
+                             // Independent of alt: alt enables the left Alt,
+                             // altGr the right Alt / ISO_Level3_Shift. These and
+                             // the custom-leader reverse flags are appended last
+                             // so the many positional call sites stay valid.
+                             bool altGr = false, bool customReverse = false,
+                             bool custom2Reverse = false) {
     auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
     RawConfig config;
     config.setValueByPath("Delay/Lowercase", "400");
@@ -204,16 +219,29 @@ static void configureLeaders(Instance *instance, bool space, bool left,
     config.setValueByPath("Leader/Up", up ? "True" : "False");
     config.setValueByPath("Leader/Down", down ? "True" : "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
+    config.setValueByPath("Leader/AltGr", altGr ? "True" : "False");
+    config.setValueByPath("Leader/LeftReverse", leftReverse ? "True" : "False");
+    config.setValueByPath("Leader/RightReverse",
+                          rightReverse ? "True" : "False");
+    config.setValueByPath("Leader/UpReverse", upReverse ? "True" : "False");
+    config.setValueByPath("Leader/DownReverse", downReverse ? "True" : "False");
+    config.setValueByPath("Leader/AltReverse", altReverse ? "True" : "False");
+    config.setValueByPath("Leader/AltGrReverse",
+                          altGrReverse ? "True" : "False");
     config.setValueByPath("Leader/Custom/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey", custom);
     config.setValueByPath("Leader/Custom/CustomKeyCode",
                           std::to_string(customCode));
+    config.setValueByPath("Leader/Custom/CustomKeyReverse",
+                          customReverse ? "True" : "False");
     config.setValueByPath("Leader/Custom/CustomKey2Enabled",
                           custom2.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey2", custom2);
     config.setValueByPath("Leader/Custom/CustomKey2Code",
                           std::to_string(custom2Code));
+    config.setValueByPath("Leader/Custom/CustomKey2Reverse",
+                          custom2Reverse ? "True" : "False");
     config.setValueByPath("AppFilter/Mode", "Disabled");
     addon->setConfig(config);
     setMappings(instance, {
@@ -382,6 +410,9 @@ static void configureMultilingualCycling(Instance *instance, bool space,
     config.setValueByPath("Leader/Up", "False");
     config.setValueByPath("Leader/Down", "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
+    // AltGr is a separate leader; no test through this helper presses it, so it
+    // stays off rather than shadowing alt.
+    config.setValueByPath("Leader/AltGr", "False");
     config.setValueByPath("Leader/Custom/CustomKeyEnabled",
                           custom.empty() ? "False" : "True");
     config.setValueByPath("Leader/Custom/CustomKey", custom);
@@ -425,6 +456,9 @@ static void configureWithDelay(Instance *instance, int delayLower,
     config.setValueByPath("Leader/Up", "False");
     config.setValueByPath("Leader/Down", "False");
     config.setValueByPath("Leader/Alt", alt ? "True" : "False");
+    // AltGr is a separate leader; no test through this helper presses it, so it
+    // stays off rather than shadowing alt.
+    config.setValueByPath("Leader/AltGr", "False");
     config.setValueByPath("Leader/Custom/CustomKeyEnabled", "False");
     config.setValueByPath("Leader/Custom/CustomKey", "");
     config.setValueByPath("Leader/Custom/CustomKey2Enabled", "False");
@@ -1276,6 +1310,288 @@ void scheduleTests(Instance *instance) {
     });
 
     // =========================================================================
+    // TEST 152: Reverse leader steps backward and wraps 0 -> last
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 152;
+        FCITX_INFO() << "=== Test 152: Reverse leader steps back + wraps ===";
+        // Space forward, Left enabled and flagged reverse. 3 variants.
+        configureLeaders(instance, true, true, false, false, false, false, "",
+                         "", fcitx::kNoKeyCode, fcitx::kNoKeyCode,
+                         /*leftReverse=*/true);
+        setMappings(instance, {{"a", "x,y,z"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test152");
+
+        // Hold 'a' + Space -> cycling starts at index 0 ("x").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Left (reverse) from index 0 wraps to the last variant ("z").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Left, KeyStates(), kCodeLeft), false);
+        // Release 'a' -> commits "z".
+        tf->call<ITestFrontend::pushCommitExpectation>("z");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 152 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 153: Reverse leader starts a fresh session at the last variant
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 153;
+        FCITX_INFO() << "=== Test 153: Reverse leader starts at last variant ===";
+        // Only Left, flagged reverse; no forward leader.
+        configureLeaders(instance, false, true, false, false, false, false, "",
+                         "", fcitx::kNoKeyCode, fcitx::kNoKeyCode,
+                         /*leftReverse=*/true);
+        setMappings(instance, {{"a", "x,y,z"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test153");
+
+        // Hold 'a' + Left (reverse) starts the session at the LAST variant "z".
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Left, KeyStates(), kCodeLeft), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("z");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 153 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 154: Forward and reverse leaders mix within one session
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 154;
+        FCITX_INFO() << "=== Test 154: Mix forward + reverse in one session ===";
+        // Space forward, Left reverse. 4 variants: 1,2,3,4.
+        configureLeaders(instance, true, true, false, false, false, false, "",
+                         "", fcitx::kNoKeyCode, fcitx::kNoKeyCode,
+                         /*leftReverse=*/true);
+        setMappings(instance, {{"a", "1,2,3,4"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test154");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        // Space start -> 0 ("1"), Space -> 1 ("2"), Space -> 2 ("3").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Left (reverse) -> 1 ("2"), Left -> 0 ("1").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Left, KeyStates(), kCodeLeft), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Left, KeyStates(), kCodeLeft), false);
+        // Space (forward) -> 1 ("2").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Release 'a' -> commits "2".
+        tf->call<ITestFrontend::pushCommitExpectation>("2");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 154 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 155: AltGr reverse steps back within a Space-started session
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 155;
+        FCITX_INFO() << "=== Test 155: AltGr reverse steps back + wraps ===";
+        // Space forward; AltGr enabled (Alt off) and flagged reverse. 3 variants.
+        configureLeaders(instance, true, false, false, false, false,
+                         /*alt=*/false, "", "", fcitx::kNoKeyCode,
+                         fcitx::kNoKeyCode, false, false, false, false,
+                         /*altReverse=*/false, /*altGrReverse=*/true,
+                         /*altGr=*/true);
+        setMappings(instance, {{"a", "x,y,z"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test155");
+
+        // Hold 'a' + Space -> cycling starts at index 0 ("x").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // AltGr (reverse) from index 0 wraps to the last variant ("z").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr),
+            false);
+        // Release 'a' -> commits "z".
+        tf->call<ITestFrontend::pushCommitExpectation>("z");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 155 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 156: Alt and AltGr are independent — the disabled one stays inert
+    // =========================================================================
+    // The positive direction (each key leads when its own flag is on) is
+    // covered by tests 21/23 (Alt-only) and 22 (AltGr-only). This guards the
+    // split the other way: with only one enabled, pressing the *other* Alt-key
+    // mid-gesture must not be consumed as a leader. No leader fires, so no
+    // deferred-commit timer is scheduled and the IC can be torn down directly.
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 156;
+        FCITX_INFO() << "=== Test 156: Alt and AltGr independence ===";
+        auto *tf = instance->addonManager().addon("testfrontend");
+        setMappings(instance, {{"a", "\xc3\xa4"}});
+
+        // Alt enabled, AltGr disabled: the right Alt must not lead.
+        configureLeaders(instance, false, false, false, false, false,
+                         /*alt=*/true, "", "", fcitx::kNoKeyCode,
+                         fcitx::kNoKeyCode, false, false, false, false,
+                         /*altReverse=*/false, /*altGrReverse=*/false,
+                         /*altGr=*/false);
+        auto uuidA = createAndActivate(instance, tf, "test156a");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuidA, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        bool altGrLeaks = tf->call<ITestFrontend::sendKeyEvent>(
+            uuidA, Key(FcitxKey_Alt_R, KeyStates(), kCodeAltGr), false);
+        FCITX_ASSERT(!altGrLeaks)
+            << "AltGr must not be consumed as leader when AltGr is disabled";
+        tf->call<ITestFrontend::destroyInputContext>(uuidA);
+
+        // AltGr enabled, Alt disabled: the left Alt must not lead.
+        configureLeaders(instance, false, false, false, false, false,
+                         /*alt=*/false, "", "", fcitx::kNoKeyCode,
+                         fcitx::kNoKeyCode, false, false, false, false,
+                         /*altReverse=*/false, /*altGrReverse=*/false,
+                         /*altGr=*/true);
+        auto uuidB = createAndActivate(instance, tf, "test156b");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuidB, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        bool altLeaks = tf->call<ITestFrontend::sendKeyEvent>(
+            uuidB, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+        FCITX_ASSERT(!altLeaks)
+            << "Alt must not be consumed as leader when Alt is disabled";
+        tf->call<ITestFrontend::destroyInputContext>(uuidB);
+        FCITX_INFO() << "Test 156 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 157: Custom leader reverse steps back within a session
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 157;
+        FCITX_INFO() << "=== Test 157: Custom leader reverse steps back ===";
+        // Space forward; custom leader 'z' enabled and flagged reverse. The
+        // trailing customReverse flag reaches the custom key by its keycode.
+        configureLeaders(instance, true, false, false, false, false,
+                         /*alt=*/false, "z", "", kCodeZ, fcitx::kNoKeyCode,
+                         false, false, false, false, /*altReverse=*/false,
+                         /*altGrReverse=*/false, /*altGr=*/false,
+                         /*customReverse=*/true);
+        setMappings(instance, {{"a", "1,2,3"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test157");
+
+        // Hold 'a' + Space -> cycling starts at index 0 ("1").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Custom 'z' (reverse) from index 0 wraps to the last variant ("3").
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_z, KeyStates(), kCodeZ), false);
+        // Release 'a' -> commits "3".
+        tf->call<ITestFrontend::pushCommitExpectation>("3");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 157 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 158: Custom leader reverse starts a fresh session at last variant
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 158;
+        FCITX_INFO()
+            << "=== Test 158: Custom reverse starts at last variant ===";
+        // Only the custom leader 'z', flagged reverse; no forward leader.
+        configureLeaders(instance, false, false, false, false, false,
+                         /*alt=*/false, "z", "", kCodeZ, fcitx::kNoKeyCode,
+                         false, false, false, false, /*altReverse=*/false,
+                         /*altGrReverse=*/false, /*altGr=*/false,
+                         /*customReverse=*/true);
+        setMappings(instance, {{"a", "1,2,3"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test158");
+
+        // Hold 'a' + custom 'z' (reverse) starts the session at the LAST
+        // variant "3".
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_z, KeyStates(), kCodeZ), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("3");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 158 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 159: A keycode-only custom leader (no character) cycles
+    // =========================================================================
+    // The editor lets a no-character navigation key (Home, End, …) be a custom
+    // leader: enabled, a keycode, but an empty character. The addon matches
+    // custom leaders by keycode alone, so it must still trigger and cycle.
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 159;
+        FCITX_INFO() << "=== Test 159: keycode-only custom leader cycles ===";
+        auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
+        RawConfig config;
+        config.setValueByPath("Delay/Lowercase", "400");
+        config.setValueByPath("Delay/Uppercase", "700");
+        config.setValueByPath("Leader/Space", "False");
+        config.setValueByPath("Leader/Custom/CustomKeyEnabled", "True");
+        config.setValueByPath("Leader/Custom/CustomKey", ""); // no character
+        config.setValueByPath("Leader/Custom/CustomKeyCode",
+                              std::to_string(kCodeHome));
+        addon->setConfig(config);
+        setMappings(instance, {{"a", "x,y,z"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test159");
+
+        // Hold 'a' + Home starts cycling at "x", a second Home steps to "y".
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Home, KeyStates(), kCodeHome), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Home, KeyStates(), kCodeHome), false);
+        // Release 'a' -> commits "y".
+        tf->call<ITestFrontend::pushCommitExpectation>("y");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 159 PASSED";
+    });
+
+    // =========================================================================
     // TEST 13: Left Arrow as leader
     // =========================================================================
     testDispatcher->schedule([instance]() {
@@ -1428,8 +1744,13 @@ void scheduleTests(Instance *instance) {
                 g_currentTest = 22;
                 FCITX_INFO()
                     << "=== Test 22: AltGr (ISO_Level3_Shift) as leader ===";
+                // AltGr enabled, Alt disabled: the split must let AltGr lead on
+                // its own.
                 configureLeaders(instance, false, false, false, false, false,
-                                 true);
+                                 /*alt=*/false, "", "", fcitx::kNoKeyCode,
+                                 fcitx::kNoKeyCode, false, false, false, false,
+                                 /*altReverse=*/false, /*altGrReverse=*/false,
+                                 /*altGr=*/true);
                 auto uuid22 = createAndActivate(instance, tf, "test22");
 
                 tf->call<ITestFrontend::sendKeyEvent>(
@@ -6531,7 +6852,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 153 tests PASSED ===";
+                                FCITX_INFO() << "=== All 161 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });

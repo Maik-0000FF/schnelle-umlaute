@@ -61,7 +61,7 @@ Compositors without `wlr-layer-shell` (GNOME/Mutter, X11) cannot host the surfac
 ### Per-user setup helper, `schnelle-umlaute-setup`
 
 A small Bash script under `addon/scripts/schnelle-umlaute-setup`, installed to `/usr/bin/`. Idempotent, refuses to run as root. Writes:
-- `~/.config/environment.d/fcitx5.conf` (env-vars: `GTK_IM_MODULE`, `QT_IM_MODULE`, `XMODIFIERS`, `GLFW_IM_MODULE`)
+- `~/.config/environment.d/fcitx5.conf` (env-vars: `XMODIFIERS`, `GLFW_IM_MODULE`, plus `GTK_IM_MODULE`/`QT_IM_MODULE` on every desktop **except KDE Plasma Wayland**, where KWin serves the native text-input protocol and fcitx5 flags those two as redundant; the reduced-vs-full decision lives in `addon/src/session_env.h`)
 - `~/.config/autostart/org.fcitx.Fcitx5.desktop` (per session: `Hidden=true` on KDE Wayland, regular autostart elsewhere)
 
 Replaces the boilerplate that earlier versions duplicated across each per-distro install path.

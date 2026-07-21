@@ -121,7 +121,8 @@ Customize which keys activate the umlaut transformation. Multiple leader keys ca
 | Right | disabled | <kbd>→</kbd> |
 | Up | disabled | <kbd>↑</kbd> |
 | Down | disabled | <kbd>↓</kbd> |
-| Alt | disabled | <kbd>Alt</kbd> / <kbd>AltGr</kbd> |
+| Alt | disabled | <kbd>Alt</kbd> |
+| AltGr | disabled | <kbd>AltGr</kbd> |
 | Custom Leader 1 | disabled | Any single key |
 | Custom Leader 2 | disabled | Any single key (hand-split) |
 
@@ -129,27 +130,43 @@ Customize which keys activate the umlaut transformation. Multiple leader keys ca
 [Leader]
 Space=True
 Left=False
+LeftReverse=False
 Right=False
+RightReverse=False
 Up=False
+UpReverse=False
 Down=False
+DownReverse=False
 Alt=False
+AltReverse=False
+AltGr=False
+AltGrReverse=False
 
 [Leader/Custom]
 CustomKeyEnabled=False
 CustomKey=
 CustomKeyCode=0
+CustomKeyReverse=False
 CustomKey2Enabled=False
 CustomKey2=
 CustomKey2Code=0
+CustomKey2Reverse=False
 ```
 
-> **Alt / AltGr Leader**
-> Enables <kbd>Alt</kbd> (Left/Right Alt) and <kbd>AltGr</kbd> (ISO_Level3_Shift on EU layouts) as leader keys. On KWin Wayland, auto-repeat sends release-press pairs which can cause input leaks. Works reliably under XIM (e.g. WezTerm).
+> **Cycle direction (arrows, Alt, AltGr, custom leaders)**
+> Every leader except Space has its own direction: each arrow, Alt, AltGr, and each custom leader. Forward steps to the next variant, reverse steps to the previous one. Set a leader to reverse with the direction toggle next to its enable toggle in the editor (the arrow marker shows <kbd>→</kbd> forward or <kbd>←</kbd> reverse). Forward and reverse leaders act on the same position, so within one cycle you can step both ways freely, e.g. Space forward and <kbd>←</kbd> reverse: overshoot by one, then step back instead of wrapping all the way around. A reverse leader that starts a cycle lands on the **last** variant, so variants at the end of a long list (e.g. a second language) are reached directly. Space always cycles forward (it has no direction). The `*Reverse` flags default to `False`, so existing setups are unchanged.
+
+> **Alt and AltGr Leaders**
+> Enables <kbd>Alt</kbd> (the left Alt) and <kbd>AltGr</kbd> (ISO_Level3_Shift, i.e. the right Alt on EU layouts) as leader keys. The two are enabled independently, and each carries its own direction (see **Cycle direction** above). On KWin Wayland, auto-repeat sends release-press pairs which can cause input leaks. Works reliably under XIM (e.g. WezTerm).
 
 > **Custom Leader Keys**
 > Assign one or two **physical keys** as additional leader keys. In the editor you click the field and press the key you want. That press stores the key's position (`CustomKeyCode`, an evdev+8 keycode), which is what triggers the leader, plus the character it printed (`CustomKey`), which is only shown in the UI and checked against the mappings.
 >
 > Because the leader is the key and not the character, it keeps working while <kbd>Shift</kbd> is held (<kbd>Shift</kbd>+<kbd>/</kbd> still fires the `/` leader), on every keyboard layout, and across a layout switch: the letter on the keycap may change, the key does not.
+>
+> A navigation key that prints no character (<kbd>Home</kbd>, <kbd>End</kbd>, <kbd>Page Up</kbd>, <kbd>Page Down</kbd>, <kbd>Insert</kbd>, <kbd>Menu</kbd>) can be a custom leader too: it is stored by keycode with an empty `CustomKey`, and the editor shows its name. While the capture field is armed, <kbd>Backspace</kbd> or <kbd>Delete</kbd> clears the assignment instead of setting it.
+>
+> Each custom leader also carries its own cycle direction (`CustomKeyReverse` / `CustomKey2Reverse`, default `False`), set with the direction toggle in the editor just like the arrows (see **Cycle direction** above).
 >
 > When both custom leaders sit on **opposite keyboard halves**, dual-split mode activates: each leader only triggers mappings on the other hand (e.g. a left-hand leader triggers the right-hand inputs `u`, `o`, `i`). Leaders on the same half, or the same key twice, disable the split and both trigger all mappings. The half comes from the key's physical position, so this is correct on QWERTY, QWERTZ, AZERTY, Dvorak and Colemak alike.
 >

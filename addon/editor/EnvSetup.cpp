@@ -58,7 +58,17 @@ bool EnvSetup::isConfigured() const {
     const QByteArray gtk = qgetenv("GTK_IM_MODULE");
     const QByteArray qt = qgetenv("QT_IM_MODULE");
     const QByteArray xmod = qgetenv("XMODIFIERS");
-    return gtk == kFcitxValue && qt == kFcitxValue && xmod == kXmodifiersValue;
+    if (xmod != kXmodifiersValue) {
+        return false;
+    }
+    // On KDE Plasma Wayland the modules are intentionally absent (see
+    // session_env.h), so XMODIFIERS alone is a configured session. A legacy full
+    // environment still qualifies too, so existing users are not nagged. Every
+    // other desktop requires the modules.
+    if (!fcitx::detectSessionEnv().needsImModules) {
+        return true;
+    }
+    return gtk == kFcitxValue && qt == kFcitxValue;
 }
 
 bool EnvSetup::writeConfig() {
@@ -70,11 +80,12 @@ bool EnvSetup::writeConfig() {
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         return false;
     }
-    static constexpr QByteArrayView payload = "GTK_IM_MODULE=fcitx\n"
-                                              "QT_IM_MODULE=fcitx\n"
-                                              "XMODIFIERS=@im=fcitx\n"
-                                              "GLFW_IM_MODULE=ibus\n";
-    if (file.write(payload.data(), payload.size()) != payload.size()) {
+    // The payload comes from session_env.h so the module set matches the
+    // desktop: reduced (XMODIFIERS + GLFW only) on KDE Plasma Wayland, the full
+    // set everywhere else.
+    const QByteArray payload = QByteArray::fromStdString(
+        fcitx::imEnvironmentdPayload(fcitx::detectSessionEnv().needsImModules));
+    if (file.write(payload) != payload.size()) {
         file.cancelWriting();
         return false;
     }
@@ -116,7 +127,16 @@ bool EnvSetup::hasValidConfigFile() const {
             xmod = true;
         }
     }
-    return gtk && qt && xmod;
+    if (!xmod) {
+        return false;
+    }
+    // KDE Plasma Wayland writes a reduced file (no GTK/QT, see session_env.h),
+    // so XMODIFIERS alone is a valid file there; a legacy full file passes too.
+    // Every other desktop requires the two modules as well.
+    if (!fcitx::detectSessionEnv().needsImModules) {
+        return true;
+    }
+    return gtk && qt;
 }
 
 bool EnvSetup::honorsEnvironmentD() const {

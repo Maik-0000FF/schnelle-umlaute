@@ -41,6 +41,22 @@ class SettingsModel : public QObject {
                    leaderDownChanged)
     Q_PROPERTY(bool leaderAlt READ leaderAlt WRITE setLeaderAlt NOTIFY
                    leaderAltChanged)
+    Q_PROPERTY(bool leaderAltReverse READ leaderAltReverse WRITE
+                   setLeaderAltReverse NOTIFY leaderAltReverseChanged)
+    Q_PROPERTY(bool leaderAltGr READ leaderAltGr WRITE setLeaderAltGr NOTIFY
+                   leaderAltGrChanged)
+    Q_PROPERTY(bool leaderAltGrReverse READ leaderAltGrReverse WRITE
+                   setLeaderAltGrReverse NOTIFY leaderAltGrReverseChanged)
+    // Per-arrow cycle direction: false steps forward, true steps backward.
+    // Orthogonal to the enable flags above, so any arrow can go either way.
+    Q_PROPERTY(bool leaderLeftReverse READ leaderLeftReverse WRITE
+                   setLeaderLeftReverse NOTIFY leaderLeftReverseChanged)
+    Q_PROPERTY(bool leaderRightReverse READ leaderRightReverse WRITE
+                   setLeaderRightReverse NOTIFY leaderRightReverseChanged)
+    Q_PROPERTY(bool leaderUpReverse READ leaderUpReverse WRITE
+                   setLeaderUpReverse NOTIFY leaderUpReverseChanged)
+    Q_PROPERTY(bool leaderDownReverse READ leaderDownReverse WRITE
+                   setLeaderDownReverse NOTIFY leaderDownReverseChanged)
 
     // Each custom leader is a physical key. One key press in CustomLeaderRow
     // captures both halves: the character, which is only displayed, and the
@@ -59,6 +75,8 @@ class SettingsModel : public QObject {
     // defined in exactly one place (hand_classifier.h) and is never restated.
     Q_PROPERTY(bool customKey1HasKey READ customKey1HasKey NOTIFY
                    customKey1CodeChanged)
+    Q_PROPERTY(bool customKey1Reverse READ customKey1Reverse WRITE
+                   setCustomKey1Reverse NOTIFY customKey1ReverseChanged)
     Q_PROPERTY(bool customKey2Enabled READ customKey2Enabled WRITE
                    setCustomKey2Enabled NOTIFY customKey2EnabledChanged)
     Q_PROPERTY(QString customKey2 READ customKey2 WRITE setCustomKey2 NOTIFY
@@ -66,6 +84,10 @@ class SettingsModel : public QObject {
     Q_PROPERTY(int customKey2Code READ customKey2Code NOTIFY customKey2CodeChanged)
     Q_PROPERTY(bool customKey2HasKey READ customKey2HasKey NOTIFY
                    customKey2CodeChanged)
+    Q_PROPERTY(bool customKey2Reverse READ customKey2Reverse WRITE
+                   setCustomKey2Reverse NOTIFY customKey2ReverseChanged)
+    Q_PROPERTY(int effectiveLeaderCount READ effectiveLeaderCount NOTIFY
+                   leadersChanged)
 
     Q_PROPERTY(QString appFilterMode READ appFilterMode WRITE setAppFilterMode
                    NOTIFY appFilterModeChanged)
@@ -118,20 +140,42 @@ public:
     bool leaderUp() const { return leaderUp_; }
     bool leaderDown() const { return leaderDown_; }
     bool leaderAlt() const { return leaderAlt_; }
+    bool leaderAltReverse() const { return leaderAltReverse_; }
+    bool leaderAltGr() const { return leaderAltGr_; }
+    bool leaderAltGrReverse() const { return leaderAltGrReverse_; }
+    bool leaderLeftReverse() const { return leaderLeftReverse_; }
+    bool leaderRightReverse() const { return leaderRightReverse_; }
+    bool leaderUpReverse() const { return leaderUpReverse_; }
+    bool leaderDownReverse() const { return leaderDownReverse_; }
     bool customKey1Enabled() const { return customKey1Enabled_; }
     QString customKey1() const { return customKey1_; }
     int customKey1Code() const { return customKey1Code_; }
     bool customKey1HasKey() const { return customKey1Code_ != kNoKeyCode; }
+    bool customKey1Reverse() const { return customKey1Reverse_; }
     bool customKey2Enabled() const { return customKey2Enabled_; }
     QString customKey2() const { return customKey2_; }
     int customKey2Code() const { return customKey2Code_; }
     bool customKey2HasKey() const { return customKey2Code_ != kNoKeyCode; }
+    bool customKey2Reverse() const { return customKey2Reverse_; }
+    // Leaders that can actually trigger/cycle right now: Space, any arrow, Alt,
+    // AltGr, and each custom leader that is enabled AND has a key captured. The
+    // editor keeps this from reaching zero (see setLeader*/setCustomKey*Enabled).
+    int effectiveLeaderCount() const;
 
     // One captured key press sets both halves of a leader. Going through the
     // individual setters would write the config file twice and, in between,
     // leave the new keycode paired with the previous key's character.
     Q_INVOKABLE void captureCustomKey1(const QString &ch, int code);
     Q_INVOKABLE void captureCustomKey2(const QString &ch, int code);
+    // Clear a custom leader's captured key (keycode → none, character empty).
+    // Guarded like the toggles: clearing the sole effective leader is refused.
+    Q_INVOKABLE void clearCustomKey1();
+    Q_INVOKABLE void clearCustomKey2();
+    // Human name for a keycode-only leader key that produces no character
+    // (Home, End, Page Up/Down, Insert, Menu), or empty for any other key.
+    // Drives both which no-character keys the editor accepts as a leader and how
+    // the captured key is shown. The single source for both lives here.
+    Q_INVOKABLE QString specialLeaderName(int keyCode) const;
     QString appFilterMode() const { return appFilterMode_; }
     QStringList blacklist() const { return blacklist_; }
     QStringList whitelist() const { return whitelist_; }
@@ -167,10 +211,19 @@ public:
     void setLeaderUp(bool v);
     void setLeaderDown(bool v);
     void setLeaderAlt(bool v);
+    void setLeaderAltReverse(bool v);
+    void setLeaderAltGr(bool v);
+    void setLeaderAltGrReverse(bool v);
+    void setLeaderLeftReverse(bool v);
+    void setLeaderRightReverse(bool v);
+    void setLeaderUpReverse(bool v);
+    void setLeaderDownReverse(bool v);
     void setCustomKey1Enabled(bool v);
     void setCustomKey1(const QString &v);
+    void setCustomKey1Reverse(bool v);
     void setCustomKey2Enabled(bool v);
     void setCustomKey2(const QString &v);
+    void setCustomKey2Reverse(bool v);
     void setAppFilterMode(const QString &v);
     void setOverlayEnabled(bool v);
     void setOverlayShowOnTrigger(bool v);
@@ -205,12 +258,24 @@ Q_SIGNALS:
     void leaderUpChanged();
     void leaderDownChanged();
     void leaderAltChanged();
+    void leaderAltReverseChanged();
+    void leaderAltGrChanged();
+    void leaderAltGrReverseChanged();
+    void leaderLeftReverseChanged();
+    void leaderRightReverseChanged();
+    void leaderUpReverseChanged();
+    void leaderDownReverseChanged();
     void customKey1EnabledChanged();
     void customKey1Changed();
     void customKey1CodeChanged();
+    void customKey1ReverseChanged();
     void customKey2EnabledChanged();
     void customKey2Changed();
     void customKey2CodeChanged();
+    void customKey2ReverseChanged();
+    // The editor refused to turn off the last effective leader; the UI shows a
+    // note explaining why the toggle snapped back.
+    void leaderRemovalBlocked();
     void leadersChanged();
     void appFilterModeChanged();
     void blacklistChanged();
@@ -226,6 +291,12 @@ Q_SIGNALS:
 private:
     void load();
     void save();
+    // Guard for a leader-disabling setter: returns true if the change may
+    // proceed, false if it would remove the last effective leader (in which
+    // case leaderRemovalBlocked() is emitted and the caller must return without
+    // applying). `stillEffective` is whether this leader counts right now, so a
+    // custom leader with no key captured is never treated as the last one.
+    bool allowLeaderOff(bool stillEffective);
     void reloadFcitx();
     // Write the generated fcitx5 theme.conf from the given colors and point
     // classicui at it (backing up the user's previous classicui theme first),
@@ -246,12 +317,21 @@ private:
     bool leaderUp_ = false;
     bool leaderDown_ = false;
     bool leaderAlt_ = false;
+    bool leaderAltReverse_ = false;
+    bool leaderAltGr_ = false;
+    bool leaderAltGrReverse_ = false;
+    bool leaderLeftReverse_ = false;
+    bool leaderRightReverse_ = false;
+    bool leaderUpReverse_ = false;
+    bool leaderDownReverse_ = false;
     bool customKey1Enabled_ = false;
     QString customKey1_;
     int customKey1Code_ = kNoKeyCode;
+    bool customKey1Reverse_ = false;
     bool customKey2Enabled_ = false;
     QString customKey2_;
     int customKey2Code_ = kNoKeyCode;
+    bool customKey2Reverse_ = false;
     QString appFilterMode_ = "Disabled";
     QStringList blacklist_;
     QStringList whitelist_;

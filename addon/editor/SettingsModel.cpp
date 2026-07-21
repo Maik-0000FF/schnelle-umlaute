@@ -151,13 +151,37 @@ SettingsModel::SettingsModel(QObject *parent) : QObject(parent) {
             &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::leaderAltChanged, this,
             &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderAltReverseChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderAltGrChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderAltGrReverseChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderLeftReverseChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderRightReverseChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderUpReverseChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderDownReverseChanged, this,
+            &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::customKey1EnabledChanged, this,
             &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::customKey1Changed, this,
             &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::customKey1ReverseChanged, this,
+            &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::customKey2EnabledChanged, this,
             &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::customKey2Changed, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::customKey2ReverseChanged, this,
+            &SettingsModel::leadersChanged);
+    // A captured (or cleared) key flips whether a custom leader counts as
+    // effective, so it must refresh the leader summary and the effective count.
+    connect(this, &SettingsModel::customKey1CodeChanged, this,
+            &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::customKey2CodeChanged, this,
             &SettingsModel::leadersChanged);
 
     load();
@@ -191,8 +215,41 @@ void SettingsModel::setDelayUppercaseMin(int v) {
     Q_EMIT delayUppercaseMinChanged();
     save();
 }
+int SettingsModel::effectiveLeaderCount() const {
+    int n = 0;
+    if (leaderSpace_)
+        ++n;
+    if (leaderLeft_)
+        ++n;
+    if (leaderRight_)
+        ++n;
+    if (leaderUp_)
+        ++n;
+    if (leaderDown_)
+        ++n;
+    if (leaderAlt_)
+        ++n;
+    if (leaderAltGr_)
+        ++n;
+    // A custom leader counts only when it is enabled AND has a key captured; an
+    // enabled-but-unassigned one cannot trigger anything.
+    if (customKey1Enabled_ && customKey1HasKey())
+        ++n;
+    if (customKey2Enabled_ && customKey2HasKey())
+        ++n;
+    return n;
+}
+bool SettingsModel::allowLeaderOff(bool stillEffective) {
+    if (stillEffective && effectiveLeaderCount() == 1) {
+        Q_EMIT leaderRemovalBlocked();
+        return false;
+    }
+    return true;
+}
 void SettingsModel::setLeaderSpace(bool v) {
     if (leaderSpace_ == v)
+        return;
+    if (!v && !allowLeaderOff(leaderSpace_))
         return;
     leaderSpace_ = v;
     Q_EMIT leaderSpaceChanged();
@@ -201,12 +258,16 @@ void SettingsModel::setLeaderSpace(bool v) {
 void SettingsModel::setLeaderLeft(bool v) {
     if (leaderLeft_ == v)
         return;
+    if (!v && !allowLeaderOff(leaderLeft_))
+        return;
     leaderLeft_ = v;
     Q_EMIT leaderLeftChanged();
     save();
 }
 void SettingsModel::setLeaderRight(bool v) {
     if (leaderRight_ == v)
+        return;
+    if (!v && !allowLeaderOff(leaderRight_))
         return;
     leaderRight_ = v;
     Q_EMIT leaderRightChanged();
@@ -215,12 +276,16 @@ void SettingsModel::setLeaderRight(bool v) {
 void SettingsModel::setLeaderUp(bool v) {
     if (leaderUp_ == v)
         return;
+    if (!v && !allowLeaderOff(leaderUp_))
+        return;
     leaderUp_ = v;
     Q_EMIT leaderUpChanged();
     save();
 }
 void SettingsModel::setLeaderDown(bool v) {
     if (leaderDown_ == v)
+        return;
+    if (!v && !allowLeaderOff(leaderDown_))
         return;
     leaderDown_ = v;
     Q_EMIT leaderDownChanged();
@@ -229,12 +294,67 @@ void SettingsModel::setLeaderDown(bool v) {
 void SettingsModel::setLeaderAlt(bool v) {
     if (leaderAlt_ == v)
         return;
+    if (!v && !allowLeaderOff(leaderAlt_))
+        return;
     leaderAlt_ = v;
     Q_EMIT leaderAltChanged();
     save();
 }
+void SettingsModel::setLeaderAltReverse(bool v) {
+    if (leaderAltReverse_ == v)
+        return;
+    leaderAltReverse_ = v;
+    Q_EMIT leaderAltReverseChanged();
+    save();
+}
+void SettingsModel::setLeaderAltGr(bool v) {
+    if (leaderAltGr_ == v)
+        return;
+    if (!v && !allowLeaderOff(leaderAltGr_))
+        return;
+    leaderAltGr_ = v;
+    Q_EMIT leaderAltGrChanged();
+    save();
+}
+void SettingsModel::setLeaderAltGrReverse(bool v) {
+    if (leaderAltGrReverse_ == v)
+        return;
+    leaderAltGrReverse_ = v;
+    Q_EMIT leaderAltGrReverseChanged();
+    save();
+}
+void SettingsModel::setLeaderLeftReverse(bool v) {
+    if (leaderLeftReverse_ == v)
+        return;
+    leaderLeftReverse_ = v;
+    Q_EMIT leaderLeftReverseChanged();
+    save();
+}
+void SettingsModel::setLeaderRightReverse(bool v) {
+    if (leaderRightReverse_ == v)
+        return;
+    leaderRightReverse_ = v;
+    Q_EMIT leaderRightReverseChanged();
+    save();
+}
+void SettingsModel::setLeaderUpReverse(bool v) {
+    if (leaderUpReverse_ == v)
+        return;
+    leaderUpReverse_ = v;
+    Q_EMIT leaderUpReverseChanged();
+    save();
+}
+void SettingsModel::setLeaderDownReverse(bool v) {
+    if (leaderDownReverse_ == v)
+        return;
+    leaderDownReverse_ = v;
+    Q_EMIT leaderDownReverseChanged();
+    save();
+}
 void SettingsModel::setCustomKey1Enabled(bool v) {
     if (customKey1Enabled_ == v)
+        return;
+    if (!v && !allowLeaderOff(customKey1Enabled_ && customKey1HasKey()))
         return;
     customKey1Enabled_ = v;
     Q_EMIT customKey1EnabledChanged();
@@ -248,8 +368,17 @@ void SettingsModel::setCustomKey1(const QString &v) {
     if (isValidLeaderKey(v))
         save();
 }
+void SettingsModel::setCustomKey1Reverse(bool v) {
+    if (customKey1Reverse_ == v)
+        return;
+    customKey1Reverse_ = v;
+    Q_EMIT customKey1ReverseChanged();
+    save();
+}
 void SettingsModel::setCustomKey2Enabled(bool v) {
     if (customKey2Enabled_ == v)
+        return;
+    if (!v && !allowLeaderOff(customKey2Enabled_ && customKey2HasKey()))
         return;
     customKey2Enabled_ = v;
     Q_EMIT customKey2EnabledChanged();
@@ -262,6 +391,13 @@ void SettingsModel::setCustomKey2(const QString &v) {
     Q_EMIT customKey2Changed();
     if (isValidLeaderKey(v))
         save();
+}
+void SettingsModel::setCustomKey2Reverse(bool v) {
+    if (customKey2Reverse_ == v)
+        return;
+    customKey2Reverse_ = v;
+    Q_EMIT customKey2ReverseChanged();
+    save();
 }
 // The capture rejects a held modifier, but it cannot reject CapsLock: Qt does
 // not report it in the event's modifiers at all. So a press under CapsLock still
@@ -285,15 +421,78 @@ static QString leaderChar(const QString &raw) {
 // save. A code that cannot name a pressable key is stored as kNoKeyCode, which
 // reads as "no key assigned" rather than as a leader that can never fire.
 void SettingsModel::captureCustomKey1(const QString &ch, int code) {
-    customKey1Code_ = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
+    const int newCode = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
+    // Unassigning the key (kNoKeyCode) drops this leader's effectiveness, so
+    // guard it exactly like the enable-off case: refuse when it is the sole
+    // effective leader. Assigning a real key only adds effectiveness, never
+    // guarded.
+    if (newCode == kNoKeyCode &&
+        !allowLeaderOff(customKey1Enabled_ && customKey1HasKey()))
+        return;
+    customKey1Code_ = newCode;
     customKey1_ = leaderChar(ch);
     Q_EMIT customKey1CodeChanged();
     Q_EMIT customKey1Changed();
     save();
 }
 void SettingsModel::captureCustomKey2(const QString &ch, int code) {
-    customKey2Code_ = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
+    const int newCode = fcitx::isUsableKeyCode(code) ? code : kNoKeyCode;
+    if (newCode == kNoKeyCode &&
+        !allowLeaderOff(customKey2Enabled_ && customKey2HasKey()))
+        return;
+    customKey2Code_ = newCode;
     customKey2_ = leaderChar(ch);
+    Q_EMIT customKey2CodeChanged();
+    Q_EMIT customKey2Changed();
+    save();
+}
+namespace {
+// X keycodes (evdev code + 8) of the no-character navigation keys offered as
+// custom leaders. These are the values captured as nativeScanCode and matched
+// by the addon; on Linux/fcitx5 they are stable.
+constexpr int kKeyHome = 110;
+constexpr int kKeyEnd = 115;
+constexpr int kKeyPageUp = 112;
+constexpr int kKeyPageDown = 117;
+constexpr int kKeyInsert = 118;
+constexpr int kKeyMenu = 135;
+} // namespace
+QString SettingsModel::specialLeaderName(int keyCode) const {
+    switch (keyCode) {
+    case kKeyHome:
+        return QStringLiteral("Home");
+    case kKeyEnd:
+        return QStringLiteral("End");
+    case kKeyPageUp:
+        return QStringLiteral("Page Up");
+    case kKeyPageDown:
+        return QStringLiteral("Page Down");
+    case kKeyInsert:
+        return QStringLiteral("Insert");
+    case kKeyMenu:
+        return QStringLiteral("Menu");
+    default:
+        return QString();
+    }
+}
+void SettingsModel::clearCustomKey1() {
+    if (customKey1Code_ == kNoKeyCode && customKey1_.isEmpty())
+        return; // already clear
+    if (!allowLeaderOff(customKey1Enabled_ && customKey1HasKey()))
+        return; // would remove the last effective leader
+    customKey1Code_ = kNoKeyCode;
+    customKey1_.clear();
+    Q_EMIT customKey1CodeChanged();
+    Q_EMIT customKey1Changed();
+    save();
+}
+void SettingsModel::clearCustomKey2() {
+    if (customKey2Code_ == kNoKeyCode && customKey2_.isEmpty())
+        return; // already clear
+    if (!allowLeaderOff(customKey2Enabled_ && customKey2HasKey()))
+        return; // would remove the last effective leader
+    customKey2Code_ = kNoKeyCode;
+    customKey2_.clear();
     Q_EMIT customKey2CodeChanged();
     Q_EMIT customKey2Changed();
     save();
@@ -543,6 +742,20 @@ void SettingsModel::load() {
                 leaderDown_ = fromBool(val);
             else if (key == "Alt")
                 leaderAlt_ = fromBool(val);
+            else if (key == "AltReverse")
+                leaderAltReverse_ = fromBool(val);
+            else if (key == "AltGr")
+                leaderAltGr_ = fromBool(val);
+            else if (key == "AltGrReverse")
+                leaderAltGrReverse_ = fromBool(val);
+            else if (key == "LeftReverse")
+                leaderLeftReverse_ = fromBool(val);
+            else if (key == "RightReverse")
+                leaderRightReverse_ = fromBool(val);
+            else if (key == "UpReverse")
+                leaderUpReverse_ = fromBool(val);
+            else if (key == "DownReverse")
+                leaderDownReverse_ = fromBool(val);
         } else if (section == QLatin1String("Leader/Custom")) {
             if (key == "CustomKeyEnabled")
                 customKey1Enabled_ = fromBool(val);
@@ -550,12 +763,16 @@ void SettingsModel::load() {
                 customKey1_ = val;
             else if (key == "CustomKeyCode")
                 customKey1Code_ = toKeyCode(val);
+            else if (key == "CustomKeyReverse")
+                customKey1Reverse_ = fromBool(val);
             else if (key == "CustomKey2Enabled")
                 customKey2Enabled_ = fromBool(val);
             else if (key == "CustomKey2")
                 customKey2_ = val;
             else if (key == "CustomKey2Code")
                 customKey2Code_ = toKeyCode(val);
+            else if (key == "CustomKey2Reverse")
+                customKey2Reverse_ = fromBool(val);
         } else if (section == QLatin1String("AppFilter")) {
             if (key == "Mode")
                 appFilterMode_ = val;
@@ -635,12 +852,21 @@ void SettingsModel::load() {
     Q_EMIT leaderUpChanged();
     Q_EMIT leaderDownChanged();
     Q_EMIT leaderAltChanged();
+    Q_EMIT leaderAltReverseChanged();
+    Q_EMIT leaderAltGrChanged();
+    Q_EMIT leaderAltGrReverseChanged();
+    Q_EMIT leaderLeftReverseChanged();
+    Q_EMIT leaderRightReverseChanged();
+    Q_EMIT leaderUpReverseChanged();
+    Q_EMIT leaderDownReverseChanged();
     Q_EMIT customKey1EnabledChanged();
     Q_EMIT customKey1Changed();
     Q_EMIT customKey1CodeChanged();
+    Q_EMIT customKey1ReverseChanged();
     Q_EMIT customKey2EnabledChanged();
     Q_EMIT customKey2Changed();
     Q_EMIT customKey2CodeChanged();
+    Q_EMIT customKey2ReverseChanged();
     Q_EMIT appFilterModeChanged();
     Q_EMIT blacklistChanged();
     Q_EMIT whitelistChanged();
@@ -678,11 +904,24 @@ void SettingsModel::save() {
     out << "\n";
     out << "[Leader]\n";
     out << "# Space\n" << "Space=" << toBool(leaderSpace_) << "\n";
-    out << "# Left Arrow\n" << "Left=" << toBool(leaderLeft_) << "\n";
-    out << "# Right Arrow\n" << "Right=" << toBool(leaderRight_) << "\n";
-    out << "# Up Arrow\n" << "Up=" << toBool(leaderUp_) << "\n";
-    out << "# Down Arrow\n" << "Down=" << toBool(leaderDown_) << "\n";
-    out << "# Alt/AltGr\n" << "Alt=" << toBool(leaderAlt_) << "\n";
+    out << "# Left Arrow (+ reverse direction)\n"
+        << "Left=" << toBool(leaderLeft_) << "\n"
+        << "LeftReverse=" << toBool(leaderLeftReverse_) << "\n";
+    out << "# Right Arrow (+ reverse direction)\n"
+        << "Right=" << toBool(leaderRight_) << "\n"
+        << "RightReverse=" << toBool(leaderRightReverse_) << "\n";
+    out << "# Up Arrow (+ reverse direction)\n"
+        << "Up=" << toBool(leaderUp_) << "\n"
+        << "UpReverse=" << toBool(leaderUpReverse_) << "\n";
+    out << "# Down Arrow (+ reverse direction)\n"
+        << "Down=" << toBool(leaderDown_) << "\n"
+        << "DownReverse=" << toBool(leaderDownReverse_) << "\n";
+    out << "# Alt (+ reverse direction)\n"
+        << "Alt=" << toBool(leaderAlt_) << "\n"
+        << "AltReverse=" << toBool(leaderAltReverse_) << "\n";
+    out << "# AltGr (+ reverse direction)\n"
+        << "AltGr=" << toBool(leaderAltGr_) << "\n"
+        << "AltGrReverse=" << toBool(leaderAltGrReverse_) << "\n";
     out << "\n";
     out << "[Leader/Custom]\n";
     out << "# Custom Leader 1\n"
@@ -691,12 +930,16 @@ void SettingsModel::save() {
         << "CustomKey=" << customKey1_ << "\n";
     out << "#   \xe2\x86\xb3 Key code\n"
         << "CustomKeyCode=" << customKey1Code_ << "\n";
+    out << "#   \xe2\x86\xb3 reverse direction\n"
+        << "CustomKeyReverse=" << toBool(customKey1Reverse_) << "\n";
     out << "# Custom Leader 2 (hand-split)\n"
         << "CustomKey2Enabled=" << toBool(customKey2Enabled_) << "\n";
     out << "#   \xe2\x86\xb3 Key\n"
         << "CustomKey2=" << customKey2_ << "\n";
     out << "#   \xe2\x86\xb3 Key code\n"
         << "CustomKey2Code=" << customKey2Code_ << "\n";
+    out << "#   \xe2\x86\xb3 reverse direction\n"
+        << "CustomKey2Reverse=" << toBool(customKey2Reverse_) << "\n";
     out << "\n";
     out << "[AppFilter]\n";
     out << "# Mode\n" << "Mode=" << appFilterMode_ << "\n";

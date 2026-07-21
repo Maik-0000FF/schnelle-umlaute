@@ -96,7 +96,7 @@ Item {
             }
             background: Rectangle { color: "transparent" }
             ThemedToolTip {
-                visible: clearBtn.hovered && clearBtn.active
+                hovered: clearBtn.hovered && clearBtn.active
                 text: qsTr("Clear shortcut")
             }
             onClicked: root.captured("")

@@ -68,7 +68,7 @@ Rectangle {
             Accessible.name: qsTr("About")
 
             ThemedToolTip {
-                visible: infoBtn.hovered
+                hovered: infoBtn.hovered
                 text: qsTr("About")
             }
 

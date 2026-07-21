@@ -148,6 +148,23 @@ QtObject {
     readonly property color switchThumb:  p.switchThumb
     readonly property color scrim:        p.scrim
 
+    // Dropdown popup surface: the single source for every open dropdown panel
+    // (ThemedComboBox, ProfileSelector, LibrarySelector). Uses the darker page
+    // background plus a focus-coloured border so the floating menu reads as a
+    // distinct layer above the Theme.surface cards instead of blending into
+    // them. Change the dropdown look here once, not per component.
+    readonly property color dropdownSurface: p.background
+    readonly property color dropdownBorder:  p.borderFocus
+
+    // Collapsed combo-box fill: a semantic alias for the closed control's
+    // resting surface. It resolves to the same page background as
+    // dropdownSurface today, but is named separately on purpose: the closed
+    // box is meant to sit flush with the surrounding row/card, while the open
+    // popup (dropdownSurface) floats above it as a distinct layer. Keeping the
+    // two states as their own tokens lets either shift without dragging the
+    // other along.
+    readonly property color comboBoxSurface: p.background
+
     // Resolve to the first installed family from a preference list rather than
     // hard-coding one. Inter and JetBrains Mono are preferred (the branded
     // look) but neither ships on a default install; when absent, fontconfig
@@ -208,6 +225,11 @@ QtObject {
     readonly property int animShort: 150
     readonly property int animMed:   220
 
+    // Hover tooltips: one delay before they appear and one max width (so long
+    // text wraps instead of running off), shared by every ThemedToolTip.
+    readonly property int tooltipDelay: 750
+    readonly property int tooltipMaxWidth: 280
+
     // Action icon glyphs, one source so the editor uses a consistent set.
     // iconCancel (✗, abort an edit) and iconClear (✕, empty a field) are
     // intentionally distinct glyphs for their distinct meanings.
@@ -226,6 +248,10 @@ QtObject {
     readonly property string issuesUrl:   "https://github.com/Maik-0000FF/schnelle-umlaute/issues/new"
     readonly property string licenseName: "GPL-3.0"
     readonly property string licenseUrl:  "https://github.com/Maik-0000FF/schnelle-umlaute/blob/main/LICENSE"
+
+    // Developer credit shown in the About dialog. The name lives here as the
+    // single source; the dialog supplies the surrounding (translatable) wording.
+    readonly property string developerName: "Maik-0000FF"
 
     // App icon shared by the header and the About dialog, plus its two display
     // sizes and the About dialog width, so none of these are hard-coded per use.

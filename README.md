@@ -21,10 +21,10 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 
 **Features:**
 - Hold letter + space/arrow keys for accent characters
-- Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã)
+- Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã), forward or backward (per-arrow reverse-direction toggle)
 - Snippets: Map single keys to entire text phrases
 - Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
-- Configurable leader keys (Space, Arrow ←→↑↓, Alt/AltGr, or custom keys with hand-split), keep Space free for normal typing
+- Configurable leader keys (Space, Arrow ←→↑↓, Alt, AltGr, or custom keys with hand-split), keep Space free for normal typing
 - Works with any keyboard layout (QWERTY, QWERTZ, AZERTY, Dvorak, Colemak) and programmable keyboards (QMK, ZMK, split, ortholinear)
 - Unlimited mapping slots
 - App blacklist/whitelist, disable in games, password managers, or apps with conflicting shortcuts
@@ -204,4 +204,4 @@ Thanks to [wengxt](https://github.com/wengxt) for creating Fcitx5 and for the gu
 
 ---
 
-**Version:** 1.6.0
+**Version:** 1.7.0

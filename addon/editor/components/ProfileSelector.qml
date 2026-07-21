@@ -153,13 +153,13 @@ Item {
         // add-row and separator always stay visible above it.
         implicitHeight: Math.min(popupCol.implicitHeight + 2 * Theme.spacingSm,
                                  360)
-        // Darker than the surface cards behind it, plus a focus-coloured border,
-        // so the open menu reads as a distinct floating layer instead of blending
-        // into the page (the surrounding cards are Theme.surface).
+        // Shared dropdown look (Theme.dropdownSurface/Border): darker than the
+        // surface cards behind it, plus a focus-coloured border, so the open menu
+        // reads as a distinct floating layer instead of blending into the page.
         background: Rectangle {
-            color: Theme.background
+            color: Theme.dropdownSurface
             radius: Theme.radiusSm
-            border.color: Theme.borderFocus
+            border.color: Theme.dropdownBorder
             border.width: 1
         }
 
@@ -413,7 +413,7 @@ Item {
                             Layout.preferredWidth: 20
                             horizontalAlignment: Text.AlignHCenter
                             ThemedToolTip {
-                                visible: activeMouse.containsMouse
+                                hovered: activeMouse.containsMouse
                                 text: prow.isActive ? qsTr("Active profile")
                                                     : qsTr("Set as active (A)")
                             }
@@ -448,7 +448,7 @@ Item {
                             Layout.preferredWidth: 20
                             horizontalAlignment: Text.AlignHCenter
                             ThemedToolTip {
-                                visible: favMouse.containsMouse
+                                hovered: favMouse.containsMouse
                                 text: prow.favorite
                                       ? qsTr("Favorite (in cycle)")
                                       : qsTr("Add to cycle favorites (F)")
@@ -468,6 +468,10 @@ Item {
                         Text {
                             visible: !prow.renaming
                             Layout.fillWidth: true
+                            // Fill the row height so the select click (below)
+                            // covers the whole hover bar, not just the text line;
+                            // the text itself stays vertically centred.
+                            Layout.fillHeight: true
                             text: prow.name
                             color: Theme.text
                             font.family: Theme.fontFamily
@@ -558,7 +562,7 @@ Item {
                             }
                             background: Rectangle { color: "transparent" }
                             ThemedToolTip {
-                                visible: parent.hovered
+                                hovered: parent.hovered
                                 text: qsTr("Rename profile (F2)")
                             }
                             onClicked: list.renamingIndex = prow.index
@@ -584,7 +588,7 @@ Item {
                             }
                             background: Rectangle { color: "transparent" }
                             ThemedToolTip {
-                                visible: parent.hovered
+                                hovered: parent.hovered
                                 text: qsTr("Delete profile (Del)")
                             }
                             onClicked: {
