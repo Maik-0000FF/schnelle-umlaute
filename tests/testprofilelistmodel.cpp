@@ -398,6 +398,29 @@ void testAddProfileFromPreset(ProfileListModel &m) {
     qunsetenv("SCHNELLE_UMLAUTE_PRESETS_DIR");
 }
 
+// Deleting a merged profile must drop its ref from the merge overlay, so the
+// remaining merged profiles renumber with no gap (issue #112).
+void testRemoveCleansMergeOverlay(ProfileListModel &m) {
+    EXPECT(m.createProfile(QStringLiteral("Deutsch")));
+    EXPECT(m.createProfile(QStringLiteral("Spanisch")));
+    const QString deRef =
+        QStringLiteral("profile:") +
+        m.fileForRow(rowForName(m, QStringLiteral("Deutsch")));
+    const QString esRef =
+        QStringLiteral("profile:") +
+        m.fileForRow(rowForName(m, QStringLiteral("Spanisch")));
+    m.setMergeOverlay(QStringList{deRef, esRef});
+    EXPECT(m.mergeOverlay() == (QStringList{deRef, esRef}));
+    // Standard stays active, so both merged profiles carry badges 1 and 2.
+    EXPECT(m.mergeBadge(deRef) == 1);
+    EXPECT(m.mergeBadge(esRef) == 2);
+
+    EXPECT(m.removeProfile(rowForName(m, QStringLiteral("Deutsch"))));
+    EXPECT(!m.mergeOverlay().contains(deRef));
+    EXPECT(m.mergeOverlay() == (QStringList{esRef}));
+    EXPECT(m.mergeBadge(esRef) == 1); // renumbered, no gap
+}
+
 // -- runner ------------------------------------------------------------------
 
 using TestFn = void (*)(ProfileListModel &);
@@ -432,6 +455,7 @@ const TestCase kTests[] = {
     {"testLooseProfileNameCollisionUniquified",
      testLooseProfileNameCollisionUniquified},
     {"testAddProfileFromPreset", testAddProfileFromPreset},
+    {"testRemoveCleansMergeOverlay", testRemoveCleansMergeOverlay},
 };
 
 int main(int argc, char **argv) {
