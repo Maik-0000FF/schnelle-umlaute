@@ -93,17 +93,6 @@ Popup {
             font.pixelSize: Theme.fontBody
         }
 
-        Text {
-            Layout.fillWidth: true
-            Layout.leftMargin: Theme.spacingLg
-            Layout.rightMargin: Theme.spacingLg
-            text: qsTr("Developed by %1").arg(Theme.developerName)
-            color: Theme.textMuted
-            wrapMode: Text.WordWrap
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontBody
-        }
-
         ColumnLayout {
             Layout.fillWidth: true
             Layout.leftMargin: Theme.spacingMd
@@ -123,6 +112,15 @@ Popup {
             Layout.fillWidth: true
             Layout.margins: Theme.spacingLg
             Layout.topMargin: 0
+
+            // Developer credit, bottom-left, opposite the Close button.
+            Text {
+                text: qsTr("Developed by %1").arg(Theme.developerName)
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontBody
+            }
+
             Item { Layout.fillWidth: true }
             FocusRect {
                 id: closeBtn
