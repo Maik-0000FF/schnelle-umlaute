@@ -51,7 +51,7 @@ ComboBox {
 
     background: Rectangle {
         radius: Theme.radiusSm
-        color: Theme.background
+        color: Theme.comboBoxSurface
         border.color: combo.activeFocus ? Theme.borderFocus : Theme.border
         border.width: 1
         Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
@@ -72,6 +72,11 @@ ComboBox {
         // Qt version.
         padding: 0
         implicitHeight: Theme.controlHeight
+        // Mirror the combo's keyboard cursor so arrow-key navigation lifts the
+        // targeted row (the delegate is transparent-until-hovered, which
+        // otherwise leaves the highlighted row invisible when navigating
+        // without the mouse).
+        highlighted: combo.highlightedIndex === index
         readonly property bool current: combo.currentIndex === index
         readonly property string itemLabel:
             combo.textRole && modelData && typeof modelData === "object"
@@ -98,9 +103,10 @@ ComboBox {
         }
         background: Rectangle {
             // Transparent by default so the darker dropdown surface shows
-            // through, matching the Profile/Library dropdown rows; only the
-            // hovered row lifts to surfaceHover.
-            color: item.hovered ? Theme.surfaceHover : "transparent"
+            // through, matching the Profile/Library dropdown rows; the hovered
+            // row and the keyboard-highlighted row both lift to surfaceHover so
+            // the active target stays visible whether reached by mouse or keys.
+            color: (item.hovered || item.highlighted) ? Theme.surfaceHover : "transparent"
             Behavior on color { ColorAnimation { duration: Theme.animShort } }
         }
     }

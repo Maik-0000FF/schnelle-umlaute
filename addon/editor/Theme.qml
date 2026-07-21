@@ -156,6 +156,15 @@ QtObject {
     readonly property color dropdownSurface: p.background
     readonly property color dropdownBorder:  p.borderFocus
 
+    // Collapsed combo-box fill: a semantic alias for the closed control's
+    // resting surface. It resolves to the same page background as
+    // dropdownSurface today, but is named separately on purpose: the closed
+    // box is meant to sit flush with the surrounding row/card, while the open
+    // popup (dropdownSurface) floats above it as a distinct layer. Keeping the
+    // two states as their own tokens lets either shift without dragging the
+    // other along.
+    readonly property color comboBoxSurface: p.background
+
     // Resolve to the first installed family from a preference list rather than
     // hard-coding one. Inter and JetBrains Mono are preferred (the branded
     // look) but neither ships on a default install; when absent, fontconfig
