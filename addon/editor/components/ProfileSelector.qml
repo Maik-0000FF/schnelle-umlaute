@@ -344,6 +344,13 @@ Item {
                     required property bool isProtected
                     required property bool favorite
                     required property string selectKey
+                    required property string file
+                    // The overlay ref for this profile and its merge position
+                    // (0-based, -1 if not merged); drives the merge toggle.
+                    readonly property string mergeRef: "profile:" + prow.file
+                    readonly property int mergePos: root.profilesModel
+                        ? root.profilesModel.mergeOverlay.indexOf(prow.mergeRef)
+                        : -1
                     width: ListView.view.width
                     height: Theme.rowHeight
                     radius: Theme.radiusSm
@@ -461,6 +468,61 @@ Item {
                                 onClicked: if (root.profilesModel)
                                     root.profilesModel.setFavorite(
                                         prow.index, !prow.favorite);
+                            }
+                        }
+
+                        // Merge toggle (⧉): stack this profile into the global
+                        // merge overlay, composed on top of the active profile.
+                        // A small accent badge shows its position (= the output
+                        // order); accent glyph = merged, muted = not.
+                        Text {
+                            id: mergeIcon
+                            readonly property int pos: prow.mergePos
+                            text: Theme.iconMerge
+                            color: mergeIcon.pos >= 0
+                                   ? Theme.accent
+                                   : (mergeMouse.containsMouse ? Theme.text
+                                                               : Theme.textMuted)
+                            font.pixelSize: Theme.fontIcon
+                            Layout.preferredWidth: 20
+                            horizontalAlignment: Text.AlignHCenter
+                            ThemedToolTip {
+                                hovered: mergeMouse.containsMouse
+                                text: mergeIcon.pos >= 0
+                                      ? qsTr("Merged (position %1), click to remove")
+                                        .arg(mergeIcon.pos + 1)
+                                      : qsTr("Merge this profile onto the active profile")
+                            }
+                            // Position badge, only while merged.
+                            Rectangle {
+                                visible: mergeIcon.pos >= 0
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.rightMargin: -3
+                                anchors.topMargin: -3
+                                width: Math.max(14, badgeText.implicitWidth + 6)
+                                height: 14
+                                radius: height / 2
+                                color: Theme.accent
+                                Text {
+                                    id: badgeText
+                                    anchors.centerIn: parent
+                                    text: mergeIcon.pos >= 0
+                                          ? (mergeIcon.pos + 1) : ""
+                                    color: Theme.onAccent
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 9
+                                    font.weight: Font.Medium
+                                }
+                            }
+                            MouseArea {
+                                id: mergeMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: if (root.profilesModel)
+                                    root.profilesModel.toggleMergeOverlay(
+                                        prow.mergeRef);
                             }
                         }
 

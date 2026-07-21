@@ -608,6 +608,19 @@ void ProfileListModel::setMergeOverlay(const QStringList &refs) {
     save();
 }
 
+void ProfileListModel::toggleMergeOverlay(const QString &ref) {
+    const QString r = ref.trimmed();
+    if (r.isEmpty())
+        return;
+    QStringList next = mergeOverlay_;
+    const int i = next.indexOf(r);
+    if (i >= 0)
+        next.removeAt(i); // un-merge
+    else
+        next.append(r); // merge: appended, so it takes the next position
+    setMergeOverlay(next);
+}
+
 void ProfileListModel::seedStandardIfEmpty(bool persist) {
     if (!entries_.empty())
         return;

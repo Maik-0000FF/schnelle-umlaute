@@ -17,6 +17,15 @@ ApplicationWindow {
 
     MappingListModel {
         id: mappings
+        // Feed the merge overlay and the active profile's file so the mapping
+        // list shows the composed effective mapping when the edit target is the
+        // active profile (issue #112). Reading profiles.revision makes the
+        // active-file binding re-evaluate whenever the profile set changes.
+        mergeOverlay: profiles.mergeOverlay
+        activeProfileFile: {
+            const _ = profiles.revision;
+            return profiles.fileForRow(profiles.activeRow());
+        }
         onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
     }
 

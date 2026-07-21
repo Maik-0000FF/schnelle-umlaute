@@ -241,6 +241,7 @@ QtObject {
     readonly property string iconStar:        "★"
     readonly property string iconAdd:         "+"
     readonly property string iconInfo:        "ⓘ"
+    readonly property string iconMerge:       "⧉" // stack a profile into the merge overlay
 
     // External links shown in the About dialog, kept here as the single source
     // so the dialog (and any later use) never hard-codes a URL.

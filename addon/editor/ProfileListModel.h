@@ -67,6 +67,10 @@ public:
     // Replace the whole ordered merge overlay (profile refs) and persist. Empty
     // entries are dropped. The UI toggles/reorders profiles into this list.
     Q_INVOKABLE void setMergeOverlay(const QStringList &refs);
+    // Toggle a single profile ref in/out of the overlay: append it (taking the
+    // next merge position) if absent, remove it (renumbering the rest) if
+    // present. The per-row merge button calls this.
+    Q_INVOKABLE void toggleMergeOverlay(const QString &ref);
     void setCycleNext(const QString &combo);
     void setCyclePrev(const QString &combo);
 
