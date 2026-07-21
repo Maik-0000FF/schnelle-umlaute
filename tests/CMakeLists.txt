@@ -265,6 +265,15 @@ target_compile_options(testprofilecompose PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testprofilecompose COMMAND testprofilecompose)
 set_tests_properties(testprofilecompose PROPERTIES TIMEOUT 10)
 
+# Unit test for the merge-override sidecar parser (merge_override_io.h).
+# Pure header-only logic — the on-disk format for per-base remove/order/removed
+# override ops that both the engine and the editor read.
+add_executable(testmergeoverrideio testmergeoverrideio.cpp)
+target_include_directories(testmergeoverrideio PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testmergeoverrideio PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testmergeoverrideio COMMAND testmergeoverrideio)
+set_tests_properties(testmergeoverrideio PROPERTIES TIMEOUT 10)
+
 # Engine-side loader: per-profile defaults rule (only the Standard profile
 # seeds the German defaults; other profiles load empty). Links mappings_loader
 # + Fcitx5::Core (StandardPaths); no Qt.
