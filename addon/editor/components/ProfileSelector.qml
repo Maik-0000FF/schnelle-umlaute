@@ -468,6 +468,10 @@ Item {
                         Text {
                             visible: !prow.renaming
                             Layout.fillWidth: true
+                            // Fill the row height so the select click (below)
+                            // covers the whole hover bar, not just the text line;
+                            // the text itself stays vertically centred.
+                            Layout.fillHeight: true
                             text: prow.name
                             color: Theme.text
                             font.family: Theme.fontFamily
