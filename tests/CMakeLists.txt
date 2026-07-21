@@ -237,6 +237,15 @@ target_compile_options(testprofilecycle PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testprofilecycle COMMAND testprofilecycle)
 set_tests_properties(testprofilecycle PROPERTIES TIMEOUT 10)
 
+# Unit test for the global merge-overlay composition (profile_compose.h).
+# Pure header-only logic — guards the compose contract (ordered union of
+# sources, per-variant add/remove/order override ops, whole-base removal).
+add_executable(testprofilecompose testprofilecompose.cpp)
+target_include_directories(testprofilecompose PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testprofilecompose PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testprofilecompose COMMAND testprofilecompose)
+set_tests_properties(testprofilecompose PROPERTIES TIMEOUT 10)
+
 # Engine-side loader: per-profile defaults rule (only the Standard profile
 # seeds the German defaults; other profiles load empty). Links mappings_loader
 # + Fcitx5::Core (StandardPaths); no Qt.
