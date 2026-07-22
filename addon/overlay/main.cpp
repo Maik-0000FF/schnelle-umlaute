@@ -300,6 +300,22 @@ private:
             qwin->setScreen(scr);
 #endif
         qwin_ = qwin;
+        // A monitor switch moves the surface to the compositor-chosen active
+        // output only after the first placement has already anchored its margins
+        // against the old (stale) screen. When Qt catches up and the window's
+        // screen changes, re-apply the grid margins against the real output so a
+        // fractional column isn't left off by the previous monitor's width.
+        // Guarded so it only fires for a live, visible grid placement; cursor
+        // placements set their own screen explicitly and clear gridActive_.
+        connect(qwin, &QWindow::screenChanged, this, [this](QScreen *) {
+            if (gridActive_ && active_ && qwin_ && qwin_->isVisible()) {
+                // The output is now known: apply the real (non-provisional)
+                // margin and mark it no longer pending, so the first-frame
+                // handler doesn't redo it.
+                applyGridAnchors(lastGrid_);
+                pendingRealMargin_ = false;
+            }
+        });
         return true;
     }
 
@@ -337,6 +353,22 @@ private:
                                if (generation != restoreGeneration_)
                                    return;
                                QObject::disconnect(restore_);
+                               // A same-monitor placement never gets a
+                               // screenChanged, so the provisional margin from
+                               // reveal is still up. The output has settled by
+                               // the first drawn frame, so apply the real margin
+                               // now (only for a live grid placement, so cursor
+                               // overlays and cycling updates are untouched).
+                               if (pendingRealMargin_ && gridActive_) {
+                                   applyGridAnchors(lastGrid_);
+                                   pendingRealMargin_ = false;
+                               }
+                               // Reveal the content BEFORE re-enabling
+                               // transitions, so it snaps in at the now-final
+                               // margin instead of fading (transitions gates the
+                               // opacity Behavior on animate). The margin was
+                               // corrected while this frame was still hidden.
+                               ctrl_->setPlaced(true);
                                ctrl_->setAnimate(true);
                            });
         // Do not assume a frame is coming. A gesture start can re-send exactly
@@ -352,6 +384,12 @@ private:
         if (qwin_)
             qwin_->setVisible(false);
         active_ = false;
+        // No grid placement is up; a screenChanged now (or one during the next
+        // cursor placement, which anchors its own screen) must not re-apply a
+        // stale grid margin. reveal's grid path sets this back to true.
+        gridActive_ = false;
+        // A placement that never drew leaves no real margin owed to the next one.
+        pendingRealMargin_ = false;
         // Whatever a still-pending cursor reply was going to place, it is not
         // this. Close its epoch.
         epoch_ = schnelle_umlaute::render::nextEpoch(epoch_);
@@ -364,11 +402,79 @@ private:
             polishTree(qq->contentItem());
     }
 
+    // Compute and apply the layer-shell anchors + margins for a grid position,
+    // reading qwin_'s CURRENT screen width. Split out of revealGrid so it can
+    // re-run from screenChanged: right after a monitor switch the first
+    // placement anchors against the stale screen, and re-applying here once Qt
+    // knows the real output corrects a fractional column that was off by the old
+    // monitor's width.
+    //
+    // `provisional` caps the horizontal margin at kEdgeMargin for the very first
+    // commit, when the compositor-chosen output is not yet known. A fractional
+    // margin computed for a stale (wider) screen can exceed a narrower target
+    // output's width; the compositor then can't place the NULL-output surface
+    // there and never moves it, so the overlay sticks on the stale monitor. A
+    // margin that fits every output lets it map on the focused one, after which
+    // screenChanged / the first drawn frame applies the real margin. The content
+    // stays hidden (placed) until then, so this provisional position is never
+    // seen. The cap is one-dimensional: only horizontal margins are fractional;
+    // vertical ones are a fixed kEdgeMargin that fits any output height.
+    void applyGridAnchors(const QString &grid, bool provisional = false) {
+        auto *ls = LSWindow::get(qwin_);
+        if (!ls)
+            return;
+        QScreen *scr = qwin_ ? qwin_->screen() : nullptr;
+        if (!scr)
+            scr = QGuiApplication::primaryScreen();
+        const int sw = scr ? scr->geometry().width()
+                           : schnelle_umlaute::render::kFallbackScreenWidth;
+        const int ow = qwin_ && qwin_->width() > 0
+                           ? qwin_->width()
+                           : schnelle_umlaute::render::kFallbackOverlayWidth;
+        auto a = anchorsFor(grid, sw, ow);
+        // In progress mode the surface includes the bar overhang to the right of
+        // the panel; anchorsFor centres the whole surface, which would shift the
+        // panel left by half the bar. Re-anchor horizontally so the PANEL lands
+        // on the column (vertical/row placement stays), clamped so the bar's
+        // right end stays on the output. frameW is the panel width read from QML;
+        // if it can't be read (0), keep anchorsFor's surface-centring.
+        int row = 0, col = 0;
+        if (ctrl_->progressActive() &&
+            parsePosition(canonicalizePosition(grid), row, col)) {
+            (void)row;
+            const int frameW = qwin_ ? qwin_->property("frameWidth").toInt() : 0;
+            if (frameW > 0) {
+                a.anchors &= ~(LSWindow::AnchorLeft | LSWindow::AnchorRight);
+                a.anchors |= LSWindow::AnchorLeft;
+                a.margins.setLeft(
+                    schnelle_umlaute::progress::gridPanelLeftMargin(
+                        col, sw, frameW, ow, kEdgeMargin));
+                a.margins.setRight(0);
+            }
+        }
+        // Cap the anchored horizontal margin so the first commit fits any output.
+        // The non-anchored side is already 0 (min keeps it 0) and a centred
+        // placement has no horizontal margin, so this needs no left/right branch.
+        if (provisional) {
+            a.margins.setLeft(std::min(a.margins.left(), kEdgeMargin));
+            a.margins.setRight(std::min(a.margins.right(), kEdgeMargin));
+        }
+        ls->setAnchors(a.anchors);
+        ls->setMargins(a.margins);
+    }
+
     void reveal(const QString &pos,
                 const schnelle_umlaute::render::RenderEpoch epoch) {
         QWindow *qwin = qwin_;
         if (!qwin)
             return;
+
+        // Keep the panel content invisible until the surface has committed at its
+        // final margin. On a monitor switch the first commit anchors against the
+        // stale screen and screenChanged corrects it a frame later; gating the
+        // content over that window turns the visible jump into an invisible one.
+        // armTransitionRestore sets it back once the first frame has drawn.
+        ctrl_->setPlaced(false);
 
         const schnelle_umlaute::CursorPositionSpec spec =
             schnelle_umlaute::parseCursorPosition(pos.toStdString());
@@ -391,50 +497,23 @@ private:
                 return;
             // Every caller lands here: the synchronous grid path, and both of the
             // cursor callback's fallbacks (no pointer, no screen). This IS the
-            // pass that makes the implicit sizes current, so the anchor math
-            // below reads the width of the panel about to be shown rather than
-            // the last one's. On the deferred paths it additionally catches up
-            // with any cycling that happened while the pointer query was in
-            // flight.
+            // pass that makes the implicit sizes current, so the anchor math in
+            // applyGridAnchors reads the width of the panel about to be shown
+            // rather than the last one's. On the deferred paths it additionally
+            // catches up with any cycling that happened while the pointer query
+            // was in flight.
             settleLayout();
-            auto *ls2 = LSWindow::get(qwinPtr);
-            if (!ls2)
+            if (!LSWindow::get(qwinPtr))
                 return;
-            QScreen *scr = qwinPtr->screen();
-            if (!scr)
-                scr = QGuiApplication::primaryScreen();
-            const int sw = scr ? scr->geometry().width()
-                               : schnelle_umlaute::render::kFallbackScreenWidth;
-            const int ow = qwinPtr->width() > 0
-                               ? qwinPtr->width()
-                               : schnelle_umlaute::render::kFallbackOverlayWidth;
-            auto a = anchorsFor(grid, sw, ow);
-            // In progress mode the surface includes the bar overhang to the
-            // right of the panel; anchorsFor centres the whole surface, which
-            // would shift the panel left by half the bar. Re-anchor horizontally
-            // so the PANEL lands on the column (vertical/row placement stays),
-            // clamped so the bar's right end stays on the output.
-            int row = 0, col = 0;
-            if (ctrl_->progressActive() &&
-                parsePosition(canonicalizePosition(grid), row, col)) {
-                (void)row;
-                // The surface is max(panel, bar) wide with the bar left-aligned;
-                // read the panel width from QML so the panel (not the surface)
-                // is centred on the column. If the property can't be read (0),
-                // skip the override and keep anchorsFor's surface-centring
-                // rather than mis-place the panel.
-                const int frameW = qwinPtr->property("frameWidth").toInt();
-                if (frameW > 0) {
-                    a.anchors &= ~(LSWindow::AnchorLeft | LSWindow::AnchorRight);
-                    a.anchors |= LSWindow::AnchorLeft;
-                    a.margins.setLeft(
-                        schnelle_umlaute::progress::gridPanelLeftMargin(
-                            col, sw, frameW, ow, kEdgeMargin));
-                    a.margins.setRight(0);
-                }
-            }
-            ls2->setAnchors(a.anchors);
-            ls2->setMargins(a.margins);
+            // Remember the placement so a screenChanged after a monitor switch
+            // (which updates qwin_->screen() only after this first, stale-screen
+            // commit) can re-apply the margins against the real output. The first
+            // commit is provisional (margin capped to fit any output); the real
+            // margin is pending until screenChanged or the first drawn frame.
+            lastGrid_ = grid;
+            gridActive_ = true;
+            pendingRealMargin_ = true;
+            applyGridAnchors(grid, /*provisional=*/true);
             qwinPtr->setVisible(true);
             // This surface is the one that will draw the snapped state, so it is
             // the one whose first frame reopens the gate.
@@ -483,6 +562,13 @@ private:
                     revealGrid();
                     return;
                 }
+                // This is a cursor placement, not a grid one: own that here so a
+                // screenChanged (including the one setScreen below may trigger)
+                // never re-applies a stale grid margin over this overlay. It is
+                // already false from hideWindow, but setting it at the placement
+                // keeps the invariant local: a future reveal call site added
+                // without a preceding hideWindow can't silently regress.
+                gridActive_ = false;
                 qwinPtr->setScreen(scr);
                 const QRect geo = scr->geometry();
                 const int ow =
@@ -554,6 +640,17 @@ private:
     // and the generation that says which placement armed it.
     QMetaObject::Connection restore_;
     quint64 restoreGeneration_ = 0;
+    // The current grid placement and whether one is up (not a cursor placement),
+    // so a screenChanged after a monitor switch can re-apply the margins against
+    // the freshly-learned output. The first placement anchors against
+    // qwin_->screen(), which is stale right after a switch until Qt catches up.
+    // Empty / false while hidden or in cursor mode.
+    QString lastGrid_;
+    bool gridActive_ = false;
+    // True from a grid reveal's provisional first commit until the real margin
+    // has been applied (by screenChanged or the first drawn frame), so exactly
+    // one of the two does it and cursor placements / cycling updates don't.
+    bool pendingRealMargin_ = false;
 };
 
 } // namespace

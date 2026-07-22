@@ -31,6 +31,18 @@ class OverlayController : public QObject {
     // surface has drawn a frame with them. Cycling within a gesture leaves it
     // alone, so the active-cell handover keeps its animation.
     Q_PROPERTY(bool animate READ animate NOTIFY animateChanged)
+    // Gates the panel content's visibility (opacity), separate from animate.
+    // A fresh layer surface with output=NULL is placed by the compositor on the
+    // active output, but Qt only learns that output AFTER the first commit, so
+    // the daemon's first margin math runs against the previous, stale screen.
+    // On a monitor switch the surface is committed once at the stale margin,
+    // then corrected a couple of ms later when screenChanged fires — a visible
+    // one-frame jump. The renderer clears this before a placement so the content
+    // stays invisible while the surface is committed and (if needed) re-anchored,
+    // then sets it once the surface has drawn a frame, by which point the margin
+    // is final. The window keeps its size the whole time (opacity, not visible),
+    // so the anchor math is unaffected.
+    Q_PROPERTY(bool placed READ placed NOTIFY placedChanged)
     // Progress bar state fires its own signal: like theme it only drives QML
     // property re-evaluation and must not trigger a layer-shell surface rebuild
     // in the renderer (which listens to stateChanged only).
@@ -57,6 +69,8 @@ public:
     QString theme() const { return theme_; }
     bool animate() const { return animate_; }
     void setAnimate(bool on);
+    bool placed() const { return placed_; }
+    void setPlaced(bool on);
     int progressLeadMs() const { return progressLeadMs_; }
     int progressWindowMs() const { return progressWindowMs_; }
     bool progressActive() const { return progressActive_; }
@@ -105,6 +119,7 @@ Q_SIGNALS:
     void stateChanged();
     void themeChanged();
     void animateChanged();
+    void placedChanged();
     void cursorReported(int requestId, int x, int y);
     void progressChanged();
 
@@ -116,6 +131,7 @@ private:
     bool label_ = false;
     QString theme_ = QStringLiteral("schnelle-umlaute");
     bool animate_ = true;
+    bool placed_ = true;
     int progressLeadMs_ = 0;
     int progressWindowMs_ = 0;
     int progressElapsedMs_ = 0;
