@@ -65,7 +65,9 @@ Rectangle {
             containsDrag && drag.source
             && drag.source.sourceInput !== undefined
             && drag.source.sourceInput !== root.inputText
-        onForeignHoverChanged: root.foreignDragCount += foreignHover ? 1 : -1
+        onForeignHoverChanged: root.foreignDragCount =
+            foreignHover ? root.foreignDragCount + 1
+                         : Math.max(0, root.foreignDragCount - 1)
         onDropped: (drop) => {
             if (!drop.source || !root.modelRef)
                 return;
@@ -304,6 +306,16 @@ Rectangle {
                 Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
             }
             Keys.onEscapePressed: cancelEdit()
+            // Confirm on Enter and consume the event so it does not bubble up to
+            // the list, which would re-open edit on the current (roving) row.
+            Keys.onReturnPressed: (event) => {
+                if (root.editValid) confirmEdit();
+                event.accepted = true;
+            }
+            Keys.onEnterPressed: (event) => {
+                if (root.editValid) confirmEdit();
+                event.accepted = true;
+            }
             // Handle Escape locally (cancel the edit) instead of letting the
             // window-level Esc shortcut close the whole editor.
             Keys.onShortcutOverride: (event) => {
@@ -346,8 +358,9 @@ Rectangle {
                         containsDrag && drag.source
                         && drag.source.sourceInput !== undefined
                         && drag.source.sourceInput !== root.inputText
-                    onForeignHoverChanged:
-                        root.foreignDragCount += foreignHover ? 1 : -1
+                    onForeignHoverChanged: root.foreignDragCount =
+                        foreignHover ? root.foreignDragCount + 1
+                                     : Math.max(0, root.foreignDragCount - 1)
                     // Move the dragged variant to this chip's ORIGINAL slot.
                     // Using the target's original index (not indexOf after the
                     // splice) makes the move direction-aware: a left chip dropped
@@ -510,7 +523,16 @@ Rectangle {
                     ? Theme.error : Theme.accent
                 border.width: 1
             }
-            onAccepted: if (root.editValid) confirmEdit()
+            // Confirm on Enter and consume the event so it does not bubble up to
+            // the list, which would re-open edit on the current (roving) row.
+            Keys.onReturnPressed: (event) => {
+                if (root.editValid) confirmEdit();
+                event.accepted = true;
+            }
+            Keys.onEnterPressed: (event) => {
+                if (root.editValid) confirmEdit();
+                event.accepted = true;
+            }
             Keys.onEscapePressed: cancelEdit()
             // Handle Escape locally (cancel the edit) instead of letting the
             // window-level Esc shortcut close the whole editor.

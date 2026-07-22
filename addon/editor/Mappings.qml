@@ -24,6 +24,15 @@ Item {
         }
     }
 
+    // Same for the mappings model, e.g. a cross-row chip move refused because
+    // the target mapping already has that variant.
+    Connections {
+        target: root.mappingsModel
+        function onErrorOccurred(message) {
+            root.requestSnackbar(message, Theme.error);
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Theme.spacingLg

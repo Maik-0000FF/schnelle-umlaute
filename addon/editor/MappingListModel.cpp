@@ -196,8 +196,11 @@ bool MappingListModel::removeVariant(const QString &input,
             return false;
         if (vars.size() == 1) {
             // Refuse to remove the sole variant: a chip action must never delete
-            // the whole mapping and its input. Deleting a mapping is the row's
-            // trash button (the ✕ is hidden on a single-chip row too).
+            // the whole mapping and its input. The ✕ is hidden on a single-chip
+            // row, but guard here too and say why if it is ever reached.
+            Q_EMIT errorOccurred(
+                tr("A mapping keeps at least one output; delete the whole "
+                   "mapping with the trash button."));
             return false;
         }
         vars.erase(it);
@@ -261,18 +264,25 @@ bool MappingListModel::moveVariant(const QString &fromInput,
     auto it = std::find(fromVars.begin(), fromVars.end(), var);
     if (it == fromVars.end())
         return false;
-    if (fromVars.size() == 1)
-        // Refuse to move the sole variant out: it would leave an empty, invalid
-        // mapping, and a drag must never silently delete a mapping (and its
-        // input). The chip snaps back; deleting a mapping is the trash button.
-        return false;
-    fromVars.erase(it);
-    // Append to the target, unless it already carries the variant (a move onto
-    // a duplicate just drops it from the source).
     auto toVars =
         schnelle_umlaute::splitOutputs(entries_[toRow].output.toStdString());
-    if (std::find(toVars.begin(), toVars.end(), var) == toVars.end())
-        toVars.push_back(var);
+    if (std::find(toVars.begin(), toVars.end(), var) != toVars.end()) {
+        // The target already carries this variant; refuse so the chip snaps back
+        // and the source's copy is not silently dropped, and say why.
+        Q_EMIT errorOccurred(
+            tr("“%1” is already an output of this mapping").arg(variant));
+        return false;
+    }
+    if (fromVars.size() == 1) {
+        // Refuse to move the sole variant out: it would leave an empty, invalid
+        // mapping. The chip snaps back; deleting a mapping is the trash button.
+        Q_EMIT errorOccurred(
+            tr("A mapping keeps at least one output; delete the whole mapping "
+               "with the trash button."));
+        return false;
+    }
+    fromVars.erase(it);
+    toVars.push_back(var);
     entries_[toRow].output =
         QString::fromStdString(schnelle_umlaute::joinOutputs(toVars));
     {
