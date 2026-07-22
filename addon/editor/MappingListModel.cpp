@@ -7,6 +7,8 @@
 #include <QFile>
 #include <QSaveFile>
 
+#include <algorithm>
+
 namespace {
 
 // Resolve a profile-relative file ("mappings.txt" / "profiles/<slug>.txt") to
@@ -180,6 +182,110 @@ void MappingListModel::moveMapping(int from, int to) {
     entries_.insert(entries_.begin() + to, std::move(entry));
     endMoveRows();
     save();
+}
+
+bool MappingListModel::removeVariant(const QString &input,
+                                     const QString &variant) {
+    for (int row = 0; row < static_cast<int>(entries_.size()); ++row) {
+        if (entries_[row].input != input)
+            continue;
+        auto vars =
+            schnelle_umlaute::splitOutputs(entries_[row].output.toStdString());
+        auto it = std::find(vars.begin(), vars.end(), variant.toStdString());
+        if (it == vars.end())
+            return false;
+        vars.erase(it);
+        if (vars.empty()) {
+            // The last variant went: the mapping has no output left, so drop
+            // the whole row (removeMapping emits its own signals and saves).
+            removeMapping(row);
+            return true;
+        }
+        entries_[row].output =
+            QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
+        auto idx = index(row);
+        Q_EMIT dataChanged(idx, idx, {OutputRole});
+        save();
+        return true;
+    }
+    return false;
+}
+
+bool MappingListModel::setVariantOrder(const QString &input,
+                                       const QStringList &order) {
+    for (int row = 0; row < static_cast<int>(entries_.size()); ++row) {
+        if (entries_[row].input != input)
+            continue;
+        std::vector<std::string> next;
+        next.reserve(order.size());
+        for (const auto &v : order)
+            next.push_back(v.toStdString());
+        // The new order must be a permutation of the current variants, so a
+        // stale drag can never add, drop or alter a variant.
+        auto current =
+            schnelle_umlaute::splitOutputs(entries_[row].output.toStdString());
+        auto a = next;
+        auto b = current;
+        std::sort(a.begin(), a.end());
+        std::sort(b.begin(), b.end());
+        if (a != b)
+            return false;
+        entries_[row].output =
+            QString::fromStdString(schnelle_umlaute::joinOutputs(next));
+        auto idx = index(row);
+        Q_EMIT dataChanged(idx, idx, {OutputRole});
+        save();
+        return true;
+    }
+    return false;
+}
+
+bool MappingListModel::moveVariant(const QString &fromInput,
+                                   const QString &variant,
+                                   const QString &toInput) {
+    if (fromInput == toInput)
+        return false;
+    int fromRow = -1;
+    int toRow = -1;
+    for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
+        if (entries_[i].input == fromInput)
+            fromRow = i;
+        if (entries_[i].input == toInput)
+            toRow = i;
+    }
+    if (fromRow < 0 || toRow < 0)
+        return false;
+    const std::string var = variant.toStdString();
+    auto fromVars =
+        schnelle_umlaute::splitOutputs(entries_[fromRow].output.toStdString());
+    auto it = std::find(fromVars.begin(), fromVars.end(), var);
+    if (it == fromVars.end())
+        return false;
+    fromVars.erase(it);
+    // Append to the target, unless it already carries the variant (a move onto
+    // a duplicate just drops it from the source).
+    auto toVars =
+        schnelle_umlaute::splitOutputs(entries_[toRow].output.toStdString());
+    if (std::find(toVars.begin(), toVars.end(), var) == toVars.end())
+        toVars.push_back(var);
+    entries_[toRow].output =
+        QString::fromStdString(schnelle_umlaute::joinOutputs(toVars));
+    {
+        auto idx = index(toRow);
+        Q_EMIT dataChanged(idx, idx, {OutputRole});
+    }
+    if (fromVars.empty()) {
+        // The source lost its last variant: drop the row (also persists the
+        // target change already written into entries_ above).
+        removeMapping(fromRow);
+    } else {
+        entries_[fromRow].output =
+            QString::fromStdString(schnelle_umlaute::joinOutputs(fromVars));
+        auto idx = index(fromRow);
+        Q_EMIT dataChanged(idx, idx, {OutputRole});
+        save();
+    }
+    return true;
 }
 
 void MappingListModel::setProfileFile(const QString &file) {

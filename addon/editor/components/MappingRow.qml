@@ -15,8 +15,15 @@ Rectangle {
         view && (view.keyboardActive
                  ? (ListView.isCurrentItem && view.activeFocus)
                  : hoverHandler.hovered)
+    // True while a chip from ANOTHER mapping is dragged over this row, so the
+    // row lights up as the cross-row move's drop target.
+    readonly property bool dropTarget:
+        rowDrop.containsDrag && rowDrop.drag.source
+        && rowDrop.drag.source.sourceInput !== undefined
+        && rowDrop.drag.source.sourceInput !== root.inputText
     color: highlighted ? Theme.surfaceHover : "transparent"
-    border.color: editing ? Theme.borderFocus : "transparent"
+    border.color: dropTarget ? Theme.accent
+                             : (editing ? Theme.borderFocus : "transparent")
     border.width: 1
     height: col.implicitHeight + 8
 
@@ -29,6 +36,20 @@ Rectangle {
     // on the non-scrolling list card (see Mappings.qml), not by hover changes,
     // which also fire when rows scroll under a still cursor.
     HoverHandler { id: hoverHandler }
+
+    // Row-level drop target for a cross-row variant move: catches a chip
+    // dragged onto this row's empty area (drops onto a chip go through the
+    // per-chip DropArea). A drop from another mapping moves the variant here.
+    DropArea {
+        id: rowDrop
+        anchors.fill: parent
+        onDropped: (drop) => {
+            if (drop.source && root.modelRef
+                && drop.source.sourceInput !== root.inputText)
+                root.modelRef.moveVariant(drop.source.sourceInput,
+                    drop.source.variant, root.inputText);
+        }
+    }
 
     // Clicking anywhere on the row (outside the action buttons / drag handle)
     // makes it the current row and moves keyboard focus to the list, so arrow
@@ -60,6 +81,28 @@ Rectangle {
     property int rowIndex: -1
     property string inputText: ""
     property string outputText: ""
+    // The output split into its cycling variants, matching the engine's
+    // splitOutputs: ",," is an escaped literal comma, a single "," separates
+    // variants, empty segments are dropped. Done with this escaping-aware pass
+    // (not a naive split(",")) so a variant containing a comma stays one chip.
+    readonly property var variantList: {
+        let out = [];
+        let cur = "";
+        const s = root.outputText;
+        for (let i = 0; i < s.length; ++i) {
+            if (s[i] === ",") {
+                if (i + 1 < s.length && s[i + 1] === ",") {
+                    cur += ","; ++i;
+                } else if (cur.length > 0) {
+                    out.push(cur); cur = "";
+                }
+            } else {
+                cur += s[i];
+            }
+        }
+        if (cur.length > 0) out.push(cur);
+        return out;
+    }
     property var modelRef: null
     property var settingsModel: null
     property bool editing: false
@@ -236,18 +279,152 @@ Rectangle {
             font.pixelSize: Theme.fontIcon
         }
 
-        Text {
+        // Output variants as chips: click a chip's ✕ to drop that variant, or
+        // drag a chip to reorder within the row. Editing the whole comma string
+        // still happens via the pencil (outputEdit below). The variant list is
+        // pre-split by the model (VariantsRole), so a variant containing a
+        // literal comma is one chip and never mis-splits.
+        Flow {
+            id: chipFlow
             Layout.fillWidth: true
             visible: !root.editing
-            text: root.outputText
-            color: Theme.text
-            font.family: Theme.fontFamilyMono
-            font.pixelSize: Theme.fontStrong
-            elide: Text.ElideRight
-            // Force left alignment: an output with a right-to-left symbol (e.g.
-            // the currency preset's rial ﷼) would otherwise flip the column to
-            // the right edge.
-            horizontalAlignment: Text.AlignLeft
+            spacing: Theme.spacingXs
+            move: Transition {
+                NumberAnimation { properties: "x,y"; duration: Theme.animShort }
+            }
+            Repeater {
+                model: root.variantList
+                delegate: DropArea {
+                    id: chipDrop
+                    required property string modelData
+                    required property int index
+                    implicitWidth: chip.implicitWidth
+                    implicitHeight: chip.implicitHeight
+                    // Move the dragged variant to this chip's ORIGINAL slot.
+                    // Using the target's original index (not indexOf after the
+                    // splice) makes the move direction-aware: a left chip dropped
+                    // on a right chip lands after it, and a right chip dropped on
+                    // a left chip lands before it. Dropping on its own chip
+                    // (from === index) reinserts in place, a no-op.
+                    onDropped: (drop) => {
+                        if (!drop.source || !root.modelRef)
+                            return;
+                        // A chip from another mapping: move the variant onto
+                        // this row's input instead of reordering.
+                        if (drop.source.sourceInput !== root.inputText) {
+                            root.modelRef.moveVariant(drop.source.sourceInput,
+                                drop.source.variant, root.inputText);
+                            return;
+                        }
+                        let order = root.variantList.slice();
+                        const from = order.indexOf(drop.source.variant);
+                        if (from < 0)
+                            return;
+                        order.splice(from, 1);
+                        order.splice(chipDrop.index, 0, drop.source.variant);
+                        root.modelRef.setVariantOrder(root.inputText, order);
+                    }
+                    Rectangle {
+                        id: chip
+                        property string variant: chipDrop.modelData
+                        // Which mapping this chip belongs to, so a drop target
+                        // can tell a same-row reorder from a cross-row move.
+                        property string sourceInput: root.inputText
+                        width: implicitWidth
+                        height: implicitHeight
+                        implicitWidth: chipRow.implicitWidth
+                                       + 2 * Theme.chipPaddingH
+                        implicitHeight: Theme.controlHeight
+                        radius: Theme.radiusSm
+                        color: chip.Drag.active ? Theme.surfaceHover
+                                                : Theme.background
+                        border.color: (dragMouse.containsMouse || chip.Drag.active)
+                                      ? Theme.accent : Theme.border
+                        border.width: 1
+                        // Float above every row (reparented to the list) while
+                        // dragging, so a cross-row drag stays visible.
+                        z: chip.Drag.active ? 100 : 0
+                        Behavior on border.color {
+                            ColorAnimation { duration: Theme.animShort }
+                        }
+                        Drag.active: dragMouse.drag.active
+                        Drag.hotSpot.x: width / 2
+                        Drag.hotSpot.y: height / 2
+                        states: State {
+                            when: chip.Drag.active
+                            // ParentChange keeps the on-screen position, so the
+                            // reparent to the list is jump-free.
+                            ParentChange { target: chip; parent: root.view }
+                        }
+
+                        // Drag body: the move cursor and hover affordance live
+                        // here (hoverEnabled so both react on hover). Declared
+                        // before the ✕ so the ✕ still gets its own clicks.
+                        MouseArea {
+                            id: dragMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            drag.target: chip
+                            cursorShape: Qt.SizeAllCursor
+                            onReleased: chip.Drag.drop()
+                        }
+
+                        ThemedToolTip {
+                            hovered: dragMouse.containsMouse
+                                     && !chipX.containsMouse && !chip.Drag.active
+                            text: qsTr("Drag to reorder")
+                        }
+
+                        RowLayout {
+                            id: chipRow
+                            anchors.centerIn: parent
+                            spacing: Theme.spacingSm
+                            Text {
+                                text: chip.variant
+                                color: Theme.text
+                                font.family: Theme.fontFamilyMono
+                                font.pixelSize: Theme.chipFont
+                            }
+                            // Circular ✕ close button, the conventional chip
+                            // delete affordance: a muted circle that separates
+                            // the remove control from the variant text and turns
+                            // red on hover.
+                            Rectangle {
+                                id: chipClose
+                                implicitWidth: Theme.chipFont + Theme.spacingXs
+                                implicitHeight: implicitWidth
+                                radius: implicitHeight / 2
+                                color: chipX.containsMouse ? Theme.error
+                                                           : Theme.surfaceHover
+                                Behavior on color {
+                                    ColorAnimation { duration: Theme.animShort }
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: Theme.iconClear
+                                    color: chipX.containsMouse ? Theme.accentText
+                                                               : Theme.textMuted
+                                    font.pixelSize: Theme.chipFont - 3
+                                }
+                                MouseArea {
+                                    id: chipX
+                                    anchors.fill: parent
+                                    anchors.margins: -2
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (root.modelRef)
+                                        root.modelRef.removeVariant(
+                                            root.inputText, chip.variant);
+                                    ThemedToolTip {
+                                        hovered: chipX.containsMouse
+                                        text: qsTr("Remove")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         ThemedTextField {
