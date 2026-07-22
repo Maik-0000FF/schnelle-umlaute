@@ -139,7 +139,7 @@ ColumnLayout {
                             anchors.centerIn: parent
                             visible: parent.parent.active
                             text: Theme.iconCheck
-                            color: Theme.switchThumb
+                            color: Theme.onAccent
                             font.pixelSize: Theme.fontIcon
                             font.weight: Font.Bold
                         }
@@ -191,7 +191,7 @@ ColumnLayout {
             // free-floating at the pointer. Bound so a live theme switch
             // repaints it.
             property color fillColor: Theme.accent
-            property color outlineColor: Theme.switchThumb
+            property color outlineColor: Theme.onAccent
             onVisibleChanged: requestPaint()
             onFillColorChanged: requestPaint()
             onOutlineColorChanged: requestPaint()

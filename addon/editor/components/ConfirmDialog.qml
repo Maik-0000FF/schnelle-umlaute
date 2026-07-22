@@ -123,7 +123,7 @@ Popup {
                     id: confirmLabel
                     anchors.centerIn: parent
                     text: root.confirmText
-                    color: Theme.switchThumb
+                    color: Theme.onAccent
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontBody
                     font.weight: Font.Medium

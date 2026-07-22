@@ -233,7 +233,7 @@ Item {
                         id: addLabel
                         anchors.centerIn: parent
                         text: Theme.iconAdd
-                        color: addBtn.ready ? Theme.switchThumb : Theme.textMuted
+                        color: addBtn.ready ? Theme.onAccent : Theme.textMuted
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontStrong
                         font.weight: Font.Medium
