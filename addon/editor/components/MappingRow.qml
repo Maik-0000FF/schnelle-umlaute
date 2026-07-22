@@ -15,8 +15,20 @@ Rectangle {
         view && (view.keyboardActive
                  ? (ListView.isCurrentItem && view.activeFocus)
                  : hoverHandler.hovered)
+    // Number of this row's drop areas currently under a foreign-chip drag. A
+    // single row-level DropArea can't see the whole row once the per-chip drop
+    // areas sit on top of it, so each area bumps this counter on a foreign
+    // enter/exit and the row lights up while any of them is hovered (over a
+    // chip OR the empty space).
+    property int foreignDragCount: 0
+    // Gated on an active chip drag (view.chipDragging) and reset when the drag
+    // ends (see the Connections below), so a leaked count, from a drop that
+    // leaves a DropArea's containsDrag stuck, can never keep the border lit.
+    readonly property bool dropTarget:
+        foreignDragCount > 0 && view && view.chipDragging
     color: highlighted ? Theme.surfaceHover : "transparent"
-    border.color: editing ? Theme.borderFocus : "transparent"
+    border.color: dropTarget ? Theme.accent
+                             : (editing ? Theme.borderFocus : "transparent")
     border.width: 1
     height: col.implicitHeight + 8
 
@@ -29,6 +41,53 @@ Rectangle {
     // on the non-scrolling list card (see Mappings.qml), not by hover changes,
     // which also fire when rows scroll under a still cursor.
     HoverHandler { id: hoverHandler }
+
+    // Reset the drop-target counter when a chip drag ends, so a stuck
+    // containsDrag can never leave this row highlighted after the drag.
+    Connections {
+        target: root.view
+        function onChipDraggingChanged() {
+            if (root.view && !root.view.chipDragging)
+                root.foreignDragCount = 0;
+        }
+    }
+
+    // Row-level drop target for a cross-row variant move: catches a chip
+    // dragged onto this row's empty area (drops onto a chip go through the
+    // per-chip DropArea). A drop from another mapping moves the variant here.
+    DropArea {
+        id: rowDrop
+        anchors.fill: parent
+        // A foreign-chip drag over the row's empty space, derived from the
+        // reliable containsDrag property (not enter/exit events, which can leak
+        // and leave the highlight stuck), so foreignDragCount stays balanced.
+        readonly property bool foreignHover:
+            containsDrag && drag.source
+            && drag.source.sourceInput !== undefined
+            && drag.source.sourceInput !== root.inputText
+        onForeignHoverChanged: root.foreignDragCount =
+            foreignHover ? root.foreignDragCount + 1
+                         : Math.max(0, root.foreignDragCount - 1)
+        onDropped: (drop) => {
+            if (!drop.source || !root.modelRef)
+                return;
+            // A chip from another mapping: move the variant onto this row.
+            if (drop.source.sourceInput !== root.inputText) {
+                root.modelRef.moveVariant(drop.source.sourceInput,
+                    drop.source.variant, root.inputText);
+                return;
+            }
+            // Same row, dropped in the free area (not on a chip): send this
+            // variant to the end, so a drop beside the chips reorders too.
+            let order = root.variantList.slice();
+            const from = order.indexOf(drop.source.variant);
+            if (from < 0)
+                return;
+            order.splice(from, 1);
+            order.push(drop.source.variant);
+            root.modelRef.setVariantOrder(root.inputText, order);
+        }
+    }
 
     // Clicking anywhere on the row (outside the action buttons / drag handle)
     // makes it the current row and moves keyboard focus to the list, so arrow
@@ -55,11 +114,33 @@ Rectangle {
         }
     }
 
-    Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
-
+    // No border animation: the cross-row drop-target highlight must snap on and
+    // off instantly while dragging, an animated fade reads as laggy.
     property int rowIndex: -1
     property string inputText: ""
     property string outputText: ""
+    // The output split into its cycling variants, matching the engine's
+    // splitOutputs: ",," is an escaped literal comma, a single "," separates
+    // variants, empty segments are dropped. Done with this escaping-aware pass
+    // (not a naive split(",")) so a variant containing a comma stays one chip.
+    readonly property var variantList: {
+        let out = [];
+        let cur = "";
+        const s = root.outputText;
+        for (let i = 0; i < s.length; ++i) {
+            if (s[i] === ",") {
+                if (i + 1 < s.length && s[i + 1] === ",") {
+                    cur += ","; ++i;
+                } else if (cur.length > 0) {
+                    out.push(cur); cur = "";
+                }
+            } else {
+                cur += s[i];
+            }
+        }
+        if (cur.length > 0) out.push(cur);
+        return out;
+    }
     property var modelRef: null
     property var settingsModel: null
     property bool editing: false
@@ -148,6 +229,9 @@ Rectangle {
                 anchors.margins: -4
                 hoverEnabled: true
                 cursorShape: Qt.SizeVerCursor
+                // Keep the grab once the row drag starts, so a scrollable list
+                // (Flickable) doesn't steal the vertical gesture and pan instead.
+                preventStealing: true
 
                 property real pressY: 0
                 property int originalIndex: -1
@@ -176,6 +260,11 @@ Rectangle {
                 onReleased: {
                     originalIndex = -1;
                 }
+            }
+
+            ThemedToolTip {
+                hovered: dragArea.containsMouse
+                text: qsTr("Drag to reorder")
             }
         }
 
@@ -217,6 +306,16 @@ Rectangle {
                 Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
             }
             Keys.onEscapePressed: cancelEdit()
+            // Confirm on Enter and consume the event so it does not bubble up to
+            // the list, which would re-open edit on the current (roving) row.
+            Keys.onReturnPressed: (event) => {
+                if (root.editValid) confirmEdit();
+                event.accepted = true;
+            }
+            Keys.onEnterPressed: (event) => {
+                if (root.editValid) confirmEdit();
+                event.accepted = true;
+            }
             // Handle Escape locally (cancel the edit) instead of letting the
             // window-level Esc shortcut close the whole editor.
             Keys.onShortcutOverride: (event) => {
@@ -231,18 +330,182 @@ Rectangle {
             font.pixelSize: Theme.fontIcon
         }
 
-        Text {
+        // Output variants as chips: click a chip's ✕ to drop that variant, or
+        // drag a chip to reorder within the row. Editing the whole comma string
+        // still happens via the pencil (outputEdit below). The variant list is
+        // split by the escaping-aware variantList parser above, so a variant
+        // containing a literal comma is one chip and never mis-splits.
+        Flow {
+            id: chipFlow
             Layout.fillWidth: true
             visible: !root.editing
-            text: root.outputText
-            color: Theme.text
-            font.family: Theme.fontFamilyMono
-            font.pixelSize: Theme.fontStrong
-            elide: Text.ElideRight
-            // Force left alignment: an output with a right-to-left symbol (e.g.
-            // the currency preset's rial ﷼) would otherwise flip the column to
-            // the right edge.
-            horizontalAlignment: Text.AlignLeft
+            spacing: Theme.spacingXs
+            move: Transition {
+                NumberAnimation { properties: "x,y"; duration: Theme.animShort }
+            }
+            Repeater {
+                model: root.variantList
+                delegate: DropArea {
+                    id: chipDrop
+                    required property string modelData
+                    required property int index
+                    implicitWidth: chip.implicitWidth
+                    implicitHeight: chip.implicitHeight
+                    // A foreign-chip drag over this chip, derived from the
+                    // reliable containsDrag property so foreignDragCount can't
+                    // get stuck (see the row-level foreignHover).
+                    readonly property bool foreignHover:
+                        containsDrag && drag.source
+                        && drag.source.sourceInput !== undefined
+                        && drag.source.sourceInput !== root.inputText
+                    onForeignHoverChanged: root.foreignDragCount =
+                        foreignHover ? root.foreignDragCount + 1
+                                     : Math.max(0, root.foreignDragCount - 1)
+                    // Move the dragged variant to this chip's ORIGINAL slot.
+                    // Using the target's original index (not indexOf after the
+                    // splice) makes the move direction-aware: a left chip dropped
+                    // on a right chip lands after it, and a right chip dropped on
+                    // a left chip lands before it. Dropping on its own chip
+                    // (from === index) reinserts in place, a no-op.
+                    onDropped: (drop) => {
+                        if (!drop.source || !root.modelRef)
+                            return;
+                        // A chip from another mapping: move the variant onto
+                        // this row's input instead of reordering.
+                        if (drop.source.sourceInput !== root.inputText) {
+                            root.modelRef.moveVariant(drop.source.sourceInput,
+                                drop.source.variant, root.inputText);
+                            return;
+                        }
+                        let order = root.variantList.slice();
+                        const from = order.indexOf(drop.source.variant);
+                        if (from < 0)
+                            return;
+                        order.splice(from, 1);
+                        order.splice(chipDrop.index, 0, drop.source.variant);
+                        root.modelRef.setVariantOrder(root.inputText, order);
+                    }
+                    Rectangle {
+                        id: chip
+                        property string variant: chipDrop.modelData
+                        // Which mapping this chip belongs to, so a drop target
+                        // can tell a same-row reorder from a cross-row move.
+                        property string sourceInput: root.inputText
+                        width: implicitWidth
+                        height: implicitHeight
+                        implicitWidth: chipRow.implicitWidth
+                                       + 2 * Theme.chipPaddingH
+                        implicitHeight: Theme.controlHeight
+                        radius: Theme.radiusSm
+                        color: chip.Drag.active ? Theme.surfaceHover
+                                                : Theme.background
+                        border.color: (dragMouse.containsMouse || chip.Drag.active)
+                                      ? Theme.accent : Theme.border
+                        border.width: 1
+                        // Float above every row (reparented to the list) while
+                        // dragging, so a cross-row drag stays visible.
+                        z: chip.Drag.active ? 100 : 0
+                        Behavior on border.color {
+                            ColorAnimation { duration: Theme.animShort }
+                        }
+                        Drag.active: dragMouse.drag.active
+                        Drag.hotSpot.x: width / 2
+                        Drag.hotSpot.y: height / 2
+                        // Report the drag state up to the list so every row can
+                        // drop its highlight the moment this drag ends.
+                        readonly property bool dragging: chip.Drag.active
+                        onDraggingChanged: if (root.view)
+                            root.view.chipDragging = dragging
+                        states: State {
+                            when: chip.Drag.active
+                            // ParentChange keeps the on-screen position, so the
+                            // reparent to the list is jump-free.
+                            ParentChange { target: chip; parent: root.view }
+                        }
+
+                        // Drag body: the move cursor and hover affordance live
+                        // here (hoverEnabled so both react on hover). Declared
+                        // before the ✕ so the ✕ still gets its own clicks.
+                        MouseArea {
+                            id: dragMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            drag.target: chip
+                            cursorShape: Qt.SizeAllCursor
+                            // Keep the grab so a scrollable list doesn't steal
+                            // the chip drag and pan the page instead.
+                            preventStealing: true
+                            onReleased: {
+                                // Clear the drag flag here (reliable, the chip is
+                                // still alive) rather than via the chip's dragging
+                                // binding, which is missed when the drop rebuilds
+                                // the row and destroys the chip first.
+                                if (root.view)
+                                    root.view.chipDragging = false;
+                                chip.Drag.drop();
+                            }
+                        }
+
+                        ThemedToolTip {
+                            hovered: dragMouse.containsMouse
+                                     && !chipX.containsMouse && !chip.Drag.active
+                            text: qsTr("Drag to reorder")
+                        }
+
+                        RowLayout {
+                            id: chipRow
+                            anchors.centerIn: parent
+                            spacing: Theme.spacingSm
+                            Text {
+                                text: chip.variant
+                                color: Theme.text
+                                font.family: Theme.fontFamilyMono
+                                font.pixelSize: Theme.chipFont
+                            }
+                            // Circular ✕ close button, the conventional chip
+                            // delete affordance: a muted circle that separates
+                            // the remove control from the variant text and turns
+                            // red on hover.
+                            Rectangle {
+                                id: chipClose
+                                // Hidden on a single-chip row: the sole output
+                                // can't be removed here (a mapping needs one),
+                                // delete the whole mapping via the trash button.
+                                visible: root.variantList.length > 1
+                                implicitWidth: Theme.chipFont + Theme.spacingXs
+                                implicitHeight: implicitWidth
+                                radius: implicitHeight / 2
+                                color: chipX.containsMouse ? Theme.error
+                                                           : Theme.surfaceHover
+                                Behavior on color {
+                                    ColorAnimation { duration: Theme.animShort }
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: Theme.iconClear
+                                    color: chipX.containsMouse ? Theme.accentText
+                                                               : Theme.textMuted
+                                    font.pixelSize: Theme.chipFont - 3
+                                }
+                                MouseArea {
+                                    id: chipX
+                                    anchors.fill: parent
+                                    anchors.margins: -2
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (root.modelRef)
+                                        root.modelRef.removeVariant(
+                                            root.inputText, chip.variant);
+                                    ThemedToolTip {
+                                        hovered: chipX.containsMouse
+                                        text: qsTr("Remove")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         ThemedTextField {
@@ -260,7 +523,16 @@ Rectangle {
                     ? Theme.error : Theme.accent
                 border.width: 1
             }
-            onAccepted: if (root.editValid) confirmEdit()
+            // Confirm on Enter and consume the event so it does not bubble up to
+            // the list, which would re-open edit on the current (roving) row.
+            Keys.onReturnPressed: (event) => {
+                if (root.editValid) confirmEdit();
+                event.accepted = true;
+            }
+            Keys.onEnterPressed: (event) => {
+                if (root.editValid) confirmEdit();
+                event.accepted = true;
+            }
             Keys.onEscapePressed: cancelEdit()
             // Handle Escape locally (cancel the edit) instead of letting the
             // window-level Esc shortcut close the whole editor.

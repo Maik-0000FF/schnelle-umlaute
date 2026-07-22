@@ -7,6 +7,8 @@
 #include <QFile>
 #include <QSaveFile>
 
+#include <algorithm>
+
 namespace {
 
 // Resolve a profile-relative file ("mappings.txt" / "profiles/<slug>.txt") to
@@ -180,6 +182,121 @@ void MappingListModel::moveMapping(int from, int to) {
     entries_.insert(entries_.begin() + to, std::move(entry));
     endMoveRows();
     save();
+}
+
+bool MappingListModel::removeVariant(const QString &input,
+                                     const QString &variant) {
+    for (int row = 0; row < static_cast<int>(entries_.size()); ++row) {
+        if (entries_[row].input != input)
+            continue;
+        auto vars =
+            schnelle_umlaute::splitOutputs(entries_[row].output.toStdString());
+        auto it = std::find(vars.begin(), vars.end(), variant.toStdString());
+        if (it == vars.end())
+            return false;
+        if (vars.size() == 1) {
+            // Refuse to remove the sole variant: a chip action must never delete
+            // the whole mapping and its input. The ✕ is hidden on a single-chip
+            // row, but guard here too and say why if it is ever reached.
+            Q_EMIT errorOccurred(
+                tr("A mapping keeps at least one output; delete the whole "
+                   "mapping with the trash button."));
+            return false;
+        }
+        vars.erase(it);
+        entries_[row].output =
+            QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
+        auto idx = index(row);
+        Q_EMIT dataChanged(idx, idx, {OutputRole});
+        save();
+        return true;
+    }
+    return false;
+}
+
+bool MappingListModel::setVariantOrder(const QString &input,
+                                       const QStringList &order) {
+    for (int row = 0; row < static_cast<int>(entries_.size()); ++row) {
+        if (entries_[row].input != input)
+            continue;
+        std::vector<std::string> next;
+        next.reserve(order.size());
+        for (const auto &v : order)
+            next.push_back(v.toStdString());
+        // The new order must be a permutation of the current variants, so a
+        // stale drag can never add, drop or alter a variant.
+        auto current =
+            schnelle_umlaute::splitOutputs(entries_[row].output.toStdString());
+        auto a = next;
+        auto b = current;
+        std::sort(a.begin(), a.end());
+        std::sort(b.begin(), b.end());
+        if (a != b)
+            return false;
+        entries_[row].output =
+            QString::fromStdString(schnelle_umlaute::joinOutputs(next));
+        auto idx = index(row);
+        Q_EMIT dataChanged(idx, idx, {OutputRole});
+        save();
+        return true;
+    }
+    return false;
+}
+
+bool MappingListModel::moveVariant(const QString &fromInput,
+                                   const QString &variant,
+                                   const QString &toInput) {
+    if (fromInput == toInput)
+        return false;
+    int fromRow = -1;
+    int toRow = -1;
+    for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
+        if (entries_[i].input == fromInput)
+            fromRow = i;
+        if (entries_[i].input == toInput)
+            toRow = i;
+    }
+    if (fromRow < 0 || toRow < 0)
+        return false;
+    const std::string var = variant.toStdString();
+    auto fromVars =
+        schnelle_umlaute::splitOutputs(entries_[fromRow].output.toStdString());
+    auto it = std::find(fromVars.begin(), fromVars.end(), var);
+    if (it == fromVars.end())
+        return false;
+    auto toVars =
+        schnelle_umlaute::splitOutputs(entries_[toRow].output.toStdString());
+    if (std::find(toVars.begin(), toVars.end(), var) != toVars.end()) {
+        // The target already carries this variant; refuse so the chip snaps back
+        // and the source's copy is not silently dropped, and say why.
+        Q_EMIT errorOccurred(
+            tr("“%1” is already an output of this mapping").arg(variant));
+        return false;
+    }
+    if (fromVars.size() == 1) {
+        // Refuse to move the sole variant out: it would leave an empty, invalid
+        // mapping. The chip snaps back; deleting a mapping is the trash button.
+        Q_EMIT errorOccurred(
+            tr("A mapping keeps at least one output; delete the whole mapping "
+               "with the trash button."));
+        return false;
+    }
+    fromVars.erase(it);
+    toVars.push_back(var);
+    entries_[toRow].output =
+        QString::fromStdString(schnelle_umlaute::joinOutputs(toVars));
+    {
+        auto idx = index(toRow);
+        Q_EMIT dataChanged(idx, idx, {OutputRole});
+    }
+    entries_[fromRow].output =
+        QString::fromStdString(schnelle_umlaute::joinOutputs(fromVars));
+    {
+        auto idx = index(fromRow);
+        Q_EMIT dataChanged(idx, idx, {OutputRole});
+    }
+    save();
+    return true;
 }
 
 void MappingListModel::setProfileFile(const QString &file) {

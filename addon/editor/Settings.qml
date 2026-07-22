@@ -15,7 +15,7 @@ Item {
     function reapplyCaretTheme() {
         root.settingsModel.applyCaretTheme(
             Theme.background, Theme.text, Theme.highlight,
-            Theme.onHighlight, Theme.border);
+            Theme.highlightText, Theme.border);
     }
 
     ScrollView {
@@ -149,11 +149,13 @@ Item {
                         }
                     }
 
-                    LabeledSwitch {
+                    DirectionalLeaderRow {
                         labelText: qsTr("Space")
                         tooltipText: qsTr("Use Space to trigger and cycle accents.")
-                        checked: root.settingsModel ? root.settingsModel.leaderSpace : false
-                        onToggled: (v) => root.settingsModel.leaderSpace = v
+                        enabledValue: root.settingsModel ? root.settingsModel.leaderSpace : false
+                        reverseValue: root.settingsModel ? root.settingsModel.leaderSpaceReverse : false
+                        onEnabledToggled: (v) => root.settingsModel.leaderSpace = v
+                        onReverseToggled: (v) => root.settingsModel.leaderSpaceReverse = v
                     }
                     // Arrows carry a direction: the toggle left of the enable
                     // switch flips the cycle direction, and the arrow marker

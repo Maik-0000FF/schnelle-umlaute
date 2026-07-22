@@ -208,12 +208,15 @@ static void configureLeaders(Instance *instance, bool space, bool left,
                              // the custom-leader reverse flags are appended last
                              // so the many positional call sites stay valid.
                              bool altGr = false, bool customReverse = false,
-                             bool custom2Reverse = false) {
+                             bool custom2Reverse = false,
+                             bool spaceReverse = false) {
     auto *addon = instance->addonManager().addon("schnelle-umlaute", true);
     RawConfig config;
     config.setValueByPath("Delay/Lowercase", "400");
     config.setValueByPath("Delay/Uppercase", "700");
     config.setValueByPath("Leader/Space", space ? "True" : "False");
+    config.setValueByPath("Leader/SpaceReverse",
+                          spaceReverse ? "True" : "False");
     config.setValueByPath("Leader/Left", left ? "True" : "False");
     config.setValueByPath("Leader/Right", right ? "True" : "False");
     config.setValueByPath("Leader/Up", up ? "True" : "False");
@@ -1589,6 +1592,42 @@ void scheduleTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 159 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 160: Space flagged reverse steps back through the variants
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 160;
+        FCITX_INFO() << "=== Test 160: Space reverse steps back + wraps ===";
+        // Only Space, flagged reverse (spaceReverse); no other leader.
+        configureLeaders(instance, /*space=*/true, false, false, false, false,
+                         /*alt=*/false, "", "", fcitx::kNoKeyCode,
+                         fcitx::kNoKeyCode, /*leftReverse=*/false,
+                         /*rightReverse=*/false, /*upReverse=*/false,
+                         /*downReverse=*/false, /*altReverse=*/false,
+                         /*altGrReverse=*/false, /*altGr=*/false,
+                         /*customReverse=*/false, /*custom2Reverse=*/false,
+                         /*spaceReverse=*/true);
+        setMappings(instance, {{"a", "x,y,z"}});
+
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test160");
+
+        // Hold 'a' + Space (reverse) starts a fresh session at the LAST variant
+        // "z"; a second Space steps back to "y".
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        // Release 'a' -> commits "y".
+        tf->call<ITestFrontend::pushCommitExpectation>("y");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 160 PASSED";
     });
 
     // =========================================================================

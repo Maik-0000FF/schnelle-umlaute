@@ -31,6 +31,8 @@ class SettingsModel : public QObject {
 
     Q_PROPERTY(bool leaderSpace READ leaderSpace WRITE setLeaderSpace NOTIFY
                    leaderSpaceChanged)
+    Q_PROPERTY(bool leaderSpaceReverse READ leaderSpaceReverse WRITE
+                   setLeaderSpaceReverse NOTIFY leaderSpaceReverseChanged)
     Q_PROPERTY(bool leaderLeft READ leaderLeft WRITE setLeaderLeft NOTIFY
                    leaderLeftChanged)
     Q_PROPERTY(bool leaderRight READ leaderRight WRITE setLeaderRight NOTIFY
@@ -135,6 +137,7 @@ public:
     int delayLowercaseMin() const { return delayLowercaseMin_; }
     int delayUppercaseMin() const { return delayUppercaseMin_; }
     bool leaderSpace() const { return leaderSpace_; }
+    bool leaderSpaceReverse() const { return leaderSpaceReverse_; }
     bool leaderLeft() const { return leaderLeft_; }
     bool leaderRight() const { return leaderRight_; }
     bool leaderUp() const { return leaderUp_; }
@@ -206,6 +209,7 @@ public:
     void setDelayLowercaseMin(int v);
     void setDelayUppercaseMin(int v);
     void setLeaderSpace(bool v);
+    void setLeaderSpaceReverse(bool v);
     void setLeaderLeft(bool v);
     void setLeaderRight(bool v);
     void setLeaderUp(bool v);
@@ -253,6 +257,7 @@ Q_SIGNALS:
     void delayLowercaseMinChanged();
     void delayUppercaseMinChanged();
     void leaderSpaceChanged();
+    void leaderSpaceReverseChanged();
     void leaderLeftChanged();
     void leaderRightChanged();
     void leaderUpChanged();
@@ -312,6 +317,7 @@ private:
     int delayLowercaseMin_ = 0;
     int delayUppercaseMin_ = 0;
     bool leaderSpace_ = true;
+    bool leaderSpaceReverse_ = false;
     bool leaderLeft_ = false;
     bool leaderRight_ = false;
     bool leaderUp_ = false;

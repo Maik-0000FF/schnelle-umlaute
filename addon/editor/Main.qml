@@ -473,7 +473,21 @@ ApplicationWindow {
     }
     Shortcut {
         sequence: "Esc"
-        onActivated: root.close()
+        // Confirm before closing so a stray Esc (e.g. right after finishing an
+        // edit) doesn't shut the whole editor unintentionally. While editing,
+        // the edit field consumes Esc (cancel), so this fires only otherwise.
+        onActivated: {
+            closeConfirm.onConfirmed = () => root.close();
+            closeConfirm.open();
+        }
+    }
+
+    ConfirmDialog {
+        id: closeConfirm
+        titleText: qsTr("Close editor")
+        messageText: qsTr("Close the Schnelle Umlaute editor?")
+        confirmText: qsTr("Close")
+        confirmStyle: "primary"
     }
 
     // Move the Mappings edit target to the next/previous profile (dir = +1/-1),
