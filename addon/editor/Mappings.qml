@@ -24,6 +24,15 @@ Item {
         }
     }
 
+    // Same for the mappings model, e.g. a cross-row chip move refused because
+    // the target mapping already has that variant.
+    Connections {
+        target: root.mappingsModel
+        function onErrorOccurred(message) {
+            root.requestSnackbar(message, Theme.error);
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Theme.spacingLg
@@ -156,6 +165,10 @@ Item {
 
             ListView {
                 id: listView
+                // Set by a chip while it is being dragged, so every mapping row
+                // can clear its drop-target highlight the moment the drag ends
+                // (see MappingRow.dropTarget).
+                property bool chipDragging: false
                 anchors.fill: parent
                 anchors.margins: Theme.spacingSm
                 clip: true

@@ -209,6 +209,12 @@ QtObject {
     readonly property int rowHeight:       36
     readonly property int controlHeightLg: 40
 
+    // Editable output chip on the Mappings page: a variant token. Its height
+    // matches the input cell (controlHeight); the padding and font make it read
+    // as a grabbable, deletable pill.
+    readonly property int chipPaddingH: 12
+    readonly property int chipFont:     14
+
     // Width of a shortcut-capture field, wide enough to show a longer combo
     // (e.g. "Control+Alt+Super+J") without eliding, including the always-
     // reserved clear-button slot. Shared by the per-profile select-key field

@@ -6,6 +6,7 @@
 #include <QChar>
 #include <QQmlEngine>
 #include <QString>
+#include <QStringList>
 
 #include "profile_paths.h"
 
@@ -50,6 +51,20 @@ public:
     Q_INVOKABLE QString inputErrorFor(const QString &input,
                                       int excludeRow = -1) const;
     Q_INVOKABLE QString outputErrorFor(const QString &output) const;
+    // Remove a single cycling variant from a mapping's output. Removing the sole
+    // variant is refused (a mapping keeps at least one output; delete the whole
+    // mapping with the trash button). Comma-escaping is resolved via
+    // splitOutputs/joinOutputs, so a variant with a literal comma round-trips.
+    Q_INVOKABLE bool removeVariant(const QString &input, const QString &variant);
+    // Rewrite a mapping's variants in the given order (drag-reorder). The order
+    // must be a permutation of the current variants; a stale drag is rejected.
+    Q_INVOKABLE bool setVariantOrder(const QString &input,
+                                     const QStringList &order);
+    // Move a single variant from one mapping's output to another's (cross-row
+    // drag). It is removed from fromInput (dropping its last variant removes the
+    // whole row) and appended to toInput unless that mapping already has it.
+    Q_INVOKABLE bool moveVariant(const QString &fromInput, const QString &variant,
+                                 const QString &toInput);
 
 Q_SIGNALS:
     void countChanged();
