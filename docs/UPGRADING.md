@@ -9,7 +9,7 @@ No config or mapping migration. Pull / reinstall and restart fcitx5. If you use 
 - **Mapping outputs as chips.** A saved mapping's variants are editable chips: delete with ✕, drag to reorder, or drag onto another mapping to move it.
 - **Reversible Space leader.** Space can cycle backward too, like the other leaders. Defaults to forward.
 - **Overlay after a monitor switch.** The first overlay after switching monitors lands correctly on the focused screen.
-- **Theme fixes.** Badge and position-picker checkmark colours in the light theme, and switch-toggle hover padding.
+- **Theme fixes.** Accent buttons and the position-picker checkmark no longer render black text, and the settings-row hover highlight got inner padding.
 
 ## Upgrading from v1.6.x to v1.7.0
 
