@@ -524,6 +524,13 @@ private:
                     revealGrid();
                     return;
                 }
+                // This is a cursor placement, not a grid one: own that here so a
+                // screenChanged (including the one setScreen below may trigger)
+                // never re-applies a stale grid margin over this overlay. It is
+                // already false from hideWindow, but setting it at the placement
+                // keeps the invariant local: a future reveal call site added
+                // without a preceding hideWindow can't silently regress.
+                gridActive_ = false;
                 qwinPtr->setScreen(scr);
                 const QRect geo = scr->geometry();
                 const int ow =
