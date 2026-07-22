@@ -1,5 +1,16 @@
 # Upgrading
 
+## Upgrading from v1.7.x to v1.8.0
+
+No config or mapping migration. Pull / reinstall and restart fcitx5. If you use the overlay, restart the `schnelle-umlaute-overlay` daemon (or toggle it off and on in the editor).
+
+### What changed
+
+- **Mapping outputs as chips.** A saved mapping's variants are editable chips: delete with ✕, drag to reorder, or drag onto another mapping to move it.
+- **Reversible Space leader.** Space can cycle backward too, like the other leaders. Defaults to forward.
+- **Overlay after a monitor switch.** The first overlay after switching monitors lands correctly on the focused screen.
+- **Theme fixes.** Badge and position-picker checkmark colours in the light theme, and switch-toggle hover padding.
+
 ## Upgrading from v1.6.x to v1.7.0
 
 **If you enabled the old combined Alt/AltGr leader and relied on the AltGr key, enable the new AltGr toggle once.** Alt and AltGr are now two independent leaders (previously a single toggle enabled both). An existing `Alt=True` config keeps the left Alt working, but the AltGr key (ISO_Level3_Shift, the right Alt on EU layouts) no longer triggers until you tick the separate **AltGr** toggle in the editor's leader keys. Nothing else migrates; your mappings and the rest of the config carry over unchanged. Pull / reinstall and restart fcitx5.
