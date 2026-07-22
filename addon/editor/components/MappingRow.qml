@@ -15,12 +15,17 @@ Rectangle {
         view && (view.keyboardActive
                  ? (ListView.isCurrentItem && view.activeFocus)
                  : hoverHandler.hovered)
-    // True while a chip from ANOTHER mapping is dragged over this row, so the
-    // row lights up as the cross-row move's drop target.
+    // Number of this row's drop areas currently under a foreign-chip drag. A
+    // single row-level DropArea can't see the whole row once the per-chip drop
+    // areas sit on top of it, so each area bumps this counter on a foreign
+    // enter/exit and the row lights up while any of them is hovered (over a
+    // chip OR the empty space).
+    property int foreignDragCount: 0
+    // Gated on an active chip drag (view.chipDragging) and reset when the drag
+    // ends (see the Connections below), so a leaked count, from a drop that
+    // leaves a DropArea's containsDrag stuck, can never keep the border lit.
     readonly property bool dropTarget:
-        rowDrop.containsDrag && rowDrop.drag.source
-        && rowDrop.drag.source.sourceInput !== undefined
-        && rowDrop.drag.source.sourceInput !== root.inputText
+        foreignDragCount > 0 && view && view.chipDragging
     color: highlighted ? Theme.surfaceHover : "transparent"
     border.color: dropTarget ? Theme.accent
                              : (editing ? Theme.borderFocus : "transparent")
@@ -37,17 +42,48 @@ Rectangle {
     // which also fire when rows scroll under a still cursor.
     HoverHandler { id: hoverHandler }
 
+    // Reset the drop-target counter when a chip drag ends, so a stuck
+    // containsDrag can never leave this row highlighted after the drag.
+    Connections {
+        target: root.view
+        function onChipDraggingChanged() {
+            if (root.view && !root.view.chipDragging)
+                root.foreignDragCount = 0;
+        }
+    }
+
     // Row-level drop target for a cross-row variant move: catches a chip
     // dragged onto this row's empty area (drops onto a chip go through the
     // per-chip DropArea). A drop from another mapping moves the variant here.
     DropArea {
         id: rowDrop
         anchors.fill: parent
+        // A foreign-chip drag over the row's empty space, derived from the
+        // reliable containsDrag property (not enter/exit events, which can leak
+        // and leave the highlight stuck), so foreignDragCount stays balanced.
+        readonly property bool foreignHover:
+            containsDrag && drag.source
+            && drag.source.sourceInput !== undefined
+            && drag.source.sourceInput !== root.inputText
+        onForeignHoverChanged: root.foreignDragCount += foreignHover ? 1 : -1
         onDropped: (drop) => {
-            if (drop.source && root.modelRef
-                && drop.source.sourceInput !== root.inputText)
+            if (!drop.source || !root.modelRef)
+                return;
+            // A chip from another mapping: move the variant onto this row.
+            if (drop.source.sourceInput !== root.inputText) {
                 root.modelRef.moveVariant(drop.source.sourceInput,
                     drop.source.variant, root.inputText);
+                return;
+            }
+            // Same row, dropped in the free area (not on a chip): send this
+            // variant to the end, so a drop beside the chips reorders too.
+            let order = root.variantList.slice();
+            const from = order.indexOf(drop.source.variant);
+            if (from < 0)
+                return;
+            order.splice(from, 1);
+            order.push(drop.source.variant);
+            root.modelRef.setVariantOrder(root.inputText, order);
         }
     }
 
@@ -76,8 +112,8 @@ Rectangle {
         }
     }
 
-    Behavior on border.color { ColorAnimation { duration: Theme.animShort } }
-
+    // No border animation: the cross-row drop-target highlight must snap on and
+    // off instantly while dragging, an animated fade reads as laggy.
     property int rowIndex: -1
     property string inputText: ""
     property string outputText: ""
@@ -191,6 +227,9 @@ Rectangle {
                 anchors.margins: -4
                 hoverEnabled: true
                 cursorShape: Qt.SizeVerCursor
+                // Keep the grab once the row drag starts, so a scrollable list
+                // (Flickable) doesn't steal the vertical gesture and pan instead.
+                preventStealing: true
 
                 property real pressY: 0
                 property int originalIndex: -1
@@ -300,6 +339,15 @@ Rectangle {
                     required property int index
                     implicitWidth: chip.implicitWidth
                     implicitHeight: chip.implicitHeight
+                    // A foreign-chip drag over this chip, derived from the
+                    // reliable containsDrag property so foreignDragCount can't
+                    // get stuck (see the row-level foreignHover).
+                    readonly property bool foreignHover:
+                        containsDrag && drag.source
+                        && drag.source.sourceInput !== undefined
+                        && drag.source.sourceInput !== root.inputText
+                    onForeignHoverChanged:
+                        root.foreignDragCount += foreignHover ? 1 : -1
                     // Move the dragged variant to this chip's ORIGINAL slot.
                     // Using the target's original index (not indexOf after the
                     // splice) makes the move direction-aware: a left chip dropped
@@ -350,6 +398,11 @@ Rectangle {
                         Drag.active: dragMouse.drag.active
                         Drag.hotSpot.x: width / 2
                         Drag.hotSpot.y: height / 2
+                        // Report the drag state up to the list so every row can
+                        // drop its highlight the moment this drag ends.
+                        readonly property bool dragging: chip.Drag.active
+                        onDraggingChanged: if (root.view)
+                            root.view.chipDragging = dragging
                         states: State {
                             when: chip.Drag.active
                             // ParentChange keeps the on-screen position, so the
@@ -366,7 +419,18 @@ Rectangle {
                             hoverEnabled: true
                             drag.target: chip
                             cursorShape: Qt.SizeAllCursor
-                            onReleased: chip.Drag.drop()
+                            // Keep the grab so a scrollable list doesn't steal
+                            // the chip drag and pan the page instead.
+                            preventStealing: true
+                            onReleased: {
+                                // Clear the drag flag here (reliable, the chip is
+                                // still alive) rather than via the chip's dragging
+                                // binding, which is missed when the drop rebuilds
+                                // the row and destroys the chip first.
+                                if (root.view)
+                                    root.view.chipDragging = false;
+                                chip.Drag.drop();
+                            }
                         }
 
                         ThemedToolTip {
@@ -391,6 +455,10 @@ Rectangle {
                             // red on hover.
                             Rectangle {
                                 id: chipClose
+                                // Hidden on a single-chip row: the sole output
+                                // can't be removed here (a mapping needs one),
+                                // delete the whole mapping via the trash button.
+                                visible: root.variantList.length > 1
                                 implicitWidth: Theme.chipFont + Theme.spacingXs
                                 implicitHeight: implicitWidth
                                 radius: implicitHeight / 2

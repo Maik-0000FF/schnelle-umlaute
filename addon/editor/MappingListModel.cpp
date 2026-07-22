@@ -194,13 +194,13 @@ bool MappingListModel::removeVariant(const QString &input,
         auto it = std::find(vars.begin(), vars.end(), variant.toStdString());
         if (it == vars.end())
             return false;
-        vars.erase(it);
-        if (vars.empty()) {
-            // The last variant went: the mapping has no output left, so drop
-            // the whole row (removeMapping emits its own signals and saves).
-            removeMapping(row);
-            return true;
+        if (vars.size() == 1) {
+            // Refuse to remove the sole variant: a chip action must never delete
+            // the whole mapping and its input. Deleting a mapping is the row's
+            // trash button (the ✕ is hidden on a single-chip row too).
+            return false;
         }
+        vars.erase(it);
         entries_[row].output =
             QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
         auto idx = index(row);
@@ -261,6 +261,11 @@ bool MappingListModel::moveVariant(const QString &fromInput,
     auto it = std::find(fromVars.begin(), fromVars.end(), var);
     if (it == fromVars.end())
         return false;
+    if (fromVars.size() == 1)
+        // Refuse to move the sole variant out: it would leave an empty, invalid
+        // mapping, and a drag must never silently delete a mapping (and its
+        // input). The chip snaps back; deleting a mapping is the trash button.
+        return false;
     fromVars.erase(it);
     // Append to the target, unless it already carries the variant (a move onto
     // a duplicate just drops it from the source).
@@ -274,17 +279,13 @@ bool MappingListModel::moveVariant(const QString &fromInput,
         auto idx = index(toRow);
         Q_EMIT dataChanged(idx, idx, {OutputRole});
     }
-    if (fromVars.empty()) {
-        // The source lost its last variant: drop the row (also persists the
-        // target change already written into entries_ above).
-        removeMapping(fromRow);
-    } else {
-        entries_[fromRow].output =
-            QString::fromStdString(schnelle_umlaute::joinOutputs(fromVars));
+    entries_[fromRow].output =
+        QString::fromStdString(schnelle_umlaute::joinOutputs(fromVars));
+    {
         auto idx = index(fromRow);
         Q_EMIT dataChanged(idx, idx, {OutputRole});
-        save();
     }
+    save();
     return true;
 }
 

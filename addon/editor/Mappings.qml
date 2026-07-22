@@ -156,6 +156,10 @@ Item {
 
             ListView {
                 id: listView
+                // Set by a chip while it is being dragged, so every mapping row
+                // can clear its drop-target highlight the moment the drag ends
+                // (see MappingRow.dropTarget).
+                property bool chipDragging: false
                 anchors.fill: parent
                 anchors.margins: Theme.spacingSm
                 clip: true
