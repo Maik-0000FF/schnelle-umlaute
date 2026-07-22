@@ -51,8 +51,9 @@ public:
     Q_INVOKABLE QString inputErrorFor(const QString &input,
                                       int excludeRow = -1) const;
     Q_INVOKABLE QString outputErrorFor(const QString &output) const;
-    // Remove a single cycling variant from a mapping's output; when the last
-    // variant goes, the whole mapping is removed. Comma-escaping is resolved via
+    // Remove a single cycling variant from a mapping's output. Removing the sole
+    // variant is refused (a mapping keeps at least one output; delete the whole
+    // mapping with the trash button). Comma-escaping is resolved via
     // splitOutputs/joinOutputs, so a variant with a literal comma round-trips.
     Q_INVOKABLE bool removeVariant(const QString &input, const QString &variant);
     // Rewrite a mapping's variants in the given order (drag-reorder). The order

@@ -17,6 +17,7 @@
 
 #include <QCoreApplication>
 #include <QString>
+#include <QStringList>
 
 #include <cstdio>
 #include <cstdlib>
@@ -227,6 +228,75 @@ void testOutputErrorValidReturnsEmpty(MappingListModel &m) {
     EXPECT(m.outputErrorFor(QStringLiteral(",,")).isEmpty());
 }
 
+// -- chip variant edits: removeVariant / setVariantOrder / moveVariant -------
+
+// The output stored on a given row, in comma form.
+QString rowOutput(MappingListModel &m, int row) {
+    return m.data(m.index(row), MappingListModel::OutputRole).toString();
+}
+
+// removeVariant drops one variant and keeps the rest.
+void testRemoveVariant(MappingListModel &m) {
+    m.addMapping(QStringLiteral("a"), QStringLiteral("x,y,z"));
+    EXPECT(m.removeVariant(QStringLiteral("a"), QStringLiteral("y")));
+    EXPECT(rowOutput(m, 0) == QStringLiteral("x,z"));
+}
+
+// removeVariant refuses to remove the sole variant, keeping the mapping.
+void testRemoveVariantRefusesSole(MappingListModel &m) {
+    m.addMapping(QStringLiteral("a"), QStringLiteral("x"));
+    EXPECT(!m.removeVariant(QStringLiteral("a"), QStringLiteral("x")));
+    EXPECT(m.rowCount() == 1);
+    EXPECT(rowOutput(m, 0) == QStringLiteral("x"));
+}
+
+// setVariantOrder reorders; a non-permutation is rejected and changes nothing.
+void testSetVariantOrder(MappingListModel &m) {
+    m.addMapping(QStringLiteral("a"), QStringLiteral("x,y,z"));
+    EXPECT(m.setVariantOrder(
+        QStringLiteral("a"),
+        QStringList{QStringLiteral("z"), QStringLiteral("x"),
+                    QStringLiteral("y")}));
+    EXPECT(rowOutput(m, 0) == QStringLiteral("z,x,y"));
+    EXPECT(!m.setVariantOrder(
+        QStringLiteral("a"),
+        QStringList{QStringLiteral("z"), QStringLiteral("x"),
+                    QStringLiteral("w")}));
+    EXPECT(rowOutput(m, 0) == QStringLiteral("z,x,y"));
+}
+
+// moveVariant moves a variant from one mapping to another.
+void testMoveVariant(MappingListModel &m) {
+    m.addMapping(QStringLiteral("a"), QStringLiteral("x,y"));
+    m.addMapping(QStringLiteral("o"), QStringLiteral("p"));
+    EXPECT(m.moveVariant(QStringLiteral("a"), QStringLiteral("y"),
+                         QStringLiteral("o")));
+    EXPECT(rowOutput(m, 0) == QStringLiteral("x"));
+    EXPECT(rowOutput(m, 1) == QStringLiteral("p,y"));
+}
+
+// moveVariant refuses to empty the source, keeping the mapping.
+void testMoveVariantRefusesEmptySource(MappingListModel &m) {
+    m.addMapping(QStringLiteral("a"), QStringLiteral("x"));
+    m.addMapping(QStringLiteral("o"), QStringLiteral("p"));
+    EXPECT(!m.moveVariant(QStringLiteral("a"), QStringLiteral("x"),
+                          QStringLiteral("o")));
+    EXPECT(m.rowCount() == 2);
+    EXPECT(rowOutput(m, 0) == QStringLiteral("x"));
+    EXPECT(rowOutput(m, 1) == QStringLiteral("p"));
+}
+
+// moveVariant refuses a target that already carries the variant, so the source
+// keeps its copy (no silent loss).
+void testMoveVariantRefusesDuplicate(MappingListModel &m) {
+    m.addMapping(QStringLiteral("a"), QStringLiteral("x,y"));
+    m.addMapping(QStringLiteral("o"), QStringLiteral("y,p"));
+    EXPECT(!m.moveVariant(QStringLiteral("a"), QStringLiteral("y"),
+                          QStringLiteral("o")));
+    EXPECT(rowOutput(m, 0) == QStringLiteral("x,y"));
+    EXPECT(rowOutput(m, 1) == QStringLiteral("y,p"));
+}
+
 // -- test runner ------------------------------------------------------------
 
 using TestFn = void (*)(MappingListModel &);
@@ -271,6 +341,12 @@ const TestCase kTests[] = {
     {"testOutputErrorReportsLineBreak", testOutputErrorReportsLineBreak},
     {"testOutputErrorReportsNoVariant", testOutputErrorReportsNoVariant},
     {"testOutputErrorValidReturnsEmpty", testOutputErrorValidReturnsEmpty},
+    {"testRemoveVariant", testRemoveVariant},
+    {"testRemoveVariantRefusesSole", testRemoveVariantRefusesSole},
+    {"testSetVariantOrder", testSetVariantOrder},
+    {"testMoveVariant", testMoveVariant},
+    {"testMoveVariantRefusesEmptySource", testMoveVariantRefusesEmptySource},
+    {"testMoveVariantRefusesDuplicate", testMoveVariantRefusesDuplicate},
 };
 
 int main(int argc, char **argv) {

@@ -283,6 +283,33 @@ void testConsecutiveOverlongLinesSkipped() {
     EXPECT(r[0].output == "drei");
 }
 
+// -- joinOutputs: the escaping inverse of splitOutputs -----------------------
+
+void testJoinOutputsRoundTrip() {
+    using schnelle_umlaute::joinOutputs;
+    using schnelle_umlaute::splitOutputs;
+    // splitOutputs(joinOutputs(v)) == v across a range of variant lists,
+    // including literal commas (escaped as ",,") and a lone comma.
+    const std::vector<std::vector<std::string>> cases = {
+        {},
+        {"ae"},
+        {"ae", "oe", "ue"},
+        {"a,b"},       // one variant carrying a literal comma
+        {"a,b", "c"},  // a literal comma right next to a separator
+        {","},         // a lone comma variant
+        {",", "."},    // a comma variant first, then another
+        {"a,,b"},      // two literal commas inside one variant
+    };
+    for (const auto &v : cases) {
+        EXPECT(splitOutputs(joinOutputs(v)) == v);
+    }
+    // Empty variants are dropped, matching splitOutputs.
+    EXPECT(joinOutputs({"a", "", "b"}) == "a,b");
+    // A literal comma is written as a doubled comma.
+    EXPECT(joinOutputs({"a,b"}) == "a,,b");
+    EXPECT(joinOutputs({","}) == ",,");
+}
+
 } // namespace
 
 int main() {
@@ -313,6 +340,8 @@ int main() {
     testLineExactlyAtBufferBoundary();
     testLineFillsBufferEofNoNewline();
     testConsecutiveOverlongLinesSkipped();
+
+    testJoinOutputsRoundTrip();
 
     std::printf("All mappings-io parser tests passed.\n");
     return 0;

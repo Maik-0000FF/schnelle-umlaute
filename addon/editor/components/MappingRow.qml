@@ -333,8 +333,8 @@ Rectangle {
         // Output variants as chips: click a chip's ✕ to drop that variant, or
         // drag a chip to reorder within the row. Editing the whole comma string
         // still happens via the pencil (outputEdit below). The variant list is
-        // pre-split by the model (VariantsRole), so a variant containing a
-        // literal comma is one chip and never mis-splits.
+        // split by the escaping-aware variantList parser above, so a variant
+        // containing a literal comma is one chip and never mis-splits.
         Flow {
             id: chipFlow
             Layout.fillWidth: true
