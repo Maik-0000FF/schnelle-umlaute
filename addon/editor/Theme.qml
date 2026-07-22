@@ -28,7 +28,7 @@ QtObject {
             accentText:     "#ffffff",
             highlight:    "#4ade80",
             highlightText:  "#08060f",
-            switchThumb:  "#ffffff",
+            switchThumb:  "#f0fdf4",
             scrim:        "#99000000"
         },
         "dark": {
@@ -52,7 +52,7 @@ QtObject {
             accentText:     "#ffffff",
             highlight:    "#60a5fa",
             highlightText:  "#0f1115",
-            switchThumb:  "#ffffff",
+            switchThumb:  "#e5e7eb",
             scrim:        "#99000000"
         },
         "light": {
