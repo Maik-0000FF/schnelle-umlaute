@@ -177,6 +177,11 @@ Rectangle {
                     originalIndex = -1;
                 }
             }
+
+            ThemedToolTip {
+                hovered: dragArea.containsMouse
+                text: qsTr("Drag to reorder")
+            }
         }
 
         Rectangle {
