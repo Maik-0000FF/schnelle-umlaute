@@ -59,6 +59,14 @@ Window {
     // handover keeps its animation.
     readonly property bool transitions: win.visible && OverlayController.animate
 
+    // Hides the panel content while a fresh placement's surface is committed and
+    // (on a monitor switch) re-anchored, so the one-frame jump from the stale to
+    // the corrected margin is never visible. See OverlayController.placed. This
+    // gates opacity only — the window keeps its implicit size so the daemon's
+    // anchor math is unaffected. It snaps rather than fades: the daemon sets
+    // `placed` true before `animate`, so this flips while transitions are off.
+    readonly property real placementGate: OverlayController.placed ? 1 : 0
+
     // Finish whatever is still in flight the moment transitions are switched off.
     // See the Connections in the cell delegate for why: a running animation is
     // not stopped by disabling its Behavior, and it would write its old target
@@ -268,6 +276,7 @@ Window {
     Item {
         id: progressSlot
         visible: OverlayController.progressActive
+        opacity: win.placementGate
         anchors.top: parent.top
         anchors.left: parent.left
         width: win.progressBarWidth
@@ -338,9 +347,10 @@ Window {
         // In progress mode the panel is hidden during the lead-in and fades in
         // when the window opens; it keeps its layout slot (opacity, not visible)
         // so the bar can anchor to its top-right corner. Always shown otherwise.
-        opacity: OverlayController.progressActive
-                 ? (win.progressWindowPhase ? 1 : 0)
-                 : 1
+        opacity: win.placementGate
+                 * (OverlayController.progressActive
+                    ? (win.progressWindowPhase ? 1 : 0)
+                    : 1)
         Behavior on opacity { enabled: win.transitions; NumberAnimation { id: frameFade; duration: win.animationDuration } }
         color: Qt.alpha(win.p.frame, win.frameOpacity)
         radius: 16

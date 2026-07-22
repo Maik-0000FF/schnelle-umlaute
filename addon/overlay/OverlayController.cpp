@@ -108,6 +108,13 @@ void OverlayController::setAnimate(bool on) {
     Q_EMIT animateChanged();
 }
 
+void OverlayController::setPlaced(bool on) {
+    if (placed_ == on)
+        return;
+    placed_ = on;
+    Q_EMIT placedChanged();
+}
+
 void OverlayController::sendCursor(int requestId, int x, int y) {
     Q_EMIT cursorReported(requestId, x, y);
 }
