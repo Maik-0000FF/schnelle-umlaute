@@ -123,6 +123,7 @@ void testDefaultsOnMissingFile() {
     EXPECT(s.delayLowercaseMin() == 0);
     EXPECT(s.delayUppercaseMin() == 0);
     EXPECT(s.leaderSpace() == true);
+    EXPECT(s.leaderSpaceReverse() == false);
     EXPECT(s.leaderLeft() == false);
     EXPECT(s.leaderRight() == false);
     EXPECT(s.leaderUp() == false);
@@ -177,6 +178,9 @@ void testScalarRoundTrip() {
         // disabled, so the round-trip proves the flag persists on its own.
         s.setLeaderLeftReverse(true);
         s.setLeaderDownReverse(true);
+        // Space carries a direction too, orthogonal to its enable: Space is
+        // disabled above, yet its reverse flip must persist on its own.
+        s.setLeaderSpaceReverse(true);
         s.setCustomKey1Enabled(true);
         // '#' is the character that starts a comment in this INI-ish file. It is
         // only ever written on the VALUE side (`CustomKey=#`), where it is just
@@ -202,6 +206,7 @@ void testScalarRoundTrip() {
     EXPECT(s2.delayLowercaseMin() == 150);
     EXPECT(s2.delayUppercaseMin() == 225);
     EXPECT(s2.leaderSpace() == false);
+    EXPECT(s2.leaderSpaceReverse() == true);
     EXPECT(s2.leaderLeft() == true);
     EXPECT(s2.leaderAlt() == true);
     EXPECT(s2.leaderAltReverse() == false);

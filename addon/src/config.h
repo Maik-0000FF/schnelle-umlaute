@@ -146,13 +146,15 @@ FCITX_CONFIGURATION(
 // "reverse" flag next to its enable flag: enable decides whether the key is a
 // leader at all, reverse decides whether it steps backward (-1) instead of
 // forward (+1). The two are orthogonal, so any mix is valid, including every
-// arrow reversed. Default false keeps configs stepping forward. Space is
-// intentionally forward-only (no directional meaning). Every other leader
-// carries a direction: the arrows, Alt and AltGr (enabled independently, Alt =
+// arrow reversed. Default false keeps configs stepping forward. Every leader
+// carries a direction: Space, the arrows, Alt and AltGr (enabled
+// independently, Alt =
 // the left Alt, AltGr = ISO_Level3_Shift / the right Alt), and each custom
 // leader (its reverse flag lives in CustomLeaderConfig next to its key).
 FCITX_CONFIGURATION(LeaderConfig,
                     Option<bool> space{this, "Space", "Space", true};
+                    Option<bool> spaceReverse{this, "SpaceReverse",
+                                              "Space reverses", false};
                     Option<bool> left{this, "Left", "Left Arrow", false};
                     Option<bool> leftReverse{this, "LeftReverse",
                                              "Left Arrow reverses", false};

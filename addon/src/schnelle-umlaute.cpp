@@ -1384,16 +1384,16 @@ private:
     }
 
     // Cycle step for a leader press: -1 when that key's reverse flag is set,
-    // +1 otherwise. Each arrow, each of Alt / AltGr, and each custom leader
-    // carries its own flag, so any of them can go forward or backward
-    // independently. Arrows and Alt / AltGr are matched by keysym; a custom
-    // leader IS its physical key, so it is matched by keycode. The precedence
-    // (Alt / AltGr, then custom, then arrows) mirrors classifyLeader, so the
-    // step direction always comes from the same flag that classified the press.
-    // The step sign only moves the index; it is orthogonal to the Alt-gesture
-    // machinery (which keys off isAltLeaderSym, unchanged). Forward and reverse
-    // presses act on the same cyclingIndex_, so both can be mixed freely inside
-    // one session. Space is forward-only by design.
+    // +1 otherwise. Space, each arrow, each of Alt / AltGr, and each custom
+    // leader carries its own flag, so any of them can go forward or backward
+    // independently. Space, the arrows and Alt / AltGr are matched by keysym; a
+    // custom leader IS its physical key, so it is matched by keycode. The
+    // precedence (Alt / AltGr, then custom, then Space, then arrows) mirrors
+    // classifyLeader, so the step direction always comes from the same flag that
+    // classified the press. The step sign only moves the index; it is orthogonal
+    // to the Alt-gesture machinery (which keys off isAltLeaderSym, unchanged).
+    // Forward and reverse presses act on the same cyclingIndex_, so both can be
+    // mixed freely inside one session.
     int leaderStep(const Key &key, int rawCode) const {
         KeySym sym = key.sym();
         bool reverse = false;
@@ -1405,6 +1405,8 @@ private:
             reverse = *config_.leader->custom->customKeyReverse;
         else if (matchCustomLeader(cachedCustomKey2Code_, rawCode))
             reverse = *config_.leader->custom->customKey2Reverse;
+        else if (sym == FcitxKey_space)
+            reverse = *config_.leader->spaceReverse;
         else if (sym == FcitxKey_Left)
             reverse = *config_.leader->leftReverse;
         else if (sym == FcitxKey_Right)
