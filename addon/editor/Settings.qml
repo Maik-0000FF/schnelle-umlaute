@@ -15,7 +15,7 @@ Item {
     function reapplyCaretTheme() {
         root.settingsModel.applyCaretTheme(
             Theme.background, Theme.text, Theme.highlight,
-            Theme.onHighlight, Theme.border);
+            Theme.highlightText, Theme.border);
     }
 
     ScrollView {
