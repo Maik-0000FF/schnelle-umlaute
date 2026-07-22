@@ -1405,6 +1405,8 @@ private:
             reverse = *config_.leader->custom->customKeyReverse;
         else if (matchCustomLeader(cachedCustomKey2Code_, rawCode))
             reverse = *config_.leader->custom->customKey2Reverse;
+        else if (sym == FcitxKey_space)
+            reverse = *config_.leader->spaceReverse;
         else if (sym == FcitxKey_Left)
             reverse = *config_.leader->leftReverse;
         else if (sym == FcitxKey_Right)

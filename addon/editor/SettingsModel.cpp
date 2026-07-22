@@ -141,6 +141,8 @@ SettingsModel::SettingsModel(QObject *parent) : QObject(parent) {
     // can refresh isActiveLeaderKey-based bindings with one Connections hook.
     connect(this, &SettingsModel::leaderSpaceChanged, this,
             &SettingsModel::leadersChanged);
+    connect(this, &SettingsModel::leaderSpaceReverseChanged, this,
+            &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::leaderLeftChanged, this,
             &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::leaderRightChanged, this,
@@ -253,6 +255,13 @@ void SettingsModel::setLeaderSpace(bool v) {
         return;
     leaderSpace_ = v;
     Q_EMIT leaderSpaceChanged();
+    save();
+}
+void SettingsModel::setLeaderSpaceReverse(bool v) {
+    if (leaderSpaceReverse_ == v)
+        return;
+    leaderSpaceReverse_ = v;
+    Q_EMIT leaderSpaceReverseChanged();
     save();
 }
 void SettingsModel::setLeaderLeft(bool v) {
@@ -732,6 +741,8 @@ void SettingsModel::load() {
         } else if (section == QLatin1String("Leader")) {
             if (key == "Space")
                 leaderSpace_ = fromBool(val);
+            else if (key == "SpaceReverse")
+                leaderSpaceReverse_ = fromBool(val);
             else if (key == "Left")
                 leaderLeft_ = fromBool(val);
             else if (key == "Right")
@@ -847,6 +858,7 @@ void SettingsModel::load() {
     Q_EMIT delayLowercaseMinChanged();
     Q_EMIT delayUppercaseMinChanged();
     Q_EMIT leaderSpaceChanged();
+    Q_EMIT leaderSpaceReverseChanged();
     Q_EMIT leaderLeftChanged();
     Q_EMIT leaderRightChanged();
     Q_EMIT leaderUpChanged();
@@ -903,7 +915,9 @@ void SettingsModel::save() {
     out << "UppercaseMin=" << delayUppercaseMin_ << "\n";
     out << "\n";
     out << "[Leader]\n";
-    out << "# Space\n" << "Space=" << toBool(leaderSpace_) << "\n";
+    out << "# Space (+ reverse direction)\n"
+        << "Space=" << toBool(leaderSpace_) << "\n"
+        << "SpaceReverse=" << toBool(leaderSpaceReverse_) << "\n";
     out << "# Left Arrow (+ reverse direction)\n"
         << "Left=" << toBool(leaderLeft_) << "\n"
         << "LeftReverse=" << toBool(leaderLeftReverse_) << "\n";
