@@ -23,7 +23,7 @@ TextField {
     // field's initial selectAll) uses the accent instead of the unstyled
     // platform selection colour. One place, so every field matches.
     selectionColor: Theme.accent
-    selectedTextColor: Theme.onAccent
+    selectedTextColor: Theme.accentText
     selectByMouse: true
 
     // One styling for every menu row, so the four entries below don't each
