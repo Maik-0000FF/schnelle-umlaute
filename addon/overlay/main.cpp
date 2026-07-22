@@ -308,8 +308,13 @@ private:
         // Guarded so it only fires for a live, visible grid placement; cursor
         // placements set their own screen explicitly and clear gridActive_.
         connect(qwin, &QWindow::screenChanged, this, [this](QScreen *) {
-            if (gridActive_ && active_ && qwin_ && qwin_->isVisible())
+            if (gridActive_ && active_ && qwin_ && qwin_->isVisible()) {
+                // The output is now known: apply the real (non-provisional)
+                // margin and mark it no longer pending, so the first-frame
+                // handler doesn't redo it.
                 applyGridAnchors(lastGrid_);
+                pendingRealMargin_ = false;
+            }
         });
         return true;
     }
@@ -348,6 +353,16 @@ private:
                                if (generation != restoreGeneration_)
                                    return;
                                QObject::disconnect(restore_);
+                               // A same-monitor placement never gets a
+                               // screenChanged, so the provisional margin from
+                               // reveal is still up. The output has settled by
+                               // the first drawn frame, so apply the real margin
+                               // now (only for a live grid placement, so cursor
+                               // overlays and cycling updates are untouched).
+                               if (pendingRealMargin_ && gridActive_) {
+                                   applyGridAnchors(lastGrid_);
+                                   pendingRealMargin_ = false;
+                               }
                                // Reveal the content BEFORE re-enabling
                                // transitions, so it snaps in at the now-final
                                // margin instead of fading (transitions gates the
@@ -373,6 +388,8 @@ private:
         // cursor placement, which anchors its own screen) must not re-apply a
         // stale grid margin. reveal's grid path sets this back to true.
         gridActive_ = false;
+        // A placement that never drew leaves no real margin owed to the next one.
+        pendingRealMargin_ = false;
         // Whatever a still-pending cursor reply was going to place, it is not
         // this. Close its epoch.
         epoch_ = schnelle_umlaute::render::nextEpoch(epoch_);
@@ -391,7 +408,18 @@ private:
     // placement anchors against the stale screen, and re-applying here once Qt
     // knows the real output corrects a fractional column that was off by the old
     // monitor's width.
-    void applyGridAnchors(const QString &grid) {
+    //
+    // `provisional` caps the horizontal margin at kEdgeMargin for the very first
+    // commit, when the compositor-chosen output is not yet known. A fractional
+    // margin computed for a stale (wider) screen can exceed a narrower target
+    // output's width; the compositor then can't place the NULL-output surface
+    // there and never moves it, so the overlay sticks on the stale monitor. A
+    // margin that fits every output lets it map on the focused one, after which
+    // screenChanged / the first drawn frame applies the real margin. The content
+    // stays hidden (placed) until then, so this provisional position is never
+    // seen. The cap is one-dimensional: only horizontal margins are fractional;
+    // vertical ones are a fixed kEdgeMargin that fits any output height.
+    void applyGridAnchors(const QString &grid, bool provisional = false) {
         auto *ls = LSWindow::get(qwin_);
         if (!ls)
             return;
@@ -423,6 +451,13 @@ private:
                         col, sw, frameW, ow, kEdgeMargin));
                 a.margins.setRight(0);
             }
+        }
+        // Cap the anchored horizontal margin so the first commit fits any output.
+        // The non-anchored side is already 0 (min keeps it 0) and a centred
+        // placement has no horizontal margin, so this needs no left/right branch.
+        if (provisional) {
+            a.margins.setLeft(std::min(a.margins.left(), kEdgeMargin));
+            a.margins.setRight(std::min(a.margins.right(), kEdgeMargin));
         }
         ls->setAnchors(a.anchors);
         ls->setMargins(a.margins);
@@ -472,10 +507,13 @@ private:
                 return;
             // Remember the placement so a screenChanged after a monitor switch
             // (which updates qwin_->screen() only after this first, stale-screen
-            // commit) can re-apply the margins against the real output.
+            // commit) can re-apply the margins against the real output. The first
+            // commit is provisional (margin capped to fit any output); the real
+            // margin is pending until screenChanged or the first drawn frame.
             lastGrid_ = grid;
             gridActive_ = true;
-            applyGridAnchors(grid);
+            pendingRealMargin_ = true;
+            applyGridAnchors(grid, /*provisional=*/true);
             qwinPtr->setVisible(true);
             // This surface is the one that will draw the snapped state, so it is
             // the one whose first frame reopens the gate.
@@ -609,6 +647,10 @@ private:
     // Empty / false while hidden or in cursor mode.
     QString lastGrid_;
     bool gridActive_ = false;
+    // True from a grid reveal's provisional first commit until the real margin
+    // has been applied (by screenChanged or the first drawn frame), so exactly
+    // one of the two does it and cursor placements / cycling updates don't.
+    bool pendingRealMargin_ = false;
 };
 
 } // namespace
