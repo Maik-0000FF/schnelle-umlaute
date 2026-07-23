@@ -71,12 +71,18 @@ void MappingListModel::ensureUsageWatch() {
         QString::fromLatin1(schnelle_umlaute::kUsageFile);
     if (QFileInfo::exists(path) && !usageWatcher_->files().contains(path)) {
         usageWatcher_->addPath(path);
-        // First time the file appears (engine just created it): pick up its
-        // counts now, so a session that had none at startup still refreshes.
-        if (sortByFrequency_) {
-            reloadUsage();
-            if (composing_)
-                reloadComposed();
+        // Refresh only the FIRST time the file appears (a fresh setup created it
+        // after startup): pick up its counts now. A re-arm after the engine's
+        // atomic rename also drops and re-adds the path here, but onUsageFile
+        // changed already refreshed for that, so the flag stops a redundant
+        // second model reset per flush.
+        if (!usageWatchArmed_) {
+            usageWatchArmed_ = true;
+            if (sortByFrequency_) {
+                reloadUsage();
+                if (composing_)
+                    reloadComposed();
+            }
         }
     }
     QString dir = schnelle_umlaute::configDirPath();

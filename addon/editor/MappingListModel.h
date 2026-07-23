@@ -231,6 +231,10 @@ private:
     // Watches usage.conf so the frequency preview updates live (see reloadUsage).
     QFileSystemWatcher *usageWatcher_ = nullptr;
     int usageRevision_ = 0;
+    // Set once the file watch is first armed, so the first-appearance refresh in
+    // ensureUsageWatch runs only for a genuinely new file, not for the re-arm
+    // after the engine's atomic rename (which onUsageFileChanged already handled).
+    bool usageWatchArmed_ = false;
 
     QString saveStatus_;
     // Relative to ~/.config/fcitx5/<config subdir>/. Default is the Standard
