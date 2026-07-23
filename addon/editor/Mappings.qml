@@ -9,6 +9,7 @@ Item {
     property var mappingsModel: null
     property var settingsModel: null
     property var profilesModel: null
+    property var mergeModel: null
     signal requestSnackbar(string message, color c)
     signal requestUndoSnackbar(string message, var callback)
 
@@ -30,6 +31,11 @@ Item {
         target: root.mappingsModel
         function onErrorOccurred(message) {
             root.requestSnackbar(message, Theme.error);
+        }
+        // A non-blocking hint (e.g. a duplicate variant was dropped in): shown
+        // in the warning colour, matching the row's warning border.
+        function onVariantWarning(message) {
+            root.requestSnackbar(message, Theme.warning);
         }
     }
 
@@ -54,6 +60,7 @@ Item {
                     Layout.fillWidth: true
                     profilesModel: root.profilesModel
                     mappingsModel: root.mappingsModel
+                    mergeModel: root.mergeModel
                     onRequestSnackbar: (msg, c) => root.requestSnackbar(msg, c)
                     onRequestDelete: (index, name) => {
                         profileConfirm.messageText = qsTr(
@@ -117,9 +124,92 @@ Item {
             }
         }
 
+        // Its own section so the frequency sort is cleanly delineated. Same
+        // LabeledSwitch as every other toggle, and the chips below reorder live
+        // when it is on so the effect is visible while editing.
+        SettingsCard {
+            titleText: qsTr("Variant order")
+
+            LabeledSwitch {
+                Layout.fillWidth: true
+                labelText: qsTr("Sort variants by usage frequency")
+                tooltipText: qsTr("Most-used variant first when cycling; your stored order returns when off.")
+                checked: root.settingsModel ? root.settingsModel.sortByFrequency
+                                            : false
+                onToggled: (v) => {
+                    if (root.settingsModel)
+                        root.settingsModel.sortByFrequency = v;
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.spacingXs
+                wrapMode: Text.WordWrap
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontBody
+                text: qsTr("The chips below reorder live to show the effect. Non-destructive: your manual order returns when off, and manual reordering is locked while it is on.")
+            }
+
+            Button {
+                id: resetUsageBtn
+                Layout.topMargin: Theme.spacingSm
+                Layout.alignment: Qt.AlignLeft
+                focusPolicy: Qt.TabFocus
+                enabled: root.mappingsModel ? root.mappingsModel.hasUsageData
+                                            : false
+                text: qsTr("Reset usage data")
+                implicitHeight: Theme.controlHeight
+                leftPadding: Theme.spacingMd
+                rightPadding: Theme.spacingMd
+                contentItem: Text {
+                    text: resetUsageBtn.text
+                    color: resetUsageBtn.enabled ? Theme.text : Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontBody
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: resetUsageBtn.enabled && resetUsageBtn.hovered
+                        ? Theme.surfaceHover : "transparent"
+                    border.color: resetUsageBtn.enabled ? Theme.border
+                                                        : Theme.surfaceHover
+                    border.width: 1
+                    Behavior on color { ColorAnimation { duration: Theme.animShort } }
+                }
+                onClicked: {
+                    usageResetConfirm.onConfirmed = () => {
+                        if (root.mappingsModel)
+                            root.mappingsModel.resetUsageCounts();
+                    };
+                    usageResetConfirm.open();
+                }
+                ThemedToolTip {
+                    hovered: resetUsageBtn.hovered
+                    text: qsTr("Clear the learned usage counts. The sort itself stays on; only the frequencies are forgotten.")
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.spacingXs
+                wrapMode: Text.WordWrap
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontBody
+                text: qsTr("Forgets the learned frequencies so the cycle order starts fresh. The sort setting itself is unchanged. This cannot be undone.")
+            }
+        }
+
         AddMappingCard {
             id: addCard
             Layout.fillWidth: true
+            // Hidden in the composed merge view: a mapping is added to a
+            // specific source profile, not to the read-only composed result.
+            visible: !(root.mappingsModel && root.mappingsModel.composing)
             modelRef: root.mappingsModel
             settingsModel: root.settingsModel
             onMappingAdded: (input, output) => {
@@ -189,6 +279,12 @@ Item {
                 property bool keyboardActive: false
                 Keys.onPressed: (event) => {
                     listView.keyboardActive = true;
+                    // The composed view is read-only (stage one): its rows are
+                    // display-only projections, so the reorder/edit/delete keys
+                    // must not fire against entries_ indices. Arrow navigation
+                    // (keyNavigationEnabled) still works.
+                    if (root.mappingsModel && root.mappingsModel.composing)
+                        return;
                     if (listView.editingIndex !== -1 || !root.mappingsModel)
                         return;
                     const i = listView.currentIndex;
@@ -242,10 +338,13 @@ Item {
                     required property int index
                     required property string input
                     required property string output
+                    required property var composedVariants
                     width: listView.width
                     rowIndex: index
                     inputText: input
                     outputText: output
+                    composedVariantList: composedVariants
+                    profilesModel: root.profilesModel
                     modelRef: root.mappingsModel
                     settingsModel: root.settingsModel
                     editing: listView.editingIndex === index
@@ -261,6 +360,53 @@ Item {
                                 qsTr("Mapping deleted"), Theme.textMuted);
                         };
                         confirmDialog.open();
+                    }
+                    // Composed-view chip delete: it removes the variant from its
+                    // source profile (own base or an appended one), a profile
+                    // you may not be viewing, so confirm and name that profile.
+                    onComposedRemoveRequested: (cInput, cValue, cFile) => {
+                        // Capture the page root: the model mutation below rebuilds
+                        // the list and destroys this delegate, after which the
+                        // delegate-scoped `root` id no longer resolves.
+                        const page = root;
+                        composedDeleteConfirm.messageText = qsTr(
+                            "Delete “%1” from the profile “%2”? It is removed from that profile, not just from this merged view."
+                        ).arg(cValue).arg(page.profileNameForFile(cFile));
+                        composedDeleteConfirm.onConfirmed = () => {
+                            if (page.mappingsModel.removeComposedVariant(
+                                    cInput, cValue, cFile))
+                                page.requestSnackbar(
+                                    qsTr("Variant deleted"), Theme.textMuted);
+                        };
+                        composedDeleteConfirm.open();
+                    }
+                    // Composed-view chip reorder: persist the arrangement as a
+                    // manifest order override (the single writer is the manifest
+                    // owner; the composed view rebuilds on manifestChanged).
+                    onComposedReorderRequested: (cInput, cSeq) => {
+                        // Defer the write: it rebuilds the list and destroys this
+                        // delegate, which mid-drop would re-enter the drop and
+                        // corrupt the model. callLater runs it once, after the
+                        // drop finishes.
+                        const merge = root.mergeModel;
+                        if (merge)
+                            Qt.callLater(() => merge.setOrderOverride(cInput,
+                                                                      cSeq));
+                    }
+                    // Composed-view cross-row move: re-map the variant to another
+                    // key WITHIN its source profile (stays self-contained, no
+                    // intermixing between profiles), then note which profile.
+                    // Deferred for the same reason as the reorder above.
+                    onComposedCrossMoveRequested: (cFrom, cValue, cFile, cTo) => {
+                        const page = root;
+                        Qt.callLater(() => {
+                            if (page.mappingsModel.moveComposedVariant(
+                                    cFrom, cValue, cFile, cTo))
+                                page.requestSnackbar(
+                                    qsTr("Moved in “%1”").arg(
+                                        page.profileNameForFile(cFile)),
+                                    Theme.textMuted);
+                        });
                     }
                 }
 
@@ -286,6 +432,30 @@ Item {
         id: profileConfirm
         titleText: qsTr("Delete profile")
         confirmText: qsTr("Delete")
+    }
+
+    ConfirmDialog {
+        id: composedDeleteConfirm
+        titleText: qsTr("Delete variant")
+        confirmText: qsTr("Delete")
+    }
+
+    ConfirmDialog {
+        id: usageResetConfirm
+        titleText: qsTr("Reset usage data")
+        messageText: qsTr("Clear the learned usage frequencies? The sort setting itself stays; only the counts are forgotten. This cannot be undone.")
+        confirmText: qsTr("Reset")
+    }
+
+    // Display name of a profile File, for the composed-view delete confirm.
+    function profileNameForFile(file) {
+        if (!root.profilesModel)
+            return file;
+        const names = root.profilesModel.profileNames();
+        for (let i = 0; i < names.length; ++i)
+            if (root.profilesModel.fileForRow(i) === file)
+                return names[i];
+        return file;
     }
 
     function focusAdd() { addCard.focusInput(); }

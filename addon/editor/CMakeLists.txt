@@ -13,6 +13,7 @@ set(EDITOR_SRCS
     EnvSetup.cpp
     KeyComboUtil.cpp
     MappingListModel.cpp
+    MergeManifestModel.cpp
     OverlayDBusClient.cpp
     ProfileListModel.cpp
     SettingsModel.cpp
@@ -71,6 +72,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/LibrarySelector.qml
         components/PositionPicker.qml
         components/ProfileSelector.qml
+        components/ThemeSelector.qml
         components/ThemedComboBox.qml
         components/ThemedTextField.qml
         components/ThemedToolTip.qml
@@ -88,6 +90,8 @@ target_link_libraries(schnelle-umlaute-editor PRIVATE
     # Fcitx5::Core provides fcitx::Key, so ProfileListModel's duplicate-shortcut
     # check normalizes combos exactly like the engine's runtime matcher.
     Fcitx5::Core
+    # Shared theme-palette module (import SchnelleUmlautePalette in Theme.qml).
+    schnelle-umlaute-paletteplugin
 )
 
 target_compile_options(schnelle-umlaute-editor PRIVATE -Wall -Wextra -Wpedantic)

@@ -63,22 +63,37 @@ Rectangle {
         // and leave the highlight stuck), so foreignDragCount stays balanced.
         readonly property bool foreignHover:
             containsDrag && drag.source
-            && drag.source.sourceInput !== undefined
-            && drag.source.sourceInput !== root.inputText
+            && ((drag.source.sourceInput !== undefined
+                 && drag.source.sourceInput !== root.inputText)
+                || (drag.source.cOwnerRow !== undefined
+                    && drag.source.cOwnerRow !== root))
         onForeignHoverChanged: root.foreignDragCount =
             foreignHover ? root.foreignDragCount + 1
                          : Math.max(0, root.foreignDragCount - 1)
         onDropped: (drop) => {
             if (!drop.source || !root.modelRef)
                 return;
-            // A chip from another mapping: move the variant onto this row.
+            // A composed chip dropped on the row's free area: cross-row move
+            // (re-map in its source profile). A same-row composed drop here is a
+            // no-op (intra-row order is managed on the per-chip slots).
+            if (drop.source.cOwnerRow !== undefined) {
+                if (drop.source.cOwnerRow !== root)
+                    root.composedCrossMoveRequested(
+                        drop.source.cFromInput, drop.source.cValue,
+                        drop.source.cFile, root.inputText);
+                return;
+            }
+            // A normal chip from another mapping: move the variant onto this row.
             if (drop.source.sourceInput !== root.inputText) {
                 root.modelRef.moveVariant(drop.source.sourceInput,
                     drop.source.variant, root.inputText);
                 return;
             }
             // Same row, dropped in the free area (not on a chip): send this
-            // variant to the end, so a drop beside the chips reorders too.
+            // variant to the end, so a drop beside the chips reorders too. Auto-
+            // managed by the frequency sort, so ignore it while that is on.
+            if (root.freqSort)
+                return;
             let order = root.variantList.slice();
             const from = order.indexOf(drop.source.variant);
             if (from < 0)
@@ -144,6 +159,31 @@ Rectangle {
     property var modelRef: null
     property var settingsModel: null
     property bool editing: false
+    // Composed (merge) mode: the row shows read-only, provenance-coloured chips
+    // from composedVariants instead of the editable output chips, and the
+    // per-row edit/delete affordances are hidden (a composed row is not a
+    // single editable mapping; its source lives in another profile). Derived
+    // from modelRef (already injected) rather than passed through root, so a
+    // per-row binding never chains through an id that can be momentarily unset.
+    readonly property bool composing: modelRef ? modelRef.composing : false
+    property var composedVariantList: []
+    // Resolves a composed chip's source File to the profile's display name for
+    // the provenance tag; null outside the composed view.
+    property var profilesModel: null
+    // Preview-sort: when the model's toggle is on, chips display in usage order
+    // (via the shared comparator) and manual drag is locked, so the preview
+    // matches the runtime cycle without overwriting the stored order.
+    readonly property bool freqSort: modelRef ? modelRef.sortByFrequency : false
+    // The variant order to DISPLAY: usage-sorted when the toggle is on, else the
+    // stored order. The stored output (and reordering/removal by value) is
+    // unaffected; only the on-screen order changes.
+    // usageRevision is read in the condition (not discarded) so this binding is
+    // a real dependency of the live usage counter: when the engine flushes
+    // usage.conf the model bumps it and the chips re-sort without a toggle. The
+    // comparison is always true (it only grows); it exists to force reactivity.
+    readonly property var displayVariantList:
+        (freqSort && modelRef && modelRef.usageRevision >= 0)
+            ? modelRef.sortByUsage(inputText, variantList) : variantList
 
     // Read-only input cell width, shared with the error/warning rows below so
     // their text lines up under the output column.
@@ -152,6 +192,17 @@ Rectangle {
     signal removeRequested()
     signal editStartRequested()
     signal editEndRequested()
+    // A composed-view chip's ✕ was clicked: delete this variant instance from
+    // its source profile (own base or an appended source). The parent confirms
+    // (it edits a profile you may not be looking at) before calling the model.
+    signal composedRemoveRequested(string input, string value, string file)
+    // A composed-view chip was dragged to a new slot: persist the new order as
+    // a manifest override. sequence is the full [{value, file}] arrangement.
+    signal composedReorderRequested(string input, var sequence)
+    // A composed-view chip was dragged onto another row: move the variant to
+    // that base char WITHIN its source profile (from fromInput to toInput).
+    signal composedCrossMoveRequested(string fromInput, string value,
+                                      string file, string toInput)
 
     onEditingChanged: {
         if (editing) {
@@ -212,7 +263,7 @@ Rectangle {
         Item {
             width: 16
             height: Theme.controlHeight
-            visible: !root.editing
+            visible: !root.editing && !root.composing
 
             Text {
                 anchors.centerIn: parent
@@ -338,13 +389,13 @@ Rectangle {
         Flow {
             id: chipFlow
             Layout.fillWidth: true
-            visible: !root.editing
+            visible: !root.editing && !root.composing
             spacing: Theme.spacingXs
             move: Transition {
                 NumberAnimation { properties: "x,y"; duration: Theme.animShort }
             }
             Repeater {
-                model: root.variantList
+                model: root.displayVariantList
                 delegate: DropArea {
                     id: chipDrop
                     required property string modelData
@@ -377,6 +428,11 @@ Rectangle {
                                 drop.source.variant, root.inputText);
                             return;
                         }
+                        // Intra-row reorder is auto-managed by the frequency
+                        // sort, so ignore a same-row drop while it is on (the
+                        // cross-row move above still ran).
+                        if (root.freqSort)
+                            return;
                         let order = root.variantList.slice();
                         const from = order.indexOf(drop.source.variant);
                         if (from < 0)
@@ -391,6 +447,15 @@ Rectangle {
                         // Which mapping this chip belongs to, so a drop target
                         // can tell a same-row reorder from a cross-row move.
                         property string sourceInput: root.inputText
+                        // This value occurs more than once across all rows (twice
+                        // in a row = a dead cycle slot, or under two keys =
+                        // redundancy). Every such chip carries the warning border.
+                        // The revision read keeps the binding reactive.
+                        readonly property bool isDuplicate:
+                            (root.modelRef
+                             && root.modelRef.duplicateRevision >= 0)
+                                ? root.modelRef.isDuplicateValue(chip.variant)
+                                : false
                         width: implicitWidth
                         height: implicitHeight
                         implicitWidth: chipRow.implicitWidth
@@ -400,7 +465,9 @@ Rectangle {
                         color: chip.Drag.active ? Theme.surfaceHover
                                                 : Theme.background
                         border.color: (dragMouse.containsMouse || chip.Drag.active)
-                                      ? Theme.accent : Theme.border
+                                      ? Theme.accent
+                                      : (chip.isDuplicate ? Theme.warning
+                                                          : Theme.border)
                         border.width: 1
                         // Float above every row (reparented to the list) while
                         // dragging, so a cross-row drag stays visible.
@@ -430,6 +497,11 @@ Rectangle {
                             id: dragMouse
                             anchors.fill: parent
                             hoverEnabled: true
+                            // Dragging stays enabled even with the frequency sort
+                            // on: the sort only manages the order WITHIN a row, so
+                            // an intra-row reorder is ignored on drop (below), but
+                            // a cross-row move to another key is unaffected and
+                            // still works.
                             drag.target: chip
                             cursorShape: Qt.SizeAllCursor
                             // Keep the grab so a scrollable list doesn't steal
@@ -449,7 +521,9 @@ Rectangle {
                         ThemedToolTip {
                             hovered: dragMouse.containsMouse
                                      && !chipX.containsMouse && !chip.Drag.active
-                            text: qsTr("Drag to reorder")
+                            text: root.freqSort
+                                ? qsTr("Drag to another key to move")
+                                : qsTr("Drag to reorder, or to another key to move")
                         }
 
                         RowLayout {
@@ -508,6 +582,187 @@ Rectangle {
             }
         }
 
+        // Composed (merge) chips: read-only, one per variant instance, with a
+        // provenance-coloured border/wash and a profile-name tag in the source
+        // colour, so duplicates from two profiles read as two distinct chips.
+        Flow {
+            id: composedFlow
+            Layout.fillWidth: true
+            visible: !root.editing && root.composing
+            spacing: Theme.spacingXs
+            move: Transition {
+                NumberAnimation { properties: "x,y"; duration: Theme.animShort }
+            }
+            Repeater {
+                model: root.composedVariantList
+                delegate: DropArea {
+                    id: cDrop
+                    required property var modelData
+                    required property int index
+                    implicitWidth: cchip.implicitWidth
+                    implicitHeight: cchip.implicitHeight
+                    // A foreign composed chip (from another row) hovering here
+                    // lights the row's drop target, matching the normal chips.
+                    readonly property bool foreignHover:
+                        containsDrag && drag.source
+                        && drag.source.cOwnerRow !== undefined
+                        && drag.source.cOwnerRow !== root
+                    onForeignHoverChanged: root.foreignDragCount =
+                        foreignHover ? root.foreignDragCount + 1
+                                     : Math.max(0, root.foreignDragCount - 1)
+                    // A drop from ANOTHER composed row: cross-row move (re-map in
+                    // the dragged chip's source profile). A drop from THIS row:
+                    // intra-row reorder, stored as a manifest override and
+                    // ignored while the frequency sort auto-manages the order.
+                    onDropped: (drop) => {
+                        if (!drop.source || !drop.source.cOwnerRow)
+                            return;
+                        if (drop.source.cOwnerRow !== root) {
+                            root.composedCrossMoveRequested(
+                                drop.source.cFromInput, drop.source.cValue,
+                                drop.source.cFile, root.inputText);
+                            return;
+                        }
+                        if (!root.freqSort)
+                            root.reorderComposed(drop.source.cIndex,
+                                                 cDrop.index);
+                    }
+                    Rectangle {
+                        id: cchip
+                        readonly property int srcOrder: cDrop.modelData.order
+                        readonly property color srcColor:
+                            Theme.mergeSourceColor(cchip.srcOrder)
+                        // Same value more than once across all rows (an overlap
+                        // between merged profiles, or a manual duplicate). Flagged
+                        // for cleanup; nothing is removed automatically. The
+                        // revision read keeps the binding reactive.
+                        readonly property bool isDuplicate:
+                            (root.modelRef
+                             && root.modelRef.duplicateRevision >= 0)
+                                ? root.modelRef.isDuplicateValue(
+                                      cDrop.modelData.value)
+                                : false
+                        // Identity for the drop target: which row + slot, and
+                        // the value/source needed for a cross-row move.
+                        property var cOwnerRow: root
+                        property int cIndex: cDrop.index
+                        property string cValue: cDrop.modelData.value
+                        property string cFile: cDrop.modelData.file
+                        property string cFromInput: root.inputText
+                        width: implicitWidth
+                        height: implicitHeight
+                        implicitWidth: cRow.implicitWidth + 2 * Theme.chipPaddingH
+                        implicitHeight: Theme.controlHeight
+                        radius: Theme.radiusSm
+                        color: Qt.rgba(cchip.srcColor.r, cchip.srcColor.g,
+                                       cchip.srcColor.b, Theme.mergeSourceWashAlpha)
+                        // Background carries the provenance; the border stays
+                        // reserved for the duplicate warning (neutral otherwise).
+                        border.color: cchip.isDuplicate ? Theme.warning
+                                                        : Theme.border
+                        border.width: 1
+                        // Float above the row while dragging (reparented to the
+                        // list), so the drag stays visible past the row bounds.
+                        z: cchip.Drag.active ? 100 : 0
+                        Drag.active: cDragMouse.drag.active
+                        Drag.hotSpot.x: width / 2
+                        Drag.hotSpot.y: height / 2
+                        // Report the drag state to the list so every row can light
+                        // and clear its drop-target highlight, exactly like the
+                        // normal chips.
+                        readonly property bool dragging: cchip.Drag.active
+                        onDraggingChanged: if (root.view)
+                            root.view.chipDragging = dragging
+                        states: State {
+                            when: cchip.Drag.active
+                            ParentChange { target: cchip; parent: root.view }
+                        }
+
+                        // Drag body: declared before the ✕ so the ✕ still gets
+                        // its own clicks (the value/name are plain Text on top).
+                        MouseArea {
+                            id: cDragMouse
+                            anchors.fill: parent
+                            // Always draggable: a cross-row move to another key
+                            // works even with the frequency sort on; only the
+                            // intra-row reorder is ignored on drop (below). The ✕
+                            // stays active.
+                            drag.target: cchip
+                            cursorShape: Qt.SizeAllCursor
+                            preventStealing: true
+                            onReleased: {
+                                // Clear the flag here (the chip is still alive)
+                                // rather than via the dragging binding, which the
+                                // drop's model reset would miss.
+                                if (root.view)
+                                    root.view.chipDragging = false;
+                                cchip.Drag.drop();
+                            }
+                        }
+
+                        RowLayout {
+                            id: cRow
+                            anchors.centerIn: parent
+                            spacing: Theme.spacingSm
+                            // Only the background hue marks the source profile;
+                            // no inline name tag. The origin stays discoverable on
+                            // hover (tooltip below).
+                            Text {
+                                text: cDrop.modelData.value
+                                color: Theme.text
+                                font.family: Theme.fontFamilyMono
+                                font.pixelSize: Theme.chipFont
+                            }
+                            // Circular ✕: delete this variant from its source
+                            // profile (behind a confirm in the parent).
+                            Rectangle {
+                                id: cClose
+                                implicitWidth: Theme.chipFont + Theme.spacingXs
+                                implicitHeight: implicitWidth
+                                radius: implicitHeight / 2
+                                color: cCloseMouse.containsMouse
+                                       ? Theme.error : Theme.surfaceHover
+                                Behavior on color {
+                                    ColorAnimation { duration: Theme.animShort }
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: Theme.iconClear
+                                    color: cCloseMouse.containsMouse
+                                           ? Theme.accentText : Theme.textMuted
+                                    font.pixelSize: Theme.chipFont - 3
+                                }
+                                MouseArea {
+                                    id: cCloseMouse
+                                    anchors.fill: parent
+                                    anchors.margins: -2
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.composedRemoveRequested(
+                                        root.inputText, cDrop.modelData.value,
+                                        cDrop.modelData.file)
+                                    ThemedToolTip {
+                                        hovered: cCloseMouse.containsMouse
+                                        text: qsTr("Remove")
+                                    }
+                                }
+                            }
+                        }
+
+                        HoverHandler { id: cchipHover }
+                        ThemedToolTip {
+                            hovered: cchipHover.hovered && !cchip.Drag.active
+                            text: root.freqSort
+                                ? qsTr("From “%1”")
+                                  .arg(root.nameForFile(cDrop.modelData.file))
+                                : qsTr("From “%1”, drag to reorder")
+                                  .arg(root.nameForFile(cDrop.modelData.file))
+                        }
+                    }
+                }
+            }
+        }
+
         ThemedTextField {
             id: outputEdit
             visible: root.editing
@@ -547,6 +802,9 @@ Rectangle {
             // Mouse affordance only: keyboard uses the roving list (Enter/F2),
             // and grabbing focus on click would let Space re-fire the button.
             focusPolicy: Qt.NoFocus
+            // Hidden in the composed view: a composed row is not a single
+            // editable mapping (its variants come from several profiles).
+            visible: !root.composing
             text: root.editing ? Theme.iconCheck : Theme.iconEdit
             enabled: !root.editing || root.editValid
             ThemedToolTip {
@@ -574,6 +832,10 @@ Rectangle {
             // Mouse affordance only: keyboard uses the roving list (Delete), and
             // grabbing focus on click would let Space re-open the delete dialog.
             focusPolicy: Qt.NoFocus
+            // Hidden in the composed view: a whole-row delete would be ambiguous
+            // there (the row aggregates variants from several profiles), so
+            // deletion is per chip (the ✕ cascades into that chip's source).
+            visible: !root.composing
             text: root.editing ? Theme.iconCancel : Theme.iconTrash
             ThemedToolTip {
                 hovered: deleteBtn.hovered
@@ -635,10 +897,37 @@ Rectangle {
     }
 
     Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Delete && !root.editing) {
+        if (event.key === Qt.Key_Delete && !root.editing && !root.composing) {
             root.removeRequested();
             event.accepted = true;
         }
+    }
+
+    // Display name of a source profile File, for a composed chip's provenance
+    // tag. Reading profilesModel.revision makes the binding refresh on rename.
+    function nameForFile(file) {
+        if (!root.profilesModel)
+            return file;
+        root.profilesModel.revision; // dependency for rename refresh
+        const names = root.profilesModel.profileNames();
+        for (let i = 0; i < names.length; ++i)
+            if (root.profilesModel.fileForRow(i) === file)
+                return names[i];
+        return file;
+    }
+
+    // Move a composed chip from one slot to another and emit the full new
+    // arrangement (value + source file per instance) for the manifest override.
+    function reorderComposed(from, to) {
+        if (from === to || from < 0 || to < 0)
+            return;
+        let seq = [];
+        for (let i = 0; i < composedVariantList.length; ++i)
+            seq.push({ value: composedVariantList[i].value,
+                       file: composedVariantList[i].file });
+        const moved = seq.splice(from, 1)[0];
+        seq.splice(to, 0, moved);
+        root.composedReorderRequested(root.inputText, seq);
     }
 
     function startEdit() { root.editStartRequested(); }

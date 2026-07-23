@@ -13,6 +13,9 @@ Item {
 
     property var profilesModel: null
     property var mappingsModel: null
+    // Sole owner of the merge manifest (merge.conf); may be null in contexts
+    // that don't wire it, which hides the per-row merge control.
+    property var mergeModel: null
     signal requestSnackbar(string message, color c)
     // Delete is confirmed by the parent (its ConfirmDialog), so a modal does
     // not have to stack over this popup.
@@ -344,6 +347,17 @@ Item {
                     required property bool isProtected
                     required property bool favorite
                     required property string selectKey
+                    required property string file
+                    // Position of this profile in the merge (1 = base, 2..N =
+                    // appended, -1 = not merged). The mergeBase comparison is not
+                    // a no-op: its VALUE feeds the condition, which keeps the
+                    // dependency on manifestChanged from being optimized away by
+                    // compiled QML (a bare read would be), so the badge
+                    // re-evaluates and renumbers whenever the merge changes.
+                    readonly property int mergeOrderIdx:
+                        (root.mergeModel
+                         && root.mergeModel.mergeBase !== undefined)
+                            ? root.mergeModel.orderIndex(prow.file) : -1
                     width: ListView.view.width
                     height: Theme.rowHeight
                     radius: Theme.radiusSm
@@ -461,6 +475,61 @@ Item {
                                 onClicked: if (root.profilesModel)
                                     root.profilesModel.setFavorite(
                                         prow.index, !prow.favorite);
+                            }
+                        }
+
+                        // Merge control (⧉): click to add a profile to the merge
+                        // (appended in click order); the profile at position 1
+                        // is the base. Clicking a merged profile removes it, and
+                        // removing position 1 promotes the next. The numbered
+                        // badge shows the position in the same provenance colour
+                        // the composed view uses.
+                        Text {
+                            id: mergeIcon
+                            visible: root.mergeModel !== null
+                            text: Theme.iconMerge
+                            color: prow.mergeOrderIdx > 0
+                                   ? Theme.mergeSourceColor(prow.mergeOrderIdx)
+                                   : (mergeMouse.containsMouse ? Theme.text
+                                                               : Theme.textMuted)
+                            font.pixelSize: Theme.fontIcon
+                            Layout.preferredWidth: 20
+                            horizontalAlignment: Text.AlignHCenter
+                            ThemedToolTip {
+                                hovered: mergeMouse.containsMouse
+                                text: prow.mergeOrderIdx > 0
+                                    ? qsTr("Merged (position %1), click to remove")
+                                      .arg(prow.mergeOrderIdx)
+                                    : qsTr("Add to the merge")
+                            }
+                            Rectangle {
+                                visible: prow.mergeOrderIdx > 0
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.rightMargin: -Theme.badgeOffset
+                                anchors.topMargin: -Theme.badgeOffset
+                                width: Math.max(Theme.badgeSize,
+                                                badgeText.implicitWidth + Theme.spacingXs)
+                                height: Theme.badgeSize
+                                radius: height / 2
+                                color: Theme.mergeSourceColor(prow.mergeOrderIdx)
+                                Text {
+                                    id: badgeText
+                                    anchors.centerIn: parent
+                                    text: prow.mergeOrderIdx
+                                    color: Theme.accentText
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontBadge
+                                    font.weight: Font.Medium
+                                }
+                            }
+                            MouseArea {
+                                id: mergeMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: if (root.mergeModel)
+                                    root.mergeModel.toggleMerge(prow.file);
                             }
                         }
 

@@ -4,9 +4,15 @@
 // Runtime mappings layer on top of the format-level parser in mappings-io.h.
 // parseMappings returns raw input→output strings; the loader also expands
 // comma-separated cycling variants (respecting the double-comma escape) and
-// knows how to find the file via fcitx5's StandardPaths lookup.
+// knows how to find the file via fcitx5's StandardPaths lookup. It is also the
+// one place that resolves the addon config dir for the engine, so the merge
+// manifest and the usage-counter file IO live here too (the editor resolves
+// the same files through its own Qt path helper, but both sides share the
+// format headers below).
 
-#include "mappings-io.h" // splitOutputs (format-level output splitting)
+#include "mappings-io.h"        // splitOutputs (format-level output splitting)
+#include "merge_manifest_io.h"  // MergeManifest (shared format)
+#include "usage_io.h"           // UsageCounts (shared format)
 
 #include <string>
 #include <unordered_map>
@@ -29,6 +35,27 @@ UmlautMap loadMappingsFromFile(const std::string &relPath);
 // Convenience overload for the Standard profile
 // ("schnelle-umlaute/mappings.txt").
 UmlautMap loadMappingsFromFile();
+
+// Load the single global merge manifest (schnelle-umlaute/merge.conf). Returns
+// an empty manifest (no base) when the file is absent, which the engine reads
+// as "no merge".
+MergeManifest loadMergeManifest();
+
+// Load the per-(base, variant) usage counters (schnelle-umlaute/usage.conf).
+// Returns an empty table when the file is absent.
+UsageCounts loadUsage();
+
+// Atomically write the usage counters (schnelle-umlaute/usage.conf) via
+// fcitx StandardPaths safeSave (temp file + rename). Returns false on failure.
+bool saveUsage(const UsageCounts &counts);
+
+// Delete usage.conf (the usage counters). No-op if absent. Used by the reset.
+void deleteUsage();
+
+// If the usage-reset request marker (kUsageResetMarker) exists, delete it and
+// return true. The editor drops the marker and reloads the addon; the engine
+// consumes it here to clear the counts and delete usage.conf.
+bool takeUsageResetMarker();
 
 } // namespace schnelle_umlaute
 

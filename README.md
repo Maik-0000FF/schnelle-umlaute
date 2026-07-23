@@ -21,12 +21,14 @@ Missing **PowerToys Quick Accent** on Linux? This Fcitx5 input method addon lets
 
 **Features:**
 - Hold letter + space/arrow keys for accent characters
-- Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã), forward or backward (per-arrow reverse-direction toggle)
+- Accent cycling: Press leader key repeatedly to cycle through variants (á → à → â → ã), forward or backward (per-leader reverse-direction toggle)
+- Sort variants by usage: optionally order each key's cycle by how often you use them, most-used first (non-destructive toggle)
 - Snippets: Map single keys to entire text phrases
-- Braille Unicode characters (⠁⠃⠉⠙⠑ etc.) support
+- Any Unicode character as output: accents, umlauts, emojis, symbols, Greek, math, Braille (⠁⠃⠉⠙⠑), and more
 - Configurable leader keys (Space, Arrow ←→↑↓, Alt, AltGr, or custom keys with hand-split), keep Space free for normal typing
 - Works with any keyboard layout (QWERTY, QWERTZ, AZERTY, Dvorak, Colemak) and programmable keyboards (QMK, ZMK, split, ortholinear)
 - Unlimited mapping slots
+- Profiles with merge: switchable named mapping sets, plus a merge mode that composes several profiles into one base view for multi-language setups
 - App blacklist/whitelist, disable in games, password managers, or apps with conflicting shortcuts
 - Standalone QML editor (`schnelle-umlaute-editor`) for managing mappings, leader keys, app filter, and the cycle overlay
 - Optional cycle overlay daemon (Wayland with wlr-layer-shell) showing accent variants on-screen
@@ -204,4 +206,4 @@ Thanks to [wengxt](https://github.com/wengxt) for creating Fcitx5 and for the gu
 
 ---
 
-**Version:** 1.8.0
+**Version:** 1.9.0

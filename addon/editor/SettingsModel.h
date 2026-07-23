@@ -122,6 +122,12 @@ class SettingsModel : public QObject {
 
     Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
 
+    // Sort each key's cycling variants by how often they are committed
+    // (most-used first). Non-destructive: the stored order is unchanged and
+    // returns when this is off. Mirrors config.h [Behavior]/SortByFrequency.
+    Q_PROPERTY(bool sortByFrequency READ sortByFrequency WRITE setSortByFrequency
+                   NOTIFY sortByFrequencyChanged)
+
     // Compositor capability for wlr-layer-shell. Sampled once at
     // construction from XDG_SESSION_TYPE / XDG_CURRENT_DESKTOP. Drives
     // whether the overlay toggle is shown as enabled in the UI.
@@ -189,6 +195,7 @@ public:
     QString overlayPosition() const { return overlayPosition_; }
     bool overlayCaretTheme() const { return overlayCaretTheme_; }
     QString theme() const { return theme_; }
+    bool sortByFrequency() const { return sortByFrequency_; }
 
     // Generate an fcitx5 theme from the given editor-palette colors (hex
     // strings) and point classicui at it, or restore the user's previous
@@ -236,6 +243,7 @@ public:
     void setOverlayPosition(const QString &v);
     void setOverlayCaretTheme(bool v);
     void setTheme(const QString &v);
+    void setSortByFrequency(bool v);
 
     static bool isValidTheme(const QString &name);
     // The three OverlayPlacement enum names the fcitx5 addon understands
@@ -292,6 +300,7 @@ Q_SIGNALS:
     void overlayPositionChanged();
     void overlayCaretThemeChanged();
     void themeChanged();
+    void sortByFrequencyChanged();
 
 private:
     void load();
@@ -348,6 +357,7 @@ private:
     QString overlayPosition_ = "TopCol4";
     bool overlayCaretTheme_ = false;
     QString theme_ = "schnelle-umlaute";
+    bool sortByFrequency_ = false;
     bool layerShellAvailable_ = false;
     QString layerShellSession_;
     QString layerShellReason_;

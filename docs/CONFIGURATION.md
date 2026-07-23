@@ -9,6 +9,27 @@ All addon settings can be changed in two ways:
 
 Saves through the editor are **applied live** via fcitx5's `Controller1.ReloadAddonConfig` DBus call, no restart needed. After a manual edit of the config files, reload with `fcitx5-remote -r`.
 
+## Contents
+
+- [Launching the editor](#launching-the-editor)
+- [Adding Schnelle Umlaute to your Input Methods](#adding-schnelle-umlaute-to-your-input-methods)
+- [Fcitx5 Global Settings](#fcitx5-global-settings)
+- [Keyboard Layout Requirement](#keyboard-layout-requirement)
+- [The Standalone Editor](#the-standalone-editor)
+- [Delays](#delays)
+- [Leader Key](#leader-key)
+- [Character Mappings](#character-mappings)
+- [Accent Cycling](#accent-cycling)
+- [Sorting variants by usage](#sorting-variants-by-usage)
+- [Profiles & ready-made libraries](#profiles--ready-made-libraries)
+- [Merging profiles](#merging-profiles)
+- [Snippets (Text Expansion)](#snippets-text-expansion)
+- [Theme](#theme)
+- [Cycle Overlay](#cycle-overlay)
+  - [Instant overlay on animating compositors](#instant-overlay-on-animating-compositors)
+  - [Caret placement (`TextCaret`)](#caret-placement-textcaret)
+- [App Filter](#app-filter)
+
 ---
 
 ## Launching the editor
@@ -129,6 +150,7 @@ Customize which keys activate the umlaut transformation. Multiple leader keys ca
 ```ini
 [Leader]
 Space=True
+SpaceReverse=False
 Left=False
 LeftReverse=False
 Right=False
@@ -153,8 +175,8 @@ CustomKey2Code=0
 CustomKey2Reverse=False
 ```
 
-> **Cycle direction (arrows, Alt, AltGr, custom leaders)**
-> Every leader except Space has its own direction: each arrow, Alt, AltGr, and each custom leader. Forward steps to the next variant, reverse steps to the previous one. Set a leader to reverse with the direction toggle next to its enable toggle in the editor (the arrow marker shows <kbd>→</kbd> forward or <kbd>←</kbd> reverse). Forward and reverse leaders act on the same position, so within one cycle you can step both ways freely, e.g. Space forward and <kbd>←</kbd> reverse: overshoot by one, then step back instead of wrapping all the way around. A reverse leader that starts a cycle lands on the **last** variant, so variants at the end of a long list (e.g. a second language) are reached directly. Space always cycles forward (it has no direction). The `*Reverse` flags default to `False`, so existing setups are unchanged.
+> **Cycle direction**
+> Every leader has its own direction: Space (`SpaceReverse`), each arrow, Alt, AltGr, and each custom leader. Forward steps to the next variant, reverse steps to the previous one. Set a leader to reverse with the direction toggle next to its enable toggle in the editor (the arrow marker shows <kbd>→</kbd> forward or <kbd>←</kbd> reverse). Forward and reverse leaders act on the same position, so within one cycle you can step both ways freely, e.g. Space forward and <kbd>←</kbd> reverse: overshoot by one, then step back instead of wrapping all the way around. A reverse leader that starts a cycle lands on the **last** variant, so variants at the end of a long list (e.g. a second language) are reached directly. The `*Reverse` flags default to `False`, so existing setups are unchanged.
 
 > **Alt and AltGr Leaders**
 > Enables <kbd>Alt</kbd> (the left Alt) and <kbd>AltGr</kbd> (ISO_Level3_Shift, i.e. the right Alt on EU layouts) as leader keys. The two are enabled independently, and each carries its own direction (see **Cycle direction** above). On KWin Wayland, auto-repeat sends release-press pairs which can cause input leaks. Works reliably under XIM (e.g. WezTerm).
@@ -248,6 +270,19 @@ Cycling works with any Unicode characters, accents, emojis, symbols, Greek lette
 
 ---
 
+## Sorting variants by usage
+
+Turn on **Sort variants by usage** in the **Mappings** tab to order each key's cycling variants by how often you have used them, most-used first, so your common accents come up earliest in the cycle. It is **non-destructive**: your stored order is kept, and turning the toggle off restores it. The addon counts each committed variant as you type and applies the same order while typing, so the editor preview matches the runtime cycle, and the counts persist across restarts. Counting happens only while the toggle is on; turning it off pauses it and keeps the counts, so re-enabling resumes from where you left off. Use **Reset usage data** in the same card to clear the learned counts (it removes `usage.conf`); the sort setting itself is unaffected.
+
+```ini
+[Behavior]
+SortByFrequency=False
+```
+
+> **Note:** The order in the mapping file is never rewritten by this, it stays your manual order; the sort only rearranges the cycle for display and input. Counts are stored per base character and variant in `usage.conf`.
+
+---
+
 ## Profiles & ready-made libraries
 
 A **profile** is a named, switchable set of mappings. The protected **Standard** profile holds `mappings.txt`; every other profile lives in its own file under `profiles/` and is listed in `profiles.conf`:
@@ -277,6 +312,31 @@ There are two ways to get a ready-made profile in:
 a=à,â,æ
 e=é,è,ê,ë
 ```
+
+---
+
+## Merging profiles
+
+A **merge** combines profiles you **already have**, so add them first from **Add from library** (the **+**) or by creating a new profile in the editor (see [Profiles & ready-made libraries](#profiles--ready-made-libraries)). It then composes them into one combined mapping list, without copying characters between their files. You pick the profiles in click order: the **first** is the **base** (marked **1**), and each further profile is appended after it in the order you click. Open the base profile and it shows the **whole** merged result; the others keep showing only their own mappings.
+
+Build a merge from the merge control (⧉) next to each profile in the **Mappings** tab:
+
+1. Click a profile to make it the base (badge **1**).
+2. Click the next profiles in the order you want them appended (badges **2**, **3**, …).
+3. Open the base profile to see and fine-tune the result. Click a merged profile's control again to remove it; removing the base promotes the next profile to base.
+
+Only one base exists at a time, and the merge does **not** follow the active profile: the engine composes the combined list only while the **base** is the active profile, so switching to any other profile gives you that profile alone.
+
+> **Important:** For the merge to apply while you type, the **base profile must be the active profile**, activate it with its checkmark in the profile list. If another profile is active, you will still see and edit the merge in the editor, but typing uses the active profile, not the merge. This is an easy step to miss.
+
+**Editing a merge:**
+
+- Edit each source profile's mappings in that profile as usual; the base view updates to match.
+- Fine-tune in the base view. Reordering variants there is non-destructive (kept in the merge, the source files stay untouched).
+- Deleting a variant chip in the base view **cascades** into its origin profile (a confirmation names which one), since that is where the variant lives.
+- Each chip is background-tinted by the profile it came from, so you can see its origin at a glance. A value that appears more than once gets a warning border; duplicates are allowed and never removed automatically, the marker just helps you curate.
+
+> **Tip:** Add the language profiles you want to combine from **Add from library** first. Then create a dedicated profile to act as the base, it may even be empty, and click it first so it is marked **1**. Merge the library profiles in your preferred order after it. Keep editing each language in its own profile, and use the base merge profile purely for the combined view and the final fine-tuning. That keeps the sources clean and gives you one place for the assembled result.
 
 ---
 

@@ -14,10 +14,44 @@
 #endif
 #include <fcitx-utils/fs.h>
 
+#include <cerrno>
 #include <cstdio>
+#include <filesystem>
+#include <system_error>
+#include <unistd.h>
 #include <utility>
 
 namespace schnelle_umlaute {
+
+namespace {
+
+// Open a config-dir file (relative to the addon's PkgConfig dir) and run
+// `parse` on it, returning a default-constructed result when the file is
+// absent. Keeps the two StandardPaths API variants in one place, shared by the
+// mappings, manifest, and usage loaders.
+template <typename Parse>
+auto openAndParse(const std::string &relPath, Parse parse)
+    -> decltype(parse(std::declval<FILE *>())) {
+    using namespace fcitx;
+    using Result = decltype(parse(std::declval<FILE *>()));
+#if SU_HAS_NEW_STDPATHS
+    auto file =
+        StandardPaths::global().open(StandardPathsType::PkgConfig, relPath);
+    if (file.isValid()) {
+        auto fp = fs::openFD(file, "r");
+#else
+    auto file = StandardPath::global().open(StandardPath::Type::PkgConfig,
+                                            relPath, O_RDONLY);
+    if (file.fd() >= 0) {
+        auto fp = fs::openFD(file, "r");
+#endif
+        if (fp)
+            return parse(fp.get());
+    }
+    return Result{};
+}
+
+} // namespace
 
 UmlautMap loadMappingsFromFile(const std::string &relPath) {
     using namespace fcitx;
@@ -61,6 +95,88 @@ UmlautMap loadMappingsFromFile(const std::string &relPath) {
 UmlautMap loadMappingsFromFile() {
     return loadMappingsFromFile(std::string(kConfigSubdir) + "/" +
                                kMappingsFile);
+}
+
+MergeManifest loadMergeManifest() {
+    return openAndParse(std::string(kConfigSubdir) + "/" + kMergeConf,
+                        parseMergeManifest);
+}
+
+UsageCounts loadUsage() {
+    return openAndParse(std::string(kConfigSubdir) + "/" + kUsageFile,
+                        parseUsage);
+}
+
+bool saveUsage(const UsageCounts &counts) {
+    using namespace fcitx;
+    const std::string data = serializeUsage(counts);
+    const std::string relPath = std::string(kConfigSubdir) + "/" + kUsageFile;
+    // Write the whole serialized table to the temp fd StandardPaths hands us;
+    // it atomically renames into place on success (temp file + rename), so a
+    // concurrent editor read never sees a half-written file.
+    auto writeAll = [&data](int fd) -> bool {
+        size_t off = 0;
+        while (off < data.size()) {
+            const ssize_t n = ::write(fd, data.data() + off, data.size() - off);
+            if (n < 0) {
+                if (errno == EINTR)
+                    continue;
+                return false;
+            }
+            off += static_cast<size_t>(n);
+        }
+        return true;
+    };
+#if SU_HAS_NEW_STDPATHS
+    return StandardPaths::global().safeSave(StandardPathsType::PkgConfig,
+                                            relPath, writeAll);
+#else
+    return StandardPath::global().safeSave(StandardPath::Type::PkgConfig,
+                                           relPath, writeAll);
+#endif
+}
+
+namespace {
+// Absolute writable path for a config-dir-relative file, for the delete/exists
+// operations StandardPaths::open (read-only) does not cover. Empty if there is
+// no writable config dir.
+std::string writableConfigPath(const std::string &relPath) {
+    using namespace fcitx;
+#if SU_HAS_NEW_STDPATHS
+    const auto dir =
+        StandardPaths::global().userDirectory(StandardPathsType::PkgConfig);
+    if (dir.empty())
+        return {};
+    return (dir / relPath).string();
+#else
+    const auto dir =
+        StandardPath::global().userDirectory(StandardPath::Type::PkgConfig);
+    if (dir.empty())
+        return {};
+    return dir + "/" + relPath;
+#endif
+}
+} // namespace
+
+void deleteUsage() {
+    const std::string path =
+        writableConfigPath(std::string(kConfigSubdir) + "/" + kUsageFile);
+    if (path.empty())
+        return;
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+}
+
+bool takeUsageResetMarker() {
+    const std::string path = writableConfigPath(std::string(kConfigSubdir) +
+                                                "/" + kUsageResetMarker);
+    if (path.empty())
+        return false;
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec))
+        return false;
+    std::filesystem::remove(path, ec);
+    return true;
 }
 
 } // namespace schnelle_umlaute

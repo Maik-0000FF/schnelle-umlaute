@@ -17,6 +17,9 @@ ApplicationWindow {
 
     MappingListModel {
         id: mappings
+        // Follow the persisted toggle so the chip preview sorts by usage (via
+        // the shared comparator) and matches the runtime cycle order.
+        sortByFrequency: settings.sortByFrequency
         onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
     }
 
@@ -25,12 +28,27 @@ ApplicationWindow {
         onThemeChanged: Theme.setCurrent(theme)
     }
 
+    // Sole owner of the merge manifest (merge.conf). Shared by the profile
+    // selector (structure: base + appended sources) and the mappings model
+    // (content: order overrides + composed view), so the manifest has one
+    // in-memory copy and one writer.
+    MergeManifestModel {
+        id: merge
+        onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
+        // The mappings model reads merge.conf to show the composed view; rebuild
+        // it whenever the manifest changes (it stays the single writer here).
+        onManifestChanged: mappings.reloadComposed()
+    }
+
     ProfileListModel {
         id: profiles
         onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
         // If the deleted profile was the Mappings edit target, fall back to the
         // active profile so the tab never keeps editing an orphaned file.
         onProfileRemoved: (file) => {
+            // The merge manifest maintains its own lifecycle off this signal:
+            // a deleted base dissolves the merge, a deleted source is pruned.
+            merge.onProfileRemoved(file);
             if (mappings.profileFile === file)
                 mappings.profileFile = profiles.fileForRow(profiles.activeRow());
         }
@@ -42,6 +60,15 @@ ApplicationWindow {
         // otherwise independent: you can switch the edit target without
         // changing which profile is active at runtime).
         mappings.profileFile = profiles.fileForRow(profiles.activeRow());
+        // Drop any merge ref to a profile deleted while the editor was closed,
+        // so a stale merge.conf can't keep a dangling base/source. Runs once the
+        // profile list is loaded, since the manifest owner has no profile list.
+        {
+            let files = [];
+            for (let i = 0; i < profiles.count; i++)
+                files.push(profiles.fileForRow(i));
+            merge.pruneToExisting(files);
+        }
         // States for the IM environment (checked only when the variables
         // are not already active):
         //   1) env.d not imported          → TTY-launched compositor
@@ -338,6 +365,7 @@ ApplicationWindow {
                 mappingsModel: mappings
                 settingsModel: settings
                 profilesModel: profiles
+                mergeModel: merge
                 onRequestSnackbar: (msg, c) => snackbar.show(msg, c)
                 onRequestUndoSnackbar: (msg, cb) => snackbar.showUndo(msg, cb)
             }

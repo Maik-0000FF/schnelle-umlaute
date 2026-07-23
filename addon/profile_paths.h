@@ -28,6 +28,20 @@ inline constexpr const char *kProfilesSubdir = "profiles";
 // Profile metadata (list, active name, cycle hotkeys), relative to
 // kConfigSubdir. Owned by the editor's ProfileListModel; read by the engine.
 inline constexpr const char *kProfilesConf = "profiles.conf";
+// The single global merge manifest (chosen base + ordered appended source
+// profiles + per-base order overrides), relative to kConfigSubdir. Owned by
+// the editor; read by the engine, which composes when the base is active.
+inline constexpr const char *kMergeConf = "merge.conf";
+// Per-(base char, committed variant) usage counters, relative to kConfigSubdir.
+// Written by the engine (the only editor<->engine file in that direction),
+// read by the editor to sort variants by usage when the toggle is on.
+inline constexpr const char *kUsageFile = "usage.conf";
+// One-shot sidecar marker requesting a usage-counter reset. The editor writes
+// this file and reloads the addon; the engine (sole owner of the in-memory
+// counts) consumes it, clearing the counts and deleting usage.conf, then
+// removes the marker. Kept out of schnelle-umlaute.conf on purpose: it is a
+// command, not a setting, so no second writer touches the shared config file.
+inline constexpr const char *kUsageResetMarker = "usage-reset.request";
 // Display name of the protected Standard profile.
 inline constexpr const char *kStandardProfile = "Standard";
 

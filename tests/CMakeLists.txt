@@ -206,6 +206,27 @@ target_link_libraries(testmappinglistmodelio
 add_test(NAME testmappinglistmodelio COMMAND testmappinglistmodelio)
 set_tests_properties(testmappinglistmodelio PROPERTIES TIMEOUT 10)
 
+# Standalone editor — MappingListModel's composed (merge) view. Seeds profile
+# files + merge.conf/usage.conf in a scratch XDG_CONFIG_HOME and drives the
+# base-active model through composing gating, deterministic row order, chip
+# provenance, cascade delete, cross-row move, order override, duplicate
+# detection, and the usage-frequency preview.
+add_executable(testmappinglistmodelmerge
+    testmappinglistmodelmerge.cpp
+    ${PROJECT_SOURCE_DIR}/editor/MappingListModel.cpp)
+set_target_properties(testmappinglistmodelmerge PROPERTIES AUTOMOC ON)
+target_include_directories(testmappinglistmodelmerge PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testmappinglistmodelmerge PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testmappinglistmodelmerge PRIVATE QT_NO_KEYWORDS)
+target_link_libraries(testmappinglistmodelmerge
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Qml)
+add_test(NAME testmappinglistmodelmerge COMMAND testmappinglistmodelmerge)
+set_tests_properties(testmappinglistmodelmerge PROPERTIES TIMEOUT 10)
+
 # Standalone editor — SettingsModel validators, legacy position migration,
 # app-filter list dedup, and the save/load round-trip against
 # schnelle-umlaute.conf. SettingsModel depends on OverlayDBusClient for
@@ -250,6 +271,21 @@ target_compile_options(testprofilesloader PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testprofilesloader Fcitx5::Core)
 add_test(NAME testprofilesloader COMMAND testprofilesloader)
 set_tests_properties(testprofilesloader PROPERTIES TIMEOUT 10)
+
+# Engine-side usage-reset helpers (mappings_loader): the one-shot marker consume
+# (takeUsageResetMarker) and usage.conf delete (deleteUsage), the core of the
+# reset handshake. Same harness as testprofilesloader (mappings_loader +
+# Fcitx5::Core, XDG_CONFIG_HOME redirected to a scratch dir).
+add_executable(testusagereset
+    testusagereset.cpp
+    ${PROJECT_SOURCE_DIR}/src/mappings_loader.cpp)
+target_include_directories(testusagereset PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/src)
+target_compile_options(testusagereset PRIVATE ${SU_TEST_WARN_FLAGS})
+target_link_libraries(testusagereset Fcitx5::Core)
+add_test(NAME testusagereset COMMAND testusagereset)
+set_tests_properties(testusagereset PROPERTIES TIMEOUT 10)
 
 # Editor Qt-to-fcitx combo conversion round-trip: the captured-combo strings
 # must parse with fcitx Key() and match a real press after normalization.
@@ -319,3 +355,51 @@ target_compile_options(testcarettheme PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testcarettheme Qt${QT_MAJOR_VERSION}::Core)
 add_test(NAME testcarettheme COMMAND testcarettheme)
 set_tests_properties(testcarettheme PROPERTIES TIMEOUT 10)
+
+# Pure base-anchored merge compose (profile_compose.h): duplicate-preserving
+# composition with per-instance provenance, self-healing order overrides, and
+# the runtime unique-value projection. No fcitx/Qt runtime needed.
+add_executable(testprofilecompose testprofilecompose.cpp)
+target_include_directories(testprofilecompose PRIVATE ${PROJECT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testprofilecompose PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testprofilecompose COMMAND testprofilecompose)
+set_tests_properties(testprofilecompose PROPERTIES TIMEOUT 10)
+
+# Pure merge-manifest IO (merge_manifest_io.h): the tab-separated base +
+# ordered sources + per-base order-override round-trip, shared by engine and
+# editor. No fcitx/Qt runtime needed.
+add_executable(testmergemanifestio testmergemanifestio.cpp)
+target_include_directories(testmergemanifestio PRIVATE ${PROJECT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testmergemanifestio PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testmergemanifestio COMMAND testmergemanifestio)
+set_tests_properties(testmergemanifestio PROPERTIES TIMEOUT 10)
+
+# Pure usage-counter IO (usage_io.h): the engine-written / editor-read counter
+# file round-trip and malformed-line tolerance. No fcitx/Qt runtime needed.
+add_executable(testusageio testusageio.cpp)
+target_include_directories(testusageio PRIVATE ${PROJECT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testusageio PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testusageio COMMAND testusageio)
+set_tests_properties(testusageio PROPERTIES TIMEOUT 10)
+
+# Pure frequency-sort comparator (usage_sort.h): descending by count, stable
+# tie-break on stored order, no-op on all-zero stats. The single comparator the
+# engine and the editor both call. No fcitx/Qt runtime needed.
+add_executable(testusagesort testusagesort.cpp)
+target_include_directories(testusagesort PRIVATE ${PROJECT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testusagesort PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testusagesort COMMAND testusagesort)
+set_tests_properties(testusagesort PROPERTIES TIMEOUT 10)
+
+# Guards the C++/QML theme-name sync: the valid names must be identical across
+# addon/themes.h (the setTheme/SetTheme guards) and addon/palette/Palettes.qml
+# (all/ids/labels). Pure text parsing of the two sources (paths injected below),
+# no Qt/QML runtime, so a theme added to only one place fails CI.
+add_executable(testthemesync testthemesync.cpp)
+target_include_directories(testthemesync PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testthemesync PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testthemesync PRIVATE
+    THEMES_H_PATH="${PROJECT_SOURCE_DIR}/themes.h"
+    PALETTES_QML_PATH="${PROJECT_SOURCE_DIR}/palette/Palettes.qml")
+add_test(NAME testthemesync COMMAND testthemesync)
+set_tests_properties(testthemesync PROPERTIES TIMEOUT 10)
