@@ -12,6 +12,8 @@
 #include "merge_manifest_io.h"
 #include "profile_compose.h"
 #include "profile_paths.h"
+#include "usage_io.h"
+#include "usage_sort.h"
 
 class MappingListModel : public QAbstractListModel {
     Q_OBJECT
@@ -30,6 +32,12 @@ class MappingListModel : public QAbstractListModel {
     // manifest is owned by MergeManifestModel; this model only READS merge.conf
     // to display the composed result (writes still go through that owner).
     Q_PROPERTY(bool composing READ composing NOTIFY composingChanged)
+    // Mirror of the config toggle (set from QML). When on, the chip display is
+    // sorted by usage frequency via the shared comparator, so the editor preview
+    // matches the runtime cycle order. Non-destructive: the stored order is
+    // untouched, and manual reorder is locked while this is on (see QML).
+    Q_PROPERTY(bool sortByFrequency READ sortByFrequency WRITE setSortByFrequency
+                   NOTIFY sortByFrequencyChanged)
 
 public:
     enum Roles {
@@ -52,6 +60,13 @@ public:
     void setProfileFile(const QString &file);
 
     bool composing() const { return composing_; }
+    bool sortByFrequency() const { return sortByFrequency_; }
+    void setSortByFrequency(bool v);
+    // Sort a row's variants by usage frequency (most-used first) for display,
+    // using the one shared comparator so the preview matches the runtime cycle.
+    // Non-destructive: the input list and the stored order are unchanged.
+    Q_INVOKABLE QStringList sortByUsage(const QString &base,
+                                        const QStringList &variants) const;
     // Re-read merge.conf and rebuild the composed view. Called from QML when the
     // merge manifest changes (its single owner is MergeManifestModel; this model
     // only reads the file to display the composed result).
@@ -101,8 +116,12 @@ Q_SIGNALS:
     // warning border via MappingRow's duplicate check.
     void variantWarning(const QString &message);
     void composingChanged();
+    void sortByFrequencyChanged();
 
 private:
+    // Re-read usage.conf into usageCounts_ (engine-written, editor-read), so the
+    // preview sort reflects current usage. Read on toggle and on composed rebuild.
+    void reloadUsage();
     // Re-read merge.conf into manifest_, recompute composing_ (edit target is
     // the base), and refresh displayRows_ without emitting a reset (the caller
     // wraps this in begin/endResetModel). setProfileFile and reloadComposed both
@@ -146,6 +165,10 @@ private:
     // The current merge.conf, re-read on every composed rebuild. This model is a
     // READER only; MergeManifestModel remains the single writer.
     schnelle_umlaute::MergeManifest manifest_;
+    // Preview-sort state. usageCounts_ is re-read from usage.conf (engine-written)
+    // so the editor preview matches what the runtime cycle would use.
+    bool sortByFrequency_ = false;
+    schnelle_umlaute::UsageCounts usageCounts_;
 
     QString saveStatus_;
     // Relative to ~/.config/fcitx5/<config subdir>/. Default is the Standard

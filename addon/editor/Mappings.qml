@@ -124,6 +124,35 @@ Item {
             }
         }
 
+        // Its own section so the frequency sort is cleanly delineated. Same
+        // LabeledSwitch as every other toggle, and the chips below reorder live
+        // when it is on so the effect is visible while editing.
+        SettingsCard {
+            titleText: qsTr("Variant order")
+
+            LabeledSwitch {
+                Layout.fillWidth: true
+                labelText: qsTr("Sort variants by usage frequency")
+                tooltipText: qsTr("Most-used variant first when cycling; your stored order returns when off.")
+                checked: root.settingsModel ? root.settingsModel.sortByFrequency
+                                            : false
+                onToggled: (v) => {
+                    if (root.settingsModel)
+                        root.settingsModel.sortByFrequency = v;
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.spacingXs
+                wrapMode: Text.WordWrap
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontBody
+                text: qsTr("The chips below reorder live to show the effect. Non-destructive: your manual order returns when off, and manual reordering is locked while it is on.")
+            }
+        }
+
         AddMappingCard {
             id: addCard
             Layout.fillWidth: true

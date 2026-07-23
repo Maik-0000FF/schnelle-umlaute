@@ -17,6 +17,9 @@ ApplicationWindow {
 
     MappingListModel {
         id: mappings
+        // Follow the persisted toggle so the chip preview sorts by usage (via
+        // the shared comparator) and matches the runtime cycle order.
+        sortByFrequency: settings.sortByFrequency
         onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
     }
 

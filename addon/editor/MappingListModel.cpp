@@ -34,6 +34,19 @@ schnelle_umlaute::MergeManifest readMergeConf() {
     return m;
 }
 
+// Read usage.conf (engine-written per-(base, variant) counters). Absent file
+// yields an empty table, so the preview sort is a no-op until usage accrues.
+schnelle_umlaute::UsageCounts readUsageConf() {
+    schnelle_umlaute::UsageCounts c;
+    const QString path = schnelle_umlaute::configDirPath() +
+                         QLatin1String(schnelle_umlaute::kUsageFile);
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        c = schnelle_umlaute::parseUsage(fp);
+        std::fclose(fp);
+    }
+    return c;
+}
+
 } // namespace
 
 MappingListModel::MappingListModel(QObject *parent)
@@ -382,10 +395,42 @@ void MappingListModel::reloadComposed() {
     Q_EMIT composingChanged();
 }
 
+void MappingListModel::reloadUsage() { usageCounts_ = readUsageConf(); }
+
+void MappingListModel::setSortByFrequency(bool v) {
+    if (sortByFrequency_ == v)
+        return;
+    sortByFrequency_ = v;
+    reloadUsage(); // fresh counts so the preview reflects current usage
+    Q_EMIT sortByFrequencyChanged();
+    if (composing_)
+        reloadComposed(); // composed rows re-sort inside rebuildComposed
+    // Normal rows re-sort via the QML chip binding on sortByFrequency.
+}
+
+QStringList MappingListModel::sortByUsage(const QString &base,
+                                          const QStringList &variants) const {
+    std::vector<std::string> vals;
+    vals.reserve(variants.size());
+    for (const QString &v : variants)
+        vals.push_back(v.toStdString());
+    static const std::unordered_map<std::string, long long> kEmpty;
+    const auto it = usageCounts_.find(base.toStdString());
+    const auto sorted = schnelle_umlaute::sortVariantsByUsage(
+        vals, it != usageCounts_.end() ? it->second : kEmpty);
+    QStringList out;
+    out.reserve(static_cast<int>(sorted.size()));
+    for (const auto &s : sorted)
+        out << QString::fromStdString(s);
+    return out;
+}
+
 void MappingListModel::refreshComposedState() {
     manifest_ = readMergeConf();
     composing_ = !manifest_.base.empty() &&
                  profileFile_.toStdString() == manifest_.base;
+    if (sortByFrequency_)
+        reloadUsage(); // fresh counts for the composed preview sort
     rebuildComposed();
 }
 
@@ -455,9 +500,34 @@ void MappingListModel::rebuildComposed() {
         const auto it = composed.find(input);
         if (it == composed.end() || it->second.empty())
             return;
+        std::vector<schnelle_umlaute::Variant> insts = it->second;
+        // Preview sort: reorder the instances by the value's usage via the one
+        // shared comparator, so the composed preview matches the runtime cycle.
+        // Provenance rides along (occurrence-by-occurrence), so a duplicate from
+        // two profiles keeps its colours. The manifest order stays the truth.
+        if (sortByFrequency_) {
+            std::vector<std::string> vals;
+            vals.reserve(insts.size());
+            for (const auto &v : insts)
+                vals.push_back(v.value);
+            static const std::unordered_map<std::string, long long> kEmpty;
+            const auto cIt = usageCounts_.find(input);
+            const auto sortedVals = schnelle_umlaute::sortVariantsByUsage(
+                vals, cIt != usageCounts_.end() ? cIt->second : kEmpty);
+            std::vector<schnelle_umlaute::Variant> sorted;
+            std::vector<bool> used(insts.size(), false);
+            for (const auto &sv : sortedVals)
+                for (size_t i = 0; i < insts.size(); ++i)
+                    if (!used[i] && insts[i].value == sv) {
+                        used[i] = true;
+                        sorted.push_back(insts[i]);
+                        break;
+                    }
+            insts = std::move(sorted);
+        }
         DisplayRow row;
         row.input = QString::fromStdString(input);
-        for (const auto &v : it->second) {
+        for (const auto &v : insts) {
             QVariantMap m;
             m.insert(QStringLiteral("value"), QString::fromStdString(v.value));
             m.insert(QStringLiteral("order"), positionOf(v.sourceRef));

@@ -153,6 +153,16 @@ Rectangle {
     // Resolves a composed chip's source File to the profile's display name for
     // the provenance tag; null outside the composed view.
     property var profilesModel: null
+    // Preview-sort: when the model's toggle is on, chips display in usage order
+    // (via the shared comparator) and manual drag is locked, so the preview
+    // matches the runtime cycle without overwriting the stored order.
+    readonly property bool freqSort: modelRef ? modelRef.sortByFrequency : false
+    // The variant order to DISPLAY: usage-sorted when the toggle is on, else the
+    // stored order. The stored output (and reordering/removal by value) is
+    // unaffected; only the on-screen order changes.
+    readonly property var displayVariantList:
+        (freqSort && modelRef)
+            ? modelRef.sortByUsage(inputText, variantList) : variantList
 
     // Read-only input cell width, shared with the error/warning rows below so
     // their text lines up under the output column.
@@ -360,7 +370,7 @@ Rectangle {
                 NumberAnimation { properties: "x,y"; duration: Theme.animShort }
             }
             Repeater {
-                model: root.variantList
+                model: root.displayVariantList
                 delegate: DropArea {
                     id: chipDrop
                     required property string modelData
@@ -458,8 +468,13 @@ Rectangle {
                             id: dragMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            drag.target: chip
-                            cursorShape: Qt.SizeAllCursor
+                            // Manual reorder is locked while the frequency sort
+                            // is on (you cannot hand-order what is auto-ordered);
+                            // the ✕ stays active. Hover still tracks for the
+                            // remove affordance.
+                            drag.target: root.freqSort ? null : chip
+                            cursorShape: root.freqSort ? Qt.ArrowCursor
+                                                       : Qt.SizeAllCursor
                             // Keep the grab so a scrollable list doesn't steal
                             // the chip drag and pan the page instead.
                             preventStealing: true
@@ -475,7 +490,7 @@ Rectangle {
                         }
 
                         ThemedToolTip {
-                            hovered: dragMouse.containsMouse
+                            hovered: dragMouse.containsMouse && !root.freqSort
                                      && !chipX.containsMouse && !chip.Drag.active
                             text: qsTr("Drag to reorder")
                         }
@@ -600,8 +615,11 @@ Rectangle {
                         MouseArea {
                             id: cDragMouse
                             anchors.fill: parent
-                            drag.target: cchip
-                            cursorShape: Qt.SizeAllCursor
+                            // Locked while the frequency sort is on (the order is
+                            // auto-managed then); the ✕ stays active.
+                            drag.target: root.freqSort ? null : cchip
+                            cursorShape: root.freqSort ? Qt.ArrowCursor
+                                                       : Qt.SizeAllCursor
                             preventStealing: true
                             onReleased: cchip.Drag.drop()
                         }
@@ -662,7 +680,10 @@ Rectangle {
                         HoverHandler { id: cchipHover }
                         ThemedToolTip {
                             hovered: cchipHover.hovered && !cchip.Drag.active
-                            text: qsTr("From “%1”, drag to reorder")
+                            text: root.freqSort
+                                ? qsTr("From “%1”")
+                                  .arg(root.nameForFile(cDrop.modelData.file))
+                                : qsTr("From “%1”, drag to reorder")
                                   .arg(root.nameForFile(cDrop.modelData.file))
                         }
                     }
