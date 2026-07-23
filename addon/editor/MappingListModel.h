@@ -78,6 +78,15 @@ public:
     Q_INVOKABLE bool removeComposedVariant(const QString &input,
                                            const QString &value,
                                            const QString &file);
+    // Move a variant to a different base char WITHIN its source profile (the
+    // base's own file or an appended one): removed from `fromInput`'s mapping
+    // and added to `toInput`'s, creating that mapping if absent, so the source
+    // stays self-contained and profiles never intermix. No-op if fromInput ==
+    // toInput. Snackbar-noted in QML (it edits a source profile).
+    Q_INVOKABLE bool moveComposedVariant(const QString &fromInput,
+                                         const QString &value,
+                                         const QString &file,
+                                         const QString &toInput);
 
     Q_INVOKABLE bool addMapping(const QString &input, const QString &output);
     Q_INVOKABLE void removeMapping(int row);
@@ -140,6 +149,12 @@ private:
     bool removeVariantFromProfileFile(const QString &relFile,
                                       const QString &input,
                                       const QString &value);
+    // Move one occurrence of value from fromInput to toInput in the given
+    // profile file (creating toInput's mapping if absent), write it back
+    // atomically, and reload the engine. Backs the composed-view cross-row move.
+    bool moveVariantInProfileFile(const QString &relFile, const QString &value,
+                                  const QString &fromInput,
+                                  const QString &toInput);
     static bool isValidInputChar(const QString &input);
     static bool isValidOutputChar(const QString &output);
     bool hasInput(const QString &input, int excludeRow) const;

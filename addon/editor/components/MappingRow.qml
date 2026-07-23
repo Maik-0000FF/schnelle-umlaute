@@ -71,7 +71,17 @@ Rectangle {
         onDropped: (drop) => {
             if (!drop.source || !root.modelRef)
                 return;
-            // A chip from another mapping: move the variant onto this row.
+            // A composed chip dropped on the row's free area: cross-row move
+            // (re-map in its source profile). A same-row composed drop here is a
+            // no-op (intra-row order is managed on the per-chip slots).
+            if (drop.source.cOwnerRow !== undefined) {
+                if (drop.source.cOwnerRow !== root)
+                    root.composedCrossMoveRequested(
+                        drop.source.cFromInput, drop.source.cValue,
+                        drop.source.cFile, root.inputText);
+                return;
+            }
+            // A normal chip from another mapping: move the variant onto this row.
             if (drop.source.sourceInput !== root.inputText) {
                 root.modelRef.moveVariant(drop.source.sourceInput,
                     drop.source.variant, root.inputText);
@@ -183,6 +193,10 @@ Rectangle {
     // A composed-view chip was dragged to a new slot: persist the new order as
     // a manifest override. sequence is the full [{value, file}] arrangement.
     signal composedReorderRequested(string input, var sequence)
+    // A composed-view chip was dragged onto another row: move the variant to
+    // that base char WITHIN its source profile (from fromInput to toInput).
+    signal composedCrossMoveRequested(string fromInput, string value,
+                                      string file, string toInput)
 
     onEditingChanged: {
         if (editing) {
@@ -582,12 +596,20 @@ Rectangle {
                     required property int index
                     implicitWidth: cchip.implicitWidth
                     implicitHeight: cchip.implicitHeight
-                    // A drop from a chip in THIS row moves it to this slot. The
-                    // new order is persisted as a manifest override (the chips
-                    // themselves come from several profiles, so the arrangement
-                    // is stored, not written back into any one source).
+                    // A drop from ANOTHER composed row: cross-row move (re-map in
+                    // the dragged chip's source profile). A drop from THIS row:
+                    // intra-row reorder, stored as a manifest override and
+                    // ignored while the frequency sort auto-manages the order.
                     onDropped: (drop) => {
-                        if (drop.source && drop.source.cOwnerRow === root)
+                        if (!drop.source || !drop.source.cOwnerRow)
+                            return;
+                        if (drop.source.cOwnerRow !== root) {
+                            root.composedCrossMoveRequested(
+                                drop.source.cFromInput, drop.source.cValue,
+                                drop.source.cFile, root.inputText);
+                            return;
+                        }
+                        if (!root.freqSort)
                             root.reorderComposed(drop.source.cIndex,
                                                  cDrop.index);
                     }
@@ -609,9 +631,13 @@ Rectangle {
                                     ++n;
                             return n > 1;
                         }
-                        // Identity for the drop target: which row + which slot.
+                        // Identity for the drop target: which row + slot, and
+                        // the value/source needed for a cross-row move.
                         property var cOwnerRow: root
                         property int cIndex: cDrop.index
+                        property string cValue: cDrop.modelData.value
+                        property string cFile: cDrop.modelData.file
+                        property string cFromInput: root.inputText
                         width: implicitWidth
                         height: implicitHeight
                         implicitWidth: cRow.implicitWidth + 2 * Theme.chipPaddingH
@@ -640,11 +666,12 @@ Rectangle {
                         MouseArea {
                             id: cDragMouse
                             anchors.fill: parent
-                            // Locked while the frequency sort is on (the order is
-                            // auto-managed then); the ✕ stays active.
-                            drag.target: root.freqSort ? null : cchip
-                            cursorShape: root.freqSort ? Qt.ArrowCursor
-                                                       : Qt.SizeAllCursor
+                            // Always draggable: a cross-row move to another key
+                            // works even with the frequency sort on; only the
+                            // intra-row reorder is ignored on drop (below). The ✕
+                            // stays active.
+                            drag.target: cchip
+                            cursorShape: Qt.SizeAllCursor
                             preventStealing: true
                             onReleased: cchip.Drag.drop()
                         }

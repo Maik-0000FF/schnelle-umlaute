@@ -636,6 +636,135 @@ bool MappingListModel::removeComposedVariant(const QString &input,
     return true;
 }
 
+bool MappingListModel::moveVariantInProfileFile(const QString &relFile,
+                                                const QString &value,
+                                                const QString &fromInput,
+                                                const QString &toInput) {
+    if (!schnelle_umlaute::isSafeProfileFile(relFile.toStdString()))
+        return false;
+    const QString path = resolveProfilePath(relFile);
+    std::vector<schnelle_umlaute::RawMapping> rows;
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        rows = schnelle_umlaute::parseMappings(fp);
+        std::fclose(fp);
+    } else {
+        return false;
+    }
+    const std::string from = fromInput.toStdString();
+    const std::string to = toInput.toStdString();
+    const std::string val = value.toStdString();
+    // Remove from the source's fromInput mapping (drop it if it empties).
+    bool removed = false;
+    for (auto it = rows.begin(); it != rows.end(); ++it) {
+        if (it->input != from)
+            continue;
+        auto vars = schnelle_umlaute::splitOutputs(it->output);
+        auto vit = std::find(vars.begin(), vars.end(), val);
+        if (vit == vars.end())
+            return false;
+        vars.erase(vit);
+        if (vars.empty())
+            rows.erase(it);
+        else
+            it->output = schnelle_umlaute::joinOutputs(vars);
+        removed = true;
+        break;
+    }
+    if (!removed)
+        return false;
+    // Add to the source's toInput mapping (create if absent; skip if present).
+    bool found = false;
+    for (auto &r : rows) {
+        if (r.input != to)
+            continue;
+        auto vars = schnelle_umlaute::splitOutputs(r.output);
+        if (std::find(vars.begin(), vars.end(), val) == vars.end()) {
+            vars.push_back(val);
+            r.output = schnelle_umlaute::joinOutputs(vars);
+        }
+        found = true;
+        break;
+    }
+    if (!found)
+        rows.push_back({to, val});
+    // Write back atomically, in the same escaped format as save().
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        Q_EMIT errorOccurred(file.errorString());
+        return false;
+    }
+    QByteArray buf;
+    for (const auto &r : rows) {
+        if (r.input == "#" || r.input == "\\")
+            buf += '\\';
+        buf += QByteArray::fromStdString(r.input);
+        buf += '=';
+        buf += QByteArray::fromStdString(r.output);
+        buf += '\n';
+    }
+    if (file.write(buf) != buf.size() || !file.commit()) {
+        Q_EMIT errorOccurred(file.errorString());
+        return false;
+    }
+    reloadSchnelleUmlauteAddon();
+    return true;
+}
+
+bool MappingListModel::moveComposedVariant(const QString &fromInput,
+                                           const QString &value,
+                                           const QString &file,
+                                           const QString &toInput) {
+    if (!composing_ || fromInput == toInput)
+        return false;
+    if (file.toStdString() == manifest_.base) {
+        // The base's own mappings live in entries_; move within them.
+        const std::string val = value.toStdString();
+        bool removed = false;
+        for (int r = 0; r < static_cast<int>(entries_.size()); ++r) {
+            if (entries_[r].input != fromInput)
+                continue;
+            auto vars = schnelle_umlaute::splitOutputs(
+                entries_[r].output.toStdString());
+            auto it = std::find(vars.begin(), vars.end(), val);
+            if (it == vars.end())
+                return false;
+            vars.erase(it);
+            if (vars.empty())
+                entries_.erase(entries_.begin() + r);
+            else
+                entries_[r].output =
+                    QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
+            removed = true;
+            break;
+        }
+        if (!removed)
+            return false;
+        bool found = false;
+        for (auto &e : entries_) {
+            if (e.input != toInput)
+                continue;
+            auto vars = schnelle_umlaute::splitOutputs(e.output.toStdString());
+            if (std::find(vars.begin(), vars.end(), val) == vars.end()) {
+                vars.push_back(val);
+                e.output =
+                    QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
+            }
+            found = true;
+            break;
+        }
+        if (!found)
+            entries_.push_back({toInput, value});
+        save();
+        reloadComposed();
+        return true;
+    }
+    if (!moveVariantInProfileFile(file, value, fromInput, toInput))
+        return false;
+    reloadComposed();
+    return true;
+}
+
 void MappingListModel::load() {
     entries_.clear();
     QString path = resolveProfilePath(profileFile_);

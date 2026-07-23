@@ -332,6 +332,17 @@ Item {
                         if (root.mergeModel)
                             root.mergeModel.setOrderOverride(cInput, cSeq);
                     }
+                    // Composed-view cross-row move: re-map the variant to another
+                    // key WITHIN its source profile (stays self-contained, no
+                    // intermixing between profiles), then note which profile.
+                    onComposedCrossMoveRequested: (cFrom, cValue, cFile, cTo) => {
+                        if (root.mappingsModel.moveComposedVariant(
+                                cFrom, cValue, cFile, cTo))
+                            root.requestSnackbar(
+                                qsTr("Moved in “%1”").arg(
+                                    root.profileNameForFile(cFile)),
+                                Theme.textMuted);
+                    }
                 }
 
                 ScrollBar.vertical: ScrollBar {}
