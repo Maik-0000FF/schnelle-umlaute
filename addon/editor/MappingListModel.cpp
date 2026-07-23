@@ -432,6 +432,33 @@ void MappingListModel::refreshComposedState() {
     if (sortByFrequency_)
         reloadUsage(); // fresh counts for the composed preview sort
     rebuildComposed();
+    recomputeDuplicates();
+}
+
+void MappingListModel::recomputeDuplicates() {
+    std::unordered_map<std::string, int> counts;
+    if (composing_) {
+        for (const auto &row : displayRows_)
+            for (const auto &v : row.variants)
+                ++counts[v.toMap()
+                             .value(QStringLiteral("value"))
+                             .toString()
+                             .toStdString()];
+    } else {
+        for (const auto &e : entries_)
+            for (const auto &val :
+                 schnelle_umlaute::splitOutputs(e.output.toStdString()))
+                ++counts[val];
+    }
+    QSet<QString> dups;
+    for (const auto &kv : counts)
+        if (kv.second > 1)
+            dups.insert(QString::fromStdString(kv.first));
+    if (dups != duplicateValues_) {
+        duplicateValues_ = std::move(dups);
+        ++duplicateRevision_;
+        Q_EMIT duplicatesChanged();
+    }
 }
 
 schnelle_umlaute::VariantMap
@@ -785,6 +812,7 @@ void MappingListModel::load() {
         }
     }
     setSaveStatus(tr("Loaded"));
+    recomputeDuplicates();
 }
 
 bool MappingListModel::save() {
@@ -814,6 +842,7 @@ bool MappingListModel::save() {
         return false;
     }
     setSaveStatus(tr("Saved"));
+    recomputeDuplicates();
     reloadSchnelleUmlauteAddon();
     return true;
 }

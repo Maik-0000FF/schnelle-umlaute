@@ -443,16 +443,15 @@ Rectangle {
                         // Which mapping this chip belongs to, so a drop target
                         // can tell a same-row reorder from a cross-row move.
                         property string sourceInput: root.inputText
-                        // This variant occurs more than once in the row: a dead
-                        // cycle slot at runtime. Both duplicate chips carry the
-                        // warning border (the row itself is not flagged).
-                        readonly property bool isDuplicate: {
-                            let n = 0;
-                            for (let i = 0; i < root.variantList.length; ++i)
-                                if (root.variantList[i] === chip.variant)
-                                    ++n;
-                            return n > 1;
-                        }
+                        // This value occurs more than once across all rows (twice
+                        // in a row = a dead cycle slot, or under two keys =
+                        // redundancy). Every such chip carries the warning border.
+                        // The revision read keeps the binding reactive.
+                        readonly property bool isDuplicate:
+                            (root.modelRef
+                             && root.modelRef.duplicateRevision >= 0)
+                                ? root.modelRef.isDuplicateValue(chip.variant)
+                                : false
                         width: implicitWidth
                         height: implicitHeight
                         implicitWidth: chipRow.implicitWidth
@@ -629,19 +628,16 @@ Rectangle {
                         readonly property int srcOrder: cDrop.modelData.order
                         readonly property color srcColor:
                             Theme.mergeSourceColor(cchip.srcOrder)
-                        // Same value appears more than once in this row: an
-                        // overlap between merged profiles (or a manual duplicate).
-                        // At runtime the engine collapses it, so it is worth
-                        // flagging to clean up.
-                        readonly property bool isDuplicate: {
-                            let n = 0;
-                            for (let i = 0;
-                                 i < root.composedVariantList.length; ++i)
-                                if (root.composedVariantList[i].value
-                                    === cDrop.modelData.value)
-                                    ++n;
-                            return n > 1;
-                        }
+                        // Same value more than once across all rows (an overlap
+                        // between merged profiles, or a manual duplicate). Flagged
+                        // for cleanup; nothing is removed automatically. The
+                        // revision read keeps the binding reactive.
+                        readonly property bool isDuplicate:
+                            (root.modelRef
+                             && root.modelRef.duplicateRevision >= 0)
+                                ? root.modelRef.isDuplicateValue(
+                                      cDrop.modelData.value)
+                                : false
                         // Identity for the drop target: which row + slot, and
                         // the value/source needed for a cross-row move.
                         property var cOwnerRow: root

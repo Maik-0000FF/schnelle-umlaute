@@ -5,6 +5,7 @@
 #include <QAbstractListModel>
 #include <QChar>
 #include <QQmlEngine>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
@@ -38,6 +39,12 @@ class MappingListModel : public QAbstractListModel {
     // untouched, and manual reorder is locked while this is on (see QML).
     Q_PROPERTY(bool sortByFrequency READ sortByFrequency WRITE setSortByFrequency
                    NOTIFY sortByFrequencyChanged)
+    // Bumped whenever the set of duplicated output values changes, so the chip
+    // warning borders re-evaluate. A value counts as duplicated when it occurs
+    // more than once across ALL rows (twice in one row = a dead cycle slot, or
+    // under two keys = redundancy); the border only informs, never removes.
+    Q_PROPERTY(int duplicateRevision READ duplicateRevision NOTIFY
+                   duplicatesChanged)
 
 public:
     enum Roles {
@@ -60,6 +67,13 @@ public:
     void setProfileFile(const QString &file);
 
     bool composing() const { return composing_; }
+    int duplicateRevision() const { return duplicateRevision_; }
+    // True if this output value occurs more than once across all rows (same row
+    // twice, or under two different keys). Chips carry a warning border either
+    // way, as an informational cue the user can keep or clean up.
+    Q_INVOKABLE bool isDuplicateValue(const QString &value) const {
+        return duplicateValues_.contains(value);
+    }
     bool sortByFrequency() const { return sortByFrequency_; }
     void setSortByFrequency(bool v);
     // Sort a row's variants by usage frequency (most-used first) for display,
@@ -126,8 +140,13 @@ Q_SIGNALS:
     void variantWarning(const QString &message);
     void composingChanged();
     void sortByFrequencyChanged();
+    void duplicatesChanged();
 
 private:
+    // Recompute the set of output values that occur more than once across all
+    // rows (entries_ normally, displayRows_ while composing) and bump the
+    // revision if it changed, so the chip warning borders refresh.
+    void recomputeDuplicates();
     // Re-read usage.conf into usageCounts_ (engine-written, editor-read), so the
     // preview sort reflects current usage. Read on toggle and on composed rebuild.
     void reloadUsage();
@@ -184,6 +203,10 @@ private:
     // so the editor preview matches what the runtime cycle would use.
     bool sortByFrequency_ = false;
     schnelle_umlaute::UsageCounts usageCounts_;
+    // Output values occurring more than once across all rows; drives the chip
+    // warning borders. Recomputed on every data change (recomputeDuplicates).
+    QSet<QString> duplicateValues_;
+    int duplicateRevision_ = 0;
 
     QString saveStatus_;
     // Relative to ~/.config/fcitx5/<config subdir>/. Default is the Standard
