@@ -206,6 +206,27 @@ target_link_libraries(testmappinglistmodelio
 add_test(NAME testmappinglistmodelio COMMAND testmappinglistmodelio)
 set_tests_properties(testmappinglistmodelio PROPERTIES TIMEOUT 10)
 
+# Standalone editor — MappingListModel's composed (merge) view. Seeds profile
+# files + merge.conf/usage.conf in a scratch XDG_CONFIG_HOME and drives the
+# base-active model through composing gating, deterministic row order, chip
+# provenance, cascade delete, cross-row move, order override, duplicate
+# detection, and the usage-frequency preview.
+add_executable(testmappinglistmodelmerge
+    testmappinglistmodelmerge.cpp
+    ${PROJECT_SOURCE_DIR}/editor/MappingListModel.cpp)
+set_target_properties(testmappinglistmodelmerge PROPERTIES AUTOMOC ON)
+target_include_directories(testmappinglistmodelmerge PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/editor)
+target_compile_options(testmappinglistmodelmerge PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testmappinglistmodelmerge PRIVATE QT_NO_KEYWORDS)
+target_link_libraries(testmappinglistmodelmerge
+    Qt${QT_MAJOR_VERSION}::Core
+    Qt${QT_MAJOR_VERSION}::DBus
+    Qt${QT_MAJOR_VERSION}::Qml)
+add_test(NAME testmappinglistmodelmerge COMMAND testmappinglistmodelmerge)
+set_tests_properties(testmappinglistmodelmerge PROPERTIES TIMEOUT 10)
+
 # Standalone editor — SettingsModel validators, legacy position migration,
 # app-filter list dedup, and the save/load round-trip against
 # schnelle-umlaute.conf. SettingsModel depends on OverlayDBusClient for
