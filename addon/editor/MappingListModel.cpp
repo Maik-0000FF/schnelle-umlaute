@@ -62,6 +62,13 @@ MappingListModel::MappingListModel(QObject *parent)
     connect(usageWatcher_, &QFileSystemWatcher::directoryChanged, this,
             &MappingListModel::ensureUsageWatch);
     load();
+    // Compute composing_ up front. setProfileFile early-returns when the file is
+    // unchanged, and the default profileFile_ ("mappings.txt") is exactly what
+    // the startup assignment sets when the Standard profile is active, so that
+    // path would skip the refresh and leave the composed view off when Standard
+    // is the merge base. Doing it here covers that case; other profiles still
+    // refresh through setProfileFile on the (changing) assignment.
+    refreshComposedState();
     ensureUsageWatch();
 }
 
@@ -373,6 +380,17 @@ bool MappingListModel::moveVariant(const QString &fromInput,
     auto it = std::find(fromVars.begin(), fromVars.end(), var);
     if (it == fromVars.end())
         return false;
+    if (fromVars.size() == 1) {
+        // Refuse to move the sole variant out: it would leave an empty, invalid
+        // mapping. The chip snaps back; deleting a mapping is the trash button.
+        // Checked before the duplicate warning below, so a refused move never
+        // emits a misleading "is now a duplicate" hint for a move that did not
+        // happen.
+        Q_EMIT errorOccurred(
+            tr("A mapping keeps at least one output; delete the whole mapping "
+               "with the trash button."));
+        return false;
+    }
     auto toVars =
         schnelle_umlaute::splitOutputs(entries_[toRow].output.toStdString());
     if (std::find(toVars.begin(), toVars.end(), var) != toVars.end()) {
@@ -384,14 +402,6 @@ bool MappingListModel::moveVariant(const QString &fromInput,
         Q_EMIT variantWarning(
             tr("“%1” is now a duplicate in this mapping (a dead cycle slot)")
                 .arg(variant));
-    }
-    if (fromVars.size() == 1) {
-        // Refuse to move the sole variant out: it would leave an empty, invalid
-        // mapping. The chip snaps back; deleting a mapping is the trash button.
-        Q_EMIT errorOccurred(
-            tr("A mapping keeps at least one output; delete the whole mapping "
-               "with the trash button."));
-        return false;
     }
     fromVars.erase(it);
     toVars.push_back(var);
