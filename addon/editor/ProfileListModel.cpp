@@ -1,6 +1,7 @@
 #include "ProfileListModel.h"
 #include "FcitxReload.h"
 #include "editor_paths.h"
+#include "merge_manifest_io.h"
 #include "preset_meta.h"
 #include "preset_paths.h"
 
@@ -13,6 +14,10 @@
 #include <QSaveFile>
 #include <QTextStream>
 #include <QVariantMap>
+
+#include <algorithm>
+#include <cstdio>
+#include <set>
 
 namespace {
 
@@ -45,6 +50,23 @@ QString configDir() { return schnelle_umlaute::configDirPath(); }
 
 QString profilesConfPath() {
     return configDir() + QLatin1String(kProfilesConf);
+}
+
+QString mergeConfPath() {
+    return configDir() + QLatin1String(schnelle_umlaute::kMergeConf);
+}
+
+// Read merge.conf via the shared parser (the same format the engine reads), so
+// the editor and engine can never disagree on the manifest layout. Absent file
+// yields an empty manifest (no base).
+schnelle_umlaute::MergeManifest readMergeConf() {
+    schnelle_umlaute::MergeManifest m;
+    FILE *fp = std::fopen(mergeConfPath().toUtf8().constData(), "r");
+    if (fp) {
+        m = schnelle_umlaute::parseMergeManifest(fp);
+        std::fclose(fp);
+    }
+    return m;
 }
 
 } // namespace
@@ -475,6 +497,24 @@ bool ProfileListModel::removeProfile(int row) {
             Q_EMIT dataChanged(idx, idx, {IsActiveRole});
         }
     }
+    // Maintain the merge manifest on delete (the only lifecycle event that
+    // touches it, since refs are Files and File is stable across rename):
+    // deleting the base dissolves the whole merge, deleting an appended source
+    // prunes just that ref.
+    bool mergeTouched = false;
+    if (!mergeBase_.isEmpty() && file == mergeBase_) {
+        mergeBase_.clear();
+        mergeSources_.clear();
+        mergeTouched = true;
+    } else {
+        const int mi = mergeSources_.indexOf(file);
+        if (mi >= 0) {
+            mergeSources_.removeAt(mi);
+            mergeTouched = true;
+        }
+    }
+    if (mergeTouched)
+        saveMergeState();
     // Let the editor reset its edit target if it was pointing at this file.
     Q_EMIT profileRemoved(file);
     save();
@@ -730,6 +770,13 @@ void ProfileListModel::load() {
     // save() also fires the engine reload so the new entries take effect.
     if (dirty)
         save();
+
+    // Load the merge manifest and drop any ref to a profile that no longer
+    // exists (deleted out from under a stale merge.conf), persisting the prune
+    // so the dangling entry does not resurface.
+    loadMergeState();
+    if (pruneMergeState())
+        saveMergeState();
 }
 
 void ProfileListModel::reloadActiveFromDisk() {
@@ -806,4 +853,112 @@ bool ProfileListModel::save() {
     Q_EMIT changed();
     reloadSchnelleUmlauteAddon();
     return true;
+}
+
+void ProfileListModel::loadMergeState() {
+    const schnelle_umlaute::MergeManifest m = readMergeConf();
+    mergeBase_ = QString::fromStdString(m.base);
+    mergeSources_.clear();
+    for (const auto &s : m.sources)
+        mergeSources_ << QString::fromStdString(s);
+}
+
+void ProfileListModel::saveMergeState() {
+    const QString path = mergeConfPath();
+    // Fully dissolved (no base): remove merge.conf so the engine reads "no
+    // merge", mirroring how the profile sidecars are deleted when empty.
+    if (mergeBase_.isEmpty()) {
+        QFile::remove(path);
+        Q_EMIT mergeChanged();
+        reloadSchnelleUmlauteAddon();
+        return;
+    }
+    // Preserve the per-base order overrides already on disk, but drop any
+    // instance whose source ref is no longer part of the merge; the base and
+    // sources are replaced with the current in-memory selection.
+    schnelle_umlaute::MergeManifest m = readMergeConf();
+    m.base = mergeBase_.toStdString();
+    m.sources.clear();
+    std::set<std::string> valid;
+    valid.insert(mergeBase_.toStdString());
+    for (const QString &s : mergeSources_) {
+        m.sources.push_back(s.toStdString());
+        valid.insert(s.toStdString());
+    }
+    for (auto it = m.order.begin(); it != m.order.end();) {
+        auto &insts = it->second;
+        insts.erase(std::remove_if(insts.begin(), insts.end(),
+                                   [&valid](const schnelle_umlaute::Variant &v) {
+                                       return valid.find(v.sourceRef) ==
+                                              valid.end();
+                                   }),
+                    insts.end());
+        if (insts.empty())
+            it = m.order.erase(it);
+        else
+            ++it;
+    }
+
+    const std::string data = schnelle_umlaute::serializeMergeManifest(m);
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        Q_EMIT errorOccurred(file.errorString());
+        return;
+    }
+    const QByteArray buf = QByteArray::fromStdString(data);
+    if (file.write(buf) != buf.size() || !file.commit()) {
+        Q_EMIT errorOccurred(file.errorString());
+        return;
+    }
+    Q_EMIT mergeChanged();
+    // A merge on the active base recomposes only after the engine reloads.
+    reloadSchnelleUmlauteAddon();
+}
+
+bool ProfileListModel::pruneMergeState() {
+    bool pruned = false;
+    if (!mergeBase_.isEmpty() && !fileExists(mergeBase_, -1)) {
+        // The base profile is gone: the whole merge is anchored to it, so it
+        // dissolves rather than pruning a single ref.
+        mergeBase_.clear();
+        mergeSources_.clear();
+        return true;
+    }
+    for (int i = static_cast<int>(mergeSources_.size()) - 1; i >= 0; --i) {
+        if (!fileExists(mergeSources_[i], -1)) {
+            mergeSources_.removeAt(i);
+            pruned = true;
+        }
+    }
+    return pruned;
+}
+
+void ProfileListModel::toggleMerge(const QString &file) {
+    if (file.isEmpty() || !isSafeProfileFile(file))
+        return;
+    if (mergeBase_.isEmpty()) {
+        mergeBase_ = file; // first pick becomes the base
+    } else if (file == mergeBase_) {
+        mergeBase_.clear(); // clicking the base again dissolves the merge
+        mergeSources_.clear();
+    } else {
+        const int i = mergeSources_.indexOf(file);
+        if (i >= 0)
+            mergeSources_.removeAt(i); // toggle an appended source off
+        else
+            mergeSources_.append(file); // append in click order
+    }
+    saveMergeState();
+}
+
+bool ProfileListModel::isMergeBase(const QString &file) const {
+    return !mergeBase_.isEmpty() && file == mergeBase_;
+}
+
+int ProfileListModel::mergeOrder(const QString &file) const {
+    if (!mergeBase_.isEmpty() && file == mergeBase_)
+        return 0;
+    const int i = mergeSources_.indexOf(file);
+    return i >= 0 ? i + 1 : -1;
 }

@@ -319,3 +319,38 @@ target_compile_options(testcarettheme PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testcarettheme Qt${QT_MAJOR_VERSION}::Core)
 add_test(NAME testcarettheme COMMAND testcarettheme)
 set_tests_properties(testcarettheme PROPERTIES TIMEOUT 10)
+
+# Pure base-anchored merge compose (profile_compose.h): duplicate-preserving
+# composition with per-instance provenance, self-healing order overrides, and
+# the runtime unique-value projection. No fcitx/Qt runtime needed.
+add_executable(testprofilecompose testprofilecompose.cpp)
+target_include_directories(testprofilecompose PRIVATE ${PROJECT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testprofilecompose PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testprofilecompose COMMAND testprofilecompose)
+set_tests_properties(testprofilecompose PROPERTIES TIMEOUT 10)
+
+# Pure merge-manifest IO (merge_manifest_io.h): the tab-separated base +
+# ordered sources + per-base order-override round-trip, shared by engine and
+# editor. No fcitx/Qt runtime needed.
+add_executable(testmergemanifestio testmergemanifestio.cpp)
+target_include_directories(testmergemanifestio PRIVATE ${PROJECT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testmergemanifestio PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testmergemanifestio COMMAND testmergemanifestio)
+set_tests_properties(testmergemanifestio PROPERTIES TIMEOUT 10)
+
+# Pure usage-counter IO (usage_io.h): the engine-written / editor-read counter
+# file round-trip and malformed-line tolerance. No fcitx/Qt runtime needed.
+add_executable(testusageio testusageio.cpp)
+target_include_directories(testusageio PRIVATE ${PROJECT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testusageio PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testusageio COMMAND testusageio)
+set_tests_properties(testusageio PROPERTIES TIMEOUT 10)
+
+# Pure frequency-sort comparator (usage_sort.h): descending by count, stable
+# tie-break on stored order, no-op on all-zero stats. The single comparator the
+# engine and the editor both call. No fcitx/Qt runtime needed.
+add_executable(testusagesort testusagesort.cpp)
+target_include_directories(testusagesort PRIVATE ${PROJECT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testusagesort PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testusagesort COMMAND testusagesort)
+set_tests_properties(testusagesort PROPERTIES TIMEOUT 10)

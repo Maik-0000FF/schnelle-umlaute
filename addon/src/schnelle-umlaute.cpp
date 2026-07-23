@@ -24,6 +24,7 @@
 #include "hand_classifier.h"
 #include "mappings_loader.h"
 #include "overlay_protocol.h"
+#include "usage_sort.h"
 #include "profile_cycle.h"
 #include "profile_paths.h"
 #include <fcitx-utils/key.h>
@@ -53,8 +54,18 @@ public:
         instance_->inputContextManager().registerProperty(
             "schnelle-umlaute-state", &factory_);
 
+        // Load the usage counters once, before reloadConfig() builds the first
+        // runtime map (which frequency-sorts from them). Never re-read after:
+        // the in-memory table is the source of truth for the rest of the
+        // session, so a later reloadConfig() cannot discard unflushed counts.
+        usageCounts_ = schnelle_umlaute::loadUsage();
         reloadConfig();
+        schedulePeriodicUsageFlush();
     }
+
+    // Persist any pending usage counts on shutdown (addon unload), the last
+    // flush after the periodic timer and focus-out flushes during the session.
+    ~SchnelleUmlauteEngine() override { flushUsage(); }
 
     // Returns a single-ExternalOption config so fcitx5-config-qt / KDE KCM
     // hit the "only external" fast path and launch schnelle-umlaute-editor
@@ -98,9 +109,12 @@ public:
             // ICs in a cycling state that references a now-removed entry
             // (e.g. mapping shortened from "ä,ae" to "ä" while held).
             wipeAllGestureState();
-            // If RawConfig contains mapping data, use it directly.
-            // Otherwise, reload from file (normal configtool path).
-            umlautMap_.clear();
+            // If RawConfig contains mapping data, use it directly (the editor
+            // pushing the active profile's mappings live). Otherwise reload
+            // from file (normal configtool path). Either way the result still
+            // goes through finish/buildRuntimeMap so the merge and the
+            // frequency sort apply to the pushed base too.
+            UmlautMap pushed;
             for (int i = 0;; ++i) {
                 auto input = config.valueByPath(std::to_string(i) + "/Input");
                 auto output = config.valueByPath(std::to_string(i) + "/Output");
@@ -114,13 +128,11 @@ public:
                                      << " — skipped";
                         continue;
                     }
-                    umlautMap_[*input] = std::move(outputs);
+                    pushed[*input] = std::move(outputs);
                 }
             }
-            if (umlautMap_.empty()) {
-                umlautMap_ =
-                    schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
-            }
+            umlautMap_ = pushed.empty() ? buildRuntimeMap()
+                                        : finishRuntimeMap(std::move(pushed));
             FCITX_INFO() << "Schnelle: Mappings reloaded, count="
                          << umlautMap_.size();
         }
@@ -313,6 +325,8 @@ public:
                     state->cyclingIndex_ < it->second.size()) {
                     ic->inputPanel().reset();
                     ic->commitString(it->second[state->cyclingIndex_]);
+                    recordUsage(*state->cyclingInput_,
+                                it->second[state->cyclingIndex_]);
                     ic->updatePreedit();
                     state->recentlyCommitted_ = true;
                 }
@@ -538,6 +552,7 @@ public:
                         // output.
                         ic->inputPanel().reset();
                         ic->commitString(it->second[0]);
+                        recordUsage(*state->cyclingInput_, it->second[0]);
                         ic->updatePreedit();
                         state->recentlyCommitted_ = true;
                         // Arm auto-repeat suppression for the held input key.
@@ -647,6 +662,7 @@ public:
                         ic->inputPanel().reset();
                         ic->updatePreedit();
                         ic->commitString(it->second[0]);
+                        recordUsage(*state->waitingKey_, it->second[0]);
                         // Arm auto-repeat suppression for the still-held key.
                         // Suppresses on X11 and KWin/Wayland alike (issue #92
                         // hole 2); the frozen press time in committed_ keeps the
@@ -817,6 +833,9 @@ public:
         // Focus left this context: drop any visible overlay (cycling picker or
         // trigger preview) so it doesn't linger over another window.
         overlayHide();
+        // Focus-out is the main batched flush point for the usage counters, so
+        // switching windows persists what was typed without a write per commit.
+        flushUsage();
     }
 
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
@@ -886,6 +905,11 @@ public:
     }
 
 private:
+    // The engine builds and rewrites this runtime table type in several places
+    // (merge compose, frequency sort, live pushes); alias the loader's type so
+    // those member signatures stay readable in this fcitx namespace.
+    using UmlautMap = schnelle_umlaute::UmlautMap;
+
     // Map a profile's stored File ("mappings.txt" or "profiles/<slug>.txt") to
     // the loader path relative to the addon config dir. Empty File defaults to
     // the legacy Standard mappings.txt.
@@ -905,16 +929,126 @@ private:
     // name never leaves the engine without mappings. An empty profile list is
     // the pre-profiles / fresh-install state and maps to mappings.txt, keeping
     // behavior unchanged until the editor seeds profiles.conf.
-    std::string activeProfileFile() const {
+    // The active profile's bare File field ("mappings.txt" or
+    // "profiles/<slug>.txt"), before the config-dir prefix. This is the form
+    // the merge manifest stores its base/source refs in, so the merge check
+    // compares against it directly.
+    std::string activeBareFile() const {
         const auto &profs = *profiles_.profiles;
         if (profs.empty())
-            return profileRelPath(schnelle_umlaute::kMappingsFile);
+            return schnelle_umlaute::kMappingsFile;
         const std::string &active = *profiles_.active;
         for (const auto &p : profs) {
             if (*p.name == active)
-                return profileRelPath(*p.file);
+                return *p.file;
         }
-        return profileRelPath(*profs.front().file);
+        return *profs.front().file;
+    }
+
+    std::string activeProfileFile() const {
+        return profileRelPath(activeBareFile());
+    }
+
+    // The runtime mapping table for the active profile: its own mappings,
+    // composed with the merge (only when the active profile is the merge base),
+    // then frequency-sorted (only when the toggle is on). The single place the
+    // engine turns a profile into what keyEvent cycles through.
+    UmlautMap buildRuntimeMap() {
+        return finishRuntimeMap(
+            schnelle_umlaute::loadMappingsFromFile(activeProfileFile()));
+    }
+
+    // Apply the merge and the frequency sort to an already-loaded base map.
+    // Shared by buildRuntimeMap (loads from file) and setSubConfig (uses the
+    // mappings the editor just pushed for the active profile).
+    UmlautMap finishRuntimeMap(UmlautMap base) {
+        UmlautMap map = applyMergeIfBaseActive(std::move(base));
+        applyFrequencySort(map);
+        return map;
+    }
+
+    // Compose the base map with the appended source profiles, but ONLY when the
+    // active profile is the manifest's chosen base. Any other active profile
+    // (or no manifest) is returned untouched, so the merge never "wanders" onto
+    // a profile that is not its base. Duplicates are collapsed by value for the
+    // runtime cycle (projectUnique); the editor keeps the full instance list.
+    UmlautMap applyMergeIfBaseActive(UmlautMap active) {
+        const schnelle_umlaute::MergeManifest m =
+            schnelle_umlaute::loadMergeManifest();
+        if (m.base.empty() || m.base != activeBareFile())
+            return active;
+        // Load each appended source once; keep the maps alive for compose().
+        std::vector<UmlautMap> extra;
+        std::vector<std::string> extraRefs;
+        extra.reserve(m.sources.size());
+        extraRefs.reserve(m.sources.size());
+        for (const auto &src : m.sources) {
+            if (src == m.base || !schnelle_umlaute::isSafeProfileFile(src))
+                continue; // base is source 0; unsafe/dangling refs are dropped
+            extra.push_back(
+                schnelle_umlaute::loadMappingsFromFile(profileRelPath(src)));
+            extraRefs.push_back(src);
+        }
+        std::vector<schnelle_umlaute::ComposeSource> sources;
+        sources.reserve(extra.size() + 1);
+        sources.push_back({m.base, &active});
+        for (size_t i = 0; i < extra.size(); ++i)
+            sources.push_back({extraRefs[i], &extra[i]});
+        return schnelle_umlaute::projectUnique(
+            schnelle_umlaute::compose(sources, m.order));
+    }
+
+    // Reorder each base's variants by usage (most-used first) when the toggle
+    // is on. Non-destructive: the stored order is the input, the sort only
+    // rearranges the in-memory runtime copy, and with no counts for a base the
+    // stored order is kept (sortVariantsByUsage is a stable no-op on zero
+    // counts). Uses the one shared comparator so the editor preview matches.
+    void applyFrequencySort(UmlautMap &map) {
+        if (!*config_.behavior->sortByFrequency)
+            return;
+        for (auto &kv : map) {
+            auto it = usageCounts_.find(kv.first);
+            if (it == usageCounts_.end())
+                continue;
+            kv.second =
+                schnelle_umlaute::sortVariantsByUsage(kv.second, it->second);
+        }
+    }
+
+    // Count one committed variant. Cheap in-memory increment; the table is
+    // flushed to disk in batches (focus-out, periodic timer, shutdown), never
+    // per keystroke, so a fast typist never triggers a write per commit.
+    void recordUsage(const std::string &base, const std::string &variant) {
+        if (base.empty() || variant.empty())
+            return;
+        ++usageCounts_[base][variant];
+        usageDirty_ = true;
+    }
+
+    // Persist the usage table if it changed since the last write.
+    void flushUsage() {
+        if (!usageDirty_)
+            return;
+        if (schnelle_umlaute::saveUsage(usageCounts_))
+            usageDirty_ = false;
+    }
+
+    // Re-arming timer that flushes the usage table periodically, so a long
+    // session in a single window (which never fires deactivate) still persists
+    // its counts. setTime + setOneShot re-arms the same source; recreating it
+    // inside its own callback would free the running source.
+    static constexpr int kUsageFlushIntervalMs = 60'000;
+    void schedulePeriodicUsageFlush() {
+        const uint64_t interval = static_cast<uint64_t>(kUsageFlushIntervalMs) *
+                                  kMicrosecondsPerMillisecond;
+        usageFlushEvent_ = instance_->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, SchnelleUmlauteState::nowUsec() + interval, 0,
+            [this, interval](EventSourceTime *source, uint64_t) {
+                flushUsage();
+                source->setTime(SchnelleUmlauteState::nowUsec() + interval);
+                source->setOneShot();
+                return true;
+            });
     }
 
     // Parse a combo string to a Key, or an invalid Key if it is empty or
@@ -992,6 +1126,7 @@ private:
                 ic->inputPanel().reset();
                 ic->updatePreedit();
                 ic->commitString(it->second[st->cyclingIndex_]);
+                recordUsage(*st->cyclingInput_, it->second[st->cyclingIndex_]);
             }
         } else if (st->waitingKey_) {
             commitPendingKey(ic, st);
@@ -1011,7 +1146,7 @@ private:
         st->heldRawCodes_ = std::move(heldKeys);
         st->committed_ = heldCommitted;
         profiles_.active.setValue(name);
-        umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
+        umlautMap_ = buildRuntimeMap();
         safeSaveAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +
                                      "/" + schnelle_umlaute::kProfilesConf);
         flashProfileName(ic, name);
@@ -1068,7 +1203,7 @@ private:
     // Shared by setConfig (values already loaded) and reloadConfig (read from
     // disk).
     void applyConfig() {
-        umlautMap_ = schnelle_umlaute::loadMappingsFromFile(activeProfileFile());
+        umlautMap_ = buildRuntimeMap();
         rebuildProfileShortcuts();
 
         // Sanitize custom leader key: trim whitespace, keep only first
@@ -1225,6 +1360,8 @@ private:
                         state->cyclingIndex_ < it->second.size()) {
                         ctx->inputPanel().reset();
                         ctx->commitString(it->second[state->cyclingIndex_]);
+                        recordUsage(*state->cyclingInput_,
+                                    it->second[state->cyclingIndex_]);
                         ctx->updatePreedit();
                         state->recentlyCommitted_ = true;
                     }
@@ -1305,6 +1442,7 @@ private:
             state->cyclingIndex_ < it->second.size()) {
             ic->inputPanel().reset();
             ic->commitString(it->second[state->cyclingIndex_]);
+            recordUsage(cyclingInput, it->second[state->cyclingIndex_]);
             ic->updatePreedit();
             state->recentlyCommitted_ = true;
         }
@@ -1683,6 +1821,14 @@ private:
 
     // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
+
+    // Per-(base char, committed variant) usage counters. Loaded once at
+    // startup, incremented in memory on every variant commit, and flushed to
+    // disk in batches (focus-out, periodic timer, shutdown). The frequency sort
+    // reads them; the editor reads the flushed file to preview the same order.
+    schnelle_umlaute::UsageCounts usageCounts_;
+    bool usageDirty_ = false;
+    std::unique_ptr<EventSourceTime> usageFlushEvent_;
     // The character each custom leader printed when it was captured. Not used
     // for matching, only for log messages and the mapped-input collision
     // warning.

@@ -233,12 +233,24 @@ FCITX_CONFIGURATION(
     Option<OverlayColumn> column{this, "Column", "Horizontal position",
                                  OverlayColumn::Col4};);
 
+// Behavior toggles that are neither timing, leader, nor overlay. Its own group
+// so a plain bool does not sit loose in SchnelleUmlauteConfig. SortByFrequency
+// reorders each key's cycling variants by how often the user commits them
+// (most-used first); it is non-destructive — the stored order is untouched and
+// returns when the toggle is off.
+FCITX_CONFIGURATION(
+    BehaviorConfig,
+    Option<bool> sortByFrequency{
+        this, "SortByFrequency",
+        "Sort each key's variants by how often you use them", false};);
+
 FCITX_CONFIGURATION(
     SchnelleUmlauteConfig, Option<DelayConfig> delay{this, "Delay", "Delay"};
     Option<LeaderConfig> leader{this, "Leader", "Leader Keys"};
     Option<MappingsConfig> mappings{this, "Mappings", "Mappings"};
     Option<AppFilterConfig> appFilter{this, "AppFilter", "App Filter"};
-    Option<OverlayConfig> overlay{this, "Overlay", "Overlay"};);
+    Option<OverlayConfig> overlay{this, "Overlay", "Overlay"};
+    Option<BehaviorConfig> behavior{this, "Behavior", "Behavior"};);
 
 // Mapping profiles. A profile is a named mapping set; the active one feeds
 // umlautMap_. These live in a SEPARATE file (schnelle-umlaute/profiles.conf),
