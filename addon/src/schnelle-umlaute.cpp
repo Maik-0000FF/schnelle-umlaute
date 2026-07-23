@@ -60,7 +60,6 @@ public:
         // session, so a later reloadConfig() cannot discard unflushed counts.
         usageCounts_ = schnelle_umlaute::loadUsage();
         reloadConfig();
-        schedulePeriodicUsageFlush();
     }
 
     // Persist any pending usage counts on shutdown (addon unload), the last
@@ -1023,6 +1022,12 @@ private:
     void recordUsage(const std::string &base, const std::string &variant) {
         if (base.empty() || variant.empty())
             return;
+        // Count only while the sort is on. Off means no new counting, no timer
+        // and no writes; the accumulated counts stay in memory and in usage.conf
+        // (loaded once at startup), so turning the sort off then on resumes from
+        // the same counts instead of losing them, and a reboot preserves them.
+        if (!*config_.behavior->sortByFrequency)
+            return;
         ++usageCounts_[base][variant];
         usageDirty_ = true;
         // Re-sort this key's cycle live from its stored order, so the next
@@ -1030,13 +1035,11 @@ private:
         // committing gesture has just ended, so its own cycle is not disturbed.
         // Re-sorting from storedMap_ (not the already-sorted umlautMap_) keeps
         // the tie-break on stored order, so runtime and editor preview agree.
-        if (*config_.behavior->sortByFrequency) {
-            auto sit = storedMap_.find(base);
-            auto it = umlautMap_.find(base);
-            if (sit != storedMap_.end() && it != umlautMap_.end())
-                it->second = schnelle_umlaute::sortVariantsByUsage(
-                    sit->second, usageCounts_[base]);
-        }
+        auto sit = storedMap_.find(base);
+        auto it = umlautMap_.find(base);
+        if (sit != storedMap_.end() && it != umlautMap_.end())
+            it->second = schnelle_umlaute::sortVariantsByUsage(
+                sit->second, usageCounts_[base]);
     }
 
     // Persist the usage table if it changed since the last write.
@@ -1063,6 +1066,24 @@ private:
                 source->setOneShot();
                 return true;
             });
+    }
+
+    // Start or stop usage tracking to match the SortByFrequency toggle, called
+    // from applyConfig on every config (re)load. On: arm the periodic flush
+    // timer (recordUsage counts). Off: flush what accumulated, then drop the
+    // timer and stop counting. The in-memory counts and usage.conf are kept
+    // either way (usage.conf is loaded once at startup and never deleted here),
+    // so toggling off is a pause: turning it back on resumes from the same
+    // counts, and a reboot preserves them. A user who never enables the sort
+    // gets no timer, no writes and no usage.conf at all.
+    void applyUsageTracking() {
+        if (*config_.behavior->sortByFrequency) {
+            if (!usageFlushEvent_)
+                schedulePeriodicUsageFlush();
+        } else {
+            flushUsage();
+            usageFlushEvent_.reset();
+        }
     }
 
     // Parse a combo string to a Key, or an invalid Key if it is empty or
@@ -1219,6 +1240,7 @@ private:
     void applyConfig() {
         umlautMap_ = buildRuntimeMap();
         rebuildProfileShortcuts();
+        applyUsageTracking();
 
         // Sanitize custom leader key: trim whitespace, keep only first
         // UTF-8 character.  Cached for runtime use — the config file
