@@ -41,8 +41,10 @@ using schnelle_umlaute_tests::TempXdgConfigHome;
 
 namespace {
 
-const QString kBase = QStringLiteral("profiles/base.txt");
-const QString kSrc = QStringLiteral("profiles/src.txt");
+// Profile refs used across the tests. Functions (not namespace-scope QString
+// constants) so no throwing constructor runs during static initialization.
+QString kBase() { return QStringLiteral("profiles/base.txt"); }
+QString kSrc() { return QStringLiteral("profiles/src.txt"); }
 
 // Write a profile file through a throwaway model, so the on-disk format is
 // exactly what the editor writes (addMapping() persists via save()). A
@@ -84,14 +86,14 @@ void writeUsageConf(const schnelle_umlaute::UsageCounts &counts) {
 // A merge with base + one appended source; no order override.
 schnelle_umlaute::MergeManifest baseAndSource() {
     schnelle_umlaute::MergeManifest mf;
-    mf.base = kBase.toStdString();
-    mf.sources = {kSrc.toStdString()};
+    mf.base = kBase().toStdString();
+    mf.sources = {kSrc().toStdString()};
     return mf;
 }
 
 // Open the base as the edit target so composing() turns on.
 void openBase(MappingListModel &m) {
-    m.setProfileFile(kBase);
+    m.setProfileFile(kBase());
     EXPECT(m.composing());
 }
 
@@ -135,23 +137,23 @@ std::string fileVariants(const QString &relFile, const std::string &input) {
 
 // No manifest → no base → the model stays in the plain view even on a profile.
 void testComposingFalseWithoutManifest() {
-    writeProfile(kBase, {{"a", "ä"}});
+    writeProfile(kBase(), {{"a", "ä"}});
     MappingListModel m;
-    m.setProfileFile(kBase);
+    m.setProfileFile(kBase());
     EXPECT(!m.composing());
 }
 
 // Composing turns on only when the edit target IS the manifest base; any other
 // profile (here the appended source) stays plain, so the merge never wanders.
 void testComposingGatedOnBase() {
-    writeProfile(kBase, {{"a", "ä"}});
-    writeProfile(kSrc, {{"o", "ö"}});
+    writeProfile(kBase(), {{"a", "ä"}});
+    writeProfile(kSrc(), {{"o", "ö"}});
     writeMergeConf(baseAndSource());
 
     MappingListModel m;
-    m.setProfileFile(kBase);
+    m.setProfileFile(kBase());
     EXPECT(m.composing());
-    m.setProfileFile(kSrc);
+    m.setProfileFile(kSrc());
     EXPECT(!m.composing());
 }
 
@@ -160,8 +162,8 @@ void testComposingGatedOnBase() {
 // The composed view lists the base's own rows plus the base chars that only the
 // appended source carries.
 void testComposedShowsBaseAndAppendedRows() {
-    writeProfile(kBase, {{"a", "ä"}});
-    writeProfile(kSrc, {{"o", "ö"}});
+    writeProfile(kBase(), {{"a", "ä"}});
+    writeProfile(kSrc(), {{"o", "ö"}});
     writeMergeConf(baseAndSource());
 
     MappingListModel m;
@@ -174,10 +176,10 @@ void testComposedShowsBaseAndAppendedRows() {
 // Appended-only rows follow the SOURCE file order, not the arbitrary iteration
 // order of a map — the base's own rows first, then the source's in file order.
 void testComposedRowOrderFollowsFileOrder() {
-    writeProfile(kBase, {{"a", "ä"}});
+    writeProfile(kBase(), {{"a", "ä"}});
     // File order z, m, b — deliberately not sorted, so a map-iteration order
     // would almost certainly differ.
-    writeProfile(kSrc, {{"z", "Z"}, {"m", "M"}, {"b", "B"}});
+    writeProfile(kSrc(), {{"z", "Z"}, {"m", "M"}, {"b", "B"}});
     writeMergeConf(baseAndSource());
 
     MappingListModel m;
@@ -192,8 +194,8 @@ void testComposedRowOrderFollowsFileOrder() {
 // Each chip carries its provenance: the value, the 1-based source position
 // (base = 1, first appended source = 2), and the origin file.
 void testComposedVariantProvenance() {
-    writeProfile(kBase, {{"a", "ä"}});
-    writeProfile(kSrc, {{"a", "á"}});
+    writeProfile(kBase(), {{"a", "ä"}});
+    writeProfile(kSrc(), {{"a", "á"}});
     writeMergeConf(baseAndSource());
 
     MappingListModel m;
@@ -204,12 +206,12 @@ void testComposedVariantProvenance() {
     EXPECT(v0.value(QStringLiteral("value")).toString() ==
            QString::fromUtf8("ä"));
     EXPECT(v0.value(QStringLiteral("order")).toInt() == 1);
-    EXPECT(v0.value(QStringLiteral("file")).toString() == kBase);
+    EXPECT(v0.value(QStringLiteral("file")).toString() == kBase());
     const QVariantMap v1 = vs[1].toMap();
     EXPECT(v1.value(QStringLiteral("value")).toString() ==
            QString::fromUtf8("á"));
     EXPECT(v1.value(QStringLiteral("order")).toInt() == 2);
-    EXPECT(v1.value(QStringLiteral("file")).toString() == kSrc);
+    EXPECT(v1.value(QStringLiteral("file")).toString() == kSrc());
 }
 
 // -- cascade delete ---------------------------------------------------------
@@ -217,45 +219,45 @@ void testComposedVariantProvenance() {
 // Deleting a chip that came from an appended source cascades into THAT profile's
 // file, not the base.
 void testRemoveComposedVariantCascadesToSource() {
-    writeProfile(kBase, {{"a", "ä"}});
-    writeProfile(kSrc, {{"o", "ö,ó"}});
+    writeProfile(kBase(), {{"a", "ä"}});
+    writeProfile(kSrc(), {{"o", "ö,ó"}});
     writeMergeConf(baseAndSource());
 
     MappingListModel m;
     openBase(m);
     EXPECT(m.removeComposedVariant(QStringLiteral("o"), QString::fromUtf8("ó"),
-                                   kSrc));
-    EXPECT(fileVariants(kSrc, "o") == "ö");
+                                   kSrc()));
+    EXPECT(fileVariants(kSrc(), "o") == "ö");
     EXPECT(rowOutput(m, rowOf(m, "o")) == QString::fromUtf8("ö"));
 }
 
 // Deleting an own chip edits the base's own file.
 void testRemoveComposedVariantFromBase() {
-    writeProfile(kBase, {{"a", "ä,á"}});
-    writeProfile(kSrc, {{"o", "ö"}});
+    writeProfile(kBase(), {{"a", "ä,á"}});
+    writeProfile(kSrc(), {{"o", "ö"}});
     writeMergeConf(baseAndSource());
 
     MappingListModel m;
     openBase(m);
     EXPECT(m.removeComposedVariant(QStringLiteral("a"), QString::fromUtf8("á"),
-                                   kBase));
-    EXPECT(fileVariants(kBase, "a") == "ä");
+                                   kBase()));
+    EXPECT(fileVariants(kBase(), "a") == "ä");
     EXPECT(rowOutput(m, rowOf(m, "a")) == QString::fromUtf8("ä"));
 }
 
 // Deleting the last chip of a source row drops the whole mapping in the origin
 // file (the composed view has no separate row trash; the chip ✕ is the path).
 void testRemoveComposedLastVariantDropsMapping() {
-    writeProfile(kBase, {{"a", "ä"}});
-    writeProfile(kSrc, {{"x", "X"}});
+    writeProfile(kBase(), {{"a", "ä"}});
+    writeProfile(kSrc(), {{"x", "X"}});
     writeMergeConf(baseAndSource());
 
     MappingListModel m;
     openBase(m);
     EXPECT(m.rowCount() == 2);
     EXPECT(m.removeComposedVariant(QStringLiteral("x"), QStringLiteral("X"),
-                                   kSrc));
-    EXPECT(fileVariants(kSrc, "x").empty());
+                                   kSrc()));
+    EXPECT(fileVariants(kSrc(), "x").empty());
     EXPECT(m.rowCount() == 1);
     EXPECT(rowOf(m, "x") == -1);
 }
@@ -265,32 +267,32 @@ void testRemoveComposedLastVariantDropsMapping() {
 // Moving a chip to another base char re-maps it WITHIN the same source profile:
 // removed from the source's fromInput, appended to its toInput.
 void testMoveComposedVariantWithinSource() {
-    writeProfile(kBase, {{"a", "ä"}});
-    writeProfile(kSrc, {{"e", "é,è"}, {"o", "ö"}});
+    writeProfile(kBase(), {{"a", "ä"}});
+    writeProfile(kSrc(), {{"e", "é,è"}, {"o", "ö"}});
     writeMergeConf(baseAndSource());
 
     MappingListModel m;
     openBase(m);
     EXPECT(m.moveComposedVariant(QStringLiteral("e"), QString::fromUtf8("é"),
-                                 kSrc, QStringLiteral("o")));
-    EXPECT(fileVariants(kSrc, "e") == "è");
-    EXPECT(fileVariants(kSrc, "o") == "ö,é");
+                                 kSrc(), QStringLiteral("o")));
+    EXPECT(fileVariants(kSrc(), "e") == "è");
+    EXPECT(fileVariants(kSrc(), "o") == "ö,é");
     EXPECT(rowOutput(m, rowOf(m, "o")) == QString::fromUtf8("ö,é"));
 }
 
 // Moving out a row's only chip is refused (it would silently drop the mapping);
 // the source file is left untouched.
 void testMoveComposedVariantRefusesLastChip() {
-    writeProfile(kBase, {{"a", "ä"}});
-    writeProfile(kSrc, {{"e", "é"}});
+    writeProfile(kBase(), {{"a", "ä"}});
+    writeProfile(kSrc(), {{"e", "é"}});
     writeMergeConf(baseAndSource());
 
     MappingListModel m;
     openBase(m);
     EXPECT(!m.moveComposedVariant(QStringLiteral("e"), QString::fromUtf8("é"),
-                                  kSrc, QStringLiteral("o")));
-    EXPECT(fileVariants(kSrc, "e") == "é");
-    EXPECT(fileVariants(kSrc, "o").empty());
+                                  kSrc(), QStringLiteral("o")));
+    EXPECT(fileVariants(kSrc(), "e") == "é");
+    EXPECT(fileVariants(kSrc(), "o").empty());
 }
 
 // -- manifest order override ------------------------------------------------
@@ -298,11 +300,11 @@ void testMoveComposedVariantRefusesLastChip() {
 // A per-base order override in merge.conf rearranges the composed chips
 // (anchored on value + source), so a reversed override flips the natural order.
 void testOrderOverrideAppliedInComposed() {
-    writeProfile(kBase, {{"a", "ä"}});
-    writeProfile(kSrc, {{"a", "á"}});
+    writeProfile(kBase(), {{"a", "ä"}});
+    writeProfile(kSrc(), {{"a", "á"}});
     schnelle_umlaute::MergeManifest mf = baseAndSource();
     // Natural order is ä(base), á(source); the override reverses it.
-    mf.order["a"] = {{"á", kSrc.toStdString()}, {"ä", kBase.toStdString()}};
+    mf.order["a"] = {{"á", kSrc().toStdString()}, {"ä", kBase().toStdString()}};
     writeMergeConf(mf);
 
     MappingListModel m;
@@ -315,8 +317,8 @@ void testOrderOverrideAppliedInComposed() {
 // The warning set flags a value that occurs more than once across all composed
 // rows (here the same value under two different keys), and only that value.
 void testDuplicateDetectionAcrossComposedRows() {
-    writeProfile(kBase, {{"a", "ä,á"}});
-    writeProfile(kSrc, {{"o", "ä"}});
+    writeProfile(kBase(), {{"a", "ä,á"}});
+    writeProfile(kSrc(), {{"o", "ä"}});
     writeMergeConf(baseAndSource());
 
     MappingListModel m;
@@ -330,7 +332,7 @@ void testDuplicateDetectionAcrossComposedRows() {
 // sortByUsage orders by stored counts (most-used first) and is a no-op for a
 // base with no recorded usage (keeps the stored order).
 void testSortByUsagePreview() {
-    writeProfile(kBase, {{"a", "ä,á"}});
+    writeProfile(kBase(), {{"a", "ä,á"}});
     schnelle_umlaute::UsageCounts uc;
     uc["a"]["ä"] = 5;
     uc["a"]["á"] = 1;
@@ -352,9 +354,10 @@ void testSortByUsagePreview() {
 // With the toggle on, the composed row itself is reordered by usage, so the
 // preview matches the runtime cycle.
 void testFrequencySortReordersComposedRow() {
-    writeProfile(kBase, {{"a", "ä,á"}});
+    writeProfile(kBase(), {{"a", "ä,á"}});
     schnelle_umlaute::MergeManifest mf;
-    mf.base = kBase.toStdString(); // base with no appended sources still composes
+    // base with no appended sources still composes
+    mf.base = kBase().toStdString();
     writeMergeConf(mf);
     schnelle_umlaute::UsageCounts uc;
     uc["a"]["á"] = 5;
