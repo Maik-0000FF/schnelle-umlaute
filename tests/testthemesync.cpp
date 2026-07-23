@@ -13,25 +13,24 @@
 #include "test_expect.h"
 
 #include <cstdio>
+#include <exception>
+#include <fstream>
 #include <regex>
 #include <set>
+#include <sstream>
 #include <string>
 
 namespace {
 
 std::string readFile(const char *path) {
-    FILE *fp = std::fopen(path, "r");
-    if (!fp) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
         std::fprintf(stderr, "cannot open %s\n", path);
         std::abort();
     }
-    std::string out;
-    char buf[4096];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof(buf), fp)) > 0)
-        out.append(buf, n);
-    std::fclose(fp);
-    return out;
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
 }
 
 // The substring of `s` after `startMarker` up to the next `endChar`.
@@ -56,9 +55,7 @@ std::set<std::string> matches(const std::string &s,
     return out;
 }
 
-} // namespace
-
-int main() {
+void run() {
     const std::string themesH = readFile(THEMES_H_PATH);
     const std::string palettes = readFile(PALETTES_QML_PATH);
 
@@ -86,5 +83,21 @@ int main() {
 
     std::fprintf(stderr, "ok testthemesync (%zu themes in sync)\n",
                  validator.size());
+}
+
+} // namespace
+
+int main() {
+    // std::regex construction can throw regex_error; keep it from escaping
+    // main.
+    try {
+        run();
+    } catch (const std::exception &e) {
+        std::fprintf(stderr, "FAIL testthemesync: %s\n", e.what());
+        return 1;
+    } catch (...) {
+        std::fprintf(stderr, "FAIL testthemesync: unknown exception\n");
+        return 1;
+    }
     return 0;
 }
