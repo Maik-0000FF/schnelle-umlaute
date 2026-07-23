@@ -78,7 +78,10 @@ Rectangle {
                 return;
             }
             // Same row, dropped in the free area (not on a chip): send this
-            // variant to the end, so a drop beside the chips reorders too.
+            // variant to the end, so a drop beside the chips reorders too. Auto-
+            // managed by the frequency sort, so ignore it while that is on.
+            if (root.freqSort)
+                return;
             let order = root.variantList.slice();
             const from = order.indexOf(drop.source.variant);
             if (from < 0)
@@ -147,8 +150,10 @@ Rectangle {
     // Composed (merge) mode: the row shows read-only, provenance-coloured chips
     // from composedVariants instead of the editable output chips, and the
     // per-row edit/delete affordances are hidden (a composed row is not a
-    // single editable mapping; its source lives in another profile).
-    property bool composing: false
+    // single editable mapping; its source lives in another profile). Derived
+    // from modelRef (already injected) rather than passed through root, so a
+    // per-row binding never chains through an id that can be momentarily unset.
+    readonly property bool composing: modelRef ? modelRef.composing : false
     property var composedVariantList: []
     // Resolves a composed chip's source File to the profile's display name for
     // the provenance tag; null outside the composed view.
@@ -403,6 +408,11 @@ Rectangle {
                                 drop.source.variant, root.inputText);
                             return;
                         }
+                        // Intra-row reorder is auto-managed by the frequency
+                        // sort, so ignore a same-row drop while it is on (the
+                        // cross-row move above still ran).
+                        if (root.freqSort)
+                            return;
                         let order = root.variantList.slice();
                         const from = order.indexOf(drop.source.variant);
                         if (from < 0)
@@ -468,13 +478,13 @@ Rectangle {
                             id: dragMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            // Manual reorder is locked while the frequency sort
-                            // is on (you cannot hand-order what is auto-ordered);
-                            // the ✕ stays active. Hover still tracks for the
-                            // remove affordance.
-                            drag.target: root.freqSort ? null : chip
-                            cursorShape: root.freqSort ? Qt.ArrowCursor
-                                                       : Qt.SizeAllCursor
+                            // Dragging stays enabled even with the frequency sort
+                            // on: the sort only manages the order WITHIN a row, so
+                            // an intra-row reorder is ignored on drop (below), but
+                            // a cross-row move to another key is unaffected and
+                            // still works.
+                            drag.target: chip
+                            cursorShape: Qt.SizeAllCursor
                             // Keep the grab so a scrollable list doesn't steal
                             // the chip drag and pan the page instead.
                             preventStealing: true
@@ -490,9 +500,11 @@ Rectangle {
                         }
 
                         ThemedToolTip {
-                            hovered: dragMouse.containsMouse && !root.freqSort
+                            hovered: dragMouse.containsMouse
                                      && !chipX.containsMouse && !chip.Drag.active
-                            text: qsTr("Drag to reorder")
+                            text: root.freqSort
+                                ? qsTr("Drag to another key to move")
+                                : qsTr("Drag to reorder, or to another key to move")
                         }
 
                         RowLayout {
@@ -584,6 +596,19 @@ Rectangle {
                         readonly property int srcOrder: cDrop.modelData.order
                         readonly property color srcColor:
                             Theme.mergeSourceColor(cchip.srcOrder)
+                        // Same value appears more than once in this row: an
+                        // overlap between merged profiles (or a manual duplicate).
+                        // At runtime the engine collapses it, so it is worth
+                        // flagging to clean up.
+                        readonly property bool isDuplicate: {
+                            let n = 0;
+                            for (let i = 0;
+                                 i < root.composedVariantList.length; ++i)
+                                if (root.composedVariantList[i].value
+                                    === cDrop.modelData.value)
+                                    ++n;
+                            return n > 1;
+                        }
                         // Identity for the drop target: which row + which slot.
                         property var cOwnerRow: root
                         property int cIndex: cDrop.index
@@ -594,10 +619,10 @@ Rectangle {
                         radius: Theme.radiusSm
                         color: Qt.rgba(cchip.srcColor.r, cchip.srcColor.g,
                                        cchip.srcColor.b, Theme.mergeSourceWashAlpha)
-                        // Neutral border: the tinted background is the provenance
-                        // cue now, so the border does not compete with it (and the
-                        // warning border stays reserved for duplicates).
-                        border.color: Theme.border
+                        // Background carries the provenance; the border stays
+                        // reserved for the duplicate warning (neutral otherwise).
+                        border.color: cchip.isDuplicate ? Theme.warning
+                                                        : Theme.border
                         border.width: 1
                         // Float above the row while dragging (reparented to the
                         // list), so the drag stays visible past the row bounds.
@@ -628,18 +653,14 @@ Rectangle {
                             id: cRow
                             anchors.centerIn: parent
                             spacing: Theme.spacingSm
+                            // Only the background hue marks the source profile;
+                            // no inline name tag. The origin stays discoverable on
+                            // hover (tooltip below).
                             Text {
                                 text: cDrop.modelData.value
                                 color: Theme.text
                                 font.family: Theme.fontFamilyMono
                                 font.pixelSize: Theme.chipFont
-                            }
-                            Text {
-                                text: root.nameForFile(cDrop.modelData.file)
-                                color: cchip.srcColor
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontBody
-                                elide: Text.ElideRight
                             }
                             // Circular ✕: delete this variant from its source
                             // profile (behind a confirm in the parent).

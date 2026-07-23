@@ -348,15 +348,16 @@ Item {
                     required property bool favorite
                     required property string selectKey
                     required property string file
-                    // Position of this profile in the merge (0 = base, 1..N =
-                    // appended, -1 = not merged). Reading mergeBase establishes
-                    // the dependency so the badge re-evaluates on manifestChanged.
-                    readonly property int mergeOrderIdx: {
-                        if (!root.mergeModel)
-                            return -1;
-                        root.mergeModel.mergeBase; // dependency for re-eval
-                        return root.mergeModel.orderIndex(prow.file);
-                    }
+                    // Position of this profile in the merge (1 = base, 2..N =
+                    // appended, -1 = not merged). The mergeBase comparison is not
+                    // a no-op: its VALUE feeds the condition, which keeps the
+                    // dependency on manifestChanged from being optimized away by
+                    // compiled QML (a bare read would be), so the badge
+                    // re-evaluates and renumbers whenever the merge changes.
+                    readonly property int mergeOrderIdx:
+                        (root.mergeModel
+                         && root.mergeModel.mergeBase !== undefined)
+                            ? root.mergeModel.orderIndex(prow.file) : -1
                     width: ListView.view.width
                     height: Theme.rowHeight
                     radius: Theme.radiusSm

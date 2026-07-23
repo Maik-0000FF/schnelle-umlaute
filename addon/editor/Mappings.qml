@@ -292,7 +292,6 @@ Item {
                     rowIndex: index
                     inputText: input
                     outputText: output
-                    composing: root.mappingsModel.composing
                     composedVariantList: composedVariants
                     profilesModel: root.profilesModel
                     modelRef: root.mappingsModel
