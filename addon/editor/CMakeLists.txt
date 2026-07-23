@@ -13,6 +13,7 @@ set(EDITOR_SRCS
     EnvSetup.cpp
     KeyComboUtil.cpp
     MappingListModel.cpp
+    MergeManifestModel.cpp
     OverlayDBusClient.cpp
     ProfileListModel.cpp
     SettingsModel.cpp

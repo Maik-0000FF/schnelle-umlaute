@@ -36,11 +36,6 @@ class ProfileListModel : public QAbstractListModel {
     // Bumped on every persisted change; lets QML combos that build a plain
     // name list rebind when profiles are added/renamed/removed.
     Q_PROPERTY(int revision READ revision NOTIFY changed)
-    // The current merge base profile's File ("" when no merge is configured).
-    // The merge composes this base with the appended source profiles, and only
-    // takes effect at runtime when this base is the active profile. QML binds
-    // the base badge and the composed view to mergeChanged.
-    Q_PROPERTY(QString mergeBase READ mergeBase NOTIFY mergeChanged)
 
 public:
     enum Roles {
@@ -70,24 +65,6 @@ public:
     // Relative File of a row, for binding the MappingListModel edit target.
     Q_INVOKABLE QString fileForRow(int row) const;
     Q_INVOKABLE int activeRow() const;
-
-    // --- Profile merge (base-anchored) -------------------------------------
-    // The merge is one global manifest: a chosen base profile plus appended
-    // source profiles in click order, stored in merge.conf (shared format with
-    // the engine via merge_manifest_io.h). Refs are profile Files, which are
-    // stable across rename, so only delete needs to maintain the manifest.
-    QString mergeBase() const { return mergeBase_; }
-    // The appended source Files, in click order (excludes the base).
-    Q_INVOKABLE QStringList mergeSources() const { return mergeSources_; }
-    // Click a profile's merge control: with no base yet, this file becomes the
-    // base; clicking the base again dissolves the whole merge; any other file
-    // toggles as an appended source (appended in click order, removed if
-    // already present).
-    Q_INVOKABLE void toggleMerge(const QString &file);
-    Q_INVOKABLE bool isMergeBase(const QString &file) const;
-    // Position of a file in the merge: 0 = base, 1..N = appended (click order),
-    // -1 = not in the merge. Doubles as the provenance colour index (0 = base).
-    Q_INVOKABLE int mergeOrder(const QString &file) const;
 
     Q_INVOKABLE bool createProfile(const QString &name);
     // Bundled-preset library: lists the read-only presets shipped with the app
@@ -119,10 +96,6 @@ Q_SIGNALS:
     // Emitted after a profile is deleted, carrying its (now removed) relative
     // file. Lets the Mappings edit target reset if it was pointing at it.
     void profileRemoved(const QString &file);
-    // Bumped whenever the merge manifest (base or appended sources) changes, so
-    // the base badge, the merge order badges, and the composed mapping view
-    // rebuild.
-    void mergeChanged();
     void errorOccurred(const QString &message);
 
 private:
@@ -167,18 +140,6 @@ private:
     static bool isSafeProfileFile(const QString &file);
     void load();
     bool save();
-
-    // Load the merge base + appended sources from merge.conf into memory.
-    void loadMergeState();
-    // Write the current base + sources back to merge.conf, preserving the
-    // per-base order overrides on disk but pruning any whose ref is no longer
-    // part of the merge (base + sources). Triggers an engine reload so a merge
-    // on the active base recomposes. No-op-safe when nothing is configured.
-    void saveMergeState();
-    // Drop merge refs (base or sources) that no longer name an existing
-    // profile, so a deleted-then-recreated file can't look pre-merged. Called
-    // from load(). Returns true if anything was pruned.
-    bool pruneMergeState();
     // Re-read just the Active name from disk before a mutating save, so a
     // profile switched at runtime by the engine (shortcut) is not clobbered by
     // the editor's stale in-memory active_.
@@ -193,13 +154,6 @@ private:
     QString active_;
     QString cycleNext_;
     QString cyclePrev_;
-    // Merge manifest, base-anchored. mergeBase_ is the chosen base profile's
-    // File ("" = no merge); mergeSources_ are the appended source Files in
-    // click order. The per-base order overrides also live in merge.conf but are
-    // owned by MappingListModel (the composed view's reorder), so this model
-    // preserves them on write instead of holding them.
-    QString mergeBase_;
-    QStringList mergeSources_;
     int revision_ = 0;
     // Watches profiles.conf for external writes (the engine persists Active=
     // on every shortcut switch). Owned via the QObject parent.
