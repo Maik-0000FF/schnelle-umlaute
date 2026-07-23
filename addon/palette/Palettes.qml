@@ -455,6 +455,38 @@ QtObject {
             mergeSources: ["#a48cf2", "#04d1f9", "#f265b5", "#37f499",
                            "#7081d0", "#82e2ff"],
             overlay: { frame: "#323449", cellInactive: "#3d3f5a", textInactive: "#ebfafa" }
+        },
+        "kanagawa": {
+            background:   "#1f1f28",
+            surface:      "#2a2a37",
+            surfaceHover: "#363646",
+            border:       "#363646",
+            borderFocus:  "#7e9cd8",
+            accent:       "#7e9cd8",
+            accentHover:  "#9db3e0",
+            accentSoft:   "#7e9cd833",
+            brand:        "#98bb6c",
+            brandHover:   "#aecb87",
+            brandSoft:    "#98bb6c33",
+            text:         "#dcd7ba",
+            textMuted:    "#727169",
+            success:      "#98bb6c",
+            warning:      "#e6c384",
+            error:        "#e82424",
+            errorHover:   "#ff5d62",
+            accentText:   "#1f1f28",
+            highlight:    "#7e9cd8",
+            highlightText: "#1f1f28",
+            switchThumb:  "#dcd7ba",
+            scrim:        "#99000000",
+            active:       "#7e9cd8",
+            activeHover:  "#9db3e0",
+            lead:         "#957fb8",
+            leadHover:    "#a897c4",
+            swatches:     ["#7e9cd8", "#957fb8", "#7aa89f", "#d27e99"],
+            mergeSources: ["#7e9cd8", "#957fb8", "#7aa89f", "#d27e99",
+                           "#98bb6c", "#7fb4ca", "#658594", "#ffa066"],
+            overlay: { frame: "#2a2a37", cellInactive: "#363646", textInactive: "#dcd7ba" }
         }
     })
 
@@ -462,7 +494,8 @@ QtObject {
     readonly property var ids: [
         "schnelle-umlaute", "dark", "light", "contrast",
         "catppuccin-mocha", "catppuccin-latte", "nord", "gruvbox-dark",
-        "dracula", "tokyo-night", "rose-pine", "solarized-light", "eldritch"
+        "dracula", "tokyo-night", "rose-pine", "solarized-light", "eldritch",
+        "kanagawa"
     ]
 
     // Display names for the picker, keyed by id.
@@ -479,7 +512,8 @@ QtObject {
         "tokyo-night": "Tokyo Night",
         "rose-pine": "Rosé Pine",
         "solarized-light": "Solarized Light",
-        "eldritch": "Eldritch"
+        "eldritch": "Eldritch",
+        "kanagawa": "Kanagawa"
     })
 
     function has(id) { return all[id] !== undefined }

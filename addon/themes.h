@@ -19,7 +19,7 @@ inline bool isValidTheme(const QString &name) {
         QStringLiteral("nord"),             QStringLiteral("gruvbox-dark"),
         QStringLiteral("dracula"),          QStringLiteral("tokyo-night"),
         QStringLiteral("rose-pine"),        QStringLiteral("solarized-light"),
-        QStringLiteral("eldritch")};
+        QStringLiteral("eldritch"),         QStringLiteral("kanagawa")};
     return kThemes.contains(name);
 }
 
