@@ -72,6 +72,7 @@ qt_add_qml_module(schnelle-umlaute-editor
         components/LibrarySelector.qml
         components/PositionPicker.qml
         components/ProfileSelector.qml
+        components/ThemeSelector.qml
         components/ThemedComboBox.qml
         components/ThemedTextField.qml
         components/ThemedToolTip.qml
