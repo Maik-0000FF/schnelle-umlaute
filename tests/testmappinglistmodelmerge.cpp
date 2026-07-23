@@ -372,6 +372,21 @@ void testFrequencySortReordersComposedRow() {
            QString::fromUtf8("á,ä")); // most-used first
 }
 
+// -- usage-data presence (drives the reset control) -------------------------
+
+// hasUsageData is true only when usage.conf holds counts, so the reset control
+// is disabled when there is nothing to reset: absent or empty file -> false.
+void testHasUsageData() {
+    MappingListModel m;
+    EXPECT(!m.hasUsageData());
+    schnelle_umlaute::UsageCounts uc;
+    uc["a"]["ä"] = 3;
+    writeUsageConf(uc);
+    EXPECT(m.hasUsageData());
+    writeUsageConf(schnelle_umlaute::UsageCounts{});
+    EXPECT(!m.hasUsageData());
+}
+
 // -- test runner ------------------------------------------------------------
 
 struct TestCase {
@@ -398,6 +413,7 @@ const TestCase kTests[] = {
      testDuplicateDetectionAcrossComposedRows},
     {"testSortByUsagePreview", testSortByUsagePreview},
     {"testFrequencySortReordersComposedRow", testFrequencySortReordersComposedRow},
+    {"testHasUsageData", testHasUsageData},
 };
 
 } // namespace

@@ -272,6 +272,21 @@ target_link_libraries(testprofilesloader Fcitx5::Core)
 add_test(NAME testprofilesloader COMMAND testprofilesloader)
 set_tests_properties(testprofilesloader PROPERTIES TIMEOUT 10)
 
+# Engine-side usage-reset helpers (mappings_loader): the one-shot marker consume
+# (takeUsageResetMarker) and usage.conf delete (deleteUsage), the core of the
+# reset handshake. Same harness as testprofilesloader (mappings_loader +
+# Fcitx5::Core, XDG_CONFIG_HOME redirected to a scratch dir).
+add_executable(testusagereset
+    testusagereset.cpp
+    ${PROJECT_SOURCE_DIR}/src/mappings_loader.cpp)
+target_include_directories(testusagereset PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/src)
+target_compile_options(testusagereset PRIVATE ${SU_TEST_WARN_FLAGS})
+target_link_libraries(testusagereset Fcitx5::Core)
+add_test(NAME testusagereset COMMAND testusagereset)
+set_tests_properties(testusagereset PROPERTIES TIMEOUT 10)
+
 # Editor Qt-to-fcitx combo conversion round-trip: the captured-combo strings
 # must parse with fcitx Key() and match a real press after normalization.
 # Links keycombo.cpp (pure, no QML) + Fcitx5::Core (Key) + Qt Core (QString).

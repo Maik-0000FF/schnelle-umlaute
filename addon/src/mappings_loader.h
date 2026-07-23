@@ -49,6 +49,14 @@ UsageCounts loadUsage();
 // fcitx StandardPaths safeSave (temp file + rename). Returns false on failure.
 bool saveUsage(const UsageCounts &counts);
 
+// Delete usage.conf (the usage counters). No-op if absent. Used by the reset.
+void deleteUsage();
+
+// If the usage-reset request marker (kUsageResetMarker) exists, delete it and
+// return true. The editor drops the marker and reloads the addon; the engine
+// consumes it here to clear the counts and delete usage.conf.
+bool takeUsageResetMarker();
+
 } // namespace schnelle_umlaute
 
 #endif

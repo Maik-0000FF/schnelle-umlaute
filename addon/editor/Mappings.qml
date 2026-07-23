@@ -151,6 +151,57 @@ Item {
                 font.pixelSize: Theme.fontBody
                 text: qsTr("The chips below reorder live to show the effect. Non-destructive: your manual order returns when off, and manual reordering is locked while it is on.")
             }
+
+            Button {
+                id: resetUsageBtn
+                Layout.topMargin: Theme.spacingSm
+                Layout.alignment: Qt.AlignLeft
+                focusPolicy: Qt.TabFocus
+                enabled: root.mappingsModel ? root.mappingsModel.hasUsageData
+                                            : false
+                text: qsTr("Reset usage data")
+                implicitHeight: Theme.controlHeight
+                leftPadding: Theme.spacingMd
+                rightPadding: Theme.spacingMd
+                contentItem: Text {
+                    text: resetUsageBtn.text
+                    color: resetUsageBtn.enabled ? Theme.text : Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontBody
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: resetUsageBtn.enabled && resetUsageBtn.hovered
+                        ? Theme.surfaceHover : "transparent"
+                    border.color: resetUsageBtn.enabled ? Theme.border
+                                                        : Theme.surfaceHover
+                    border.width: 1
+                    Behavior on color { ColorAnimation { duration: Theme.animShort } }
+                }
+                onClicked: {
+                    usageResetConfirm.onConfirmed = () => {
+                        if (root.mappingsModel)
+                            root.mappingsModel.resetUsageCounts();
+                    };
+                    usageResetConfirm.open();
+                }
+                ThemedToolTip {
+                    hovered: resetUsageBtn.hovered
+                    text: qsTr("Clear the learned usage counts. The sort itself stays on; only the frequencies are forgotten.")
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.spacingXs
+                wrapMode: Text.WordWrap
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontBody
+                text: qsTr("Forgets the learned frequencies so the cycle order starts fresh. The sort setting itself is unchanged. This cannot be undone.")
+            }
         }
 
         AddMappingCard {
@@ -387,6 +438,13 @@ Item {
         id: composedDeleteConfirm
         titleText: qsTr("Delete variant")
         confirmText: qsTr("Delete")
+    }
+
+    ConfirmDialog {
+        id: usageResetConfirm
+        titleText: qsTr("Reset usage data")
+        messageText: qsTr("Clear the learned usage frequencies? The sort setting itself stays; only the counts are forgotten. This cannot be undone.")
+        confirmText: qsTr("Reset")
     }
 
     // Display name of a profile File, for the composed-view delete confirm.
