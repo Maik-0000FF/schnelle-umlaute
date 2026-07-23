@@ -215,6 +215,36 @@ QtObject {
     readonly property int chipPaddingH: 12
     readonly property int chipFont:     14
 
+    // Provenance colours for the composed merge view: one hue per source
+    // profile, addressed by merge order (index 0 = base). The list cycles when
+    // more profiles are merged than there are colours; the chip also shows a
+    // text tag with the profile name, so colour is a supplementary cue and
+    // never the only signal (colour alone is not accessible). Defined once here
+    // rather than per component or per theme: these are functional identifiers,
+    // readable on the dark and light surfaces alike.
+    readonly property var mergeSourcePalette: [
+        "#a855f7", // base    (violet)
+        "#38bdf8", // sky
+        "#4ade80", // green
+        "#fbbf24", // amber
+        "#f472b6", // pink
+        "#fb923c", // orange
+        "#a3e635", // lime
+        "#22d3ee"  // cyan
+    ]
+    // Resolve a merge order index (0 = base, 1..N appended) to its provenance
+    // colour, cycling the palette. A negative index (not in the merge) maps to
+    // the neutral border colour.
+    function mergeSourceColor(orderIndex) {
+        if (orderIndex < 0)
+            return border
+        return mergeSourcePalette[orderIndex % mergeSourcePalette.length]
+    }
+    // Chip fill behind a provenance colour: a faint wash of the source hue so
+    // the chip reads as tinted without fighting the mono variant text. The
+    // provenance colour itself is used for the left bar and the text tag.
+    readonly property real mergeSourceWashAlpha: 0.13
+
     // Width of a shortcut-capture field, wide enough to show a longer combo
     // (e.g. "Control+Alt+Super+J") without eliding, including the always-
     // reserved clear-button slot. Shared by the per-profile select-key field
@@ -247,6 +277,14 @@ QtObject {
     readonly property string iconStar:        "★"
     readonly property string iconAdd:         "+"
     readonly property string iconInfo:        "ⓘ"
+    readonly property string iconMerge:       "⧉"
+
+    // Small numeric/letter badge overlaid on the merge control (its position in
+    // the merge, or the base marker). One source for its size, the negative
+    // offset that nudges it onto the glyph's top-right corner, and its font.
+    readonly property int badgeSize:   14
+    readonly property int badgeOffset: 4
+    readonly property int fontBadge:   9
 
     // External links shown in the About dialog, kept here as the single source
     // so the dialog (and any later use) never hard-codes a URL.

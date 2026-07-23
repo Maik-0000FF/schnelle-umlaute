@@ -9,6 +9,7 @@ Item {
     property var mappingsModel: null
     property var settingsModel: null
     property var profilesModel: null
+    property var mergeModel: null
     signal requestSnackbar(string message, color c)
     signal requestUndoSnackbar(string message, var callback)
 
@@ -54,6 +55,7 @@ Item {
                     Layout.fillWidth: true
                     profilesModel: root.profilesModel
                     mappingsModel: root.mappingsModel
+                    mergeModel: root.mergeModel
                     onRequestSnackbar: (msg, c) => root.requestSnackbar(msg, c)
                     onRequestDelete: (index, name) => {
                         profileConfirm.messageText = qsTr(

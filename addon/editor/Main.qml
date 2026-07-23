@@ -359,6 +359,7 @@ ApplicationWindow {
                 mappingsModel: mappings
                 settingsModel: settings
                 profilesModel: profiles
+                mergeModel: merge
                 onRequestSnackbar: (msg, c) => snackbar.show(msg, c)
                 onRequestUndoSnackbar: (msg, cb) => snackbar.showUndo(msg, cb)
             }
