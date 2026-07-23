@@ -42,10 +42,11 @@ public:
     // whichever profile sits at position 1 is the base, and removing it promotes
     // the next. Also the provenance colour index (position 1 -> first colour).
     Q_INVOKABLE int orderIndex(const QString &file) const;
-    // Click a profile's merge control: with no base yet this file becomes the
-    // base; clicking the base again dissolves the whole merge; any other file
-    // toggles as an appended source (appended in click order, removed if
-    // already present).
+    // Click a profile's merge control: a profile not in the merge is appended as
+    // a source in click order (the first clicked becomes the base); a profile
+    // already in the merge is removed. Removing the base (position 1) promotes
+    // the next source to base; the merge dissolves only when the removed profile
+    // was the last remaining ref.
     Q_INVOKABLE void toggleMerge(const QString &file);
 
     // --- Lifecycle (driven from the profile list) --------------------------
