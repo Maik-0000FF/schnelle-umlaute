@@ -628,6 +628,14 @@ void SettingsModel::clearCaretTheme() {
     reloadClassicUiAddon();
 }
 
+void SettingsModel::setSortByFrequency(bool v) {
+    if (sortByFrequency_ == v)
+        return;
+    sortByFrequency_ = v;
+    Q_EMIT sortByFrequencyChanged();
+    save();
+}
+
 void SettingsModel::setTheme(const QString &v) {
     if (!isValidTheme(v) || theme_ == v)
         return;
@@ -836,6 +844,9 @@ void SettingsModel::load() {
                 loadedOverlayRow = val;
             else if (key == "Column")
                 loadedOverlayCol = val;
+        } else if (section == QLatin1String("Behavior")) {
+            if (key == "SortByFrequency")
+                sortByFrequency_ = fromBool(val);
         } else if (section == QLatin1String("Theme")) {
             if (key == "Theme" && isValidTheme(val))
                 theme_ = val;
@@ -889,6 +900,7 @@ void SettingsModel::load() {
     Q_EMIT overlayPositionChanged();
     Q_EMIT overlayCaretThemeChanged();
     Q_EMIT themeChanged();
+    Q_EMIT sortByFrequencyChanged();
 }
 
 void SettingsModel::save() {
@@ -996,6 +1008,9 @@ void SettingsModel::save() {
         splitAt > 0 ? overlayPosition_.mid(splitAt) : QStringLiteral("Col4");
     out << "# Vertical position\n" << "Row=" << row << "\n";
     out << "# Horizontal position\n" << "Column=" << col << "\n";
+    out << "\n[Behavior]\n";
+    out << "# Sort each key's variants by how often you use them\n"
+        << "SortByFrequency=" << toBool(sortByFrequency_) << "\n";
     out << "\n[Theme]\n";
     out << "# UI theme (schnelle-umlaute|dark|light|contrast)\n"
         << "Theme=" << theme_ << "\n";

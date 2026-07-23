@@ -169,7 +169,7 @@ USER_AUTOSTART="$HOME/.config/autostart/schnelle-umlaute-overlay.desktop"
 if [ -f "$USER_CONFIG" ] || [ -d "$MAPPINGS_DIR" ] || [ -f "$USER_AUTOSTART" ]; then
     echo -e "${YELLOW}User configuration found:${NC}"
     [ -f "$USER_CONFIG" ] && echo "  - $USER_CONFIG (settings)"
-    [ -d "$MAPPINGS_DIR" ] && echo "  - $MAPPINGS_DIR/ (mappings)"
+    [ -d "$MAPPINGS_DIR" ] && echo "  - $MAPPINGS_DIR/ (mappings, merge & usage data)"
     [ -f "$USER_AUTOSTART" ] && echo "  - $USER_AUTOSTART (overlay autostart override)"
     read -p "Remove user configuration? [y/N] " -r
     echo

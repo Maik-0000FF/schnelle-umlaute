@@ -5,9 +5,14 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QSaveFile>
+#include <QVariantMap>
 
 #include <algorithm>
+#include <cstdio>
+#include <set>
 
 namespace {
 
@@ -17,29 +22,132 @@ QString resolveProfilePath(const QString &relFile) {
     return schnelle_umlaute::configDirPath() + relFile;
 }
 
+// Read merge.conf via the shared parser (same format the engine and the
+// manifest owner use). Absent file yields an empty manifest (no base). This
+// model is a reader only; MergeManifestModel remains the single writer.
+schnelle_umlaute::MergeManifest readMergeConf() {
+    schnelle_umlaute::MergeManifest m;
+    const QString path = schnelle_umlaute::configDirPath() +
+                         QLatin1String(schnelle_umlaute::kMergeConf);
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        m = schnelle_umlaute::parseMergeManifest(fp);
+        std::fclose(fp);
+    }
+    return m;
+}
+
+// Read usage.conf (engine-written per-(base, variant) counters). Absent file
+// yields an empty table, so the preview sort is a no-op until usage accrues.
+schnelle_umlaute::UsageCounts readUsageConf() {
+    schnelle_umlaute::UsageCounts c;
+    const QString path = schnelle_umlaute::configDirPath() +
+                         QLatin1String(schnelle_umlaute::kUsageFile);
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        c = schnelle_umlaute::parseUsage(fp);
+        std::fclose(fp);
+    }
+    return c;
+}
+
 } // namespace
 
 MappingListModel::MappingListModel(QObject *parent)
-    : QAbstractListModel(parent) {
+    : QAbstractListModel(parent),
+      usageWatcher_(new QFileSystemWatcher(this)) {
+    connect(usageWatcher_, &QFileSystemWatcher::fileChanged, this,
+            &MappingListModel::onUsageFileChanged);
+    // The config dir is watched too, so the engine CREATING usage.conf after the
+    // editor started (a fresh setup with no prior usage) is noticed and the file
+    // watch gets armed; addPath on a not-yet-existing file would just fail.
+    connect(usageWatcher_, &QFileSystemWatcher::directoryChanged, this,
+            &MappingListModel::ensureUsageWatch);
     load();
+    ensureUsageWatch();
+}
+
+void MappingListModel::ensureUsageWatch() {
+    const QString path =
+        schnelle_umlaute::configDirPath() +
+        QString::fromLatin1(schnelle_umlaute::kUsageFile);
+    if (QFileInfo::exists(path) && !usageWatcher_->files().contains(path)) {
+        usageWatcher_->addPath(path);
+        // Refresh only the FIRST time the file appears (a fresh setup created it
+        // after startup): pick up its counts now. A re-arm after the engine's
+        // atomic rename also drops and re-adds the path here, but onUsageFile
+        // changed already refreshed for that, so the flag stops a redundant
+        // second model reset per flush.
+        if (!usageWatchArmed_) {
+            usageWatchArmed_ = true;
+            if (sortByFrequency_) {
+                reloadUsage();
+                if (composing_)
+                    reloadComposed();
+            }
+        }
+    }
+    QString dir = schnelle_umlaute::configDirPath();
+    if (dir.endsWith(QLatin1Char('/')))
+        dir.chop(1);
+    if (QFileInfo::exists(dir) && !usageWatcher_->directories().contains(dir))
+        usageWatcher_->addPath(dir);
+}
+
+void MappingListModel::onUsageFileChanged() {
+    // The engine writes usage.conf atomically (temp + rename), so re-arm the
+    // watch regardless; the old path stops emitting once the inode is replaced.
+    if (sortByFrequency_) {
+        reloadUsage(); // bumps usageRevision_ -> normal chips re-sort
+        if (composing_)
+            reloadComposed(); // composed rows re-sort inside rebuildComposed
+    }
+    ensureUsageWatch();
 }
 
 int MappingListModel::rowCount(const QModelIndex &parent) const {
     if (parent.isValid())
         return 0;
+    if (composing_)
+        return static_cast<int>(displayRows_.size());
     return static_cast<int>(entries_.size());
 }
 
 QVariant MappingListModel::data(const QModelIndex &index, int role) const {
-    if (index.row() < 0 || index.row() >= static_cast<int>(entries_.size())) {
-        return {};
+    const int row = index.row();
+    if (composing_) {
+        if (row < 0 || row >= static_cast<int>(displayRows_.size()))
+            return {};
+        const auto &r = displayRows_[row];
+        switch (role) {
+        case InputRole:
+            return r.input;
+        case OutputRole: {
+            // A joined fallback for any consumer not using ComposedVariantsRole;
+            // the composed chips read the provenance list instead.
+            std::vector<std::string> vals;
+            vals.reserve(r.variants.size());
+            for (const auto &v : r.variants)
+                vals.push_back(v.toMap()
+                                   .value(QStringLiteral("value"))
+                                   .toString()
+                                   .toStdString());
+            return QString::fromStdString(schnelle_umlaute::joinOutputs(vals));
+        }
+        case ComposedVariantsRole:
+            return r.variants;
+        default:
+            return {};
+        }
     }
-    const auto &e = entries_[index.row()];
+    if (row < 0 || row >= static_cast<int>(entries_.size()))
+        return {};
+    const auto &e = entries_[row];
     switch (role) {
     case InputRole:
         return e.input;
     case OutputRole:
         return e.output;
+    case ComposedVariantsRole:
+        return QVariantList{};
     default:
         return {};
     }
@@ -49,6 +157,7 @@ QHash<int, QByteArray> MappingListModel::roleNames() const {
     return {
         {InputRole, "input"},
         {OutputRole, "output"},
+        {ComposedVariantsRole, "composedVariants"},
     };
 }
 
@@ -267,11 +376,14 @@ bool MappingListModel::moveVariant(const QString &fromInput,
     auto toVars =
         schnelle_umlaute::splitOutputs(entries_[toRow].output.toStdString());
     if (std::find(toVars.begin(), toVars.end(), var) != toVars.end()) {
-        // The target already carries this variant; refuse so the chip snaps back
-        // and the source's copy is not silently dropped, and say why.
-        Q_EMIT errorOccurred(
-            tr("“%1” is already an output of this mapping").arg(variant));
-        return false;
+        // The target already carries this variant. This is allowed (the user
+        // may deliberately want it), but at runtime it is a dead cycle slot,
+        // stepped through twice, so warn instead of silently accepting. The
+        // move still proceeds below, adding the duplicate; the row shows a
+        // warning border via MappingRow's duplicate check.
+        Q_EMIT variantWarning(
+            tr("“%1” is now a duplicate in this mapping (a dead cycle slot)")
+                .arg(variant));
     }
     if (fromVars.size() == 1) {
         // Refuse to move the sole variant out: it would leave an empty, invalid
@@ -314,11 +426,446 @@ void MappingListModel::setProfileFile(const QString &file) {
     profileFile_ = f;
     Q_EMIT profileFileChanged();
     // Reload the model from the newly selected edit target. Wrapped in
-    // begin/endResetModel so the QML view rebinds to the new rows.
+    // begin/endResetModel so the QML view rebinds to the new rows. Whether the
+    // new target is the merge base (composed view) is recomputed here too.
     beginResetModel();
     load();
+    refreshComposedState();
     endResetModel();
     Q_EMIT countChanged();
+    Q_EMIT composingChanged();
+}
+
+void MappingListModel::reloadComposed() {
+    beginResetModel();
+    refreshComposedState();
+    endResetModel();
+    Q_EMIT countChanged();
+    Q_EMIT composingChanged();
+}
+
+void MappingListModel::reloadUsage() {
+    usageCounts_ = readUsageConf();
+    ++usageRevision_;
+    Q_EMIT usageChanged();
+}
+
+void MappingListModel::setSortByFrequency(bool v) {
+    if (sortByFrequency_ == v)
+        return;
+    sortByFrequency_ = v;
+    reloadUsage(); // fresh counts so the preview reflects current usage
+    ensureUsageWatch(); // arm the watch if usage.conf appeared since startup
+    Q_EMIT sortByFrequencyChanged();
+    if (composing_)
+        reloadComposed(); // composed rows re-sort inside rebuildComposed
+    // Normal rows re-sort via the QML chip binding on sortByFrequency.
+}
+
+QStringList MappingListModel::sortByUsage(const QString &base,
+                                          const QStringList &variants) const {
+    std::vector<std::string> vals;
+    vals.reserve(variants.size());
+    for (const QString &v : variants)
+        vals.push_back(v.toStdString());
+    static const std::unordered_map<std::string, long long> kEmpty;
+    const auto it = usageCounts_.find(base.toStdString());
+    const auto sorted = schnelle_umlaute::sortVariantsByUsage(
+        vals, it != usageCounts_.end() ? it->second : kEmpty);
+    QStringList out;
+    out.reserve(static_cast<int>(sorted.size()));
+    for (const auto &s : sorted)
+        out << QString::fromStdString(s);
+    return out;
+}
+
+void MappingListModel::refreshComposedState() {
+    manifest_ = readMergeConf();
+    composing_ = !manifest_.base.empty() &&
+                 profileFile_.toStdString() == manifest_.base;
+    if (sortByFrequency_)
+        reloadUsage(); // fresh counts for the composed preview sort
+    rebuildComposed();
+    recomputeDuplicates();
+}
+
+void MappingListModel::recomputeDuplicates() {
+    std::unordered_map<std::string, int> counts;
+    if (composing_) {
+        for (const auto &row : displayRows_)
+            for (const auto &v : row.variants)
+                ++counts[v.toMap()
+                             .value(QStringLiteral("value"))
+                             .toString()
+                             .toStdString()];
+    } else {
+        for (const auto &e : entries_)
+            for (const auto &val :
+                 schnelle_umlaute::splitOutputs(e.output.toStdString()))
+                ++counts[val];
+    }
+    QSet<QString> dups;
+    for (const auto &kv : counts)
+        if (kv.second > 1)
+            dups.insert(QString::fromStdString(kv.first));
+    if (dups != duplicateValues_) {
+        duplicateValues_ = std::move(dups);
+        ++duplicateRevision_;
+        Q_EMIT duplicatesChanged();
+    }
+}
+
+schnelle_umlaute::VariantMap
+MappingListModel::loadProfileMap(const QString &relFile,
+                                 std::vector<std::string> *inputOrder) const {
+    schnelle_umlaute::VariantMap map;
+    if (!schnelle_umlaute::isSafeProfileFile(relFile.toStdString()))
+        return map;
+    const QString path = resolveProfilePath(relFile);
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        for (const auto &m : schnelle_umlaute::parseMappings(fp)) {
+            auto outs = schnelle_umlaute::splitOutputs(m.output);
+            if (!outs.empty()) {
+                if (inputOrder && map.find(m.input) == map.end())
+                    inputOrder->push_back(m.input);
+                map[m.input] = std::move(outs);
+            }
+        }
+        std::fclose(fp);
+    }
+    return map;
+}
+
+void MappingListModel::rebuildComposed() {
+    displayRows_.clear();
+    if (!composing_)
+        return;
+
+    // The base's own map comes from entries_ (already loaded for the base file).
+    schnelle_umlaute::VariantMap ownMap;
+    for (const auto &e : entries_)
+        ownMap[e.input.toStdString()] =
+            schnelle_umlaute::splitOutputs(e.output.toStdString());
+
+    // Combined refs: base first, then appended sources. The 1-based position is
+    // both the badge number and the provenance colour index.
+    std::vector<std::string> refs;
+    refs.push_back(manifest_.base);
+    for (const auto &s : manifest_.sources)
+        if (s != manifest_.base)
+            refs.push_back(s);
+
+    // Load the appended sources once, keep them alive for compose(). Capture
+    // each source's base chars in file order too, so the appended rows below
+    // emit deterministically instead of following the map's arbitrary iteration
+    // (which reshuffled the rows on every rebuild).
+    std::vector<schnelle_umlaute::VariantMap> extra;
+    std::vector<std::vector<std::string>> extraOrder;
+    extra.reserve(refs.size());
+    extraOrder.reserve(refs.size());
+    for (size_t i = 1; i < refs.size(); ++i) {
+        std::vector<std::string> order;
+        extra.push_back(
+            loadProfileMap(QString::fromStdString(refs[i]), &order));
+        extraOrder.push_back(std::move(order));
+    }
+
+    std::vector<schnelle_umlaute::ComposeSource> sources;
+    sources.reserve(refs.size());
+    sources.push_back({refs[0], &ownMap});
+    for (size_t i = 1; i < refs.size(); ++i)
+        sources.push_back({refs[i], &extra[i - 1]});
+
+    const auto composed = schnelle_umlaute::compose(sources, manifest_.order);
+
+    auto positionOf = [&refs](const std::string &ref) -> int {
+        for (size_t i = 0; i < refs.size(); ++i)
+            if (refs[i] == ref)
+                return static_cast<int>(i) + 1; // 1-based
+        return -1;
+    };
+
+    // Row order: the base's own inputs first (in entries_ order), then inputs
+    // that appear only in appended sources, in source order.
+    std::set<std::string> emitted;
+    auto emitRow = [&](const std::string &input) {
+        if (!emitted.insert(input).second)
+            return;
+        const auto it = composed.find(input);
+        if (it == composed.end() || it->second.empty())
+            return;
+        std::vector<schnelle_umlaute::Variant> insts = it->second;
+        // Preview sort: reorder the instances by the value's usage via the one
+        // shared comparator, so the composed preview matches the runtime cycle.
+        // Provenance rides along (occurrence-by-occurrence), so a duplicate from
+        // two profiles keeps its colours. The manifest order stays the truth.
+        if (sortByFrequency_) {
+            std::vector<std::string> vals;
+            vals.reserve(insts.size());
+            for (const auto &v : insts)
+                vals.push_back(v.value);
+            static const std::unordered_map<std::string, long long> kEmpty;
+            const auto cIt = usageCounts_.find(input);
+            const auto sortedVals = schnelle_umlaute::sortVariantsByUsage(
+                vals, cIt != usageCounts_.end() ? cIt->second : kEmpty);
+            std::vector<schnelle_umlaute::Variant> sorted;
+            std::vector<bool> used(insts.size(), false);
+            for (const auto &sv : sortedVals)
+                for (size_t i = 0; i < insts.size(); ++i)
+                    if (!used[i] && insts[i].value == sv) {
+                        used[i] = true;
+                        sorted.push_back(insts[i]);
+                        break;
+                    }
+            insts = std::move(sorted);
+        }
+        DisplayRow row;
+        row.input = QString::fromStdString(input);
+        for (const auto &v : insts) {
+            QVariantMap m;
+            m.insert(QStringLiteral("value"), QString::fromStdString(v.value));
+            m.insert(QStringLiteral("order"), positionOf(v.sourceRef));
+            m.insert(QStringLiteral("file"),
+                     QString::fromStdString(v.sourceRef));
+            row.variants.append(m);
+        }
+        displayRows_.push_back(std::move(row));
+    };
+    for (const auto &e : entries_)
+        emitRow(e.input.toStdString());
+    for (const auto &order : extraOrder)
+        for (const auto &input : order)
+            emitRow(input);
+}
+
+bool MappingListModel::removeVariantFromProfileFile(const QString &relFile,
+                                                    const QString &input,
+                                                    const QString &value) {
+    if (!schnelle_umlaute::isSafeProfileFile(relFile.toStdString()))
+        return false;
+    const QString path = resolveProfilePath(relFile);
+    std::vector<schnelle_umlaute::RawMapping> rows;
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        rows = schnelle_umlaute::parseMappings(fp);
+        std::fclose(fp);
+    } else {
+        return false;
+    }
+    const std::string in = input.toStdString();
+    const std::string val = value.toStdString();
+    bool changed = false;
+    for (auto it = rows.begin(); it != rows.end(); ++it) {
+        if (it->input != in)
+            continue;
+        auto vars = schnelle_umlaute::splitOutputs(it->output);
+        auto vit = std::find(vars.begin(), vars.end(), val);
+        if (vit == vars.end())
+            return false; // not present; nothing to remove
+        vars.erase(vit);
+        if (vars.empty())
+            rows.erase(it); // last variant gone: drop the whole mapping
+        else
+            it->output = schnelle_umlaute::joinOutputs(vars);
+        changed = true;
+        break;
+    }
+    if (!changed)
+        return false;
+    // Write back atomically, in the same escaped format as save().
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        Q_EMIT errorOccurred(file.errorString());
+        return false;
+    }
+    QByteArray buf;
+    for (const auto &r : rows) {
+        if (r.input == "#" || r.input == "\\")
+            buf += '\\';
+        buf += QByteArray::fromStdString(r.input);
+        buf += '=';
+        buf += QByteArray::fromStdString(r.output);
+        buf += '\n';
+    }
+    if (file.write(buf) != buf.size() || !file.commit()) {
+        Q_EMIT errorOccurred(file.errorString());
+        return false;
+    }
+    reloadSchnelleUmlauteAddon();
+    return true;
+}
+
+bool MappingListModel::removeComposedVariant(const QString &input,
+                                             const QString &value,
+                                             const QString &file) {
+    if (!composing_)
+        return false;
+    if (file.toStdString() == manifest_.base) {
+        // Own variant: edit the base's own entries_ directly.
+        const std::string val = value.toStdString();
+        for (int row = 0; row < static_cast<int>(entries_.size()); ++row) {
+            if (entries_[row].input != input)
+                continue;
+            auto vars = schnelle_umlaute::splitOutputs(
+                entries_[row].output.toStdString());
+            auto it = std::find(vars.begin(), vars.end(), val);
+            if (it == vars.end())
+                return false;
+            vars.erase(it);
+            if (vars.empty())
+                entries_.erase(entries_.begin() + row); // whole mapping gone
+            else
+                entries_[row].output =
+                    QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
+            save();           // writes the base file + engine reload
+            reloadComposed(); // rebuild the composed view from the new entries_
+            return true;
+        }
+        return false;
+    }
+    // Appended source: cascade into the origin profile's file.
+    if (!removeVariantFromProfileFile(file, input, value))
+        return false;
+    reloadComposed();
+    return true;
+}
+
+bool MappingListModel::moveVariantInProfileFile(const QString &relFile,
+                                                const QString &value,
+                                                const QString &fromInput,
+                                                const QString &toInput) {
+    if (!schnelle_umlaute::isSafeProfileFile(relFile.toStdString()))
+        return false;
+    const QString path = resolveProfilePath(relFile);
+    std::vector<schnelle_umlaute::RawMapping> rows;
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        rows = schnelle_umlaute::parseMappings(fp);
+        std::fclose(fp);
+    } else {
+        return false;
+    }
+    const std::string from = fromInput.toStdString();
+    const std::string to = toInput.toStdString();
+    const std::string val = value.toStdString();
+    // Remove from the source's fromInput mapping (drop it if it empties).
+    bool removed = false;
+    for (auto it = rows.begin(); it != rows.end(); ++it) {
+        if (it->input != from)
+            continue;
+        auto vars = schnelle_umlaute::splitOutputs(it->output);
+        auto vit = std::find(vars.begin(), vars.end(), val);
+        if (vit == vars.end())
+            return false;
+        vars.erase(vit);
+        if (vars.empty())
+            rows.erase(it);
+        else
+            it->output = schnelle_umlaute::joinOutputs(vars);
+        removed = true;
+        break;
+    }
+    if (!removed)
+        return false;
+    // Add to the source's toInput mapping (create if absent). Always added, even
+    // if the target already has it: the dragged variant must never be silently
+    // dropped, and duplicates are allowed (a warning border flags them).
+    bool found = false;
+    for (auto &r : rows) {
+        if (r.input != to)
+            continue;
+        auto vars = schnelle_umlaute::splitOutputs(r.output);
+        vars.push_back(val);
+        r.output = schnelle_umlaute::joinOutputs(vars);
+        found = true;
+        break;
+    }
+    if (!found)
+        rows.push_back({to, val});
+    // Write back atomically, in the same escaped format as save().
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        Q_EMIT errorOccurred(file.errorString());
+        return false;
+    }
+    QByteArray buf;
+    for (const auto &r : rows) {
+        if (r.input == "#" || r.input == "\\")
+            buf += '\\';
+        buf += QByteArray::fromStdString(r.input);
+        buf += '=';
+        buf += QByteArray::fromStdString(r.output);
+        buf += '\n';
+    }
+    if (file.write(buf) != buf.size() || !file.commit()) {
+        Q_EMIT errorOccurred(file.errorString());
+        return false;
+    }
+    reloadSchnelleUmlauteAddon();
+    return true;
+}
+
+bool MappingListModel::moveComposedVariant(const QString &fromInput,
+                                           const QString &value,
+                                           const QString &file,
+                                           const QString &toInput) {
+    if (!composing_ || fromInput == toInput)
+        return false;
+    // Refuse to move out the row's last chip: it would leave the composed row
+    // empty and silently drop the mapping. Remove the last one with its ✕ (a
+    // confirmed delete) instead. Mirrors the plain view's sole-variant guard.
+    for (const auto &row : displayRows_) {
+        if (row.input == fromInput && row.variants.size() <= 1) {
+            Q_EMIT variantWarning(
+                tr("A row keeps at least one variant; remove the last one with "
+                   "its ✕."));
+            return false;
+        }
+    }
+    if (file.toStdString() == manifest_.base) {
+        // The base's own mappings live in entries_; move within them.
+        const std::string val = value.toStdString();
+        bool removed = false;
+        for (int r = 0; r < static_cast<int>(entries_.size()); ++r) {
+            if (entries_[r].input != fromInput)
+                continue;
+            auto vars = schnelle_umlaute::splitOutputs(
+                entries_[r].output.toStdString());
+            auto it = std::find(vars.begin(), vars.end(), val);
+            if (it == vars.end())
+                return false;
+            vars.erase(it);
+            if (vars.empty())
+                entries_.erase(entries_.begin() + r);
+            else
+                entries_[r].output =
+                    QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
+            removed = true;
+            break;
+        }
+        if (!removed)
+            return false;
+        bool found = false;
+        for (auto &e : entries_) {
+            if (e.input != toInput)
+                continue;
+            auto vars = schnelle_umlaute::splitOutputs(e.output.toStdString());
+            vars.push_back(val); // always add; never silently drop the variant
+            e.output =
+                QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
+            found = true;
+            break;
+        }
+        if (!found)
+            entries_.push_back({toInput, value});
+        save();
+        reloadComposed();
+        return true;
+    }
+    if (!moveVariantInProfileFile(file, value, fromInput, toInput))
+        return false;
+    reloadComposed();
+    return true;
 }
 
 void MappingListModel::load() {
@@ -343,6 +890,7 @@ void MappingListModel::load() {
         }
     }
     setSaveStatus(tr("Loaded"));
+    recomputeDuplicates();
 }
 
 bool MappingListModel::save() {
@@ -372,6 +920,7 @@ bool MappingListModel::save() {
         return false;
     }
     setSaveStatus(tr("Saved"));
+    recomputeDuplicates();
     reloadSchnelleUmlauteAddon();
     return true;
 }

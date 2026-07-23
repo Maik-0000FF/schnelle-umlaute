@@ -476,6 +476,8 @@ bool ProfileListModel::removeProfile(int row) {
         }
     }
     // Let the editor reset its edit target if it was pointing at this file.
+    // The merge manifest's own lifecycle (dissolve/prune) is handled by
+    // MergeManifestModel, driven off this same profileRemoved signal.
     Q_EMIT profileRemoved(file);
     save();
     return true;

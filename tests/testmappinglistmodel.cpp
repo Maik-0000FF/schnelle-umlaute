@@ -286,15 +286,17 @@ void testMoveVariantRefusesEmptySource(MappingListModel &m) {
     EXPECT(rowOutput(m, 1) == QStringLiteral("p"));
 }
 
-// moveVariant refuses a target that already carries the variant, so the source
-// keeps its copy (no silent loss).
-void testMoveVariantRefusesDuplicate(MappingListModel &m) {
+// moveVariant now ALLOWS a target that already carries the variant (duplicates
+// are permitted, flagged by a warning): it is added rather than the source's
+// copy being silently kept or lost, so the source loses it and the target gains
+// a second copy.
+void testMoveVariantAllowsDuplicate(MappingListModel &m) {
     m.addMapping(QStringLiteral("a"), QStringLiteral("x,y"));
     m.addMapping(QStringLiteral("o"), QStringLiteral("y,p"));
-    EXPECT(!m.moveVariant(QStringLiteral("a"), QStringLiteral("y"),
-                          QStringLiteral("o")));
-    EXPECT(rowOutput(m, 0) == QStringLiteral("x,y"));
-    EXPECT(rowOutput(m, 1) == QStringLiteral("y,p"));
+    EXPECT(m.moveVariant(QStringLiteral("a"), QStringLiteral("y"),
+                         QStringLiteral("o")));
+    EXPECT(rowOutput(m, 0) == QStringLiteral("x"));
+    EXPECT(rowOutput(m, 1) == QStringLiteral("y,p,y"));
 }
 
 // -- test runner ------------------------------------------------------------
@@ -346,7 +348,7 @@ const TestCase kTests[] = {
     {"testSetVariantOrder", testSetVariantOrder},
     {"testMoveVariant", testMoveVariant},
     {"testMoveVariantRefusesEmptySource", testMoveVariantRefusesEmptySource},
-    {"testMoveVariantRefusesDuplicate", testMoveVariantRefusesDuplicate},
+    {"testMoveVariantAllowsDuplicate", testMoveVariantAllowsDuplicate},
 };
 
 int main(int argc, char **argv) {

@@ -215,6 +215,40 @@ QtObject {
     readonly property int chipPaddingH: 12
     readonly property int chipFont:     14
 
+    // Provenance colours for the composed merge view: one hue per source
+    // profile, addressed by 1-based merge position (position 1 = base). The
+    // list cycles when more profiles are merged than there are colours; the
+    // chip also shows a text tag with the profile name, so colour is a
+    // supplementary cue and never the only signal (colour alone is not
+    // accessible). Defined once here rather than per component or per theme:
+    // these are functional identifiers, readable on dark and light alike.
+    // Deliberately no amber/orange/yellow tones: those belong to the warning
+    // colour, so a provenance chip must never share that hue and read as a
+    // warning.
+    readonly property var mergeSourcePalette: [
+        "#a855f7", // position 1 / base (violet)
+        "#38bdf8", // sky
+        "#4ade80", // green
+        "#818cf8", // indigo
+        "#f472b6", // pink
+        "#2dd4bf", // teal
+        "#a3e635", // lime
+        "#22d3ee"  // cyan
+    ]
+    // Resolve a 1-based merge position (1 = base, 2..N appended) to its
+    // provenance colour, cycling the palette. Anything below 1 (not in the
+    // merge) maps to the neutral border colour.
+    function mergeSourceColor(position) {
+        if (position < 1)
+            return border
+        return mergeSourcePalette[(position - 1) % mergeSourcePalette.length]
+    }
+    // Composed chip fill: a tint of the source hue strong enough to be the
+    // primary provenance cue (the chip background adapts to the merge profile),
+    // while keeping the mono variant text readable on top. The border stays
+    // neutral so the warning border can own the duplicate signal instead.
+    readonly property real mergeSourceWashAlpha: 0.28
+
     // Width of a shortcut-capture field, wide enough to show a longer combo
     // (e.g. "Control+Alt+Super+J") without eliding, including the always-
     // reserved clear-button slot. Shared by the per-profile select-key field
@@ -247,6 +281,14 @@ QtObject {
     readonly property string iconStar:        "★"
     readonly property string iconAdd:         "+"
     readonly property string iconInfo:        "ⓘ"
+    readonly property string iconMerge:       "⧉"
+
+    // Small numeric/letter badge overlaid on the merge control (its position in
+    // the merge, or the base marker). One source for its size, the negative
+    // offset that nudges it onto the glyph's top-right corner, and its font.
+    readonly property int badgeSize:   14
+    readonly property int badgeOffset: 4
+    readonly property int fontBadge:   9
 
     // External links shown in the About dialog, kept here as the single source
     // so the dialog (and any later use) never hard-codes a URL.
