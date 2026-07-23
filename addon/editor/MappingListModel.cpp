@@ -480,8 +480,14 @@ void MappingListModel::resetUsageCounts() {
         schnelle_umlaute::configDirPath() +
         QString::fromLatin1(schnelle_umlaute::kUsageResetMarker);
     QFile marker(path);
-    if (marker.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        marker.close();
+    if (!marker.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        // Can't drop the marker (e.g. an unwritable config dir): report it
+        // rather than reloading, which the engine would ignore with no marker
+        // to consume.
+        Q_EMIT errorOccurred(marker.errorString());
+        return;
+    }
+    marker.close();
     reloadSchnelleUmlauteAddon();
 }
 
