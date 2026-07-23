@@ -474,6 +474,98 @@ void MappingListModel::rebuildComposed() {
             emitRow(kv.first);
 }
 
+bool MappingListModel::removeVariantFromProfileFile(const QString &relFile,
+                                                    const QString &input,
+                                                    const QString &value) {
+    if (!schnelle_umlaute::isSafeProfileFile(relFile.toStdString()))
+        return false;
+    const QString path = resolveProfilePath(relFile);
+    std::vector<schnelle_umlaute::RawMapping> rows;
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        rows = schnelle_umlaute::parseMappings(fp);
+        std::fclose(fp);
+    } else {
+        return false;
+    }
+    const std::string in = input.toStdString();
+    const std::string val = value.toStdString();
+    bool changed = false;
+    for (auto it = rows.begin(); it != rows.end(); ++it) {
+        if (it->input != in)
+            continue;
+        auto vars = schnelle_umlaute::splitOutputs(it->output);
+        auto vit = std::find(vars.begin(), vars.end(), val);
+        if (vit == vars.end())
+            return false; // not present; nothing to remove
+        vars.erase(vit);
+        if (vars.empty())
+            rows.erase(it); // last variant gone: drop the whole mapping
+        else
+            it->output = schnelle_umlaute::joinOutputs(vars);
+        changed = true;
+        break;
+    }
+    if (!changed)
+        return false;
+    // Write back atomically, in the same escaped format as save().
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        Q_EMIT errorOccurred(file.errorString());
+        return false;
+    }
+    QByteArray buf;
+    for (const auto &r : rows) {
+        if (r.input == "#" || r.input == "\\")
+            buf += '\\';
+        buf += QByteArray::fromStdString(r.input);
+        buf += '=';
+        buf += QByteArray::fromStdString(r.output);
+        buf += '\n';
+    }
+    if (file.write(buf) != buf.size() || !file.commit()) {
+        Q_EMIT errorOccurred(file.errorString());
+        return false;
+    }
+    reloadSchnelleUmlauteAddon();
+    return true;
+}
+
+bool MappingListModel::removeComposedVariant(const QString &input,
+                                             const QString &value,
+                                             const QString &file) {
+    if (!composing_)
+        return false;
+    if (file.toStdString() == manifest_.base) {
+        // Own variant: edit the base's own entries_ directly.
+        const std::string val = value.toStdString();
+        for (int row = 0; row < static_cast<int>(entries_.size()); ++row) {
+            if (entries_[row].input != input)
+                continue;
+            auto vars = schnelle_umlaute::splitOutputs(
+                entries_[row].output.toStdString());
+            auto it = std::find(vars.begin(), vars.end(), val);
+            if (it == vars.end())
+                return false;
+            vars.erase(it);
+            if (vars.empty())
+                entries_.erase(entries_.begin() + row); // whole mapping gone
+            else
+                entries_[row].output =
+                    QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
+            save();           // writes the base file + engine reload
+            reloadComposed(); // rebuild the composed view from the new entries_
+            return true;
+        }
+        return false;
+    }
+    // Appended source: cascade into the origin profile's file.
+    if (!removeVariantFromProfileFile(file, input, value))
+        return false;
+    reloadComposed();
+    return true;
+}
+
 void MappingListModel::load() {
     entries_.clear();
     QString path = resolveProfilePath(profileFile_);

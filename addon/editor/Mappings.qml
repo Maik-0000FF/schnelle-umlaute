@@ -282,6 +282,28 @@ Item {
                         };
                         confirmDialog.open();
                     }
+                    // Composed-view chip delete: it removes the variant from its
+                    // source profile (own base or an appended one), a profile
+                    // you may not be viewing, so confirm and name that profile.
+                    onComposedRemoveRequested: (cInput, cValue, cFile) => {
+                        composedDeleteConfirm.messageText = qsTr(
+                            "Delete “%1” from the profile “%2”? It is removed from that profile, not just from this merged view."
+                        ).arg(cValue).arg(root.profileNameForFile(cFile));
+                        composedDeleteConfirm.onConfirmed = () => {
+                            if (root.mappingsModel.removeComposedVariant(
+                                    cInput, cValue, cFile))
+                                root.requestSnackbar(
+                                    qsTr("Variant deleted"), Theme.textMuted);
+                        };
+                        composedDeleteConfirm.open();
+                    }
+                    // Composed-view chip reorder: persist the arrangement as a
+                    // manifest order override (the single writer is the manifest
+                    // owner; the composed view rebuilds on manifestChanged).
+                    onComposedReorderRequested: (cInput, cSeq) => {
+                        if (root.mergeModel)
+                            root.mergeModel.setOrderOverride(cInput, cSeq);
+                    }
                 }
 
                 ScrollBar.vertical: ScrollBar {}
@@ -306,6 +328,23 @@ Item {
         id: profileConfirm
         titleText: qsTr("Delete profile")
         confirmText: qsTr("Delete")
+    }
+
+    ConfirmDialog {
+        id: composedDeleteConfirm
+        titleText: qsTr("Delete variant")
+        confirmText: qsTr("Delete")
+    }
+
+    // Display name of a profile File, for the composed-view delete confirm.
+    function profileNameForFile(file) {
+        if (!root.profilesModel)
+            return file;
+        const names = root.profilesModel.profileNames();
+        for (let i = 0; i < names.length; ++i)
+            if (root.profilesModel.fileForRow(i) === file)
+                return names[i];
+        return file;
     }
 
     function focusAdd() { addCard.focusInput(); }

@@ -222,13 +222,16 @@ QtObject {
     // supplementary cue and never the only signal (colour alone is not
     // accessible). Defined once here rather than per component or per theme:
     // these are functional identifiers, readable on dark and light alike.
+    // Deliberately no amber/orange/yellow tones: those belong to the warning
+    // colour, so a provenance chip must never share that hue and read as a
+    // warning.
     readonly property var mergeSourcePalette: [
         "#a855f7", // position 1 / base (violet)
         "#38bdf8", // sky
         "#4ade80", // green
-        "#fbbf24", // amber
+        "#818cf8", // indigo
         "#f472b6", // pink
-        "#fb923c", // orange
+        "#2dd4bf", // teal
         "#a3e635", // lime
         "#22d3ee"  // cyan
     ]
@@ -240,10 +243,11 @@ QtObject {
             return border
         return mergeSourcePalette[(position - 1) % mergeSourcePalette.length]
     }
-    // Chip fill behind a provenance colour: a faint wash of the source hue so
-    // the chip reads as tinted without fighting the mono variant text. The
-    // provenance colour itself is used for the left bar and the text tag.
-    readonly property real mergeSourceWashAlpha: 0.13
+    // Composed chip fill: a tint of the source hue strong enough to be the
+    // primary provenance cue (the chip background adapts to the merge profile),
+    // while keeping the mono variant text readable on top. The border stays
+    // neutral so the warning border can own the duplicate signal instead.
+    readonly property real mergeSourceWashAlpha: 0.28
 
     // Width of a shortcut-capture field, wide enough to show a longer combo
     // (e.g. "Control+Alt+Super+J") without eliding, including the always-

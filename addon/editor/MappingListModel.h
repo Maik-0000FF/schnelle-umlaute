@@ -56,6 +56,13 @@ public:
     // merge manifest changes (its single owner is MergeManifestModel; this model
     // only reads the file to display the composed result).
     Q_INVOKABLE void reloadComposed();
+    // Delete one variant instance from the composed view. An own variant (from
+    // the base) is removed from the base's own file; a variant from an appended
+    // source cascades into THAT profile's file (its origin). Gated behind a
+    // confirm dialog in QML, since it edits a profile you are not looking at.
+    Q_INVOKABLE bool removeComposedVariant(const QString &input,
+                                           const QString &value,
+                                           const QString &file);
 
     Q_INVOKABLE bool addMapping(const QString &input, const QString &output);
     Q_INVOKABLE void removeMapping(int row);
@@ -108,6 +115,12 @@ private:
     // Load a profile file's mappings into a flat base -> variants map, for use
     // as a compose source. Unsafe or missing files yield an empty map.
     schnelle_umlaute::VariantMap loadProfileMap(const QString &relFile) const;
+    // Remove one occurrence of value from `input`'s output in the given profile
+    // file (dropping the whole mapping if it becomes empty), write it back
+    // atomically, and reload the engine. Backs the composed-view cascade delete.
+    bool removeVariantFromProfileFile(const QString &relFile,
+                                      const QString &input,
+                                      const QString &value);
     static bool isValidInputChar(const QString &input);
     static bool isValidOutputChar(const QString &output);
     bool hasInput(const QString &input, int excludeRow) const;

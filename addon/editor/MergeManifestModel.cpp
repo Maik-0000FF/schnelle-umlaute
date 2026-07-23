@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QVariantMap>
 
 #include <algorithm>
 #include <cstdio>
@@ -115,12 +116,21 @@ void MergeManifestModel::pruneToExisting(const QStringList &existingFiles) {
         setCombinedRefs(kept);
 }
 
-void MergeManifestModel::setOrderOverride(
-    const std::string &base, std::vector<schnelle_umlaute::Variant> sequence) {
-    if (sequence.empty())
-        manifest_.order.erase(base);
+void MergeManifestModel::setOrderOverride(const QString &base,
+                                          const QVariantList &sequence) {
+    std::vector<schnelle_umlaute::Variant> seq;
+    seq.reserve(sequence.size());
+    for (const auto &item : sequence) {
+        const QVariantMap m = item.toMap();
+        seq.push_back(
+            {m.value(QStringLiteral("value")).toString().toStdString(),
+             m.value(QStringLiteral("file")).toString().toStdString()});
+    }
+    const std::string b = base.toStdString();
+    if (seq.empty())
+        manifest_.order.erase(b);
     else
-        manifest_.order[base] = std::move(sequence);
+        manifest_.order[b] = std::move(seq);
     save();
 }
 

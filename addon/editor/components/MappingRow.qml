@@ -27,13 +27,8 @@ Rectangle {
     readonly property bool dropTarget:
         foreignDragCount > 0 && view && view.chipDragging
     color: highlighted ? Theme.surfaceHover : "transparent"
-    // A drop target (accent) and an open edit (focus) take precedence; a row
-    // holding a duplicate variant otherwise carries a warning border, the
-    // steady-state counterpart to the transient snackbar hint.
     border.color: dropTarget ? Theme.accent
-                             : (editing ? Theme.borderFocus
-                                        : (hasDuplicateVariant ? Theme.warning
-                                                               : "transparent"))
+                             : (editing ? Theme.borderFocus : "transparent")
     border.width: 1
     height: col.implicitHeight + 8
 
@@ -146,19 +141,6 @@ Rectangle {
         if (cur.length > 0) out.push(cur);
         return out;
     }
-    // A variant repeated within this row: allowed (a duplicate can be dropped
-    // in on purpose), but it is a dead cycle slot at runtime, so the row flags
-    // it with a warning border. The transient snackbar hint fires separately
-    // from the model's variantWarning signal when the duplicate is created.
-    readonly property bool hasDuplicateVariant: {
-        let seen = ({});
-        for (let i = 0; i < variantList.length; ++i) {
-            if (seen[variantList[i]])
-                return true;
-            seen[variantList[i]] = true;
-        }
-        return false;
-    }
     property var modelRef: null
     property var settingsModel: null
     property bool editing: false
@@ -179,6 +161,13 @@ Rectangle {
     signal removeRequested()
     signal editStartRequested()
     signal editEndRequested()
+    // A composed-view chip's ✕ was clicked: delete this variant instance from
+    // its source profile (own base or an appended source). The parent confirms
+    // (it edits a profile you may not be looking at) before calling the model.
+    signal composedRemoveRequested(string input, string value, string file)
+    // A composed-view chip was dragged to a new slot: persist the new order as
+    // a manifest override. sequence is the full [{value, file}] arrangement.
+    signal composedReorderRequested(string input, var sequence)
 
     onEditingChanged: {
         if (editing) {
@@ -418,6 +407,16 @@ Rectangle {
                         // Which mapping this chip belongs to, so a drop target
                         // can tell a same-row reorder from a cross-row move.
                         property string sourceInput: root.inputText
+                        // This variant occurs more than once in the row: a dead
+                        // cycle slot at runtime. Both duplicate chips carry the
+                        // warning border (the row itself is not flagged).
+                        readonly property bool isDuplicate: {
+                            let n = 0;
+                            for (let i = 0; i < root.variantList.length; ++i)
+                                if (root.variantList[i] === chip.variant)
+                                    ++n;
+                            return n > 1;
+                        }
                         width: implicitWidth
                         height: implicitHeight
                         implicitWidth: chipRow.implicitWidth
@@ -427,7 +426,9 @@ Rectangle {
                         color: chip.Drag.active ? Theme.surfaceHover
                                                 : Theme.background
                         border.color: (dragMouse.containsMouse || chip.Drag.active)
-                                      ? Theme.accent : Theme.border
+                                      ? Theme.accent
+                                      : (chip.isDuplicate ? Theme.warning
+                                                          : Theme.border)
                         border.width: 1
                         // Float above every row (reparented to the list) while
                         // dragging, so a cross-row drag stays visible.
@@ -543,46 +544,127 @@ Rectangle {
             Layout.fillWidth: true
             visible: !root.editing && root.composing
             spacing: Theme.spacingXs
+            move: Transition {
+                NumberAnimation { properties: "x,y"; duration: Theme.animShort }
+            }
             Repeater {
                 model: root.composedVariantList
-                delegate: Rectangle {
-                    id: cchip
+                delegate: DropArea {
+                    id: cDrop
                     required property var modelData
-                    readonly property int srcOrder: cchip.modelData.order
-                    readonly property color srcColor:
-                        Theme.mergeSourceColor(cchip.srcOrder)
-                    implicitWidth: cRow.implicitWidth + 2 * Theme.chipPaddingH
-                    implicitHeight: Theme.controlHeight
-                    radius: Theme.radiusSm
-                    color: Qt.rgba(cchip.srcColor.r, cchip.srcColor.g,
-                                   cchip.srcColor.b, Theme.mergeSourceWashAlpha)
-                    border.color: cchip.srcColor
-                    border.width: 1
-
-                    RowLayout {
-                        id: cRow
-                        anchors.centerIn: parent
-                        spacing: Theme.spacingSm
-                        Text {
-                            text: cchip.modelData.value
-                            color: Theme.text
-                            font.family: Theme.fontFamilyMono
-                            font.pixelSize: Theme.chipFont
-                        }
-                        Text {
-                            text: root.nameForFile(cchip.modelData.file)
-                            color: cchip.srcColor
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontBody
-                            elide: Text.ElideRight
-                        }
+                    required property int index
+                    implicitWidth: cchip.implicitWidth
+                    implicitHeight: cchip.implicitHeight
+                    // A drop from a chip in THIS row moves it to this slot. The
+                    // new order is persisted as a manifest override (the chips
+                    // themselves come from several profiles, so the arrangement
+                    // is stored, not written back into any one source).
+                    onDropped: (drop) => {
+                        if (drop.source && drop.source.cOwnerRow === root)
+                            root.reorderComposed(drop.source.cIndex,
+                                                 cDrop.index);
                     }
+                    Rectangle {
+                        id: cchip
+                        readonly property int srcOrder: cDrop.modelData.order
+                        readonly property color srcColor:
+                            Theme.mergeSourceColor(cchip.srcOrder)
+                        // Identity for the drop target: which row + which slot.
+                        property var cOwnerRow: root
+                        property int cIndex: cDrop.index
+                        width: implicitWidth
+                        height: implicitHeight
+                        implicitWidth: cRow.implicitWidth + 2 * Theme.chipPaddingH
+                        implicitHeight: Theme.controlHeight
+                        radius: Theme.radiusSm
+                        color: Qt.rgba(cchip.srcColor.r, cchip.srcColor.g,
+                                       cchip.srcColor.b, Theme.mergeSourceWashAlpha)
+                        // Neutral border: the tinted background is the provenance
+                        // cue now, so the border does not compete with it (and the
+                        // warning border stays reserved for duplicates).
+                        border.color: Theme.border
+                        border.width: 1
+                        // Float above the row while dragging (reparented to the
+                        // list), so the drag stays visible past the row bounds.
+                        z: cchip.Drag.active ? 100 : 0
+                        Drag.active: cDragMouse.drag.active
+                        Drag.hotSpot.x: width / 2
+                        Drag.hotSpot.y: height / 2
+                        states: State {
+                            when: cchip.Drag.active
+                            ParentChange { target: cchip; parent: root.view }
+                        }
 
-                    HoverHandler { id: cchipHover }
-                    ThemedToolTip {
-                        hovered: cchipHover.hovered
-                        text: qsTr("From “%1”")
-                              .arg(root.nameForFile(cchip.modelData.file))
+                        // Drag body: declared before the ✕ so the ✕ still gets
+                        // its own clicks (the value/name are plain Text on top).
+                        MouseArea {
+                            id: cDragMouse
+                            anchors.fill: parent
+                            drag.target: cchip
+                            cursorShape: Qt.SizeAllCursor
+                            preventStealing: true
+                            onReleased: cchip.Drag.drop()
+                        }
+
+                        RowLayout {
+                            id: cRow
+                            anchors.centerIn: parent
+                            spacing: Theme.spacingSm
+                            Text {
+                                text: cDrop.modelData.value
+                                color: Theme.text
+                                font.family: Theme.fontFamilyMono
+                                font.pixelSize: Theme.chipFont
+                            }
+                            Text {
+                                text: root.nameForFile(cDrop.modelData.file)
+                                color: cchip.srcColor
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontBody
+                                elide: Text.ElideRight
+                            }
+                            // Circular ✕: delete this variant from its source
+                            // profile (behind a confirm in the parent).
+                            Rectangle {
+                                id: cClose
+                                implicitWidth: Theme.chipFont + Theme.spacingXs
+                                implicitHeight: implicitWidth
+                                radius: implicitHeight / 2
+                                color: cCloseMouse.containsMouse
+                                       ? Theme.error : Theme.surfaceHover
+                                Behavior on color {
+                                    ColorAnimation { duration: Theme.animShort }
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: Theme.iconClear
+                                    color: cCloseMouse.containsMouse
+                                           ? Theme.accentText : Theme.textMuted
+                                    font.pixelSize: Theme.chipFont - 3
+                                }
+                                MouseArea {
+                                    id: cCloseMouse
+                                    anchors.fill: parent
+                                    anchors.margins: -2
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.composedRemoveRequested(
+                                        root.inputText, cDrop.modelData.value,
+                                        cDrop.modelData.file)
+                                    ThemedToolTip {
+                                        hovered: cCloseMouse.containsMouse
+                                        text: qsTr("Remove")
+                                    }
+                                }
+                            }
+                        }
+
+                        HoverHandler { id: cchipHover }
+                        ThemedToolTip {
+                            hovered: cchipHover.hovered && !cchip.Drag.active
+                            text: qsTr("From “%1”, drag to reorder")
+                                  .arg(root.nameForFile(cDrop.modelData.file))
+                        }
                     }
                 }
             }
@@ -738,6 +820,20 @@ Rectangle {
             if (root.profilesModel.fileForRow(i) === file)
                 return names[i];
         return file;
+    }
+
+    // Move a composed chip from one slot to another and emit the full new
+    // arrangement (value + source file per instance) for the manifest override.
+    function reorderComposed(from, to) {
+        if (from === to || from < 0 || to < 0)
+            return;
+        let seq = [];
+        for (let i = 0; i < composedVariantList.length; ++i)
+            seq.push({ value: composedVariantList[i].value,
+                       file: composedVariantList[i].file });
+        const moved = seq.splice(from, 1)[0];
+        seq.splice(to, 0, moved);
+        root.composedReorderRequested(root.inputText, seq);
     }
 
     function startEdit() { root.editStartRequested(); }

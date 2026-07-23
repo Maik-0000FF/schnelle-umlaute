@@ -8,6 +8,7 @@
 #include <QQmlEngine>
 #include <QString>
 #include <QStringList>
+#include <QVariantList>
 
 #include "merge_manifest_io.h"
 
@@ -55,15 +56,14 @@ public:
     // profile deleted while the editor was closed can't leave a dangling merge.
     Q_INVOKABLE void pruneToExisting(const QStringList &existingFiles);
 
-    // --- Content slice / composed view (MappingListModel, C++ only) --------
-    const schnelle_umlaute::MergeManifest &manifest() const { return manifest_; }
     // The ordered source refs for composing: base first, then appended sources.
     // Empty when no merge is configured.
     std::vector<std::string> composeRefs() const;
     // Replace one base char's order override with the given instance sequence
-    // (from a composed-view reorder) and persist. An empty sequence clears it.
-    void setOrderOverride(const std::string &base,
-                          std::vector<schnelle_umlaute::Variant> sequence);
+    // (from a composed-view reorder) and persist. Each element is a {value,
+    // file} map; an empty sequence clears the override.
+    Q_INVOKABLE void setOrderOverride(const QString &base,
+                                      const QVariantList &sequence);
 
 Q_SIGNALS:
     void manifestChanged();
