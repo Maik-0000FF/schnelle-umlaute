@@ -177,8 +177,12 @@ Rectangle {
     // The variant order to DISPLAY: usage-sorted when the toggle is on, else the
     // stored order. The stored output (and reordering/removal by value) is
     // unaffected; only the on-screen order changes.
+    // usageRevision is read in the condition (not discarded) so this binding is
+    // a real dependency of the live usage counter: when the engine flushes
+    // usage.conf the model bumps it and the chips re-sort without a toggle. The
+    // comparison is always true (it only grows); it exists to force reactivity.
     readonly property var displayVariantList:
-        (freqSort && modelRef)
+        (freqSort && modelRef && modelRef.usageRevision >= 0)
             ? modelRef.sortByUsage(inputText, variantList) : variantList
 
     // Read-only input cell width, shared with the error/warning rows below so
@@ -828,8 +832,9 @@ Rectangle {
             // Mouse affordance only: keyboard uses the roving list (Delete), and
             // grabbing focus on click would let Space re-open the delete dialog.
             focusPolicy: Qt.NoFocus
-            // Hidden in the composed view (read-only in stage one; chip-level
-            // cascade delete comes with the composed-view edit actions).
+            // Hidden in the composed view: a whole-row delete would be ambiguous
+            // there (the row aggregates variants from several profiles), so
+            // deletion is per chip (the ✕ cascades into that chip's source).
             visible: !root.composing
             text: root.editing ? Theme.iconCancel : Theme.iconTrash
             ThemedToolTip {

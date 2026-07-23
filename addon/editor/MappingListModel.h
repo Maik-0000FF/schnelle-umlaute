@@ -16,6 +16,8 @@
 #include "usage_io.h"
 #include "usage_sort.h"
 
+class QFileSystemWatcher;
+
 class MappingListModel : public QAbstractListModel {
     Q_OBJECT
     QML_ELEMENT
@@ -45,6 +47,10 @@ class MappingListModel : public QAbstractListModel {
     // under two keys = redundancy); the border only informs, never removes.
     Q_PROPERTY(int duplicateRevision READ duplicateRevision NOTIFY
                    duplicatesChanged)
+    // Bumped whenever usage.conf is re-read (engine writes it on focus-out), so
+    // the frequency preview re-sorts live while the editor stays open instead of
+    // only on a manual toggle. The chip display binding depends on this.
+    Q_PROPERTY(int usageRevision READ usageRevision NOTIFY usageChanged)
 
 public:
     enum Roles {
@@ -68,6 +74,7 @@ public:
 
     bool composing() const { return composing_; }
     int duplicateRevision() const { return duplicateRevision_; }
+    int usageRevision() const { return usageRevision_; }
     // True if this output value occurs more than once across all rows (same row
     // twice, or under two different keys). Chips carry a warning border either
     // way, as an informational cue the user can keep or clean up.
@@ -141,6 +148,7 @@ Q_SIGNALS:
     void composingChanged();
     void sortByFrequencyChanged();
     void duplicatesChanged();
+    void usageChanged();
 
 private:
     // Recompute the set of output values that occur more than once across all
@@ -148,8 +156,16 @@ private:
     // revision if it changed, so the chip warning borders refresh.
     void recomputeDuplicates();
     // Re-read usage.conf into usageCounts_ (engine-written, editor-read), so the
-    // preview sort reflects current usage. Read on toggle and on composed rebuild.
+    // preview sort reflects current usage, and bump usageRevision_ so the chip
+    // display re-evaluates. Called on toggle, on composed rebuild, and from the
+    // file watcher.
     void reloadUsage();
+    // React to usage.conf changing on disk (engine flush): re-read and re-sort
+    // the preview live, then re-arm the watch (the engine replaces the file
+    // atomically, which drops the old watch). No-op unless the sort is on.
+    void onUsageFileChanged();
+    // Arm the watch on usage.conf if the file exists and is not already watched.
+    void ensureUsageWatch();
     // Re-read merge.conf into manifest_, recompute composing_ (edit target is
     // the base), and refresh displayRows_ without emitting a reset (the caller
     // wraps this in begin/endResetModel). setProfileFile and reloadComposed both
@@ -212,6 +228,9 @@ private:
     // warning borders. Recomputed on every data change (recomputeDuplicates).
     QSet<QString> duplicateValues_;
     int duplicateRevision_ = 0;
+    // Watches usage.conf so the frequency preview updates live (see reloadUsage).
+    QFileSystemWatcher *usageWatcher_ = nullptr;
+    int usageRevision_ = 0;
 
     QString saveStatus_;
     // Relative to ~/.config/fcitx5/<config subdir>/. Default is the Standard

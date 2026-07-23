@@ -5,6 +5,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QSaveFile>
 #include <QVariantMap>
 
@@ -50,8 +52,31 @@ schnelle_umlaute::UsageCounts readUsageConf() {
 } // namespace
 
 MappingListModel::MappingListModel(QObject *parent)
-    : QAbstractListModel(parent) {
+    : QAbstractListModel(parent),
+      usageWatcher_(new QFileSystemWatcher(this)) {
+    connect(usageWatcher_, &QFileSystemWatcher::fileChanged, this,
+            &MappingListModel::onUsageFileChanged);
     load();
+    ensureUsageWatch();
+}
+
+void MappingListModel::ensureUsageWatch() {
+    const QString path =
+        schnelle_umlaute::configDirPath() +
+        QString::fromLatin1(schnelle_umlaute::kUsageFile);
+    if (QFileInfo::exists(path) && !usageWatcher_->files().contains(path))
+        usageWatcher_->addPath(path);
+}
+
+void MappingListModel::onUsageFileChanged() {
+    // The engine writes usage.conf atomically (temp + rename), so re-arm the
+    // watch regardless; the old path stops emitting once the inode is replaced.
+    if (sortByFrequency_) {
+        reloadUsage(); // bumps usageRevision_ -> normal chips re-sort
+        if (composing_)
+            reloadComposed(); // composed rows re-sort inside rebuildComposed
+    }
+    ensureUsageWatch();
 }
 
 int MappingListModel::rowCount(const QModelIndex &parent) const {
@@ -395,7 +420,11 @@ void MappingListModel::reloadComposed() {
     Q_EMIT composingChanged();
 }
 
-void MappingListModel::reloadUsage() { usageCounts_ = readUsageConf(); }
+void MappingListModel::reloadUsage() {
+    usageCounts_ = readUsageConf();
+    ++usageRevision_;
+    Q_EMIT usageChanged();
+}
 
 void MappingListModel::setSortByFrequency(bool v) {
     if (sortByFrequency_ == v)
