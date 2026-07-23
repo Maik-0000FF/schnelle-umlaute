@@ -56,6 +56,11 @@ MappingListModel::MappingListModel(QObject *parent)
       usageWatcher_(new QFileSystemWatcher(this)) {
     connect(usageWatcher_, &QFileSystemWatcher::fileChanged, this,
             &MappingListModel::onUsageFileChanged);
+    // The config dir is watched too, so the engine CREATING usage.conf after the
+    // editor started (a fresh setup with no prior usage) is noticed and the file
+    // watch gets armed; addPath on a not-yet-existing file would just fail.
+    connect(usageWatcher_, &QFileSystemWatcher::directoryChanged, this,
+            &MappingListModel::ensureUsageWatch);
     load();
     ensureUsageWatch();
 }
@@ -64,8 +69,21 @@ void MappingListModel::ensureUsageWatch() {
     const QString path =
         schnelle_umlaute::configDirPath() +
         QString::fromLatin1(schnelle_umlaute::kUsageFile);
-    if (QFileInfo::exists(path) && !usageWatcher_->files().contains(path))
+    if (QFileInfo::exists(path) && !usageWatcher_->files().contains(path)) {
         usageWatcher_->addPath(path);
+        // First time the file appears (engine just created it): pick up its
+        // counts now, so a session that had none at startup still refreshes.
+        if (sortByFrequency_) {
+            reloadUsage();
+            if (composing_)
+                reloadComposed();
+        }
+    }
+    QString dir = schnelle_umlaute::configDirPath();
+    if (dir.endsWith(QLatin1Char('/')))
+        dir.chop(1);
+    if (QFileInfo::exists(dir) && !usageWatcher_->directories().contains(dir))
+        usageWatcher_->addPath(dir);
 }
 
 void MappingListModel::onUsageFileChanged() {
@@ -431,6 +449,7 @@ void MappingListModel::setSortByFrequency(bool v) {
         return;
     sortByFrequency_ = v;
     reloadUsage(); // fresh counts so the preview reflects current usage
+    ensureUsageWatch(); // arm the watch if usage.conf appeared since startup
     Q_EMIT sortByFrequencyChanged();
     if (composing_)
         reloadComposed(); // composed rows re-sort inside rebuildComposed
