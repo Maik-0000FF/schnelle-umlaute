@@ -32,6 +32,11 @@ Item {
         function onErrorOccurred(message) {
             root.requestSnackbar(message, Theme.error);
         }
+        // A non-blocking hint (e.g. a duplicate variant was dropped in): shown
+        // in the warning colour, matching the row's warning border.
+        function onVariantWarning(message) {
+            root.requestSnackbar(message, Theme.warning);
+        }
     }
 
     ColumnLayout {

@@ -27,8 +27,13 @@ Rectangle {
     readonly property bool dropTarget:
         foreignDragCount > 0 && view && view.chipDragging
     color: highlighted ? Theme.surfaceHover : "transparent"
+    // A drop target (accent) and an open edit (focus) take precedence; a row
+    // holding a duplicate variant otherwise carries a warning border, the
+    // steady-state counterpart to the transient snackbar hint.
     border.color: dropTarget ? Theme.accent
-                             : (editing ? Theme.borderFocus : "transparent")
+                             : (editing ? Theme.borderFocus
+                                        : (hasDuplicateVariant ? Theme.warning
+                                                               : "transparent"))
     border.width: 1
     height: col.implicitHeight + 8
 
@@ -140,6 +145,19 @@ Rectangle {
         }
         if (cur.length > 0) out.push(cur);
         return out;
+    }
+    // A variant repeated within this row: allowed (a duplicate can be dropped
+    // in on purpose), but it is a dead cycle slot at runtime, so the row flags
+    // it with a warning border. The transient snackbar hint fires separately
+    // from the model's variantWarning signal when the duplicate is created.
+    readonly property bool hasDuplicateVariant: {
+        let seen = ({});
+        for (let i = 0; i < variantList.length; ++i) {
+            if (seen[variantList[i]])
+                return true;
+            seen[variantList[i]] = true;
+        }
+        return false;
     }
     property var modelRef: null
     property var settingsModel: null

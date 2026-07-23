@@ -71,6 +71,11 @@ Q_SIGNALS:
     void saveStatusChanged();
     void profileFileChanged();
     void errorOccurred(const QString &message);
+    // A non-blocking hint (not an error): the action was applied but is worth
+    // flagging, e.g. a chip dropped onto a row that already has that variant,
+    // which the engine cycles through twice (a dead slot). The row also shows a
+    // warning border via MappingRow's duplicate check.
+    void variantWarning(const QString &message);
 
 private:
     static bool isValidInputChar(const QString &input);

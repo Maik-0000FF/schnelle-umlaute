@@ -267,11 +267,14 @@ bool MappingListModel::moveVariant(const QString &fromInput,
     auto toVars =
         schnelle_umlaute::splitOutputs(entries_[toRow].output.toStdString());
     if (std::find(toVars.begin(), toVars.end(), var) != toVars.end()) {
-        // The target already carries this variant; refuse so the chip snaps back
-        // and the source's copy is not silently dropped, and say why.
-        Q_EMIT errorOccurred(
-            tr("“%1” is already an output of this mapping").arg(variant));
-        return false;
+        // The target already carries this variant. This is allowed (the user
+        // may deliberately want it), but at runtime it is a dead cycle slot,
+        // stepped through twice, so warn instead of silently accepting. The
+        // move still proceeds below, adding the duplicate; the row shows a
+        // warning border via MappingRow's duplicate check.
+        Q_EMIT variantWarning(
+            tr("“%1” is now a duplicate in this mapping (a dead cycle slot)")
+                .arg(variant));
     }
     if (fromVars.size() == 1) {
         // Refuse to move the sole variant out: it would leave an empty, invalid
