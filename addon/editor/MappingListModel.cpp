@@ -462,7 +462,8 @@ void MappingListModel::recomputeDuplicates() {
 }
 
 schnelle_umlaute::VariantMap
-MappingListModel::loadProfileMap(const QString &relFile) const {
+MappingListModel::loadProfileMap(const QString &relFile,
+                                 std::vector<std::string> *inputOrder) const {
     schnelle_umlaute::VariantMap map;
     if (!schnelle_umlaute::isSafeProfileFile(relFile.toStdString()))
         return map;
@@ -470,8 +471,11 @@ MappingListModel::loadProfileMap(const QString &relFile) const {
     if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
         for (const auto &m : schnelle_umlaute::parseMappings(fp)) {
             auto outs = schnelle_umlaute::splitOutputs(m.output);
-            if (!outs.empty())
+            if (!outs.empty()) {
+                if (inputOrder && map.find(m.input) == map.end())
+                    inputOrder->push_back(m.input);
                 map[m.input] = std::move(outs);
+            }
         }
         std::fclose(fp);
     }
@@ -497,11 +501,20 @@ void MappingListModel::rebuildComposed() {
         if (s != manifest_.base)
             refs.push_back(s);
 
-    // Load the appended sources once, keep them alive for compose().
+    // Load the appended sources once, keep them alive for compose(). Capture
+    // each source's base chars in file order too, so the appended rows below
+    // emit deterministically instead of following the map's arbitrary iteration
+    // (which reshuffled the rows on every rebuild).
     std::vector<schnelle_umlaute::VariantMap> extra;
+    std::vector<std::vector<std::string>> extraOrder;
     extra.reserve(refs.size());
-    for (size_t i = 1; i < refs.size(); ++i)
-        extra.push_back(loadProfileMap(QString::fromStdString(refs[i])));
+    extraOrder.reserve(refs.size());
+    for (size_t i = 1; i < refs.size(); ++i) {
+        std::vector<std::string> order;
+        extra.push_back(
+            loadProfileMap(QString::fromStdString(refs[i]), &order));
+        extraOrder.push_back(std::move(order));
+    }
 
     std::vector<schnelle_umlaute::ComposeSource> sources;
     sources.reserve(refs.size());
@@ -566,9 +579,9 @@ void MappingListModel::rebuildComposed() {
     };
     for (const auto &e : entries_)
         emitRow(e.input.toStdString());
-    for (size_t i = 1; i < refs.size(); ++i)
-        for (const auto &kv : extra[i - 1])
-            emitRow(kv.first);
+    for (const auto &order : extraOrder)
+        for (const auto &input : order)
+            emitRow(input);
 }
 
 bool MappingListModel::removeVariantFromProfileFile(const QString &relFile,

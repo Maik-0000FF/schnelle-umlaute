@@ -160,8 +160,13 @@ private:
     // (value + 1-based position + source File; the name is resolved in QML).
     void rebuildComposed();
     // Load a profile file's mappings into a flat base -> variants map, for use
-    // as a compose source. Unsafe or missing files yield an empty map.
-    schnelle_umlaute::VariantMap loadProfileMap(const QString &relFile) const;
+    // as a compose source. Unsafe or missing files yield an empty map. When
+    // inputOrder is given it also receives the base chars in file order, so the
+    // composed row order stays deterministic (a map alone would iterate
+    // arbitrarily and reshuffle the rows on every rebuild).
+    schnelle_umlaute::VariantMap
+    loadProfileMap(const QString &relFile,
+                   std::vector<std::string> *inputOrder = nullptr) const;
     // Remove one occurrence of value from `input`'s output in the given profile
     // file (dropping the whole mapping if it becomes empty), write it back
     // atomically, and reload the engine. Backs the composed-view cascade delete.
