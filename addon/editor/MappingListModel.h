@@ -51,6 +51,10 @@ class MappingListModel : public QAbstractListModel {
     // the frequency preview re-sorts live while the editor stays open instead of
     // only on a manual toggle. The chip display binding depends on this.
     Q_PROPERTY(int usageRevision READ usageRevision NOTIFY usageChanged)
+    // True when usage.conf exists and holds counts, so the editor can disable
+    // the reset control when there is nothing to reset. Re-evaluated whenever
+    // the usage file appears, changes or is removed (usageDataChanged).
+    Q_PROPERTY(bool hasUsageData READ hasUsageData NOTIFY usageDataChanged)
 
 public:
     enum Roles {
@@ -75,6 +79,12 @@ public:
     bool composing() const { return composing_; }
     int duplicateRevision() const { return duplicateRevision_; }
     int usageRevision() const { return usageRevision_; }
+    bool hasUsageData() const;
+    // Request a usage-counter reset: write the one-shot sidecar marker and
+    // reload the addon, so the engine (sole owner of the counts) clears them and
+    // deletes usage.conf. The preview updates via the usage watcher when the
+    // file disappears.
+    Q_INVOKABLE void resetUsageCounts();
     // True if this output value occurs more than once across all rows (same row
     // twice, or under two different keys). Chips carry a warning border either
     // way, as an informational cue the user can keep or clean up.
@@ -149,6 +159,7 @@ Q_SIGNALS:
     void sortByFrequencyChanged();
     void duplicatesChanged();
     void usageChanged();
+    void usageDataChanged();
 
 private:
     // Recompute the set of output values that occur more than once across all

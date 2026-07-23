@@ -16,6 +16,8 @@
 
 #include <cerrno>
 #include <cstdio>
+#include <filesystem>
+#include <system_error>
 #include <unistd.h>
 #include <utility>
 
@@ -132,6 +134,49 @@ bool saveUsage(const UsageCounts &counts) {
     return StandardPath::global().safeSave(StandardPath::Type::PkgConfig,
                                            relPath, writeAll);
 #endif
+}
+
+namespace {
+// Absolute writable path for a config-dir-relative file, for the delete/exists
+// operations StandardPaths::open (read-only) does not cover. Empty if there is
+// no writable config dir.
+std::string writableConfigPath(const std::string &relPath) {
+    using namespace fcitx;
+#if SU_HAS_NEW_STDPATHS
+    const auto dir =
+        StandardPaths::global().userDirectory(StandardPathsType::PkgConfig);
+    if (dir.empty())
+        return {};
+    return (dir / relPath).string();
+#else
+    const auto dir =
+        StandardPath::global().userDirectory(StandardPath::Type::PkgConfig);
+    if (dir.empty())
+        return {};
+    return dir + "/" + relPath;
+#endif
+}
+} // namespace
+
+void deleteUsage() {
+    const std::string path =
+        writableConfigPath(std::string(kConfigSubdir) + "/" + kUsageFile);
+    if (path.empty())
+        return;
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+}
+
+bool takeUsageResetMarker() {
+    const std::string path = writableConfigPath(std::string(kConfigSubdir) +
+                                                "/" + kUsageResetMarker);
+    if (path.empty())
+        return false;
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec))
+        return false;
+    std::filesystem::remove(path, ec);
+    return true;
 }
 
 } // namespace schnelle_umlaute

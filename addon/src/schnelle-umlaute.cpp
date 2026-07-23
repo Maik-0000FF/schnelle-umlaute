@@ -1238,6 +1238,15 @@ private:
     // Shared by setConfig (values already loaded) and reloadConfig (read from
     // disk).
     void applyConfig() {
+        // Consume a pending usage-reset request (the editor's sidecar marker)
+        // before building the runtime map, so it sorts on empty counts (=
+        // stored order) and the runtime cycle matches the editor preview at
+        // once. Not gated on the sort toggle: a reset is valid while off too.
+        if (schnelle_umlaute::takeUsageResetMarker()) {
+            usageCounts_.clear();
+            usageDirty_ = false;
+            schnelle_umlaute::deleteUsage();
+        }
         umlautMap_ = buildRuntimeMap();
         rebuildProfileShortcuts();
         applyUsageTracking();

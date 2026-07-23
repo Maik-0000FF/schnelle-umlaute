@@ -78,6 +78,9 @@ void MappingListModel::ensureUsageWatch() {
         QString::fromLatin1(schnelle_umlaute::kUsageFile);
     if (QFileInfo::exists(path) && !usageWatcher_->files().contains(path)) {
         usageWatcher_->addPath(path);
+        // The file just appeared (fresh setup) or was re-armed after the
+        // engine's atomic rename; let the reset control's hasUsageData update.
+        Q_EMIT usageDataChanged();
         // Refresh only the FIRST time the file appears (a fresh setup created it
         // after startup): pick up its counts now. A re-arm after the engine's
         // atomic rename also drops and re-adds the path here, but onUsageFile
@@ -108,6 +111,9 @@ void MappingListModel::onUsageFileChanged() {
             reloadComposed(); // composed rows re-sort inside rebuildComposed
     }
     ensureUsageWatch();
+    // The file changed, appeared or was removed (e.g. a reset deleted it);
+    // refresh the reset control's enabled state.
+    Q_EMIT usageDataChanged();
 }
 
 int MappingListModel::rowCount(const QModelIndex &parent) const {
@@ -458,6 +464,25 @@ void MappingListModel::reloadUsage() {
     usageCounts_ = readUsageConf();
     ++usageRevision_;
     Q_EMIT usageChanged();
+}
+
+bool MappingListModel::hasUsageData() const {
+    const QFileInfo fi(schnelle_umlaute::configDirPath() +
+                       QString::fromLatin1(schnelle_umlaute::kUsageFile));
+    return fi.exists() && fi.size() > 0;
+}
+
+void MappingListModel::resetUsageCounts() {
+    // Write the one-shot reset marker and reload the addon. The engine consumes
+    // the marker, clears its in-memory counts and deletes usage.conf; the watch
+    // on usage.conf then updates the preview and hasUsageData.
+    const QString path =
+        schnelle_umlaute::configDirPath() +
+        QString::fromLatin1(schnelle_umlaute::kUsageResetMarker);
+    QFile marker(path);
+    if (marker.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        marker.close();
+    reloadSchnelleUmlauteAddon();
 }
 
 void MappingListModel::setSortByFrequency(bool v) {
