@@ -963,6 +963,7 @@ private:
     // mappings the editor just pushed for the active profile).
     UmlautMap finishRuntimeMap(UmlautMap base) {
         UmlautMap map = applyMergeIfBaseActive(std::move(base));
+        storedMap_ = map; // stored order, before the frequency sort
         applyFrequencySort(map);
         return map;
     }
@@ -1024,6 +1025,18 @@ private:
             return;
         ++usageCounts_[base][variant];
         usageDirty_ = true;
+        // Re-sort this key's cycle live from its stored order, so the next
+        // trigger reflects the new count without waiting for a map rebuild. The
+        // committing gesture has just ended, so its own cycle is not disturbed.
+        // Re-sorting from storedMap_ (not the already-sorted umlautMap_) keeps
+        // the tie-break on stored order, so runtime and editor preview agree.
+        if (*config_.behavior->sortByFrequency) {
+            auto sit = storedMap_.find(base);
+            auto it = umlautMap_.find(base);
+            if (sit != storedMap_.end() && it != umlautMap_.end())
+                it->second = schnelle_umlaute::sortVariantsByUsage(
+                    sit->second, usageCounts_[base]);
+        }
     }
 
     // Persist the usage table if it changed since the last write.
@@ -1822,6 +1835,11 @@ private:
 
     // Mappings (shared across all InputContexts, read-only after config load)
     std::unordered_map<std::string, std::vector<std::string>> umlautMap_;
+    // The same mappings in their STORED order (merge-composed, before the
+    // frequency sort). Kept so a commit can re-sort a single key's cycle live
+    // from the stored order (tie-break = stored), matching the build-time pass
+    // and the editor preview exactly instead of drifting on equal counts.
+    std::unordered_map<std::string, std::vector<std::string>> storedMap_;
 
     // Per-(base char, committed variant) usage counters. Loaded once at
     // startup, incremented in memory on every variant commit, and flushed to
