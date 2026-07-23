@@ -744,6 +744,17 @@ bool MappingListModel::moveComposedVariant(const QString &fromInput,
                                            const QString &toInput) {
     if (!composing_ || fromInput == toInput)
         return false;
+    // Refuse to move out the row's last chip: it would leave the composed row
+    // empty and silently drop the mapping. Remove the last one with its ✕ (a
+    // confirmed delete) instead. Mirrors the plain view's sole-variant guard.
+    for (const auto &row : displayRows_) {
+        if (row.input == fromInput && row.variants.size() <= 1) {
+            Q_EMIT variantWarning(
+                tr("A row keeps at least one variant; remove the last one with "
+                   "its ✕."));
+            return false;
+        }
+    }
     if (file.toStdString() == manifest_.base) {
         // The base's own mappings live in entries_; move within them.
         const std::string val = value.toStdString();
