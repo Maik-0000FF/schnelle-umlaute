@@ -66,6 +66,10 @@ install(FILES data/schnelle-umlaute-inputmethod.conf
         DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod"
         RENAME schnelle-umlaute.conf)
 
+# Shared theme-palette QML module (imported by both the editor and the overlay).
+# Added before them so the module target exists when they link it.
+add_subdirectory(palette)
+
 # Standalone QML editor (launched directly from fcitx5-config-qt's gear
 # icon via the ExternalOption returned by SchnelleUmlauteEngine::getConfig())
 add_subdirectory(editor)
