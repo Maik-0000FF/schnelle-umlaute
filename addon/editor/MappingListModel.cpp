@@ -62,6 +62,13 @@ MappingListModel::MappingListModel(QObject *parent)
     connect(usageWatcher_, &QFileSystemWatcher::directoryChanged, this,
             &MappingListModel::ensureUsageWatch);
     load();
+    // Compute composing_ up front. setProfileFile early-returns when the file is
+    // unchanged, and the default profileFile_ ("mappings.txt") is exactly what
+    // the startup assignment sets when the Standard profile is active, so that
+    // path would skip the refresh and leave the composed view off when Standard
+    // is the merge base. Doing it here covers that case; other profiles still
+    // refresh through setProfileFile on the (changing) assignment.
+    refreshComposedState();
     ensureUsageWatch();
 }
 
