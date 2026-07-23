@@ -1,5 +1,16 @@
 # Upgrading
 
+## Upgrading from v1.8.x to v1.9.0
+
+No config or mapping migration. Pull / reinstall and restart fcitx5. If you use the overlay, restart the `schnelle-umlaute-overlay` daemon (or toggle it off and on in the editor).
+
+### What changed
+
+- **Merge profiles.** Combine several profiles into one composed mapping list: pick a base profile, append the others in click order, and fine-tune the result in the base view. See [CONFIGURATION](CONFIGURATION.md#merging-profiles).
+- **Sort variants by usage.** An optional toggle orders each key's cycling variants by how often you have used them, most-used first. Non-destructive, and the counts persist across restarts.
+- **Duplicate variants allowed.** A variant may now appear more than once; duplicates are flagged with a warning border instead of being refused.
+- **Theme picker with fourteen themes.** The theme selector previews each theme as a colour pill and adds ten more built-in themes (Catppuccin Mocha and Latte, Nord, Gruvbox Dark, Dracula, Tokyo Night, Rosé Pine, Solarized Light, Eldritch, Kanagawa).
+
 ## Upgrading from v1.7.x to v1.8.0
 
 No config or mapping migration. Pull / reinstall and restart fcitx5. If you use the overlay, restart the `schnelle-umlaute-overlay` daemon (or toggle it off and on in the editor).
