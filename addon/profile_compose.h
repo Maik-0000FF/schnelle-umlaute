@@ -15,8 +15,9 @@
 // coming from two source profiles yields two Variant instances, each tagged
 // with its source. That is what the editor needs to colour/tag duplicates and
 // to target the right source profile on delete. The RUNTIME projection
-// (projectUnique) collapses duplicates by value so the engine's cycle never
-// has a dead slot; only the editor keeps the full instance list.
+// (projectValues) keeps those duplicates too, so the cycle matches the composed
+// editor view exactly (no silent dedup); a duplicate is a dead slot the editor
+// flags, for the user to keep or remove.
 
 namespace schnelle_umlaute {
 
@@ -120,33 +121,27 @@ compose(const std::vector<ComposeSource> &sources,
     return out;
 }
 
-// Runtime projection of one base's instances to a unique value list (first
-// occurrence wins, order preserved). Removes the dead cycle slots that
-// duplicate provenance would otherwise create at runtime.
+// Runtime projection of one base's instances to its value list, order AND
+// duplicates preserved, so the engine's cycle matches exactly what the composed
+// editor view shows. Duplicates are not silently collapsed: a repeated value is
+// a dead cycle slot the editor flags with a warning border, left to the user to
+// keep or remove (WYSIWYG: the cycle never drifts from the mapping).
 inline std::vector<std::string>
-projectUnique(const std::vector<Variant> &instances) {
+projectValues(const std::vector<Variant> &instances) {
     std::vector<std::string> values;
-    for (const auto &inst : instances) {
-        bool seen = false;
-        for (const auto &v : values) {
-            if (v == inst.value) {
-                seen = true;
-                break;
-            }
-        }
-        if (!seen)
-            values.push_back(inst.value);
-    }
+    values.reserve(instances.size());
+    for (const auto &inst : instances)
+        values.push_back(inst.value);
     return values;
 }
 
-// Project a whole composed instance map to a runtime VariantMap (unique
-// values per base). A base whose instance list is empty is dropped.
-inline VariantMap projectUnique(
+// Project a whole composed instance map to a runtime VariantMap (values per
+// base, duplicates kept). A base whose instance list is empty is dropped.
+inline VariantMap projectValues(
     const std::unordered_map<std::string, std::vector<Variant>> &composed) {
     VariantMap out;
     for (const auto &kv : composed) {
-        auto values = projectUnique(kv.second);
+        auto values = projectValues(kv.second);
         if (!values.empty())
             out.emplace(kv.first, std::move(values));
     }

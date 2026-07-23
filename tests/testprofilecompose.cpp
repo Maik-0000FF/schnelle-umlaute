@@ -16,7 +16,7 @@ using schnelle_umlaute::compose;
 using schnelle_umlaute::composeBase;
 using schnelle_umlaute::ComposeSource;
 using schnelle_umlaute::OrderOverride;
-using schnelle_umlaute::projectUnique;
+using schnelle_umlaute::projectValues;
 using schnelle_umlaute::Variant;
 using schnelle_umlaute::VariantMap;
 
@@ -80,19 +80,20 @@ void testOrderOverrideSelfHeals() {
     EXPECT((out[1] == Variant{"\xc3\xa0", "profiles/fr.txt"})); // natural rest
 }
 
-// Runtime projection collapses duplicate values (first occurrence wins),
-// preserving order — no dead cycle slot for the second ä.
-void testProjectUniqueDropsDuplicateValues() {
+// Runtime projection keeps duplicate values (order preserved), so the cycle
+// matches the composed editor view: the second ä is a dead slot, not removed.
+void testProjectValuesKeepsDuplicates() {
     std::vector<Variant> instances{{"\xc3\xa4", "mappings.txt"},
                                    {"\xc3\xa0", "profiles/fr.txt"},
                                    {"\xc3\xa4", "profiles/fr.txt"}};
-    auto values = projectUnique(instances);
-    EXPECT(values.size() == 2);
+    auto values = projectValues(instances);
+    EXPECT(values.size() == 3);
     EXPECT(values[0] == "\xc3\xa4");
     EXPECT(values[1] == "\xc3\xa0");
+    EXPECT(values[2] == "\xc3\xa4");
 }
 
-// compose() covers every base across the sources; projectUnique(map) drops a
+// compose() covers every base across the sources; projectValues(map) drops a
 // base only if it has no instances (never happens here).
 void testComposeAndProjectMap() {
     VariantMap de{{"a", {"\xc3\xa4"}}, {"o", {"\xc3\xb6"}}};
@@ -103,7 +104,7 @@ void testComposeAndProjectMap() {
     EXPECT(composed.size() == 3); // a, o, e
     EXPECT(composed.at("a").size() == 2);
 
-    auto runtime = projectUnique(composed);
+    auto runtime = projectValues(composed);
     EXPECT(runtime.size() == 3);
     EXPECT(runtime.at("a").size() == 2); // ä, à (no dup here)
     EXPECT(runtime.at("o").size() == 1);
@@ -117,7 +118,7 @@ int main() {
     testMissingSourcesSkipped();
     testOrderOverrideArranges();
     testOrderOverrideSelfHeals();
-    testProjectUniqueDropsDuplicateValues();
+    testProjectValuesKeepsDuplicates();
     testComposeAndProjectMap();
     std::printf("testprofilecompose: all passed\n");
     return 0;

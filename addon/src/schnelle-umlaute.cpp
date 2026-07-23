@@ -970,8 +970,9 @@ private:
     // Compose the base map with the appended source profiles, but ONLY when the
     // active profile is the manifest's chosen base. Any other active profile
     // (or no manifest) is returned untouched, so the merge never "wanders" onto
-    // a profile that is not its base. Duplicates are collapsed by value for the
-    // runtime cycle (projectUnique); the editor keeps the full instance list.
+    // a profile that is not its base. Duplicates are kept (projectValues), so
+    // the cycle matches the composed editor view exactly; a repeated value is a
+    // dead slot the editor flags, never silently removed here.
     UmlautMap applyMergeIfBaseActive(UmlautMap active) {
         const schnelle_umlaute::MergeManifest m =
             schnelle_umlaute::loadMergeManifest();
@@ -994,7 +995,7 @@ private:
         sources.push_back({m.base, &active});
         for (size_t i = 0; i < extra.size(); ++i)
             sources.push_back({extraRefs[i], &extra[i]});
-        return schnelle_umlaute::projectUnique(
+        return schnelle_umlaute::projectValues(
             schnelle_umlaute::compose(sources, m.order));
     }
 
