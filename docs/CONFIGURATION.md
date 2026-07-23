@@ -272,7 +272,7 @@ Cycling works with any Unicode characters, accents, emojis, symbols, Greek lette
 
 ## Sorting variants by usage
 
-Turn on **Sort variants by usage** in the **Mappings** tab to order each key's cycling variants by how often you have used them, most-used first, so your common accents come up earliest in the cycle. It is **non-destructive**: your stored order is kept, and turning the toggle off restores it. The addon counts each committed variant as you type and applies the same order while typing, so the editor preview matches the runtime cycle, and the counts persist across restarts.
+Turn on **Sort variants by usage** in the **Mappings** tab to order each key's cycling variants by how often you have used them, most-used first, so your common accents come up earliest in the cycle. It is **non-destructive**: your stored order is kept, and turning the toggle off restores it. The addon counts each committed variant as you type and applies the same order while typing, so the editor preview matches the runtime cycle, and the counts persist across restarts. Counting happens only while the toggle is on; turning it off pauses it and keeps the counts, so re-enabling resumes from where you left off. Use **Reset usage data** in the same card to clear the learned counts (it removes `usage.conf`); the sort setting itself is unaffected.
 
 ```ini
 [Behavior]
