@@ -127,6 +127,9 @@ Item {
         AddMappingCard {
             id: addCard
             Layout.fillWidth: true
+            // Hidden in the composed merge view: a mapping is added to a
+            // specific source profile, not to the read-only composed result.
+            visible: !(root.mappingsModel && root.mappingsModel.composing)
             modelRef: root.mappingsModel
             settingsModel: root.settingsModel
             onMappingAdded: (input, output) => {
@@ -196,6 +199,12 @@ Item {
                 property bool keyboardActive: false
                 Keys.onPressed: (event) => {
                     listView.keyboardActive = true;
+                    // The composed view is read-only (stage one): its rows are
+                    // display-only projections, so the reorder/edit/delete keys
+                    // must not fire against entries_ indices. Arrow navigation
+                    // (keyNavigationEnabled) still works.
+                    if (root.mappingsModel && root.mappingsModel.composing)
+                        return;
                     if (listView.editingIndex !== -1 || !root.mappingsModel)
                         return;
                     const i = listView.currentIndex;
@@ -249,10 +258,14 @@ Item {
                     required property int index
                     required property string input
                     required property string output
+                    required property var composedVariants
                     width: listView.width
                     rowIndex: index
                     inputText: input
                     outputText: output
+                    composing: root.mappingsModel.composing
+                    composedVariantList: composedVariants
+                    profilesModel: root.profilesModel
                     modelRef: root.mappingsModel
                     settingsModel: root.settingsModel
                     editing: listView.editingIndex === index

@@ -477,17 +477,17 @@ Item {
                             }
                         }
 
-                        // Merge control (⧉): the first profile picked becomes
-                        // the base, the rest are appended in click order. The
-                        // badge shows the role — "B" for the base, a number for
-                        // an appended source (its position) — in the same
-                        // provenance colour the composed view uses. Clicking the
-                        // base dissolves the merge so another base can be chosen.
+                        // Merge control (⧉): click to add a profile to the merge
+                        // (appended in click order); the profile at position 1
+                        // is the base. Clicking a merged profile removes it, and
+                        // removing position 1 promotes the next. The numbered
+                        // badge shows the position in the same provenance colour
+                        // the composed view uses.
                         Text {
                             id: mergeIcon
                             visible: root.mergeModel !== null
                             text: Theme.iconMerge
-                            color: prow.mergeOrderIdx >= 0
+                            color: prow.mergeOrderIdx > 0
                                    ? Theme.mergeSourceColor(prow.mergeOrderIdx)
                                    : (mergeMouse.containsMouse ? Theme.text
                                                                : Theme.textMuted)
@@ -496,18 +496,13 @@ Item {
                             horizontalAlignment: Text.AlignHCenter
                             ThemedToolTip {
                                 hovered: mergeMouse.containsMouse
-                                text: prow.mergeOrderIdx === 0
-                                    ? qsTr("Merge base, click to dissolve")
-                                    : (prow.mergeOrderIdx > 0
-                                       ? qsTr("Merged (position %1), click to remove")
-                                         .arg(prow.mergeOrderIdx)
-                                       : (root.mergeModel
-                                          && root.mergeModel.mergeBase.length > 0
-                                          ? qsTr("Append to the merge")
-                                          : qsTr("Set as merge base")))
+                                text: prow.mergeOrderIdx > 0
+                                    ? qsTr("Merged (position %1), click to remove")
+                                      .arg(prow.mergeOrderIdx)
+                                    : qsTr("Add to the merge")
                             }
                             Rectangle {
-                                visible: prow.mergeOrderIdx >= 0
+                                visible: prow.mergeOrderIdx > 0
                                 anchors.right: parent.right
                                 anchors.top: parent.top
                                 anchors.rightMargin: -Theme.badgeOffset
@@ -520,8 +515,7 @@ Item {
                                 Text {
                                     id: badgeText
                                     anchors.centerIn: parent
-                                    text: prow.mergeOrderIdx === 0
-                                          ? qsTr("B") : prow.mergeOrderIdx
+                                    text: prow.mergeOrderIdx
                                     color: Theme.accentText
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontBadge

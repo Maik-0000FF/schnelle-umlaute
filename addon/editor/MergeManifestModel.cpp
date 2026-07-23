@@ -49,11 +49,10 @@ bool MergeManifestModel::isMergeBase(const QString &file) const {
 
 int MergeManifestModel::orderIndex(const QString &file) const {
     const std::string f = file.toStdString();
-    if (!manifest_.base.empty() && f == manifest_.base)
-        return 0;
-    for (size_t i = 0; i < manifest_.sources.size(); ++i)
-        if (manifest_.sources[i] == f)
-            return static_cast<int>(i) + 1;
+    const auto refs = composeRefs(); // base first, then appended sources
+    for (size_t i = 0; i < refs.size(); ++i)
+        if (refs[i] == f)
+            return static_cast<int>(i) + 1; // 1-based: position 1 is the base
     return -1;
 }
 
@@ -68,68 +67,52 @@ std::vector<std::string> MergeManifestModel::composeRefs() const {
     return refs;
 }
 
-void MergeManifestModel::toggleMerge(const QString &file) {
-    if (file.isEmpty() || !isSafe(file))
-        return;
-    const std::string f = file.toStdString();
-    if (manifest_.base.empty()) {
-        manifest_.base = f; // first pick becomes the base
-    } else if (f == manifest_.base) {
-        manifest_ = schnelle_umlaute::MergeManifest{}; // base clicked: dissolve
+void MergeManifestModel::setCombinedRefs(const std::vector<std::string> &refs) {
+    if (refs.empty()) {
+        manifest_ = schnelle_umlaute::MergeManifest{};
     } else {
-        auto &src = manifest_.sources;
-        auto it = std::find(src.begin(), src.end(), f);
-        if (it != src.end())
-            src.erase(it); // toggle an appended source off
-        else
-            src.push_back(f); // append in click order
+        manifest_.base = refs.front(); // position 1 is always the base
+        manifest_.sources.assign(refs.begin() + 1, refs.end());
     }
     pruneOrder();
     save();
 }
 
+void MergeManifestModel::toggleMerge(const QString &file) {
+    if (file.isEmpty() || !isSafe(file))
+        return;
+    const std::string f = file.toStdString();
+    auto refs = composeRefs();
+    auto it = std::find(refs.begin(), refs.end(), f);
+    if (it != refs.end())
+        refs.erase(it); // remove; if it was position 1, the next is promoted
+    else
+        refs.push_back(f); // append in click order
+    setCombinedRefs(refs);
+}
+
 void MergeManifestModel::onProfileRemoved(const QString &file) {
     const std::string f = file.toStdString();
-    bool touched = false;
-    if (!manifest_.base.empty() && f == manifest_.base) {
-        manifest_ = schnelle_umlaute::MergeManifest{}; // base gone: dissolve
-        touched = true;
-    } else {
-        auto &src = manifest_.sources;
-        auto it = std::find(src.begin(), src.end(), f);
-        if (it != src.end()) {
-            src.erase(it);
-            touched = true;
-        }
-    }
-    if (touched) {
-        pruneOrder();
-        save();
-    }
+    auto refs = composeRefs();
+    auto it = std::find(refs.begin(), refs.end(), f);
+    if (it == refs.end())
+        return;
+    refs.erase(it);
+    setCombinedRefs(refs);
 }
 
 void MergeManifestModel::pruneToExisting(const QStringList &existingFiles) {
     std::set<std::string> exist;
     for (const QString &f : existingFiles)
         exist.insert(f.toStdString());
-    bool touched = false;
-    if (!manifest_.base.empty() && exist.find(manifest_.base) == exist.end()) {
-        manifest_ = schnelle_umlaute::MergeManifest{}; // base gone: dissolve
-        touched = true;
-    } else {
-        auto &src = manifest_.sources;
-        const auto before = src.size();
-        src.erase(std::remove_if(src.begin(), src.end(),
-                                 [&exist](const std::string &s) {
-                                     return exist.find(s) == exist.end();
-                                 }),
-                  src.end());
-        touched = src.size() != before;
-    }
-    if (touched) {
-        pruneOrder();
-        save();
-    }
+    const auto refs = composeRefs();
+    std::vector<std::string> kept;
+    kept.reserve(refs.size());
+    for (const auto &r : refs)
+        if (exist.count(r))
+            kept.push_back(r);
+    if (kept.size() != refs.size())
+        setCombinedRefs(kept);
 }
 
 void MergeManifestModel::setOrderOverride(

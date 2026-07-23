@@ -162,6 +162,15 @@ Rectangle {
     property var modelRef: null
     property var settingsModel: null
     property bool editing: false
+    // Composed (merge) mode: the row shows read-only, provenance-coloured chips
+    // from composedVariants instead of the editable output chips, and the
+    // per-row edit/delete affordances are hidden (a composed row is not a
+    // single editable mapping; its source lives in another profile).
+    property bool composing: false
+    property var composedVariantList: []
+    // Resolves a composed chip's source File to the profile's display name for
+    // the provenance tag; null outside the composed view.
+    property var profilesModel: null
 
     // Read-only input cell width, shared with the error/warning rows below so
     // their text lines up under the output column.
@@ -230,7 +239,7 @@ Rectangle {
         Item {
             width: 16
             height: Theme.controlHeight
-            visible: !root.editing
+            visible: !root.editing && !root.composing
 
             Text {
                 anchors.centerIn: parent
@@ -356,7 +365,7 @@ Rectangle {
         Flow {
             id: chipFlow
             Layout.fillWidth: true
-            visible: !root.editing
+            visible: !root.editing && !root.composing
             spacing: Theme.spacingXs
             move: Transition {
                 NumberAnimation { properties: "x,y"; duration: Theme.animShort }
@@ -526,6 +535,59 @@ Rectangle {
             }
         }
 
+        // Composed (merge) chips: read-only, one per variant instance, with a
+        // provenance-coloured border/wash and a profile-name tag in the source
+        // colour, so duplicates from two profiles read as two distinct chips.
+        Flow {
+            id: composedFlow
+            Layout.fillWidth: true
+            visible: !root.editing && root.composing
+            spacing: Theme.spacingXs
+            Repeater {
+                model: root.composedVariantList
+                delegate: Rectangle {
+                    id: cchip
+                    required property var modelData
+                    readonly property int srcOrder: cchip.modelData.order
+                    readonly property color srcColor:
+                        Theme.mergeSourceColor(cchip.srcOrder)
+                    implicitWidth: cRow.implicitWidth + 2 * Theme.chipPaddingH
+                    implicitHeight: Theme.controlHeight
+                    radius: Theme.radiusSm
+                    color: Qt.rgba(cchip.srcColor.r, cchip.srcColor.g,
+                                   cchip.srcColor.b, Theme.mergeSourceWashAlpha)
+                    border.color: cchip.srcColor
+                    border.width: 1
+
+                    RowLayout {
+                        id: cRow
+                        anchors.centerIn: parent
+                        spacing: Theme.spacingSm
+                        Text {
+                            text: cchip.modelData.value
+                            color: Theme.text
+                            font.family: Theme.fontFamilyMono
+                            font.pixelSize: Theme.chipFont
+                        }
+                        Text {
+                            text: root.nameForFile(cchip.modelData.file)
+                            color: cchip.srcColor
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBody
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    HoverHandler { id: cchipHover }
+                    ThemedToolTip {
+                        hovered: cchipHover.hovered
+                        text: qsTr("From “%1”")
+                              .arg(root.nameForFile(cchip.modelData.file))
+                    }
+                }
+            }
+        }
+
         ThemedTextField {
             id: outputEdit
             visible: root.editing
@@ -565,6 +627,9 @@ Rectangle {
             // Mouse affordance only: keyboard uses the roving list (Enter/F2),
             // and grabbing focus on click would let Space re-fire the button.
             focusPolicy: Qt.NoFocus
+            // Hidden in the composed view: a composed row is not a single
+            // editable mapping (its variants come from several profiles).
+            visible: !root.composing
             text: root.editing ? Theme.iconCheck : Theme.iconEdit
             enabled: !root.editing || root.editValid
             ThemedToolTip {
@@ -592,6 +657,9 @@ Rectangle {
             // Mouse affordance only: keyboard uses the roving list (Delete), and
             // grabbing focus on click would let Space re-open the delete dialog.
             focusPolicy: Qt.NoFocus
+            // Hidden in the composed view (read-only in stage one; chip-level
+            // cascade delete comes with the composed-view edit actions).
+            visible: !root.composing
             text: root.editing ? Theme.iconCancel : Theme.iconTrash
             ThemedToolTip {
                 hovered: deleteBtn.hovered
@@ -653,10 +721,23 @@ Rectangle {
     }
 
     Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Delete && !root.editing) {
+        if (event.key === Qt.Key_Delete && !root.editing && !root.composing) {
             root.removeRequested();
             event.accepted = true;
         }
+    }
+
+    // Display name of a source profile File, for a composed chip's provenance
+    // tag. Reading profilesModel.revision makes the binding refresh on rename.
+    function nameForFile(file) {
+        if (!root.profilesModel)
+            return file;
+        root.profilesModel.revision; // dependency for rename refresh
+        const names = root.profilesModel.profileNames();
+        for (let i = 0; i < names.length; ++i)
+            if (root.profilesModel.fileForRow(i) === file)
+                return names[i];
+        return file;
     }
 
     function startEdit() { root.editStartRequested(); }

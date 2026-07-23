@@ -6,8 +6,11 @@
 #include <QDir>
 #include <QFile>
 #include <QSaveFile>
+#include <QVariantMap>
 
 #include <algorithm>
+#include <cstdio>
+#include <set>
 
 namespace {
 
@@ -15,6 +18,20 @@ namespace {
 // an absolute path under ~/.config/fcitx5/<config subdir>/.
 QString resolveProfilePath(const QString &relFile) {
     return schnelle_umlaute::configDirPath() + relFile;
+}
+
+// Read merge.conf via the shared parser (same format the engine and the
+// manifest owner use). Absent file yields an empty manifest (no base). This
+// model is a reader only; MergeManifestModel remains the single writer.
+schnelle_umlaute::MergeManifest readMergeConf() {
+    schnelle_umlaute::MergeManifest m;
+    const QString path = schnelle_umlaute::configDirPath() +
+                         QLatin1String(schnelle_umlaute::kMergeConf);
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        m = schnelle_umlaute::parseMergeManifest(fp);
+        std::fclose(fp);
+    }
+    return m;
 }
 
 } // namespace
@@ -27,19 +44,48 @@ MappingListModel::MappingListModel(QObject *parent)
 int MappingListModel::rowCount(const QModelIndex &parent) const {
     if (parent.isValid())
         return 0;
+    if (composing_)
+        return static_cast<int>(displayRows_.size());
     return static_cast<int>(entries_.size());
 }
 
 QVariant MappingListModel::data(const QModelIndex &index, int role) const {
-    if (index.row() < 0 || index.row() >= static_cast<int>(entries_.size())) {
-        return {};
+    const int row = index.row();
+    if (composing_) {
+        if (row < 0 || row >= static_cast<int>(displayRows_.size()))
+            return {};
+        const auto &r = displayRows_[row];
+        switch (role) {
+        case InputRole:
+            return r.input;
+        case OutputRole: {
+            // A joined fallback for any consumer not using ComposedVariantsRole;
+            // the composed chips read the provenance list instead.
+            std::vector<std::string> vals;
+            vals.reserve(r.variants.size());
+            for (const auto &v : r.variants)
+                vals.push_back(v.toMap()
+                                   .value(QStringLiteral("value"))
+                                   .toString()
+                                   .toStdString());
+            return QString::fromStdString(schnelle_umlaute::joinOutputs(vals));
+        }
+        case ComposedVariantsRole:
+            return r.variants;
+        default:
+            return {};
+        }
     }
-    const auto &e = entries_[index.row()];
+    if (row < 0 || row >= static_cast<int>(entries_.size()))
+        return {};
+    const auto &e = entries_[row];
     switch (role) {
     case InputRole:
         return e.input;
     case OutputRole:
         return e.output;
+    case ComposedVariantsRole:
+        return QVariantList{};
     default:
         return {};
     }
@@ -49,6 +95,7 @@ QHash<int, QByteArray> MappingListModel::roleNames() const {
     return {
         {InputRole, "input"},
         {OutputRole, "output"},
+        {ComposedVariantsRole, "composedVariants"},
     };
 }
 
@@ -317,11 +364,114 @@ void MappingListModel::setProfileFile(const QString &file) {
     profileFile_ = f;
     Q_EMIT profileFileChanged();
     // Reload the model from the newly selected edit target. Wrapped in
-    // begin/endResetModel so the QML view rebinds to the new rows.
+    // begin/endResetModel so the QML view rebinds to the new rows. Whether the
+    // new target is the merge base (composed view) is recomputed here too.
     beginResetModel();
     load();
+    refreshComposedState();
     endResetModel();
     Q_EMIT countChanged();
+    Q_EMIT composingChanged();
+}
+
+void MappingListModel::reloadComposed() {
+    beginResetModel();
+    refreshComposedState();
+    endResetModel();
+    Q_EMIT countChanged();
+    Q_EMIT composingChanged();
+}
+
+void MappingListModel::refreshComposedState() {
+    manifest_ = readMergeConf();
+    composing_ = !manifest_.base.empty() &&
+                 profileFile_.toStdString() == manifest_.base;
+    rebuildComposed();
+}
+
+schnelle_umlaute::VariantMap
+MappingListModel::loadProfileMap(const QString &relFile) const {
+    schnelle_umlaute::VariantMap map;
+    if (!schnelle_umlaute::isSafeProfileFile(relFile.toStdString()))
+        return map;
+    const QString path = resolveProfilePath(relFile);
+    if (FILE *fp = std::fopen(path.toUtf8().constData(), "r")) {
+        for (const auto &m : schnelle_umlaute::parseMappings(fp)) {
+            auto outs = schnelle_umlaute::splitOutputs(m.output);
+            if (!outs.empty())
+                map[m.input] = std::move(outs);
+        }
+        std::fclose(fp);
+    }
+    return map;
+}
+
+void MappingListModel::rebuildComposed() {
+    displayRows_.clear();
+    if (!composing_)
+        return;
+
+    // The base's own map comes from entries_ (already loaded for the base file).
+    schnelle_umlaute::VariantMap ownMap;
+    for (const auto &e : entries_)
+        ownMap[e.input.toStdString()] =
+            schnelle_umlaute::splitOutputs(e.output.toStdString());
+
+    // Combined refs: base first, then appended sources. The 1-based position is
+    // both the badge number and the provenance colour index.
+    std::vector<std::string> refs;
+    refs.push_back(manifest_.base);
+    for (const auto &s : manifest_.sources)
+        if (s != manifest_.base)
+            refs.push_back(s);
+
+    // Load the appended sources once, keep them alive for compose().
+    std::vector<schnelle_umlaute::VariantMap> extra;
+    extra.reserve(refs.size());
+    for (size_t i = 1; i < refs.size(); ++i)
+        extra.push_back(loadProfileMap(QString::fromStdString(refs[i])));
+
+    std::vector<schnelle_umlaute::ComposeSource> sources;
+    sources.reserve(refs.size());
+    sources.push_back({refs[0], &ownMap});
+    for (size_t i = 1; i < refs.size(); ++i)
+        sources.push_back({refs[i], &extra[i - 1]});
+
+    const auto composed = schnelle_umlaute::compose(sources, manifest_.order);
+
+    auto positionOf = [&refs](const std::string &ref) -> int {
+        for (size_t i = 0; i < refs.size(); ++i)
+            if (refs[i] == ref)
+                return static_cast<int>(i) + 1; // 1-based
+        return -1;
+    };
+
+    // Row order: the base's own inputs first (in entries_ order), then inputs
+    // that appear only in appended sources, in source order.
+    std::set<std::string> emitted;
+    auto emitRow = [&](const std::string &input) {
+        if (!emitted.insert(input).second)
+            return;
+        const auto it = composed.find(input);
+        if (it == composed.end() || it->second.empty())
+            return;
+        DisplayRow row;
+        row.input = QString::fromStdString(input);
+        for (const auto &v : it->second) {
+            QVariantMap m;
+            m.insert(QStringLiteral("value"), QString::fromStdString(v.value));
+            m.insert(QStringLiteral("order"), positionOf(v.sourceRef));
+            m.insert(QStringLiteral("file"),
+                     QString::fromStdString(v.sourceRef));
+            row.variants.append(m);
+        }
+        displayRows_.push_back(std::move(row));
+    };
+    for (const auto &e : entries_)
+        emitRow(e.input.toStdString());
+    for (size_t i = 1; i < refs.size(); ++i)
+        for (const auto &kv : extra[i - 1])
+            emitRow(kv.first);
 }
 
 void MappingListModel::load() {

@@ -32,6 +32,9 @@ ApplicationWindow {
     MergeManifestModel {
         id: merge
         onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
+        // The mappings model reads merge.conf to show the composed view; rebuild
+        // it whenever the manifest changes (it stays the single writer here).
+        onManifestChanged: mappings.reloadComposed()
     }
 
     ProfileListModel {

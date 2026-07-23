@@ -216,14 +216,14 @@ QtObject {
     readonly property int chipFont:     14
 
     // Provenance colours for the composed merge view: one hue per source
-    // profile, addressed by merge order (index 0 = base). The list cycles when
-    // more profiles are merged than there are colours; the chip also shows a
-    // text tag with the profile name, so colour is a supplementary cue and
-    // never the only signal (colour alone is not accessible). Defined once here
-    // rather than per component or per theme: these are functional identifiers,
-    // readable on the dark and light surfaces alike.
+    // profile, addressed by 1-based merge position (position 1 = base). The
+    // list cycles when more profiles are merged than there are colours; the
+    // chip also shows a text tag with the profile name, so colour is a
+    // supplementary cue and never the only signal (colour alone is not
+    // accessible). Defined once here rather than per component or per theme:
+    // these are functional identifiers, readable on dark and light alike.
     readonly property var mergeSourcePalette: [
-        "#a855f7", // base    (violet)
+        "#a855f7", // position 1 / base (violet)
         "#38bdf8", // sky
         "#4ade80", // green
         "#fbbf24", // amber
@@ -232,13 +232,13 @@ QtObject {
         "#a3e635", // lime
         "#22d3ee"  // cyan
     ]
-    // Resolve a merge order index (0 = base, 1..N appended) to its provenance
-    // colour, cycling the palette. A negative index (not in the merge) maps to
-    // the neutral border colour.
-    function mergeSourceColor(orderIndex) {
-        if (orderIndex < 0)
+    // Resolve a 1-based merge position (1 = base, 2..N appended) to its
+    // provenance colour, cycling the palette. Anything below 1 (not in the
+    // merge) maps to the neutral border colour.
+    function mergeSourceColor(position) {
+        if (position < 1)
             return border
-        return mergeSourcePalette[orderIndex % mergeSourcePalette.length]
+        return mergeSourcePalette[(position - 1) % mergeSourcePalette.length]
     }
     // Chip fill behind a provenance colour: a faint wash of the source hue so
     // the chip reads as tinted without fighting the mono variant text. The

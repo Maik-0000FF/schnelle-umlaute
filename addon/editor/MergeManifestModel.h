@@ -36,8 +36,10 @@ public:
 
     // --- Structure slice (ProfileSelector) ---------------------------------
     Q_INVOKABLE bool isMergeBase(const QString &file) const;
-    // Position in the merge: 0 = base, 1..N = appended (click order), -1 = not
-    // in the merge. Doubles as the provenance colour index (0 = base).
+    // Position in the merge, 1-based: 1 = base (applied first), 2..N = the rest
+    // in click order, -1 = not in the merge. There is no special base to manage:
+    // whichever profile sits at position 1 is the base, and removing it promotes
+    // the next. Also the provenance colour index (position 1 -> first colour).
     Q_INVOKABLE int orderIndex(const QString &file) const;
     // Click a profile's merge control: with no base yet this file becomes the
     // base; clicking the base again dissolves the whole merge; any other file
@@ -70,6 +72,12 @@ Q_SIGNALS:
 private:
     void load();
     bool save();
+    // The single structural mutation route: rebuild base + sources from one
+    // ordered ref list (element 0 is the base), prune stale order entries, and
+    // persist. Every add/remove/prune funnels through here, so "position 1 is
+    // the base" always holds and removing the base just promotes the next
+    // profile rather than dissolving the merge.
+    void setCombinedRefs(const std::vector<std::string> &refs);
     // Drop order-override instances whose source ref is no longer part of the
     // merge (base + sources), and empty base entries. Cheap tidy-up on any
     // structure change; the compose is self-healing regardless.
