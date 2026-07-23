@@ -43,42 +43,9 @@ Item {
                 SettingsCard {
                     titleText: qsTr("Theme")
 
-                    RowLayout {
+                    ThemeSelector {
                         Layout.fillWidth: true
-                        spacing: Theme.spacingMd
-
-                        Text {
-                            text: qsTr("Theme")
-                            color: Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontBody
-                            Layout.preferredWidth: 120
-                        }
-
-                        ThemedComboBox {
-                            id: themeBox
-                            Layout.fillWidth: true
-                            textRole: "label"
-                            valueRole: "key"
-                            model: [
-                                { key: "schnelle-umlaute", label: qsTr("Schnelle Umlaute") },
-                                { key: "dark",             label: qsTr("Dark") },
-                                { key: "light",            label: qsTr("Light") },
-                                { key: "contrast",         label: qsTr("Contrast") }
-                            ]
-                            currentIndex: {
-                                if (!root.settingsModel) return 0;
-                                for (var i = 0; i < model.length; ++i) {
-                                    if (model[i].key === root.settingsModel.theme) return i;
-                                }
-                                return 0;
-                            }
-                            onActivated: {
-                                if (root.settingsModel) {
-                                    root.settingsModel.theme = model[currentIndex].key;
-                                }
-                            }
-                        }
+                        settingsModel: root.settingsModel
                     }
 
                     Text {

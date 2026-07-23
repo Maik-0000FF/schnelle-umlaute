@@ -50,6 +50,8 @@ target_link_libraries(schnelle-umlaute-overlay PRIVATE
     Qt6::Qml
     Qt6::Quick
     LayerShellQt::Interface
+    # Shared theme-palette module (import SchnelleUmlautePalette in Overlay.qml).
+    schnelle-umlaute-paletteplugin
 )
 
 target_compile_options(schnelle-umlaute-overlay PRIVATE -Wall -Wextra -Wpedantic)

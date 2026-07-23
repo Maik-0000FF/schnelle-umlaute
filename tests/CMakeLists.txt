@@ -375,3 +375,16 @@ target_include_directories(testusagesort PRIVATE ${PROJECT_SOURCE_DIR} ${CMAKE_C
 target_compile_options(testusagesort PRIVATE ${SU_TEST_WARN_FLAGS})
 add_test(NAME testusagesort COMMAND testusagesort)
 set_tests_properties(testusagesort PROPERTIES TIMEOUT 10)
+
+# Guards the C++/QML theme-name sync: the valid names must be identical across
+# addon/themes.h (the setTheme/SetTheme guards) and addon/palette/Palettes.qml
+# (all/ids/labels). Pure text parsing of the two sources (paths injected below),
+# no Qt/QML runtime, so a theme added to only one place fails CI.
+add_executable(testthemesync testthemesync.cpp)
+target_include_directories(testthemesync PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testthemesync PRIVATE ${SU_TEST_WARN_FLAGS})
+target_compile_definitions(testthemesync PRIVATE
+    THEMES_H_PATH="${PROJECT_SOURCE_DIR}/themes.h"
+    PALETTES_QML_PATH="${PROJECT_SOURCE_DIR}/palette/Palettes.qml")
+add_test(NAME testthemesync COMMAND testthemesync)
+set_tests_properties(testthemesync PROPERTIES TIMEOUT 10)

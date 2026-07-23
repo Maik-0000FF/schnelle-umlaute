@@ -1,111 +1,18 @@
 pragma Singleton
 import QtQuick
+import SchnelleUmlautePalette
 
 QtObject {
     id: theme
 
     property string current: "schnelle-umlaute"
 
-    readonly property var palettes: ({
-        "schnelle-umlaute": {
-            background:   "#08060f",
-            surface:      "#12101d",
-            surfaceHover: "#1a1728",
-            border:       "#2a2640",
-            borderFocus:  "#4a3f70",
-            accent:       "#a855f7",
-            accentHover:  "#c084fc",
-            accentSoft:   "#a855f733",
-            brand:        "#4ade80",
-            brandHover:   "#86efac",
-            brandSoft:    "#4ade8033",
-            text:         "#f0fdf4",
-            textMuted:    "#6b7280",
-            success:      "#4ade80",
-            warning:      "#fbbf24",
-            error:        "#f87171",
-            errorHover:   "#ef4444",
-            accentText:     "#ffffff",
-            highlight:    "#4ade80",
-            highlightText:  "#08060f",
-            switchThumb:  "#f0fdf4",
-            scrim:        "#99000000"
-        },
-        "dark": {
-            background:   "#0f1115",
-            surface:      "#181b22",
-            surfaceHover: "#232832",
-            border:       "#2a2f3a",
-            borderFocus:  "#3f4654",
-            accent:       "#60a5fa",
-            accentHover:  "#93c5fd",
-            accentSoft:   "#60a5fa33",
-            brand:        "#4ade80",
-            brandHover:   "#86efac",
-            brandSoft:    "#4ade8033",
-            text:         "#e5e7eb",
-            textMuted:    "#9ca3af",
-            success:      "#4ade80",
-            warning:      "#fbbf24",
-            error:        "#f87171",
-            errorHover:   "#ef4444",
-            accentText:     "#ffffff",
-            highlight:    "#60a5fa",
-            highlightText:  "#0f1115",
-            switchThumb:  "#e5e7eb",
-            scrim:        "#99000000"
-        },
-        "light": {
-            background:   "#ececef",
-            surface:      "#ffffff",
-            surfaceHover: "#dfdfe3",
-            border:       "#d4d4d8",
-            borderFocus:  "#a1a1aa",
-            accent:       "#2563eb",
-            accentHover:  "#1d4ed8",
-            accentSoft:   "#2563eb1a",
-            brand:        "#16a34a",
-            brandHover:   "#15803d",
-            brandSoft:    "#16a34a1a",
-            text:         "#0f172a",
-            textMuted:    "#52525b",
-            success:      "#16a34a",
-            warning:      "#d97706",
-            error:        "#dc2626",
-            errorHover:   "#b91c1c",
-            accentText:     "#ffffff",
-            highlight:    "#2563eb",
-            highlightText:  "#ffffff",
-            switchThumb:  "#ffffff",
-            scrim:        "#66000000"
-        },
-        "contrast": {
-            background:   "#000000",
-            surface:      "#0a0a0a",
-            surfaceHover: "#1a1a1a",
-            border:       "#ffffff",
-            borderFocus:  "#ffd60a",
-            accent:       "#ffd60a",
-            accentHover:  "#ffeb3b",
-            accentSoft:   "#ffd60a33",
-            brand:        "#ffffff",
-            brandHover:   "#ffffff",
-            brandSoft:    "#ffffff33",
-            text:         "#ffffff",
-            textMuted:    "#e5e5e5",
-            success:      "#ffffff",
-            warning:      "#ffd60a",
-            error:        "#ffd60a",
-            errorHover:   "#ffeb3b",
-            accentText:     "#000000",
-            highlight:    "#ffd60a",
-            highlightText:  "#000000",
-            switchThumb:  "#000000",
-            scrim:        "#cc000000"
-        }
-    })
-
-    readonly property var p: palettes[current] || palettes["schnelle-umlaute"]
+    // Every palette lives in the shared SchnelleUmlautePalette module (imported
+    // above), the single source of truth shared with the overlay. `p` is the
+    // active theme's palette; every token below reads from it.
+    readonly property var p: Palettes.get(current)
+    // Four representative accent colours for the theme picker's preview pill.
+    readonly property var swatches: p.swatches
 
     readonly property color background:   p.background
     readonly property color surface:      p.surface
@@ -125,26 +32,20 @@ QtObject {
     readonly property color error:        p.error
     readonly property color errorHover:   p.errorHover
     readonly property color accentText:     p.accentText
-    // Active-selection colours, mirrored from the overlay's cellActive /
-    // textActive (the signature theme highlights in green, not the accent).
+    // Active-selection colours. The overlay's active cell derives its fill from
+    // `active` and its text from highlightText (Palettes.overlayOf), so the
+    // editor highlight and the overlay active cell always agree.
     readonly property color highlight:    p.highlight
     readonly property color highlightText:  p.highlightText
     // Delay range slider role colours: the active window vs the dead-time
-    // (lead). Normally the window carries the accent and the lead the brand
-    // green. In schnelle-umlaute green IS the signature/active colour, so the
-    // window takes the green and the lead the accent there, keeping the active
-    // part on the theme's identity colour like every other theme does. The
-    // overlay's progress bar (Overlay.qml barLead/barWindow) mirrors this same
-    // per-theme swap, so the editor slider and the overlay bar always agree on
-    // which segment is which colour.
-    readonly property color sliderWindow:
-        current === "schnelle-umlaute" ? brand : accent
-    readonly property color sliderWindowHover:
-        current === "schnelle-umlaute" ? brandHover : accentHover
-    readonly property color sliderLead:
-        current === "schnelle-umlaute" ? accent : brand
-    readonly property color sliderLeadHover:
-        current === "schnelle-umlaute" ? accentHover : brandHover
+    // (lead). Each palette names its own `active` (signature) and `lead`
+    // colour, so the slider needs no per-theme-name check. The overlay's
+    // progress bar derives barWindow/barLead from the SAME active/lead
+    // (Palettes.overlayOf), so the slider and the bar can never disagree.
+    readonly property color sliderWindow:      p.active
+    readonly property color sliderWindowHover: p.activeHover
+    readonly property color sliderLead:        p.lead
+    readonly property color sliderLeadHover:   p.leadHover
     readonly property color switchThumb:  p.switchThumb
     readonly property color scrim:        p.scrim
 
@@ -216,25 +117,12 @@ QtObject {
     readonly property int chipFont:     14
 
     // Provenance colours for the composed merge view: one hue per source
-    // profile, addressed by 1-based merge position (position 1 = base). The
-    // list cycles when more profiles are merged than there are colours; the
-    // chip also shows a text tag with the profile name, so colour is a
-    // supplementary cue and never the only signal (colour alone is not
-    // accessible). Defined once here rather than per component or per theme:
-    // these are functional identifiers, readable on dark and light alike.
-    // Deliberately no amber/orange/yellow tones: those belong to the warning
-    // colour, so a provenance chip must never share that hue and read as a
-    // warning.
-    readonly property var mergeSourcePalette: [
-        "#a855f7", // position 1 / base (violet)
-        "#38bdf8", // sky
-        "#4ade80", // green
-        "#818cf8", // indigo
-        "#f472b6", // pink
-        "#2dd4bf", // teal
-        "#a3e635", // lime
-        "#22d3ee"  // cyan
-    ]
+    // profile, addressed by 1-based merge position (position 1 = base). Now
+    // per theme (Palettes.<id>.mergeSources) so the cues match the theme; each
+    // set stays internally distinct and avoids the theme's warning hue so a
+    // chip never reads as a warning. The chip also carries a text tag with the
+    // profile name, so colour is a supplementary cue and never the only signal.
+    readonly property var mergeSourcePalette: p.mergeSources
     // Resolve a 1-based merge position (1 = base, 2..N appended) to its
     // provenance colour, cycling the palette. Anything below 1 (not in the
     // merge) maps to the neutral border colour.
@@ -311,7 +199,7 @@ QtObject {
     readonly property int aboutDialogWidth: 380
 
     function setCurrent(name) {
-        if (palettes[name] !== undefined && current !== name) {
+        if (Palettes.has(name) && current !== name) {
             current = name
         }
     }

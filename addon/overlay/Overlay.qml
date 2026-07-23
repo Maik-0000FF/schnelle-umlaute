@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 import SchnelleUmlauteOverlay
+import SchnelleUmlautePalette
 
 Window {
     id: win
@@ -147,10 +148,10 @@ Window {
     // fit). font.family takes a single string, so we resolve to one name here.
     //
     // pickFamily mirrors addon/editor/Theme.qml's resolver; the overlay is a
-    // separate QML module and process (the same reason the palettes below are
-    // inlined), so the logic is duplicated rather than shared. Keep the
-    // candidate list in sync with Theme.qml's fontFamilyMono, both are tuned
-    // to JetBrains Mono metrics.
+    // separate QML module and process, so this small helper is duplicated
+    // rather than shared (the palettes themselves now live in the shared
+    // SchnelleUmlautePalette module). Keep the candidate list in sync with
+    // Theme.qml's fontFamilyMono, both are tuned to JetBrains Mono metrics.
     function pickFamily(candidates) {
         const avail = Qt.fontFamilies()
         for (let i = 0; i < candidates.length; i++)
@@ -161,51 +162,11 @@ Window {
     readonly property string fontFamilyMono: pickFamily(
         ["JetBrains Mono", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "monospace"])
 
-    // Palettes mirror addon/editor/Theme.qml. Inlined because the overlay
-    // lives in its own QML module and process — sharing a singleton would
-    // cost more build plumbing than the 4 small dicts are worth.
-    // `frame` stores RGB only; the panel applies frameOpacity at render
-    // time via Qt.alpha().
-    readonly property var palettes: ({
-        "schnelle-umlaute": {
-            frame: "#12101d", border: "#2a2640",
-            cellInactive: "#241f38", cellInactiveBorder: "#2a2640",
-            cellActive: "#4ade80", cellActiveBorder: "#4ade80",
-            // Inactive cell text carries the theme's signature green; the active
-            // cell keeps dark text on the green fill.
-            textInactive: "#4ade80", textActive: "#08060f",
-            // Green is this theme's signature/active colour (cellActive above),
-            // so the active leader window (barWindow) carries the green and the
-            // dead-time lead-in (barLead) the accent purple, the inverse of the
-            // other themes. This mirrors Theme.qml's sliderWindow/sliderLead swap
-            // so the editor slider and the overlay bar agree on which segment is
-            // which colour.
-            barLead: "#a855f7", barWindow: "#4ade80"
-        },
-        "dark": {
-            frame: "#181b22", border: "#2a2f3a",
-            cellInactive: "#232832", cellInactiveBorder: "#2a2f3a",
-            cellActive: "#60a5fa", cellActiveBorder: "#60a5fa",
-            textInactive: "#e5e7eb", textActive: "#0f1115",
-            barLead: "#4ade80", barWindow: "#60a5fa"
-        },
-        "light": {
-            frame: "#ffffff", border: "#d4d4d8",
-            cellInactive: "#f4f4f5", cellInactiveBorder: "#d4d4d8",
-            cellActive: "#2563eb", cellActiveBorder: "#2563eb",
-            textInactive: "#0f172a", textActive: "#ffffff",
-            barLead: "#16a34a", barWindow: "#2563eb"
-        },
-        "contrast": {
-            frame: "#000000", border: "#ffffff",
-            cellInactive: "#0a0a0a", cellInactiveBorder: "#ffffff",
-            cellActive: "#ffd60a", cellActiveBorder: "#ffd60a",
-            textInactive: "#ffffff", textActive: "#000000",
-            barLead: "#ffffff", barWindow: "#ffd60a"
-        }
-    })
-    readonly property var p: palettes[OverlayController.theme]
-                             || palettes["schnelle-umlaute"]
+    // Overlay render palette for the active theme, from the shared
+    // SchnelleUmlautePalette module (the single source, also read by the editor
+    // Theme). overlayOf() derives the cell/bar colours from active/lead so they
+    // can never drift from the editor slider.
+    readonly property var p: Palettes.overlayOf(OverlayController.theme)
 
     // Cell-text colours read through accessors with a fallback to an always-
     // defined palette key, so a palette that omits textInactive/textActive
