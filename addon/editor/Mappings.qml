@@ -314,13 +314,17 @@ Item {
                     // source profile (own base or an appended one), a profile
                     // you may not be viewing, so confirm and name that profile.
                     onComposedRemoveRequested: (cInput, cValue, cFile) => {
+                        // Capture the page root: the model mutation below rebuilds
+                        // the list and destroys this delegate, after which the
+                        // delegate-scoped `root` id no longer resolves.
+                        const page = root;
                         composedDeleteConfirm.messageText = qsTr(
                             "Delete “%1” from the profile “%2”? It is removed from that profile, not just from this merged view."
-                        ).arg(cValue).arg(root.profileNameForFile(cFile));
+                        ).arg(cValue).arg(page.profileNameForFile(cFile));
                         composedDeleteConfirm.onConfirmed = () => {
-                            if (root.mappingsModel.removeComposedVariant(
+                            if (page.mappingsModel.removeComposedVariant(
                                     cInput, cValue, cFile))
-                                root.requestSnackbar(
+                                page.requestSnackbar(
                                     qsTr("Variant deleted"), Theme.textMuted);
                         };
                         composedDeleteConfirm.open();
@@ -329,19 +333,29 @@ Item {
                     // manifest order override (the single writer is the manifest
                     // owner; the composed view rebuilds on manifestChanged).
                     onComposedReorderRequested: (cInput, cSeq) => {
-                        if (root.mergeModel)
-                            root.mergeModel.setOrderOverride(cInput, cSeq);
+                        // Defer the write: it rebuilds the list and destroys this
+                        // delegate, which mid-drop would re-enter the drop and
+                        // corrupt the model. callLater runs it once, after the
+                        // drop finishes.
+                        const merge = root.mergeModel;
+                        if (merge)
+                            Qt.callLater(() => merge.setOrderOverride(cInput,
+                                                                      cSeq));
                     }
                     // Composed-view cross-row move: re-map the variant to another
                     // key WITHIN its source profile (stays self-contained, no
                     // intermixing between profiles), then note which profile.
+                    // Deferred for the same reason as the reorder above.
                     onComposedCrossMoveRequested: (cFrom, cValue, cFile, cTo) => {
-                        if (root.mappingsModel.moveComposedVariant(
-                                cFrom, cValue, cFile, cTo))
-                            root.requestSnackbar(
-                                qsTr("Moved in “%1”").arg(
-                                    root.profileNameForFile(cFile)),
-                                Theme.textMuted);
+                        const page = root;
+                        Qt.callLater(() => {
+                            if (page.mappingsModel.moveComposedVariant(
+                                    cFrom, cValue, cFile, cTo))
+                                page.requestSnackbar(
+                                    qsTr("Moved in “%1”").arg(
+                                        page.profileNameForFile(cFile)),
+                                    Theme.textMuted);
+                        });
                     }
                 }
 

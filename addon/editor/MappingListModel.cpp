@@ -672,16 +672,16 @@ bool MappingListModel::moveVariantInProfileFile(const QString &relFile,
     }
     if (!removed)
         return false;
-    // Add to the source's toInput mapping (create if absent; skip if present).
+    // Add to the source's toInput mapping (create if absent). Always added, even
+    // if the target already has it: the dragged variant must never be silently
+    // dropped, and duplicates are allowed (a warning border flags them).
     bool found = false;
     for (auto &r : rows) {
         if (r.input != to)
             continue;
         auto vars = schnelle_umlaute::splitOutputs(r.output);
-        if (std::find(vars.begin(), vars.end(), val) == vars.end()) {
-            vars.push_back(val);
-            r.output = schnelle_umlaute::joinOutputs(vars);
-        }
+        vars.push_back(val);
+        r.output = schnelle_umlaute::joinOutputs(vars);
         found = true;
         break;
     }
@@ -745,11 +745,9 @@ bool MappingListModel::moveComposedVariant(const QString &fromInput,
             if (e.input != toInput)
                 continue;
             auto vars = schnelle_umlaute::splitOutputs(e.output.toStdString());
-            if (std::find(vars.begin(), vars.end(), val) == vars.end()) {
-                vars.push_back(val);
-                e.output =
-                    QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
-            }
+            vars.push_back(val); // always add; never silently drop the variant
+            e.output =
+                QString::fromStdString(schnelle_umlaute::joinOutputs(vars));
             found = true;
             break;
         }

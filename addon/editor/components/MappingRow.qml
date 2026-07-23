@@ -63,8 +63,10 @@ Rectangle {
         // and leave the highlight stuck), so foreignDragCount stays balanced.
         readonly property bool foreignHover:
             containsDrag && drag.source
-            && drag.source.sourceInput !== undefined
-            && drag.source.sourceInput !== root.inputText
+            && ((drag.source.sourceInput !== undefined
+                 && drag.source.sourceInput !== root.inputText)
+                || (drag.source.cOwnerRow !== undefined
+                    && drag.source.cOwnerRow !== root))
         onForeignHoverChanged: root.foreignDragCount =
             foreignHover ? root.foreignDragCount + 1
                          : Math.max(0, root.foreignDragCount - 1)
@@ -596,6 +598,15 @@ Rectangle {
                     required property int index
                     implicitWidth: cchip.implicitWidth
                     implicitHeight: cchip.implicitHeight
+                    // A foreign composed chip (from another row) hovering here
+                    // lights the row's drop target, matching the normal chips.
+                    readonly property bool foreignHover:
+                        containsDrag && drag.source
+                        && drag.source.cOwnerRow !== undefined
+                        && drag.source.cOwnerRow !== root
+                    onForeignHoverChanged: root.foreignDragCount =
+                        foreignHover ? root.foreignDragCount + 1
+                                     : Math.max(0, root.foreignDragCount - 1)
                     // A drop from ANOTHER composed row: cross-row move (re-map in
                     // the dragged chip's source profile). A drop from THIS row:
                     // intra-row reorder, stored as a manifest override and
@@ -656,6 +667,12 @@ Rectangle {
                         Drag.active: cDragMouse.drag.active
                         Drag.hotSpot.x: width / 2
                         Drag.hotSpot.y: height / 2
+                        // Report the drag state to the list so every row can light
+                        // and clear its drop-target highlight, exactly like the
+                        // normal chips.
+                        readonly property bool dragging: cchip.Drag.active
+                        onDraggingChanged: if (root.view)
+                            root.view.chipDragging = dragging
                         states: State {
                             when: cchip.Drag.active
                             ParentChange { target: cchip; parent: root.view }
@@ -673,7 +690,14 @@ Rectangle {
                             drag.target: cchip
                             cursorShape: Qt.SizeAllCursor
                             preventStealing: true
-                            onReleased: cchip.Drag.drop()
+                            onReleased: {
+                                // Clear the flag here (the chip is still alive)
+                                // rather than via the dragging binding, which the
+                                // drop's model reset would miss.
+                                if (root.view)
+                                    root.view.chipDragging = false;
+                                cchip.Drag.drop();
+                            }
                         }
 
                         RowLayout {
