@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (161 tests)
+// Test Suite for Schnelle Umlaute (163 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -40,6 +40,7 @@
 // 156     Alt/AltGr split      each disabled Alt-key stays inert mid-gesture (Alt/AltGr enable independently)
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
+// 161-162 Alt stale state      shortcut abort tears Alt session down, one-shot release eater, lost-release disarm (issue #147 class)
 // clang-format on
 
 #include <unistd.h>
@@ -155,6 +156,7 @@ constexpr int kCodeJ = 44;                  // physical key for j
 // as Z, which must switch the split off.
 constexpr int kCodeZ = 52;
 constexpr int kCodeX = 53;
+constexpr int kCodeC = 54;
 constexpr int kCodeSlash = 61;
 constexpr int kCodeSection = 21; // physical key for §
 
@@ -830,6 +832,7 @@ static void scheduleTest62(Instance *instance);
 static void scheduleTest63(Instance *instance);
 static void scheduleTest64(Instance *instance);
 static void scheduleRemainingTests(Instance *instance);
+static void scheduleAltStaleStateTests(Instance *instance);
 static void scheduleEmptyOutputTests(Instance *instance);
 static void scheduleAdvancedEdgeCaseTests(Instance *instance);
 static void scheduleTest106(Instance *instance);
@@ -4814,11 +4817,126 @@ static void scheduleRemainingTests(Instance *instance) {
         // Ctrl+C → commits 'a', Ctrl+C passes through
         tf->call<ITestFrontend::pushCommitExpectation>("a");
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_c, KeyState::Ctrl, 54), false);
+            uuid, Key(FcitxKey_c, KeyState::Ctrl, kCodeC), false);
         FCITX_ASSERT(!consumed) << "Ctrl+C should pass through during gesture";
 
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 100 PASSED";
+        scheduleAltStaleStateTests(instance);
+    });
+}
+
+// =============================================================================
+// ALT STALE-STATE TESTS (161-162) — a modifier shortcut aborting an Alt-led
+// session must not leave the Alt-leader bypass or the release eater armed
+// (issue #147 class: stale per-IC state after a compositor shortcut turns
+// Alt+key shortcuts into text and eats real Alt releases, leaving the
+// application with a stuck modifier).
+// =============================================================================
+
+static void scheduleAltStaleStateTests(Instance *instance) {
+
+    // =========================================================================
+    // TEST 161: Ctrl+C during Alt-led session — session torn down, exactly one
+    // Alt release consumed, later Alt usage fully symmetric.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 161;
+        FCITX_INFO() << "=== Test 161: Alt session teardown on modifier "
+                        "shortcut ===";
+        configureLeaders(instance, false, false, false, false, false,
+                         /*alt=*/true);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test161");
+
+        // Hold 'a', Alt starts the session (single output stays in preedit).
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+        FCITX_ASSERT(consumed) << "Alt leader must be consumed";
+
+        // Ctrl+C (Alt still held) aborts: the cycling value commits, the
+        // shortcut passes through, the Alt session ends.
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_c, KeyStates(KeyState::Ctrl) | KeyState::Alt, kCodeC),
+            false);
+        FCITX_ASSERT(!consumed) << "Ctrl+C must pass through";
+
+        // 'a' release after the abort: the gesture is gone, nothing pending.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // The consumed leader press owes exactly ONE release: eaten, then
+        // the eater disarms (one-shot outside a session).
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+        FCITX_ASSERT(consumed)
+            << "The consumed Alt press's own release must be eaten";
+
+        // Later, unrelated Alt usage must be fully symmetric: the press
+        // passes through, Alt+b passes through as a shortcut (a stale
+        // altGestureSession_ would commit "b" as text instead), and the
+        // release is NOT eaten (a stale consumedAltCode_ would leave the
+        // application with a stuck Alt).
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_b, KeyState::Alt, kCodeB), false);
+        FCITX_ASSERT(!consumed)
+            << "Alt+b after the aborted session must pass through";
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_b, KeyState::Alt, kCodeB), true);
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+        FCITX_ASSERT(!consumed) << "An unrelated Alt release must not be eaten";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 161 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 162: Lost Alt release (compositor grab) — the next fresh Alt press
+    // disarms the stale eater so its real release passes through.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 162;
+        FCITX_INFO() << "=== Test 162: Stale eater disarmed on fresh Alt "
+                        "press ===";
+        configureLeaders(instance, false, false, false, false, false,
+                         /*alt=*/true);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test162");
+
+        // Arm the eater: Alt-led session, then a shortcut abort ends the
+        // session while the consumed Alt press is still unreleased.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_c, KeyStates(KeyState::Ctrl) | KeyState::Alt, kCodeC),
+            false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // The Alt release is LOST here: a compositor grab swallowed it, as
+        // KWin's window menu does. No release event is delivered.
+
+        // The next fresh Alt press proves the awaited release is gone: it
+        // must disarm the eater, so THIS press's real release reaches the
+        // application instead of being eaten (stuck-Alt symptom).
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+        FCITX_ASSERT(!consumed)
+            << "Alt release after a fresh press must not be eaten";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 162 PASSED";
         scheduleEmptyOutputTests(instance);
     });
 }
@@ -6891,7 +7009,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 161 tests PASSED ===";
+                                FCITX_INFO() << "=== All 163 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });
