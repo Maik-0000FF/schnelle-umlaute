@@ -150,6 +150,18 @@ public:
     }
     void clearCommittedKey() { committed_ = {}; }
 
+    // True once no gesture and no Alt-led session is live any more: the
+    // state in which a still-armed consumedAltCode_ is either the awaited,
+    // symmetric leader release or provably stale. Gates both the release
+    // eater's one-shot disarm and the press-side stale disarm as the ONE
+    // definition of "session over", so the two sites cannot drift apart.
+    // During KWin Wayland auto-repeat gaps cycling keeps cyclingInput_ and
+    // altGestureSession_ set, so this stays false there and the arming
+    // survives the gap.
+    bool altSessionOver() const {
+        return !waitingKey_ && !cyclingInput_ && !altGestureSession_;
+    }
+
     // Classify a key release as a synthetic auto-repeat for the waiting or the
     // committed gesture. Each binds isSyntheticAutoRepeatRelease() to its own
     // bundle's (frozen press time, monotonic start) pair and owns the nowUsec()

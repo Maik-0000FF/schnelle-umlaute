@@ -200,8 +200,7 @@ public:
                 // awaited one.
                 if (state->consumedAltCode_ != 0 &&
                     rawCode == state->consumedAltCode_ &&
-                    !state->waitingKey_ && !state->cyclingInput_ &&
-                    !state->altGestureSession_) {
+                    state->altSessionOver()) {
                     state->consumedAltCode_ = 0;
                 }
                 return;
@@ -273,8 +272,7 @@ public:
                 // disarm (one-shot), so a stale arming can never eat a later,
                 // unrelated Alt release, which would leave the application
                 // with a stuck modifier (issue #147 class).
-                if (!state->waitingKey_ && !state->cyclingInput_ &&
-                    !state->altGestureSession_) {
+                if (state->altSessionOver()) {
                     state->consumedAltCode_ = 0;
                 }
                 keyEvent.filterAndAccept();
@@ -444,7 +442,11 @@ public:
                 // forever, turning later Alt+key application shortcuts into
                 // committed text (issue #147 class). consumedAltCode_ stays
                 // armed on purpose: the consumed leader press still owes one
-                // release, which the one-shot release eater consumes.
+                // release, which the one-shot release eater consumes. Until
+                // then the bypass stays active through consumedAltCode_,
+                // which is right while that Alt is still physically held;
+                // the awaited release (or a fresh Alt press after a lost
+                // one) disarms it fully.
                 state->altGestureSession_ = false;
                 return; // Let the shortcut through
             }
