@@ -310,6 +310,9 @@ void testMoveComposedVariantEscapesCreatedRowInSource() {
     openBase(m);
     EXPECT(m.moveComposedVariant(QStringLiteral("e"), QStringLiteral("x,y"),
                                  kSrc(), QStringLiteral("o")));
+    // The removal side must keep the remaining variant intact, so a regression
+    // there cannot hide behind a correct destination row.
+    EXPECT(fileVariants(kSrc(), "e") == "z");
     EXPECT(fileVariants(kSrc(), "o") == "x,,y");
     const auto vars = schnelle_umlaute::splitOutputs(fileVariants(kSrc(), "o"));
     EXPECT(vars.size() == 1 && vars[0] == "x,y");
@@ -328,6 +331,7 @@ void testMoveComposedVariantEscapesCreatedRowInBase() {
     openBase(m);
     EXPECT(m.moveComposedVariant(QStringLiteral("e"), QStringLiteral("x,y"),
                                  kBase(), QStringLiteral("o")));
+    EXPECT(fileVariants(kBase(), "e") == "z");
     EXPECT(fileVariants(kBase(), "o") == "x,,y");
     const auto vars =
         schnelle_umlaute::splitOutputs(fileVariants(kBase(), "o"));

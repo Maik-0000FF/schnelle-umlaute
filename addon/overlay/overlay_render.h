@@ -26,7 +26,8 @@ constexpr int kFallbackOverlayWidth = 200;
 constexpr int kFallbackOverlayHeight = 64;
 
 // The placement grid is 7 columns wide, uniformly spaced at 12.5% of the output
-// width, so column `col` (0-based) is centred at screenWidth * (col+1) / 8.
+// width, so column `col` (0-based) is centred at
+// screenWidth * (col + 1) / (kGridColumns + 1).
 constexpr int kGridColumns = 7;
 
 // Centre of a grid column in output coordinates. Both placements derive their

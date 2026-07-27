@@ -49,10 +49,16 @@ void testMalformedAndNegativeSkipped() {
                          "missingtabs\n"
                          "a\t\xc3\xa0\tnotanumber\n"
                          "a\t\xc3\xb6\t-5\n"    // negative → skipped
+                         // Out of range for long long: must be skipped as
+                         // malformed, not clamped to LLONG_MAX and stored as a
+                         // real counter (which would outrank every honest count
+                         // in the frequency order for good).
+                         "a\t\xc3\xbc\t99999999999999999999\n"
                          "o\t\xc3\xb6\t9\n");
     EXPECT(c.at("a").at("\xc3\xa4") == 7);
     EXPECT(c.at("a").count("\xc3\xa0") == 0);
     EXPECT(c.at("a").count("\xc3\xb6") == 0);
+    EXPECT(c.at("a").count("\xc3\xbc") == 0);
     EXPECT(c.at("o").at("\xc3\xb6") == 9);
 }
 

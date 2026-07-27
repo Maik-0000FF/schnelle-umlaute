@@ -388,7 +388,15 @@ ApplicationWindow {
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottomMargin: Theme.spacingXl + 40
-        width: Math.min(rowLayout.implicitWidth + Theme.spacingLg * 2, root.width - 40)
+        // Horizontal inset from the window edge, consumed by the box cap here
+        // and by the text cap further down so the two can't drift apart.
+        // Deliberately rooted in root.width and NOT in snackbar.width: this
+        // width is derived from rowLayout.implicitWidth, so capping the text
+        // against it would close a binding loop.
+        readonly property int edgeInset: 40
+        readonly property int maxBoxWidth: root.width - edgeInset
+        width: Math.min(rowLayout.implicitWidth + Theme.spacingLg * 2,
+                        maxBoxWidth)
         height: 44
         radius: Theme.radiusMd
         color: Theme.surface
@@ -439,7 +447,7 @@ ApplicationWindow {
                 // message (a file error carrying a full path) has to be elided
                 // here as well; without a cap the Text keeps its implicit width
                 // and draws straight through the rounded frame.
-                Layout.maximumWidth: root.width - 40 - Theme.spacingLg * 2
+                Layout.maximumWidth: snackbar.maxBoxWidth - Theme.spacingLg * 2
                                      - (undoButton.visible
                                         ? undoButton.implicitWidth
                                           + Theme.spacingMd
