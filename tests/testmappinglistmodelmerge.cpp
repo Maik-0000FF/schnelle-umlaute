@@ -295,6 +295,49 @@ void testMoveComposedVariantRefusesLastChip() {
     EXPECT(fileVariants(kSrc(), "o").empty());
 }
 
+// A dropped chip whose value carries a literal comma must be stored ESCAPED
+// when the move has to CREATE the target row in the source file. Written raw,
+// "x,y" would come back as two variants on the next parse and the chip would
+// silently split in half.
+void testMoveComposedVariantEscapesCreatedRowInSource() {
+    // "o" exists as a composed row (from the base) but not in the source file,
+    // so the move takes the create-the-row branch.
+    writeProfile(kBase(), {{"a", "ä"}, {"o", "ö"}});
+    writeProfile(kSrc(), {{"e", "x,,y,z"}});
+    writeMergeConf(baseAndSource());
+
+    MappingListModel m;
+    openBase(m);
+    EXPECT(m.moveComposedVariant(QStringLiteral("e"), QStringLiteral("x,y"),
+                                 kSrc(), QStringLiteral("o")));
+    // The removal side must keep the remaining variant intact, so a regression
+    // there cannot hide behind a correct destination row.
+    EXPECT(fileVariants(kSrc(), "e") == "z");
+    EXPECT(fileVariants(kSrc(), "o") == "x,,y");
+    const auto vars = schnelle_umlaute::splitOutputs(fileVariants(kSrc(), "o"));
+    EXPECT(vars.size() == 1 && vars[0] == "x,y");
+}
+
+// Same duty on the base's own side, which writes through entries_ instead of
+// the profile-file rewriter: the created row must carry the escaped form too.
+void testMoveComposedVariantEscapesCreatedRowInBase() {
+    // The chip is owned by the base; "o" exists only in the appended source, so
+    // the base has no row for it yet.
+    writeProfile(kBase(), {{"e", "x,,y,z"}});
+    writeProfile(kSrc(), {{"o", "ö"}});
+    writeMergeConf(baseAndSource());
+
+    MappingListModel m;
+    openBase(m);
+    EXPECT(m.moveComposedVariant(QStringLiteral("e"), QStringLiteral("x,y"),
+                                 kBase(), QStringLiteral("o")));
+    EXPECT(fileVariants(kBase(), "e") == "z");
+    EXPECT(fileVariants(kBase(), "o") == "x,,y");
+    const auto vars =
+        schnelle_umlaute::splitOutputs(fileVariants(kBase(), "o"));
+    EXPECT(vars.size() == 1 && vars[0] == "x,y");
+}
+
 // -- manifest order override ------------------------------------------------
 
 // A per-base order override in merge.conf rearranges the composed chips
@@ -408,6 +451,10 @@ const TestCase kTests[] = {
     {"testMoveComposedVariantWithinSource", testMoveComposedVariantWithinSource},
     {"testMoveComposedVariantRefusesLastChip",
      testMoveComposedVariantRefusesLastChip},
+    {"testMoveComposedVariantEscapesCreatedRowInSource",
+     testMoveComposedVariantEscapesCreatedRowInSource},
+    {"testMoveComposedVariantEscapesCreatedRowInBase",
+     testMoveComposedVariantEscapesCreatedRowInBase},
     {"testOrderOverrideAppliedInComposed", testOrderOverrideAppliedInComposed},
     {"testDuplicateDetectionAcrossComposedRows",
      testDuplicateDetectionAcrossComposedRows},

@@ -820,8 +820,12 @@ bool MappingListModel::moveVariantInProfileFile(const QString &relFile,
         found = true;
         break;
     }
-    if (!found)
-        rows.push_back({to, val});
+    if (!found) {
+        // Store the escaped form, exactly as the branch above does via
+        // joinOutputs: a value carrying a literal comma would otherwise be
+        // written raw and split into two variants on the next parse.
+        rows.push_back({to, schnelle_umlaute::joinOutputs({val})});
+    }
     // Write back atomically, in the same escaped format as save().
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile file(path);
@@ -897,8 +901,13 @@ bool MappingListModel::moveComposedVariant(const QString &fromInput,
             found = true;
             break;
         }
-        if (!found)
-            entries_.push_back({toInput, value});
+        if (!found) {
+            // Same escaping duty as the loop above: entries_ always holds the
+            // joined form, so a comma-carrying value must not go in raw.
+            entries_.push_back(
+                {toInput, QString::fromStdString(schnelle_umlaute::joinOutputs(
+                              {value.toStdString()}))});
+        }
         save();
         reloadComposed();
         return true;

@@ -141,7 +141,10 @@ public:
                                      const QStringList &order);
     // Move a single variant from one mapping's output to another's (cross-row
     // drag). It is removed from fromInput (dropping its last variant removes the
-    // whole row) and appended to toInput unless that mapping already has it.
+    // whole row) and always appended to toInput, even when that mapping already
+    // carries the value: a dragged variant is never silently dropped, and the
+    // resulting duplicate is flagged (variantWarning plus the row's warning
+    // border) rather than prevented.
     Q_INVOKABLE bool moveVariant(const QString &fromInput, const QString &variant,
                                  const QString &toInput);
 

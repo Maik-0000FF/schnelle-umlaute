@@ -163,14 +163,20 @@ Anchored anchorsFor(const QString &position, int screenWidth,
         bottom = kEdgeMargin;
     }
 
-    if (col == 3) {
+    // The middle column is the one the compositor centres for us; everything
+    // left of it anchors left, everything right of it anchors right.
+    const int centerCol = schnelle_umlaute::render::kGridColumns / 2;
+    if (col == centerCol) {
         // no horizontal anchor → screen-centered
-    } else if (col < 3) {
-        const int center = screenWidth * (col + 1) / 8;
+    } else if (col < centerCol) {
+        const int center =
+            schnelle_umlaute::render::columnCenter(col, screenWidth);
         a |= LSWindow::AnchorLeft;
         left = std::max(kEdgeMargin, center - overlayWidth / 2);
     } else {
-        const int centerFromRight = screenWidth * (7 - col) / 8;
+        // Anchored from the right, so the mirrored column index is what counts.
+        const int centerFromRight = schnelle_umlaute::render::columnCenter(
+            schnelle_umlaute::render::kGridColumns - 1 - col, screenWidth);
         a |= LSWindow::AnchorRight;
         right = std::max(kEdgeMargin, centerFromRight - overlayWidth / 2);
     }
