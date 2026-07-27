@@ -165,9 +165,10 @@ Anchored anchorsFor(const QString &position, int screenWidth,
 
     // The middle column is the one the compositor centres for us; everything
     // left of it anchors left, everything right of it anchors right.
-    if (col == schnelle_umlaute::render::kGridColumns / 2) {
+    const int centerCol = schnelle_umlaute::render::kGridColumns / 2;
+    if (col == centerCol) {
         // no horizontal anchor → screen-centered
-    } else if (col < schnelle_umlaute::render::kGridColumns / 2) {
+    } else if (col < centerCol) {
         const int center =
             schnelle_umlaute::render::columnCenter(col, screenWidth);
         a |= LSWindow::AnchorLeft;

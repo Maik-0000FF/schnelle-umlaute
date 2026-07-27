@@ -54,6 +54,10 @@ void testMalformedAndNegativeSkipped() {
                          // real counter (which would outrank every honest count
                          // in the frequency order for good).
                          "a\t\xc3\xbc\t99999999999999999999\n"
+                         // Must stay AFTER the overflow line: strtoll does not
+                         // clear errno on success, so this valid count is what
+                         // pins the per-iteration errno reset. Reorder the two
+                         // and that half of the coverage silently disappears.
                          "o\t\xc3\xb6\t9\n");
     EXPECT(c.at("a").at("\xc3\xa4") == 7);
     EXPECT(c.at("a").count("\xc3\xa0") == 0);

@@ -387,6 +387,8 @@ ApplicationWindow {
         id: snackbar
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
+        // Vertical lift above the footer. Unrelated to edgeInset below, despite
+        // the same number: changing one must not be assumed to move the other.
         anchors.bottomMargin: Theme.spacingXl + 40
         // Horizontal inset from the window edge, consumed by the box cap here
         // and by the text cap further down so the two can't drift apart.
