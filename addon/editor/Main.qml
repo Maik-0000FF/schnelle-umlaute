@@ -435,6 +435,16 @@ ApplicationWindow {
 
             Text {
                 id: text
+                // The snackbar itself is capped at the window width, so a long
+                // message (a file error carrying a full path) has to be elided
+                // here as well; without a cap the Text keeps its implicit width
+                // and draws straight through the rounded frame.
+                Layout.maximumWidth: root.width - 40 - Theme.spacingLg * 2
+                                     - (undoButton.visible
+                                        ? undoButton.implicitWidth
+                                          + Theme.spacingMd
+                                        : 0)
+                elide: Text.ElideRight
                 color: Theme.text
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBody

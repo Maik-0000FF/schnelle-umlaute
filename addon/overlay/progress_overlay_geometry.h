@@ -48,11 +48,12 @@ inline int leadLength(int barLen, int leadMs, int totalMs) {
 // Left margin (from the output's left edge) that centres a frameWidth-wide panel
 // on grid column `col` (0..6), while keeping the whole windowWidth-wide surface
 // (panel plus the bar overhang to its right) on screen by `edgeMargin`. The
-// column centres mirror anchorsFor's screenWidth*(col+1)/8, but here the PANEL
-// is centred rather than the surface, so the bar no longer shifts the panel.
+// column centre comes from render::columnCenter, the same one anchorsFor uses,
+// but here the PANEL is centred rather than the surface, so the bar no longer
+// shifts the panel.
 inline int gridPanelLeftMargin(int col, int screenWidth, int frameWidth,
                                int windowWidth, int edgeMargin) {
-    const int center = screenWidth * (col + 1) / 8;
+    const int center = render::columnCenter(col, screenWidth);
     const int left = center - frameWidth / 2;
     const int maxLeft =
         std::max(edgeMargin, screenWidth - windowWidth - edgeMargin);

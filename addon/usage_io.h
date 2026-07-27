@@ -13,6 +13,7 @@
 // starting with '#' are comments; empty and malformed lines are skipped.
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -51,8 +52,13 @@ inline UsageCounts parseUsage(FILE *fp) {
         if (base.empty() || variant.empty() || countStr.empty())
             continue;
         char *end = nullptr;
+        // errno is reset first so ERANGE can be told apart from a leftover
+        // value: without it an out-of-range count clamps to LLONG_MAX and is
+        // stored as a real counter (~9.2e18), skewing the frequency order for
+        // good instead of being skipped as malformed.
+        errno = 0;
         const long long n = std::strtoll(countStr.c_str(), &end, 10);
-        if (end == countStr.c_str() || *end != '\0' || n < 0)
+        if (end == countStr.c_str() || *end != '\0' || n < 0 || errno == ERANGE)
             continue;
         counts[base][variant] = n;
     }

@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <string>
+#include <utility> // std::move
 #include <vector>
 
 namespace schnelle_umlaute {
