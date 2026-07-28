@@ -682,6 +682,69 @@ void testOnDiskFormatHasExpectedSections() {
     EXPECT(raw.find("[Theme]") != std::string::npos);
 }
 
+// -- save() error reporting --------------------------------------------------
+
+// Make every write below the conf directory fail by putting a regular FILE
+// where that DIRECTORY belongs: mkpath and the subsequent open then fail with
+// ENOTDIR. Deliberately not a chmod — CI runs its jobs in root containers,
+// where permission bits would simply be ignored and the test would silently
+// stop testing anything.
+void blockConfDir() {
+    const std::string dir = g_tempdir->path() + "/fcitx5/conf";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(g_tempdir->path() + "/fcitx5");
+    std::FILE *fp = std::fopen(dir.c_str(), "w");
+    if (!fp) {
+        std::fprintf(stderr, "could not occupy %s\n", dir.c_str());
+        std::abort();
+    }
+    std::fclose(fp);
+}
+
+void unblockConfDir() {
+    std::filesystem::remove(g_tempdir->path() + "/fcitx5/conf");
+    ensureConfDir();
+}
+
+// A save that cannot write reports once per cause, not once per setter.
+// save() runs on every setter and the delay range slider drives its setter on
+// every mouse move, so an unwritable config dir would otherwise emit the
+// identical message dozens of times for a single drag. A recovered save
+// re-arms the reporting, so a problem that returns is reported again instead
+// of being swallowed for the rest of the session.
+void testSaveErrorReportedOncePerCause() {
+    resetTempdir();
+    SettingsModel s;
+    // Blocked only now: the constructor's load() must still see an ordinary
+    // (absent) config, so this tests the write path and nothing else.
+    blockConfDir();
+    QSignalSpy errors(&s, &SettingsModel::errorOccurred);
+
+    s.setDelayLowercase(410);
+    EXPECT(errors.count() == 1);
+    const QString cause = errors.at(0).at(0).toString();
+    EXPECT(!cause.isEmpty());
+
+    // Further failing saves carry the identical message and stay quiet.
+    s.setDelayLowercase(420);
+    s.setDelayLowercase(430);
+    s.setDelayUppercase(710);
+    EXPECT(errors.count() == 1);
+
+    // A successful save reports nothing and clears the remembered cause.
+    unblockConfDir();
+    s.setDelayLowercase(440);
+    EXPECT(errors.count() == 1);
+    EXPECT(readConfig().find("Lowercase=440") != std::string::npos);
+
+    // The same failure coming back is reported again.
+    blockConfDir();
+    s.setDelayLowercase(450);
+    EXPECT(errors.count() == 2);
+    EXPECT(errors.at(1).at(0).toString() == cause);
+    unblockConfDir();
+}
+
 // -- test runner -------------------------------------------------------------
 
 using TestFn = void (*)();
@@ -730,6 +793,7 @@ const TestCase kTests[] = {
      testIsActiveLeaderKeyRespectsEnabledFlag},
     {"testOnDiskFormatHasExpectedSections",
      testOnDiskFormatHasExpectedSections},
+    {"testSaveErrorReportedOncePerCause", testSaveErrorReportedOncePerCause},
 };
 
 int main(int argc, char **argv) {

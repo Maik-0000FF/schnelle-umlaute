@@ -930,7 +930,7 @@ void SettingsModel::save() {
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile f(path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        Q_EMIT errorOccurred(f.errorString());
+        reportSaveError(f.errorString());
         return;
     }
     QTextStream out(&f);
@@ -1043,10 +1043,18 @@ void SettingsModel::save() {
     // old config on disk, so telling the addon to re-read it would just make it
     // load the previous values back while the UI shows the new ones.
     if (!f.commit()) {
-        Q_EMIT errorOccurred(f.errorString());
+        reportSaveError(f.errorString());
         return;
     }
+    clearSaveError();
     reloadFcitx();
+}
+
+void SettingsModel::reportSaveError(const QString &message) {
+    if (lastSaveError_ == message)
+        return;
+    lastSaveError_ = message;
+    Q_EMIT errorOccurred(message);
 }
 
 void SettingsModel::reloadFcitx() { reloadSchnelleUmlauteAddon(); }

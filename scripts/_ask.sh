@@ -19,9 +19,15 @@ ask() {
     read -r -p "$1" && return
     # No answer at all. The empty REPLY makes the caller take the default its
     # prompt advertises, which for a [Y/n] question means yes and can mean
-    # removing files or overwriting a config. Say so on its own line: an
-    # unattended run then leaves a record that the default was taken FOR the
-    # user, instead of a log that reads as if someone had answered.
+    # removing files or overwriting a config. Say so, so an unattended run
+    # leaves a record that the default was taken FOR the user instead of a log
+    # that reads as if someone had answered.
+    #
+    # The question is repeated here on purpose: `read -p` only writes its
+    # prompt when stdin is a terminal, so in exactly the run this message
+    # exists for, the prompt itself never reaches the log. Without it a script
+    # with several prompts leaves a column of identical, unattributable lines.
     echo
-    echo "No input received, taking the default."
+    echo "No input received for: $1"
+    echo "Taking the default."
 }

@@ -316,6 +316,17 @@ private:
     // applying). `stillEffective` is whether this leader counts right now, so a
     // custom leader with no key captured is never treated as the last one.
     bool allowLeaderOff(bool stillEffective);
+    // Emit errorOccurred for a failed save, but only when the message differs
+    // from the one already reported. save() runs on every setter, and a range
+    // slider drives its setter on every mouse move, so a config dir that stays
+    // unwritable would emit the identical message dozens of times per drag.
+    // The UI already collapses those (the snackbar overwrites in place and
+    // restarts its timer), so the repeats change nothing a user can see. A
+    // DIFFERENT failure still gets through, and a successful save re-arms the
+    // reporting via clearSaveError(), so a problem that comes back is reported
+    // again rather than swallowed for the rest of the session.
+    void reportSaveError(const QString &message);
+    void clearSaveError() { lastSaveError_.clear(); }
     void reloadFcitx();
     // Write the generated fcitx5 theme.conf from the given colors and point
     // classicui at it (backing up the user's previous classicui theme first),
@@ -368,6 +379,9 @@ private:
     bool layerShellAvailable_ = false;
     QString layerShellSession_;
     QString layerShellReason_;
+    // Last save failure already reported, empty when the last save succeeded.
+    // See reportSaveError.
+    QString lastSaveError_;
     OverlayDBusClient overlayClient_;
 };
 
