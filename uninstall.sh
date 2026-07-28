@@ -135,7 +135,7 @@ for file in "${FOUND_FILES[@]}"; do
 done
 echo
 
-ask "Remove these files? [y/N] "
+ask "Remove these files? [y/N]"
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}Uninstallation cancelled.${NC}"
@@ -173,7 +173,7 @@ if [ -f "$USER_CONFIG" ] || [ -d "$MAPPINGS_DIR" ] || [ -f "$USER_AUTOSTART" ]; 
     [ -f "$USER_CONFIG" ] && echo "  - $USER_CONFIG (settings)"
     [ -d "$MAPPINGS_DIR" ] && echo "  - $MAPPINGS_DIR/ (mappings, merge & usage data)"
     [ -f "$USER_AUTOSTART" ] && echo "  - $USER_AUTOSTART (overlay autostart override)"
-    ask "Remove user configuration? [y/N] "
+    ask "Remove user configuration? [y/N]"
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         [ -f "$USER_CONFIG" ] && rm -f "$USER_CONFIG"
@@ -191,7 +191,7 @@ fi
 ENV_FILE="$HOME/.config/environment.d/fcitx5.conf"
 if [ -f "$ENV_FILE" ]; then
     echo -e "${YELLOW}Environment configuration found: $ENV_FILE${NC}"
-    ask "Remove environment configuration? [y/N] "
+    ask "Remove environment configuration? [y/N]"
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         rm -f "$ENV_FILE"
@@ -213,7 +213,7 @@ AUTOSTART_FILES=(
 for autostart in "${AUTOSTART_FILES[@]}"; do
     if [ -f "$autostart" ]; then
         echo -e "${YELLOW}Autostart configuration found: $autostart${NC}"
-        ask "Remove autostart configuration? [y/N] "
+        ask "Remove autostart configuration? [y/N]"
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             rm -f "$autostart"

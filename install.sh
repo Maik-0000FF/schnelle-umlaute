@@ -154,7 +154,7 @@ echo
 
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     echo -e "${YELLOW}Missing dependencies: ${MISSING_DEPS[*]}${NC}"
-    ask "Install missing dependencies? [Y/n] "
+    ask "Install missing dependencies? [Y/n]"
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         echo -e "${BLUE}Installing dependencies...${NC}"
@@ -273,7 +273,7 @@ if [ ${#STALE_FILES[@]} -ne 0 ]; then
         echo "  - $file"
     done
     echo
-    ask "Remove before reinstalling? [Y/n] "
+    ask "Remove before reinstalling? [Y/n]"
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         sudo rm -f "${STALE_FILES[@]}"
@@ -342,7 +342,7 @@ if [ -f "$ENV_FILE" ]; then
     echo "Contents:"
     cat "$ENV_FILE"
     echo
-    ask "Overwrite with fcitx5 settings? [Y/n] "
+    ask "Overwrite with fcitx5 settings? [Y/n]"
     echo
     if [[ $REPLY =~ ^[Nn]$ ]]; then
         echo -e "${YELLOW}Skipping environment setup. Make sure the fcitx5 input-method variables are set.${NC}"
@@ -393,7 +393,7 @@ if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_C
     echo -e "${YELLOW}mappings (e.g. Shift+A → Ä). With Shift as trigger, fcitx5 will${NC}"
     echo -e "${YELLOW}switch input methods instead.${NC}"
     echo
-    ask "Replace trigger key with Ctrl+Space? [Y/n] "
+    ask "Replace trigger key with Ctrl+Space? [Y/n]"
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         # Atomic replace via rename(2): write into a mktemp file in the

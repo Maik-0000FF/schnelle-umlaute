@@ -16,10 +16,12 @@
 #include <QString>
 #include <QStringList>
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <thread>
 
 using schnelle_umlaute_tests::TempXdgConfigHome;
 
@@ -745,6 +747,38 @@ void testSaveErrorReportedOncePerCause() {
     unblockConfDir();
 }
 
+// The suppression is time-boxed, not open-ended: once the window has passed,
+// the next failing save reports again. Without this, a user whose config dir
+// stays unwritable would see one message and then have every later toggle fail
+// in silence — the exact behaviour reportSaveError exists to prevent.
+//
+// Waits past the real window instead of faking a clock: elapsed time only ever
+// grows, so a slow machine cannot turn this into a false failure. The wait is
+// derived from kSaveErrorRepeatMs so it cannot drift away from the value it is
+// waiting out.
+void testSaveErrorRepeatsAfterWindow() {
+    resetTempdir();
+    SettingsModel s;
+    blockConfDir();
+    QSignalSpy errors(&s, &SettingsModel::errorOccurred);
+
+    s.setDelayLowercase(410);
+    EXPECT(errors.count() == 1);
+
+    // Immediately after, still suppressed.
+    s.setDelayLowercase(420);
+    EXPECT(errors.count() == 1);
+
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(SettingsModel::kSaveErrorRepeatMs + 200));
+
+    // Same cause, but the window has passed: reported again.
+    s.setDelayLowercase(430);
+    EXPECT(errors.count() == 2);
+    EXPECT(errors.at(1).at(0).toString() == errors.at(0).at(0).toString());
+    unblockConfDir();
+}
+
 // -- test runner -------------------------------------------------------------
 
 using TestFn = void (*)();
@@ -794,6 +828,7 @@ const TestCase kTests[] = {
     {"testOnDiskFormatHasExpectedSections",
      testOnDiskFormatHasExpectedSections},
     {"testSaveErrorReportedOncePerCause", testSaveErrorReportedOncePerCause},
+    {"testSaveErrorRepeatsAfterWindow", testSaveErrorRepeatsAfterWindow},
 };
 
 int main(int argc, char **argv) {

@@ -258,7 +258,10 @@ target_link_libraries(testsettingsmodel
     Qt${QT_MAJOR_VERSION}::Qml
     Qt${QT_MAJOR_VERSION}::Test)
 add_test(NAME testsettingsmodel COMMAND testsettingsmodel)
-set_tests_properties(testsettingsmodel PROPERTIES TIMEOUT 10)
+# Longer than the other unit tests: testSaveErrorRepeatsAfterWindow waits out
+# SettingsModel::kSaveErrorRepeatMs (2s) for real, so 10s left too little room
+# on a loaded runner.
+set_tests_properties(testsettingsmodel PROPERTIES TIMEOUT 30)
 
 # Pure profile-cycle logic (profile_cycle.h): favorites-vs-all selection and
 # the wrapping next/previous step. No fcitx/Qt runtime needed.

@@ -1,6 +1,7 @@
 #ifndef SCHNELLE_UMLAUTE_EDITOR_SETTINGS_MODEL_H
 #define SCHNELLE_UMLAUTE_EDITOR_SETTINGS_MODEL_H
 
+#include <QElapsedTimer>
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
@@ -136,6 +137,15 @@ class SettingsModel : public QObject {
     Q_PROPERTY(QString layerShellReason READ layerShellReason CONSTANT)
 
 public:
+    // How long an identical save failure stays suppressed (see
+    // reportSaveError). Deliberately well below the snackbar's own lifetime
+    // (Theme.qml, snackbarDuration): a repeat that gets through after this
+    // window lands on a snackbar that is still on screen, so a continuing
+    // burst never shows a gap, while a deliberate action seconds later is
+    // reported rather than lost. Public so the test can wait it out by name
+    // instead of restating the number.
+    static constexpr int kSaveErrorRepeatMs = 2000;
+
     explicit SettingsModel(QObject *parent = nullptr);
 
     int delayLowercase() const { return delayLowercase_; }
@@ -316,17 +326,23 @@ private:
     // applying). `stillEffective` is whether this leader counts right now, so a
     // custom leader with no key captured is never treated as the last one.
     bool allowLeaderOff(bool stillEffective);
-    // Emit errorOccurred for a failed save, but only when the message differs
-    // from the one already reported. save() runs on every setter, and a range
-    // slider drives its setter on every mouse move, so a config dir that stays
-    // unwritable would emit the identical message dozens of times per drag.
-    // The UI already collapses those (the snackbar overwrites in place and
-    // restarts its timer), so the repeats change nothing a user can see. A
-    // DIFFERENT failure still gets through, and a successful save re-arms the
-    // reporting via clearSaveError(), so a problem that comes back is reported
-    // again rather than swallowed for the rest of the session.
+    // Emit errorOccurred for a failed save, but suppress an identical message
+    // that repeats within kSaveErrorRepeatMs. save() runs on every setter, and
+    // the delay range slider drives its setter on every mouse move, so a config
+    // dir that stays unwritable would otherwise emit the same message dozens of
+    // times for one drag.
+    //
+    // The suppression is deliberately time-boxed rather than open-ended. An
+    // open-ended one would bring back the very problem this reports on: with
+    // the config dir still unwritable, the first toggle would report and every
+    // later, separately chosen toggle would fail in silence once the snackbar
+    // had gone. Bounded, a burst collapses into one message while the next
+    // deliberate action is reported again.
+    //
+    // A DIFFERENT failure is never suppressed, and a successful save re-arms
+    // the reporting via clearSaveError().
     void reportSaveError(const QString &message);
-    void clearSaveError() { lastSaveError_.clear(); }
+    void clearSaveError();
     void reloadFcitx();
     // Write the generated fcitx5 theme.conf from the given colors and point
     // classicui at it (backing up the user's previous classicui theme first),
@@ -379,9 +395,10 @@ private:
     bool layerShellAvailable_ = false;
     QString layerShellSession_;
     QString layerShellReason_;
-    // Last save failure already reported, empty when the last save succeeded.
-    // See reportSaveError.
+    // Last save failure already reported, empty when the last save succeeded,
+    // plus when it was reported. See reportSaveError.
     QString lastSaveError_;
+    QElapsedTimer lastSaveErrorAt_;
     OverlayDBusClient overlayClient_;
 };
 

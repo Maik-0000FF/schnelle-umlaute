@@ -1051,10 +1051,19 @@ void SettingsModel::save() {
 }
 
 void SettingsModel::reportSaveError(const QString &message) {
-    if (lastSaveError_ == message)
+    // Same cause, still inside the window: a burst (a slider drag), and the
+    // message it would repeat is the one already on screen.
+    if (lastSaveError_ == message && lastSaveErrorAt_.isValid() &&
+        lastSaveErrorAt_.elapsed() < kSaveErrorRepeatMs)
         return;
     lastSaveError_ = message;
+    lastSaveErrorAt_.restart();
     Q_EMIT errorOccurred(message);
+}
+
+void SettingsModel::clearSaveError() {
+    lastSaveError_.clear();
+    lastSaveErrorAt_.invalidate();
 }
 
 void SettingsModel::reloadFcitx() { reloadSchnelleUmlauteAddon(); }

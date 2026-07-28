@@ -436,7 +436,7 @@ ApplicationWindow {
 
         Timer {
             id: hideTimer
-            interval: 4000
+            interval: Theme.snackbarDuration
             onTriggered: snackbar.opacity = 0
         }
 

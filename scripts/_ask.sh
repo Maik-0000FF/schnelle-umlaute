@@ -2,6 +2,11 @@
 # Shared interactive prompt for install.sh and uninstall.sh.
 # Source from a script that has already set "set -e" if desired.
 #
+# Call as:  ask "Remove these files? [y/N]"
+# The separating space before the cursor is added here, so no call site has to
+# remember a trailing space and the question can be quoted cleanly in the
+# no-input notice below.
+#
 # After calling ask, the caller can rely on:
 #   $REPLY   — the answer, empty when there was none (EOF, or a bare Enter)
 #
@@ -16,7 +21,7 @@ ask() {
     # Cleared first so an EOF cannot leave the previous prompt's answer in
     # place, which would silently apply one question's reply to the next.
     REPLY=""
-    read -r -p "$1" && return
+    read -r -p "$1 " && return
     # No answer at all. The empty REPLY makes the caller take the default its
     # prompt advertises, which for a [Y/n] question means yes and can mean
     # removing files or overwriting a config. Say so, so an unattended run

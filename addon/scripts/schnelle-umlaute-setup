@@ -93,12 +93,13 @@ elif [ -f "$ENV_FILE" ]; then
     # Held in a variable so the message below can name the question without
     # restating it: `read -p` only writes its prompt to a terminal, so in an
     # unattended run the question itself never reaches the log.
-    OVERWRITE_PROMPT="  Overwrite with fcitx5 settings? [Y/n] "
+    OVERWRITE_PROMPT="Overwrite with fcitx5 settings? [Y/n]"
     REPLY=""
-    if ! read -r -p "$OVERWRITE_PROMPT"; then
+    if ! read -r -p "  $OVERWRITE_PROMPT "; then
         echo
-        echo "No input received for:$OVERWRITE_PROMPT"
-        echo "Taking the default."
+        # Indented like the rest of step 1's output.
+        echo "  No input received for: $OVERWRITE_PROMPT"
+        echo "  Taking the default."
     fi
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
