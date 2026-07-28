@@ -24,6 +24,13 @@ class MappingListModel : public QAbstractListModel {
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
     // The status line's text, translated for display. Anything that has to
     // DECIDE on the status reads saveState instead — see SaveState.
+    //
+    // Both share saveStatusChanged on purpose: saveStatus is derived from
+    // saveState, so the two never move apart and one signal covers both. The
+    // trade-off is that QML gets no onSaveStateChanged handler (a property's
+    // handler is named after its NOTIFY signal); bindings on saveState work
+    // normally, and an attempt to write that handler fails loudly rather than
+    // silently doing nothing.
     Q_PROPERTY(QString saveStatus READ saveStatus NOTIFY saveStatusChanged)
     Q_PROPERTY(SaveState saveState READ saveState NOTIFY saveStatusChanged)
     // Which profile's mappings file this model edits, relative to

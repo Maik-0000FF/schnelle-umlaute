@@ -16,5 +16,12 @@ ask() {
     # Cleared first so an EOF cannot leave the previous prompt's answer in
     # place, which would silently apply one question's reply to the next.
     REPLY=""
-    read -r -p "$1" || true
+    read -r -p "$1" && return
+    # No answer at all. The empty REPLY makes the caller take the default its
+    # prompt advertises, which for a [Y/n] question means yes and can mean
+    # removing files or overwriting a config. Say so on its own line: an
+    # unattended run then leaves a record that the default was taken FOR the
+    # user, instead of a log that reads as if someone had answered.
+    echo
+    echo "No input received, taking the default."
 }

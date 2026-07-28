@@ -82,7 +82,19 @@ elif [ -f "$ENV_FILE" ]; then
     echo -e "  ${YELLOW}Existing file: $ENV_FILE${NC}"
     echo "  Contents:"
     sed 's/^/    /' "$ENV_FILE"
-    read -p "  Overwrite with fcitx5 settings? [Y/n] " -r
+    # `read` returns non-zero at end of input, which under this script's
+    # `set -euo pipefail` would abort the run right here — before step 2 sets
+    # up autostart — instead of falling through to the prompt's default. That
+    # is the likely case for this script: it is the setup path a package
+    # install points at, so it often runs unattended. Absorb the EOF, clear
+    # REPLY first so no earlier value leaks in, and say that the default was
+    # taken. Inlined rather than shared with the installers' scripts/_ask.sh:
+    # this script is installed to /usr/bin on its own and cannot source it.
+    REPLY=""
+    if ! read -r -p "  Overwrite with fcitx5 settings? [Y/n] "; then
+        echo
+        echo "  No input received, taking the default."
+    fi
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         write_env_file

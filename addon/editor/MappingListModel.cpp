@@ -85,6 +85,12 @@ void MappingListModel::ensureUsageWatch() {
         // flush happened to fire onUsageFileChanged.
         usageWatcher_->removePath(path);
         usageWatchArmed_ = false;
+        // Symmetric to the arm branch below. onUsageFileChanged already emits
+        // this for a deletion it saw itself, but a deletion noticed only
+        // through directoryChanged (the file was never in files()) reaches us
+        // here alone, and the reset control would stay enabled with nothing
+        // left to reset.
+        Q_EMIT usageDataChanged();
     } else if (!usageWatcher_->files().contains(path)) {
         usageWatcher_->addPath(path);
         // The file just appeared (fresh setup) or was re-armed after the
