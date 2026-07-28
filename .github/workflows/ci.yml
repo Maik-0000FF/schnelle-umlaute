@@ -535,6 +535,7 @@ jobs:
           bash -n install.sh
           bash -n uninstall.sh
           bash -n scripts/_distro.sh
+          bash -n scripts/_ask.sh
           bash -n addon/scripts/schnelle-umlaute-setup
 
       - name: Shellcheck (warnings and above)
@@ -544,6 +545,7 @@ jobs:
           shellcheck -S warning install.sh
           shellcheck -S warning uninstall.sh
           shellcheck -S warning scripts/_distro.sh
+          shellcheck -S warning scripts/_ask.sh
           shellcheck -S warning addon/scripts/schnelle-umlaute-setup
 
   nix:

@@ -12,6 +12,9 @@
 // escaping is needed); count is a non-negative decimal integer. Lines
 // starting with '#' are comments; empty and malformed lines are skipped.
 
+// readLine: the truncation-guarded line reader every parser here shares.
+#include "line_io.h"
+
 #include <algorithm>
 #include <cerrno>
 #include <cstdint>
@@ -30,11 +33,8 @@ using UsageCounts =
 
 inline UsageCounts parseUsage(FILE *fp) {
     UsageCounts counts;
-    char buf[4096];
-    while (std::fgets(buf, sizeof(buf), fp)) {
-        std::string line(buf);
-        while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
-            line.pop_back();
+    std::string line;
+    while (readLine(fp, line)) {
         if (line.empty() || line[0] == '#')
             continue;
         // Split into exactly three fields: base, variant, count. Variant is

@@ -26,6 +26,7 @@ ApplicationWindow {
     SettingsModel {
         id: settings
         onThemeChanged: Theme.setCurrent(theme)
+        onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
     }
 
     // Sole owner of the merge manifest (merge.conf). Shared by the profile
@@ -380,6 +381,7 @@ ApplicationWindow {
         Footer {
             Layout.fillWidth: true
             saveStatus: mappings.saveStatus
+            saveState: mappings.saveState
         }
     }
 

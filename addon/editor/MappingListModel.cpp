@@ -76,7 +76,16 @@ void MappingListModel::ensureUsageWatch() {
     const QString path =
         schnelle_umlaute::configDirPath() +
         QString::fromLatin1(schnelle_umlaute::kUsageFile);
-    if (QFileInfo::exists(path) && !usageWatcher_->files().contains(path)) {
+    if (!QFileInfo::exists(path)) {
+        // The file is gone — a reset consumed the marker and the engine deleted
+        // it. Drop the stale watch entry and disarm, so its re-creation counts
+        // as a first appearance again. Without this the flag stayed armed
+        // across the reset and the block below skipped the refresh, leaving the
+        // frequency preview on the pre-reset counts until the engine's next
+        // flush happened to fire onUsageFileChanged.
+        usageWatcher_->removePath(path);
+        usageWatchArmed_ = false;
+    } else if (!usageWatcher_->files().contains(path)) {
         usageWatcher_->addPath(path);
         // The file just appeared (fresh setup) or was re-armed after the
         // engine's atomic rename; let the reset control's hasUsageData update.
@@ -939,7 +948,7 @@ void MappingListModel::load() {
                                 QString::fromStdString(m.output)});
         }
     }
-    setSaveStatus(tr("Loaded"));
+    setSaveState(Loaded);
     recomputeDuplicates();
 }
 
@@ -948,7 +957,7 @@ bool MappingListModel::save() {
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        setSaveStatus(tr("Open failed"));
+        setSaveState(OpenFailed);
         Q_EMIT errorOccurred(file.errorString());
         return false;
     }
@@ -965,19 +974,37 @@ bool MappingListModel::save() {
         buf += '\n';
     }
     if (file.write(buf) != buf.size() || !file.commit()) {
-        setSaveStatus(tr("Write failed"));
+        setSaveState(WriteFailed);
         Q_EMIT errorOccurred(file.errorString());
         return false;
     }
-    setSaveStatus(tr("Saved"));
+    setSaveState(Saved);
     recomputeDuplicates();
     reloadSchnelleUmlauteAddon();
     return true;
 }
 
-void MappingListModel::setSaveStatus(const QString &status) {
-    if (saveStatus_ != status) {
-        saveStatus_ = status;
+// The text is derived, never stored, so it can never fall out of step with the
+// state the footer decides on.
+QString MappingListModel::saveStatus() const {
+    switch (saveState_) {
+    case Loaded:
+        return tr("Loaded");
+    case Saved:
+        return tr("Saved");
+    case OpenFailed:
+        return tr("Open failed");
+    case WriteFailed:
+        return tr("Write failed");
+    case NoState:
+        break;
+    }
+    return {};
+}
+
+void MappingListModel::setSaveState(SaveState state) {
+    if (saveState_ != state) {
+        saveState_ = state;
         Q_EMIT saveStatusChanged();
     }
 }

@@ -286,6 +286,11 @@ Q_SIGNALS:
     void customKey2Changed();
     void customKey2CodeChanged();
     void customKey2ReverseChanged();
+    // A setting could not be persisted (unwritable config dir, full disk, a
+    // read-only home). Without this the write failed silently and the UI kept
+    // showing the new value as if it had been saved, which only surfaced on the
+    // next editor start when the setting was back to its old value.
+    void errorOccurred(const QString &message);
     // The editor refused to turn off the last effective leader; the UI shows a
     // note explaining why the toggle snapped back.
     void leaderRemovalBlocked();
@@ -315,11 +320,13 @@ private:
     // Write the generated fcitx5 theme.conf from the given colors and point
     // classicui at it (backing up the user's previous classicui theme first),
     // or restore that backup. Helpers for applyCaretTheme/clearCaretTheme.
-    void writeCaretThemeFiles(const QString &background, const QString &text,
+    // Both return false if a file could not be written, which the caller turns
+    // into an errorOccurred rather than leaving the toggle looking applied.
+    bool writeCaretThemeFiles(const QString &background, const QString &text,
                               const QString &highlight,
                               const QString &onHighlight,
                               const QString &border);
-    void restoreClassicUiTheme();
+    bool restoreClassicUiTheme();
 
     int delayLowercase_ = 400;
     int delayUppercase_ = 700;

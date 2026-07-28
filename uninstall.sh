@@ -18,6 +18,8 @@ echo
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/_distro.sh
 . "$PROJECT_ROOT/scripts/_distro.sh"
+# shellcheck source=scripts/_ask.sh
+. "$PROJECT_ROOT/scripts/_ask.sh"
 detect_distro_info
 
 if [ -f /etc/os-release ]; then
@@ -133,7 +135,7 @@ for file in "${FOUND_FILES[@]}"; do
 done
 echo
 
-read -p "Remove these files? [y/N] " -r
+ask "Remove these files? [y/N] "
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}Uninstallation cancelled.${NC}"
@@ -171,7 +173,7 @@ if [ -f "$USER_CONFIG" ] || [ -d "$MAPPINGS_DIR" ] || [ -f "$USER_AUTOSTART" ]; 
     [ -f "$USER_CONFIG" ] && echo "  - $USER_CONFIG (settings)"
     [ -d "$MAPPINGS_DIR" ] && echo "  - $MAPPINGS_DIR/ (mappings, merge & usage data)"
     [ -f "$USER_AUTOSTART" ] && echo "  - $USER_AUTOSTART (overlay autostart override)"
-    read -p "Remove user configuration? [y/N] " -r
+    ask "Remove user configuration? [y/N] "
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         [ -f "$USER_CONFIG" ] && rm -f "$USER_CONFIG"
@@ -189,7 +191,7 @@ fi
 ENV_FILE="$HOME/.config/environment.d/fcitx5.conf"
 if [ -f "$ENV_FILE" ]; then
     echo -e "${YELLOW}Environment configuration found: $ENV_FILE${NC}"
-    read -p "Remove environment configuration? [y/N] " -r
+    ask "Remove environment configuration? [y/N] "
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         rm -f "$ENV_FILE"
@@ -211,7 +213,7 @@ AUTOSTART_FILES=(
 for autostart in "${AUTOSTART_FILES[@]}"; do
     if [ -f "$autostart" ]; then
         echo -e "${YELLOW}Autostart configuration found: $autostart${NC}"
-        read -p "Remove autostart configuration? [y/N] " -r
+        ask "Remove autostart configuration? [y/N] "
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             rm -f "$autostart"

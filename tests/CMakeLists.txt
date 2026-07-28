@@ -29,6 +29,16 @@ add_dependencies(testschnelleumlaute copy-addon-conf copy-im-conf schnelle-umlau
 add_test(NAME testschnelleumlaute COMMAND testschnelleumlaute)
 set_tests_properties(testschnelleumlaute PROPERTIES TIMEOUT 30)
 
+# Unit test for readLine() — the truncation-guarded line reader every config
+# parser shares. Header-only, no fcitx5 runtime needed.
+add_executable(testlineio testlineio.cpp)
+target_include_directories(testlineio PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testlineio PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testlineio COMMAND testlineio)
+set_tests_properties(testlineio PROPERTIES TIMEOUT 10)
+
 # Standalone unit test for the mappings-io parser — no fcitx5 runtime needed.
 add_executable(testmappingsio testmappingsio.cpp)
 target_include_directories(testmappingsio PRIVATE ${PROJECT_SOURCE_DIR})

@@ -6,11 +6,17 @@ Rectangle {
     color: Theme.background
     implicitHeight: 36
 
+    // Shown as-is: already translated by the model.
     property string saveStatus: ""
+    // The untranslated counterpart, and the only thing the dot colour is
+    // allowed to look at. Matching on saveStatus would compare a tr()'d string
+    // against English literals, so the dot would read every state as an error
+    // the moment a translation is loaded.
+    property int saveState: MappingListModel.NoState
 
     readonly property color dotColor:
-        saveStatus === "Saved" ? Theme.success :
-        saveStatus === "Loaded" ? Theme.textMuted :
+        saveState === MappingListModel.Saved ? Theme.success :
+        saveState === MappingListModel.Loaded ? Theme.textMuted :
         Theme.error
 
     RowLayout {

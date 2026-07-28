@@ -67,15 +67,18 @@ QString caretThemeBackupPath() {
     return base + rel;
 }
 
-void writeTextFileAtomic(const QString &path, const QString &content) {
+// Returns false if the file could not be written. Every caller sits behind the
+// caret-theme toggle, whose whole effect is these files, so a failure has to
+// travel back up rather than leave the toggle looking applied.
+bool writeTextFileAtomic(const QString &path, const QString &content) {
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile f(path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
-        return;
+        return false;
     QTextStream ts(&f);
     ts << content;
     ts.flush();
-    f.commit();
+    return f.commit();
 }
 
 // File wrapper around the pure parser in caret_theme.h.
@@ -88,7 +91,8 @@ QMap<QString, QString> readFlatIni(const QString &path) {
 
 // Read classicui.conf, patch the given keys (the pure line transform lives in
 // caret_theme.h, preserving every other line), write it back atomically.
-void setClassicUiKeys(const QMap<QString, QString> &kv) {
+// Returns false if the write failed.
+bool setClassicUiKeys(const QMap<QString, QString> &kv) {
     const QString path = classicUiConfPath();
     QStringList lines;
     QFile f(path);
@@ -99,9 +103,10 @@ void setClassicUiKeys(const QMap<QString, QString> &kv) {
         f.close();
     }
     lines = schnelle_umlaute::applyIniKeys(lines, kv);
-    writeTextFileAtomic(path, lines.join(QLatin1Char('\n')) +
-                                  (lines.isEmpty() ? QString()
-                                                   : QStringLiteral("\n")));
+    const QString text =
+        lines.join(QLatin1Char('\n')) +
+        (lines.isEmpty() ? QString() : QStringLiteral("\n"));
+    return writeTextFileAtomic(path, text);
 }
 
 // Pre-1.2 used a 3×3 grid; 1.2 moved to 7×3. Map the old names onto the
@@ -564,15 +569,18 @@ void SettingsModel::setOverlayCaretTheme(bool v) {
     save();
 }
 
-void SettingsModel::writeCaretThemeFiles(const QString &background,
+bool SettingsModel::writeCaretThemeFiles(const QString &background,
                                          const QString &text,
                                          const QString &highlight,
                                          const QString &onHighlight,
                                          const QString &border) {
     const QString themeConf = schnelle_umlaute::generateCaretThemeConf(
         background, text, highlight, onHighlight, border);
-    writeTextFileAtomic(caretThemeDir() + QStringLiteral("/theme.conf"),
-                        themeConf);
+    // Bail before touching classicui.conf: pointing it at a theme whose
+    // theme.conf could not be written would leave fcitx5 on a broken theme.
+    if (!writeTextFileAtomic(caretThemeDir() + QStringLiteral("/theme.conf"),
+                             themeConf))
+        return false;
 
     // Back up the user's current classicui theme once (before we override it),
     // so turning the toggle off can put it back exactly.
@@ -588,6 +596,9 @@ void SettingsModel::writeCaretThemeFiles(const QString &background,
         backup << QStringLiteral("UseAccentColor=") +
                       cur.value(QStringLiteral("UseAccentColor"),
                                 QStringLiteral("True"));
+        // A missing backup is not fatal: restoreClassicUiTheme falls back to
+        // the fcitx5 defaults, so the toggle still works, it just cannot put
+        // an exotic previous theme back. Not worth aborting the apply over.
         writeTextFileAtomic(caretThemeBackupPath(),
                             backup.join(QLatin1Char('\n')) +
                                 QStringLiteral("\n"));
@@ -595,14 +606,13 @@ void SettingsModel::writeCaretThemeFiles(const QString &background,
     // Point classicui at our theme and stop it from following the desktop
     // accent/dark scheme (UseAccentColor=False is the real override switch;
     // there is no Plasma-specific key).
-    setClassicUiKeys({{QStringLiteral("Theme"),
-                       QStringLiteral("schnelle-umlaute")},
-                      {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
-                      {QStringLiteral("UseAccentColor"),
-                       QStringLiteral("False")}});
+    return setClassicUiKeys(
+        {{QStringLiteral("Theme"), QStringLiteral("schnelle-umlaute")},
+         {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
+         {QStringLiteral("UseAccentColor"), QStringLiteral("False")}});
 }
 
-void SettingsModel::restoreClassicUiTheme() {
+bool SettingsModel::restoreClassicUiTheme() {
     QMap<QString, QString> backup = readFlatIni(caretThemeBackupPath());
     if (backup.isEmpty()) {
         // No backup recorded: fall back to fcitx5 defaults.
@@ -610,8 +620,12 @@ void SettingsModel::restoreClassicUiTheme() {
                   {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
                   {QStringLiteral("UseAccentColor"), QStringLiteral("True")}};
     }
-    setClassicUiKeys(backup);
+    if (!setClassicUiKeys(backup))
+        return false;
+    // Only drop the backup once it has actually been put back, so a failed
+    // restore can be retried instead of losing the record for good.
     QFile::remove(caretThemeBackupPath());
+    return true;
 }
 
 void SettingsModel::applyCaretTheme(const QString &background,
@@ -619,12 +633,20 @@ void SettingsModel::applyCaretTheme(const QString &background,
                                     const QString &highlight,
                                     const QString &onHighlight,
                                     const QString &border) {
-    writeCaretThemeFiles(background, text, highlight, onHighlight, border);
+    if (!writeCaretThemeFiles(background, text, highlight, onHighlight,
+                              border)) {
+        Q_EMIT errorOccurred(tr("Could not write the candidate window theme"));
+        return;
+    }
     reloadClassicUiAddon();
 }
 
 void SettingsModel::clearCaretTheme() {
-    restoreClassicUiTheme();
+    if (!restoreClassicUiTheme()) {
+        Q_EMIT errorOccurred(
+            tr("Could not restore the previous candidate window theme"));
+        return;
+    }
     reloadClassicUiAddon();
 }
 
@@ -907,8 +929,10 @@ void SettingsModel::save() {
     QString path = configFilePath();
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        Q_EMIT errorOccurred(f.errorString());
         return;
+    }
     QTextStream out(&f);
 
     // Matches the comment style fcitx5-configtool writes so both tools
@@ -1015,7 +1039,13 @@ void SettingsModel::save() {
     out << "# UI theme (schnelle-umlaute|dark|light|contrast)\n"
         << "Theme=" << theme_ << "\n";
     out.flush();
-    f.commit();
+    // Only a committed file is worth reloading for: a failed commit leaves the
+    // old config on disk, so telling the addon to re-read it would just make it
+    // load the previous values back while the UI shows the new ones.
+    if (!f.commit()) {
+        Q_EMIT errorOccurred(f.errorString());
+        return;
+    }
     reloadFcitx();
 }
 
