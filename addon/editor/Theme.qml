@@ -152,6 +152,11 @@ QtObject {
 
     readonly property int animShort: 150
     readonly property int animMed:   220
+    // How long the snackbar stays up after its last show(). Named because it is
+    // not purely cosmetic: SettingsModel suppresses a repeated save error for a
+    // window deliberately shorter than this, so a repeat always lands on a
+    // snackbar that is still on screen (see kSaveErrorRepeatMs).
+    readonly property int snackbarDuration: 4000
 
     // Hover tooltips: one delay before they appear and one max width (so long
     // text wraps instead of running off), shared by every ThemedToolTip.

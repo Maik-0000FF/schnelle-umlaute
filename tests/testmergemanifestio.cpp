@@ -82,6 +82,20 @@ void testMalformedLinesSkipped() {
     EXPECT(m.order.empty());
 }
 
+// An overlong line must be dropped whole, not split. Split in two, its tail
+// would be read as a further directive line — a truncated "source=" prefix plus
+// a bogus second entry from the same corrupt line.
+void testOverlongLineDropped() {
+    const std::string huge(schnelle_umlaute::kLineBufferSize + 100, 'x');
+    auto m = parseString("base=mappings.txt\n"
+                         "source=" +
+                         huge +
+                         "\n"
+                         "source=profiles/x.txt\n");
+    EXPECT(m.base == "mappings.txt");
+    EXPECT(m.sources.size() == 1 && m.sources[0] == "profiles/x.txt");
+}
+
 } // namespace
 
 int main() {
@@ -89,6 +103,7 @@ int main() {
     testBaseAndSourceOrder();
     testRoundTripWithOverrideAndComma();
     testMalformedLinesSkipped();
+    testOverlongLineDropped();
     std::printf("testmergemanifestio: all passed\n");
     return 0;
 }

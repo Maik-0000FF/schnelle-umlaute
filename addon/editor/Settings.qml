@@ -304,15 +304,20 @@ Item {
                                 }
                                 return 0;
                             }
-                            onActivated: {
+                            // Read the picked row from the signal argument, not
+                            // from currentIndex: that stays a pure binding on
+                            // the model, so the box always shows what was
+                            // actually persisted.
+                            onActivated: (index) => {
                                 if (!root.settingsModel)
                                     return;
-                                root.settingsModel.overlayPlacement = model[currentIndex].key;
+                                const key = model[index].key;
+                                root.settingsModel.overlayPlacement = key;
                                 // The caret theme override only makes sense in
                                 // caret mode: apply it on entering, restore the
                                 // user's theme on leaving (keeping the toggle).
                                 if (root.settingsModel.overlayCaretTheme) {
-                                    if (model[currentIndex].key === "TextCaret")
+                                    if (key === "TextCaret")
                                         root.reapplyCaretTheme();
                                     else
                                         root.settingsModel.clearCaretTheme();
@@ -478,9 +483,13 @@ Item {
                             currentIndex: root.settingsModel
                                 ? model.indexOf(root.settingsModel.appFilterMode)
                                 : 0
-                            onActivated: {
+                            // As above: the signal argument carries the pick, so
+                            // currentIndex stays bound to appFilterMode. The
+                            // sibling rows below key their visibility off that
+                            // same binding, so they follow the persisted mode.
+                            onActivated: (index) => {
                                 if (root.settingsModel) {
-                                    root.settingsModel.appFilterMode = model[currentIndex];
+                                    root.settingsModel.appFilterMode = model[index];
                                 }
                             }
                         }

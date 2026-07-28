@@ -22,7 +22,17 @@ class MappingListModel : public QAbstractListModel {
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
+    // The status line's text, translated for display. Anything that has to
+    // DECIDE on the status reads saveState instead — see SaveState.
+    //
+    // Both share saveStatusChanged on purpose: saveStatus is derived from
+    // saveState, so the two never move apart and one signal covers both. The
+    // trade-off is that QML gets no onSaveStateChanged handler (a property's
+    // handler is named after its NOTIFY signal); bindings on saveState work
+    // normally, and an attempt to write that handler fails loudly rather than
+    // silently doing nothing.
     Q_PROPERTY(QString saveStatus READ saveStatus NOTIFY saveStatusChanged)
+    Q_PROPERTY(SaveState saveState READ saveState NOTIFY saveStatusChanged)
     // Which profile's mappings file this model edits, relative to
     // ~/.config/fcitx5/schnelle-umlaute/ ("mappings.txt" for the Standard
     // profile, "profiles/<slug>.txt" otherwise). This is the EDIT target and
@@ -65,13 +75,28 @@ public:
         ComposedVariantsRole,
     };
 
+    // What last happened to the mappings file. The untranslated fact behind the
+    // status line: the displayed text goes through tr(), so the footer used to
+    // compare it against the English literals "Saved"/"Loaded" and would have
+    // painted its dot as an error under every other locale. It switches on this
+    // instead, and saveStatus() derives the text from it, so they cannot drift.
+    enum SaveState {
+        NoState, // nothing read or written yet
+        Loaded,
+        Saved,
+        OpenFailed,
+        WriteFailed,
+    };
+    Q_ENUM(SaveState)
+
     explicit MappingListModel(QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    QString saveStatus() const { return saveStatus_; }
+    QString saveStatus() const;
+    SaveState saveState() const { return saveState_; }
 
     QString profileFile() const { return profileFile_; }
     void setProfileFile(const QString &file);
@@ -214,7 +239,7 @@ private:
     bool hasInput(const QString &input, int excludeRow) const;
     void load();
     bool save();
-    void setSaveStatus(const QString &status);
+    void setSaveState(SaveState state);
 
     struct Entry {
         QString input;
@@ -250,7 +275,7 @@ private:
     // after the engine's atomic rename (which onUsageFileChanged already handled).
     bool usageWatchArmed_ = false;
 
-    QString saveStatus_;
+    SaveState saveState_ = NoState;
     // Relative to ~/.config/fcitx5/<config subdir>/. Default is the Standard
     // profile's legacy file (the editor overrides this to the active profile
     // on startup).

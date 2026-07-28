@@ -16,10 +16,12 @@
 #include <QString>
 #include <QStringList>
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <thread>
 
 using schnelle_umlaute_tests::TempXdgConfigHome;
 
@@ -682,6 +684,105 @@ void testOnDiskFormatHasExpectedSections() {
     EXPECT(raw.find("[Theme]") != std::string::npos);
 }
 
+// -- save() error reporting --------------------------------------------------
+
+// Make every write below the conf directory fail by putting a regular FILE
+// where that DIRECTORY belongs: mkpath and the subsequent open then fail with
+// ENOTDIR. Deliberately not a chmod — CI runs its jobs in root containers,
+// where permission bits would simply be ignored and the test would silently
+// stop testing anything.
+void blockConfDir() {
+    const std::string dir = g_tempdir->path() + "/fcitx5/conf";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(g_tempdir->path() + "/fcitx5");
+    std::FILE *fp = std::fopen(dir.c_str(), "w");
+    if (!fp) {
+        std::fprintf(stderr, "could not occupy %s\n", dir.c_str());
+        std::abort();
+    }
+    std::fclose(fp);
+}
+
+void unblockConfDir() {
+    std::filesystem::remove(g_tempdir->path() + "/fcitx5/conf");
+    ensureConfDir();
+}
+
+// A save that cannot write reports once per cause, not once per setter.
+// save() runs on every setter and the delay range slider drives its setter on
+// every mouse move, so an unwritable config dir would otherwise emit the
+// identical message dozens of times for a single drag. A recovered save
+// re-arms the reporting, so a problem that returns is reported again instead
+// of being swallowed for the rest of the session.
+void testSaveErrorReportedOncePerCause() {
+    resetTempdir();
+    SettingsModel s;
+    // Blocked only now: the constructor's load() must still see an ordinary
+    // (absent) config, so this tests the write path and nothing else.
+    blockConfDir();
+    QSignalSpy errors(&s, &SettingsModel::errorOccurred);
+
+    s.setDelayLowercase(410);
+    EXPECT(errors.count() == 1);
+    const QString cause = errors.at(0).at(0).toString();
+    EXPECT(!cause.isEmpty());
+
+    // Further failing saves carry the identical message and stay quiet.
+    s.setDelayLowercase(420);
+    s.setDelayLowercase(430);
+    s.setDelayUppercase(710);
+    EXPECT(errors.count() == 1);
+
+    // A successful save reports nothing and clears the remembered cause.
+    unblockConfDir();
+    s.setDelayLowercase(440);
+    EXPECT(errors.count() == 1);
+    EXPECT(readConfig().find("Lowercase=440") != std::string::npos);
+
+    // The same failure coming back is reported again.
+    blockConfDir();
+    s.setDelayLowercase(450);
+    EXPECT(errors.count() == 2);
+    EXPECT(errors.at(1).at(0).toString() == cause);
+    unblockConfDir();
+}
+
+// The suppression is time-boxed, not open-ended: once the window has passed,
+// the next failing save reports again. Without this, a user whose config dir
+// stays unwritable would see one message and then have every later toggle fail
+// in silence — the exact behaviour reportSaveError exists to prevent.
+//
+// Waits past the real window instead of faking a clock: elapsed time only ever
+// grows, so the wait itself cannot produce a false failure. The wait is derived
+// from kSaveErrorRepeatMs so it cannot drift away from the value it waits out.
+//
+// The suppressed step before it is not equally airtight: two consecutive
+// setters more than kSaveErrorRepeatMs apart would break it. That needs a stall
+// large enough to take the rest of the suite with it, so it is accepted rather
+// than papered over with a test seam that would stop exercising the real clock.
+void testSaveErrorRepeatsAfterWindow() {
+    resetTempdir();
+    SettingsModel s;
+    blockConfDir();
+    QSignalSpy errors(&s, &SettingsModel::errorOccurred);
+
+    s.setDelayLowercase(410);
+    EXPECT(errors.count() == 1);
+
+    // Immediately after, still suppressed.
+    s.setDelayLowercase(420);
+    EXPECT(errors.count() == 1);
+
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(SettingsModel::kSaveErrorRepeatMs + 200));
+
+    // Same cause, but the window has passed: reported again.
+    s.setDelayLowercase(430);
+    EXPECT(errors.count() == 2);
+    EXPECT(errors.at(1).at(0).toString() == errors.at(0).at(0).toString());
+    unblockConfDir();
+}
+
 // -- test runner -------------------------------------------------------------
 
 using TestFn = void (*)();
@@ -730,6 +831,8 @@ const TestCase kTests[] = {
      testIsActiveLeaderKeyRespectsEnabledFlag},
     {"testOnDiskFormatHasExpectedSections",
      testOnDiskFormatHasExpectedSections},
+    {"testSaveErrorReportedOncePerCause", testSaveErrorReportedOncePerCause},
+    {"testSaveErrorRepeatsAfterWindow", testSaveErrorRepeatsAfterWindow},
 };
 
 int main(int argc, char **argv) {

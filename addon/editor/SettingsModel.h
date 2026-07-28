@@ -1,6 +1,7 @@
 #ifndef SCHNELLE_UMLAUTE_EDITOR_SETTINGS_MODEL_H
 #define SCHNELLE_UMLAUTE_EDITOR_SETTINGS_MODEL_H
 
+#include <QElapsedTimer>
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
@@ -136,6 +137,15 @@ class SettingsModel : public QObject {
     Q_PROPERTY(QString layerShellReason READ layerShellReason CONSTANT)
 
 public:
+    // How long an identical save failure stays suppressed (see
+    // reportSaveError). Deliberately well below the snackbar's own lifetime
+    // (Theme.qml, snackbarDuration): a repeat that gets through after this
+    // window lands on a snackbar that is still on screen, so a continuing
+    // burst never shows a gap, while a deliberate action seconds later is
+    // reported rather than lost. Public so the test can wait it out by name
+    // instead of restating the number.
+    static constexpr int kSaveErrorRepeatMs = 2000;
+
     explicit SettingsModel(QObject *parent = nullptr);
 
     int delayLowercase() const { return delayLowercase_; }
@@ -286,6 +296,11 @@ Q_SIGNALS:
     void customKey2Changed();
     void customKey2CodeChanged();
     void customKey2ReverseChanged();
+    // A setting could not be persisted (unwritable config dir, full disk, a
+    // read-only home). Without this the write failed silently and the UI kept
+    // showing the new value as if it had been saved, which only surfaced on the
+    // next editor start when the setting was back to its old value.
+    void errorOccurred(const QString &message);
     // The editor refused to turn off the last effective leader; the UI shows a
     // note explaining why the toggle snapped back.
     void leaderRemovalBlocked();
@@ -311,15 +326,34 @@ private:
     // applying). `stillEffective` is whether this leader counts right now, so a
     // custom leader with no key captured is never treated as the last one.
     bool allowLeaderOff(bool stillEffective);
+    // Emit errorOccurred for a failed save, but suppress an identical message
+    // that repeats within kSaveErrorRepeatMs. save() runs on every setter, and
+    // the delay range slider drives its setter on every mouse move, so a config
+    // dir that stays unwritable would otherwise emit the same message dozens of
+    // times for one drag.
+    //
+    // The suppression is deliberately time-boxed rather than open-ended. An
+    // open-ended one would bring back the very problem this reports on: with
+    // the config dir still unwritable, the first toggle would report and every
+    // later, separately chosen toggle would fail in silence once the snackbar
+    // had gone. Bounded, a burst collapses into one message while the next
+    // deliberate action is reported again.
+    //
+    // A DIFFERENT failure is never suppressed, and a successful save re-arms
+    // the reporting via clearSaveError().
+    void reportSaveError(const QString &message);
+    void clearSaveError();
     void reloadFcitx();
     // Write the generated fcitx5 theme.conf from the given colors and point
     // classicui at it (backing up the user's previous classicui theme first),
     // or restore that backup. Helpers for applyCaretTheme/clearCaretTheme.
-    void writeCaretThemeFiles(const QString &background, const QString &text,
+    // Both return false if a file could not be written, which the caller turns
+    // into an errorOccurred rather than leaving the toggle looking applied.
+    bool writeCaretThemeFiles(const QString &background, const QString &text,
                               const QString &highlight,
                               const QString &onHighlight,
                               const QString &border);
-    void restoreClassicUiTheme();
+    bool restoreClassicUiTheme();
 
     int delayLowercase_ = 400;
     int delayUppercase_ = 700;
@@ -361,6 +395,10 @@ private:
     bool layerShellAvailable_ = false;
     QString layerShellSession_;
     QString layerShellReason_;
+    // Last save failure already reported, empty when the last save succeeded,
+    // plus when it was reported. See reportSaveError.
+    QString lastSaveError_;
+    QElapsedTimer lastSaveErrorAt_;
     OverlayDBusClient overlayClient_;
 };
 

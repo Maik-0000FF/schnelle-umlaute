@@ -73,6 +73,12 @@ Q_SIGNALS:
 private:
     void load();
     bool save();
+    // save(), plus the rollback every mutation needs: the setters change
+    // manifest_ first and persist after, so a failed write would otherwise
+    // leave the editor showing a merge that is not on disk and that the engine
+    // never sees. Re-reading the file puts the two back in step (save() has
+    // already reported the failure to the user by then).
+    void persist();
     // The single structural mutation route: rebuild base + sources from one
     // ordered ref list (element 0 is the base), prune stale order entries, and
     // persist. Every add/remove/prune funnels through here, so "position 1 is

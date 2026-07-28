@@ -66,11 +66,28 @@ void testMalformedAndNegativeSkipped() {
     EXPECT(c.at("o").at("\xc3\xb6") == 9);
 }
 
+// An overlong line must be dropped whole, not split. Split in two, its prefix
+// would land as a counter under a truncated variant and its tail would be read
+// as a further line, so a single corrupt entry would poison the frequency order
+// with two bogus ones.
+void testOverlongLineDropped() {
+    const std::string huge(schnelle_umlaute::kLineBufferSize + 100, 'x');
+    auto c = parseString("a\t\xc3\xa4\t12\n"
+                         "a\t" +
+                         huge +
+                         "\t7\n"
+                         "o\t\xc3\xb6\t5\n");
+    EXPECT(c.at("a").size() == 1);
+    EXPECT(c.at("a").at("\xc3\xa4") == 12);
+    EXPECT(c.at("o").at("\xc3\xb6") == 5);
+}
+
 } // namespace
 
 int main() {
     testRoundTrip();
     testMalformedAndNegativeSkipped();
+    testOverlongLineDropped();
     std::printf("testusageio: all passed\n");
     return 0;
 }
