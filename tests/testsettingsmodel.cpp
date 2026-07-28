@@ -753,9 +753,13 @@ void testSaveErrorReportedOncePerCause() {
 // in silence — the exact behaviour reportSaveError exists to prevent.
 //
 // Waits past the real window instead of faking a clock: elapsed time only ever
-// grows, so a slow machine cannot turn this into a false failure. The wait is
-// derived from kSaveErrorRepeatMs so it cannot drift away from the value it is
-// waiting out.
+// grows, so the wait itself cannot produce a false failure. The wait is derived
+// from kSaveErrorRepeatMs so it cannot drift away from the value it waits out.
+//
+// The suppressed step before it is not equally airtight: two consecutive
+// setters more than kSaveErrorRepeatMs apart would break it. That needs a stall
+// large enough to take the rest of the suite with it, so it is accepted rather
+// than papered over with a test seam that would stop exercising the real clock.
 void testSaveErrorRepeatsAfterWindow() {
     resetTempdir();
     SettingsModel s;
