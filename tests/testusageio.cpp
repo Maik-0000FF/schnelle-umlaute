@@ -145,6 +145,32 @@ void testUnknownEscapeKeptLiteral() {
 // so a lone header line would light that control up with nothing behind it.
 void testEmptyTableSerializesEmpty() {
     EXPECT(serializeUsage(UsageCounts{}).empty());
+    // Same for a base that carries no variants: it produces no line, so the
+    // file must stay empty rather than get a header with nothing under it.
+    UsageCounts c;
+    c["a"];
+    EXPECT(serializeUsage(c).empty());
+}
+
+// The marker counts anywhere before the first counter line, so a comment
+// written above it does not silently drop the file back to raw parsing.
+void testMarkerAfterLeadingComment() {
+    auto c = parseString(std::string("# hand-written note\n") +
+                         schnelle_umlaute::kUsageFormatMarker +
+                         "\n"
+                         "a\t\\t\t5\n");
+    EXPECT(c.at("a").at("\t") == 5);
+}
+
+// Once counters have been read the format is settled, so a marker further down
+// is just a comment and must not retroactively switch the parse.
+void testMarkerAfterCounterIgnored() {
+    auto c = parseString("a\t\\t\t5\n" +
+                         std::string(schnelle_umlaute::kUsageFormatMarker) +
+                         "\n"
+                         "o\t\\t\t2\n");
+    EXPECT(c.at("a").at("\\t") == 5);
+    EXPECT(c.at("o").at("\\t") == 2);
 }
 
 } // namespace
@@ -158,6 +184,8 @@ int main() {
     testLegacyFileParsedRaw();
     testUnknownEscapeKeptLiteral();
     testEmptyTableSerializesEmpty();
+    testMarkerAfterLeadingComment();
+    testMarkerAfterCounterIgnored();
     std::printf("testusageio: all passed\n");
     return 0;
 }

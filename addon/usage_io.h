@@ -93,19 +93,21 @@ inline std::string unescapeUsageField(const std::string &in) {
 inline UsageCounts parseUsage(FILE *fp) {
     UsageCounts counts;
     std::string line;
-    // Set by the marker on the first non-empty line. A legacy file leaves it
-    // false and its fields are taken literally.
+    // Set by the marker, which is accepted anywhere BEFORE the first counter
+    // line, not just on line one: the writer always puts it first, but a file
+    // that picked up a hand-written comment above it would otherwise fall back
+    // to raw parsing without a word, and every escaped tab in it would come
+    // back as a backslash and a t. After the first counter line the format is
+    // settled, so a marker there is just another comment. A legacy file has no
+    // marker at all and its fields are taken literally.
     bool escaped = false;
-    bool atFirstLine = true;
+    bool sawCounter = false;
     while (readLine(fp, line)) {
         if (line.empty())
             continue;
-        if (atFirstLine) {
-            atFirstLine = false;
-            if (line == kUsageFormatMarker) {
-                escaped = true;
-                continue;
-            }
+        if (!sawCounter && line == kUsageFormatMarker) {
+            escaped = true;
+            continue;
         }
         if (line[0] == '#')
             continue;
@@ -137,6 +139,7 @@ inline UsageCounts parseUsage(FILE *fp) {
         if (end == countStr.c_str() || *end != '\0' || n < 0 || errno == ERANGE)
             continue;
         counts[base][variant] = n;
+        sawCounter = true;
     }
     return counts;
 }
@@ -150,16 +153,7 @@ inline std::string serializeUsage(const UsageCounts &counts) {
         bases.push_back(kv.first);
     std::sort(bases.begin(), bases.end());
 
-    // An empty table stays an EMPTY file, marker included: the editor's
-    // hasUsageData() (and with it the reset control) treats a zero-byte
-    // usage.conf as "nothing to reset", and a lone header would turn that into
-    // a reset button with no counters behind it. A file with no fields has
-    // nothing to escape either, so the marker buys nothing there.
-    if (bases.empty())
-        return {};
-
-    std::string out = kUsageFormatMarker;
-    out += '\n';
+    std::string body;
     for (const auto &base : bases) {
         const auto &variants = counts.at(base);
         std::vector<std::string> keys;
@@ -168,14 +162,31 @@ inline std::string serializeUsage(const UsageCounts &counts) {
             keys.push_back(kv.first);
         std::sort(keys.begin(), keys.end());
         for (const auto &variant : keys) {
-            out += escapeUsageField(base);
-            out += '\t';
-            out += escapeUsageField(variant);
-            out += '\t';
-            out += std::to_string(variants.at(variant));
-            out += '\n';
+            body += escapeUsageField(base);
+            body += '\t';
+            body += escapeUsageField(variant);
+            body += '\t';
+            body += std::to_string(variants.at(variant));
+            body += '\n';
         }
     }
+
+    // No counter lines means an EMPTY file, marker included: the editor's
+    // hasUsageData() (and with it the reset control) treats a zero-byte
+    // usage.conf as "nothing to reset", and a lone header would turn that into
+    // a reset button with no counters behind it. A file with no fields has
+    // nothing to escape either, so the marker buys nothing there.
+    //
+    // The test is on the lines actually produced rather than on the bases: a
+    // base mapped to an empty variant table contributes no line, so an
+    // outer-map check would emit the header anyway and re-create exactly the
+    // case this guards against.
+    if (body.empty())
+        return {};
+
+    std::string out = kUsageFormatMarker;
+    out += '\n';
+    out += body;
     return out;
 }
 
