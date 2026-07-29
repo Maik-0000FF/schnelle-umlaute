@@ -36,6 +36,12 @@
 namespace schnelle_umlaute {
 namespace caret {
 
+// The generated theme's name. It is the directory under the user's fcitx5
+// themes, the value written into classicui.conf, and the marker that tells a
+// later run that classicui is already pointing at this theme rather than the
+// user's own. Three uses, one spelling.
+inline constexpr const char *kThemeName = "schnelle-umlaute";
+
 inline QString classicUiConfPath() {
     auto base =
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
@@ -46,7 +52,7 @@ inline QString classicUiConfPath() {
 inline QString themeDir() {
     auto base =
         QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-    return base + QStringLiteral("/fcitx5/themes/schnelle-umlaute");
+    return base + QStringLiteral("/fcitx5/themes/") + QLatin1String(kThemeName);
 }
 
 // Kept in the config dir, not the generated theme dir, so removing the
@@ -132,8 +138,8 @@ inline bool writeFiles(const QString &background, const QString &text,
     // case is reachable since two processes write here, and either may find the
     // backup file missing while the toggle is on.
     const QMap<QString, QString> cur = readFlatIni(classicUiConfPath());
-    const bool alreadyOurs = cur.value(QStringLiteral("Theme")) ==
-                             QStringLiteral("schnelle-umlaute");
+    const bool alreadyOurs =
+        cur.value(QStringLiteral("Theme")) == QLatin1String(kThemeName);
     if (!QFile::exists(backupPath()) && !alreadyOurs) {
         QStringList backup;
         backup << QStringLiteral("Theme=") +
@@ -155,7 +161,7 @@ inline bool writeFiles(const QString &background, const QString &text,
     // accent/dark scheme (UseAccentColor=False is the real override switch;
     // there is no Plasma-specific key).
     return setClassicUiKeys(
-        {{QStringLiteral("Theme"), QStringLiteral("schnelle-umlaute")},
+        {{QStringLiteral("Theme"), QString::fromLatin1(kThemeName)},
          {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
          {QStringLiteral("UseAccentColor"), QStringLiteral("False")}});
 }

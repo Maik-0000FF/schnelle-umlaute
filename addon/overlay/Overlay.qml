@@ -63,14 +63,15 @@ Window {
     // (config and placement live on its side); QML only supplies the colours,
     // read straight from the shared palette module. That is what keeps the
     // palettes a single QML source with no colour table in C++.
-    Connections {
-        target: OverlayController
-        function onCaretRefreshRequested() {
-            const pal = Palettes.get(OverlayController.theme)
-            OverlayController.applyCaretTheme(pal.background, pal.text,
-                                              pal.highlight, pal.highlightText,
-                                              pal.border)
-        }
+    //
+    // Called by name from the renderer, which builds the engine first. A
+    // Connections block here would be created too late for a request made
+    // before this daemon's first overlay, e.g. right after login.
+    function refreshCaretTheme() {
+        const pal = Palettes.get(OverlayController.theme)
+        OverlayController.applyCaretTheme(pal.background, pal.text,
+                                          pal.highlight, pal.highlightText,
+                                          pal.border)
     }
 
     // Start hidden so main() can configure the layer-shell surface

@@ -290,9 +290,29 @@ public:
         : QObject(ctrl), ctrl_(ctrl) {
         connect(ctrl, &OverlayController::stateChanged, this,
                 &OverlayRenderer::syncToController);
+        // The caret colours come out of QML, so the request has to land on the
+        // side that owns the engine. Going through the renderer rather than a
+        // Connections block inside Overlay.qml is what makes it work before the
+        // first overlay of this daemon's life: the engine is built lazily
+        // on the first show, so a QML-side receiver would not exist yet at
+        // startup, and
+        // the signal would vanish without a trace. The engine outlives the call
+        // anyway, so building it here costs a login-time QML parse only for the
+        // users who actually switched the caret theme on.
+        connect(ctrl, &OverlayController::caretRefreshRequested, this,
+                &OverlayRenderer::refreshCaretTheme);
     }
 
 private:
+    // Hand the request to QML, which reads the five colours off the shared
+    // palette for the theme now in force. Invoked by name rather than by a
+    // QML-side signal handler so the engine can be built first.
+    void refreshCaretTheme() {
+        if (!ensureEngine() || !qwin_)
+            return;
+        QMetaObject::invokeMethod(qwin_, "refreshCaretTheme");
+    }
+
     void syncToController() {
         const QString pos = ctrl_->position();
         const schnelle_umlaute::render::RenderRequest req{
@@ -810,6 +830,12 @@ int main(int argc, char *argv[]) {
         if (atStartup ? cfg.automatic : changed)
             ctrl->requestCaretRefresh();
     };
+    new OverlayDBusAdaptor(ctrl);
+    new OverlayRenderer(ctrl);
+
+    // After the renderer, never before: it is the receiver of the caret refresh
+    // the startup pass can ask for, and a signal emitted with nobody attached
+    // is simply lost.
     applyThemeConfig(/*atStartup=*/true);
     QObject::connect(ctrl, &OverlayController::reloadRequested, &app,
                      [applyThemeConfig]() { applyThemeConfig(false); });
@@ -821,9 +847,6 @@ int main(int argc, char *argv[]) {
             hints, &QStyleHints::colorSchemeChanged, &app,
             [applyThemeConfig](Qt::ColorScheme) { applyThemeConfig(false); });
 #endif
-
-    new OverlayDBusAdaptor(ctrl);
-    new OverlayRenderer(ctrl);
 
     auto bus = QDBusConnection::sessionBus();
     if (!bus.registerObject(QStringLiteral("/de/schnelle_umlaute/Overlay"),

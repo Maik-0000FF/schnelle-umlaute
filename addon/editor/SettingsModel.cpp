@@ -799,7 +799,7 @@ void SettingsModel::load() {
                     whitelist << QString();
                 whitelist[idx] = val;
             }
-        } else if (section == QLatin1String("Overlay")) {
+        } else if (section == QLatin1String(keys::kOverlaySection)) {
             if (key == "Enabled")
                 overlayEnabled_ = fromBool(val);
             else if (key == "ShowOnTrigger")
@@ -985,7 +985,7 @@ void SettingsModel::save() {
             out << i << "=" << whitelist_[i] << "\n";
         }
     }
-    out << "\n[Overlay]\n";
+    out << "\n[" << keys::kOverlaySection << "]\n";
     out << "# Show overlay while cycling\n"
         << "Enabled=" << toBool(overlayEnabled_) << "\n";
     out << "# Preview in the trigger window (all mapped keys)\n"
