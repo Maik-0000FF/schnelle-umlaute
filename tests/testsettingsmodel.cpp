@@ -657,18 +657,22 @@ void testEffectiveThemeDerivation() {
     EXPECT(schnelle_umlaute::effectiveTheme(true, manual, light, dark,
                                             SystemScheme::Dark) == dark);
 
-    // A desktop that reports nothing falls back to the default theme rather
-    // than to half the pair, which would silently promote one of the two.
+    // A desktop that reports nothing keeps the manual pick, so switching the
+    // mode on there does not cost the user the theme they chose.
     EXPECT(schnelle_umlaute::effectiveTheme(true, manual, light, dark,
-                                            SystemScheme::Unknown) ==
-           schnelle_umlaute::defaultTheme());
+                                            SystemScheme::Unknown) == manual);
 
     // A hand-edited pair entry that names no known theme falls back the same
-    // way instead of leaving the overlay on a nameless palette.
+    // way instead of leaving a process on a nameless palette.
     EXPECT(schnelle_umlaute::effectiveTheme(true, manual,
                                             QStringLiteral("solarized"), dark,
-                                            SystemScheme::Light) ==
-           schnelle_umlaute::defaultTheme());
+                                            SystemScheme::Light) == manual);
+
+    // Only when the manual pick is unusable too does the default step in. The
+    // daemon needs that: it reads Theme= without the editor's guards.
+    EXPECT(schnelle_umlaute::effectiveTheme(
+               true, QStringLiteral("solarized"), light, dark,
+               SystemScheme::Unknown) == schnelle_umlaute::defaultTheme());
 }
 
 // The three new keys round-trip, and an unknown pair entry is ignored at load

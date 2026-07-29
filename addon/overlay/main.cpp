@@ -26,6 +26,7 @@
 #include "CursorSource.h"
 #include "OverlayController.h"
 
+#include "../config_keys.h"
 #include "../themes.h"
 #include "cursor_overlay_geometry.h"
 #include "overlay_render.h"
@@ -81,20 +82,22 @@ ThemeConfig loadThemeConfig() {
         const QString val = line.mid(eq + 1).trimmed();
         const bool isTrue =
             val.compare(QLatin1String("True"), Qt::CaseInsensitive) == 0;
-        if (section == QLatin1String("Theme")) {
-            if (key == QLatin1String("Theme"))
+        namespace k = schnelle_umlaute::keys;
+        if (section == QLatin1String(k::kThemeSection)) {
+            if (key == QLatin1String(k::kTheme))
                 cfg.manual = val;
-            else if (key == QLatin1String("Auto"))
+            else if (key == QLatin1String(k::kThemeAuto))
                 cfg.automatic = isTrue;
-            else if (key == QLatin1String("ThemeLight"))
+            else if (key == QLatin1String(k::kThemeLight))
                 cfg.light = val;
-            else if (key == QLatin1String("ThemeDark"))
+            else if (key == QLatin1String(k::kThemeDark))
                 cfg.dark = val;
-        } else if (section == QLatin1String("Overlay")) {
-            if (key == QLatin1String("CaretTheme"))
+        } else if (section == QLatin1String(k::kOverlaySection)) {
+            if (key == QLatin1String(k::kCaretTheme))
                 cfg.caretTheme = isTrue;
-            else if (key == QLatin1String("Placement"))
-                cfg.caretPlacement = val == QLatin1String("TextCaret");
+            else if (key == QLatin1String(k::kPlacement))
+                cfg.caretPlacement =
+                    val == QLatin1String(k::kPlacementTextCaret);
         }
     }
     return cfg;
@@ -102,8 +105,11 @@ ThemeConfig loadThemeConfig() {
 
 // Qt's report translated into the framework-free enum the shared derivation
 // takes. Mirrors the editor's copy; both have to answer alike or the two
-// windows would disagree about what the desktop is asking for.
+// windows would disagree about what the desktop is asking for. Unknown on Qt
+// below 6.5, which has no colour-scheme hint at all; the derivation then keeps
+// the manual pick, so the mode is inert rather than the build broken.
 schnelle_umlaute::SystemScheme systemScheme() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     auto *hints = QGuiApplication::styleHints();
     if (!hints)
         return schnelle_umlaute::SystemScheme::Unknown;
@@ -115,6 +121,9 @@ schnelle_umlaute::SystemScheme systemScheme() {
     default:
         return schnelle_umlaute::SystemScheme::Unknown;
     }
+#else
+    return schnelle_umlaute::SystemScheme::Unknown;
+#endif
 }
 
 QString derivedTheme(const ThemeConfig &cfg) {
@@ -783,28 +792,35 @@ int main(int argc, char *argv[]) {
 
     // Re-read the config and re-derive. Split out because three things ask for
     // it: startup, the editor saying it saved, and the desktop flipping between
-    // light and dark. Only the last two may rewrite the candidate window: at
-    // startup the files on disk already match what the editor last wrote, and
-    // reapplying them would restyle a globally shared fcitx5 theme on every
-    // login for no change.
-    const auto applyThemeConfig = [ctrl](bool allowCaretRefresh) {
+    // light and dark.
+    //
+    // `atStartup` guards the candidate window, not the palette. On a manual
+    // theme the files on disk are whatever the editor last wrote for that same
+    // theme, so rewriting them at every login would restyle a globally shared
+    // fcitx5 theme for no change. In the automatic mode they CAN be stale: log
+    // out dark, log in light, and the last write was for the other half of the
+    // pair. So there the refresh is allowed through.
+    const auto applyThemeConfig = [ctrl](bool atStartup) {
         const ThemeConfig cfg = loadThemeConfig();
         const QString theme = derivedTheme(cfg);
         const bool changed = theme != ctrl->theme();
         ctrl->setTheme(theme);
-        if (allowCaretRefresh && changed && cfg.caretTheme &&
-            cfg.caretPlacement)
+        if (!cfg.caretTheme || !cfg.caretPlacement)
+            return;
+        if (atStartup ? cfg.automatic : changed)
             ctrl->requestCaretRefresh();
     };
-    applyThemeConfig(/*allowCaretRefresh=*/false);
+    applyThemeConfig(/*atStartup=*/true);
     QObject::connect(ctrl, &OverlayController::reloadRequested, &app,
-                     [applyThemeConfig]() { applyThemeConfig(true); });
+                     [applyThemeConfig]() { applyThemeConfig(false); });
     // The switch that this whole path exists for: it usually happens with the
     // editor closed, so nobody is left to push a theme.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (auto *hints = QGuiApplication::styleHints())
         QObject::connect(
             hints, &QStyleHints::colorSchemeChanged, &app,
-            [applyThemeConfig](Qt::ColorScheme) { applyThemeConfig(true); });
+            [applyThemeConfig](Qt::ColorScheme) { applyThemeConfig(false); });
+#endif
 
     new OverlayDBusAdaptor(ctrl);
     new OverlayRenderer(ctrl);

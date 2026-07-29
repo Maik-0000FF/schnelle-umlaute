@@ -125,8 +125,16 @@ inline bool writeFiles(const QString &background, const QString &text,
 
     // Back up the user's current classicui theme once (before it is
     // overridden), so turning the toggle off can put it back exactly.
-    if (!QFile::exists(backupPath())) {
-        const QMap<QString, QString> cur = readFlatIni(classicUiConfPath());
+    //
+    // Skip it when classicui already points at the generated theme: that is not
+    // the user's theme, it is this one from an earlier run. Recording it would
+    // make the restore a no-op and lose the real previous theme for good. The
+    // case is reachable since two processes write here, and either may find the
+    // backup file missing while the toggle is on.
+    const QMap<QString, QString> cur = readFlatIni(classicUiConfPath());
+    const bool alreadyOurs = cur.value(QStringLiteral("Theme")) ==
+                             QStringLiteral("schnelle-umlaute");
+    if (!QFile::exists(backupPath()) && !alreadyOurs) {
         QStringList backup;
         backup << QStringLiteral("Theme=") +
                       cur.value(QStringLiteral("Theme"),

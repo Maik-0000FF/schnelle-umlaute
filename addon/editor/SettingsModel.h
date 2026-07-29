@@ -421,10 +421,10 @@ private:
     bool overlayProgressBar_ = false;
     QString overlayPosition_ = "TopCol4";
     bool overlayCaretTheme_ = false;
-    QString theme_ = "schnelle-umlaute";
+    QString theme_ = schnelle_umlaute::defaultTheme();
     bool themeAuto_ = false;
-    QString themeLight_ = "light";
-    QString themeDark_ = "dark";
+    QString themeLight_ = schnelle_umlaute::defaultLightTheme();
+    QString themeDark_ = schnelle_umlaute::defaultDarkTheme();
     bool sortByFrequency_ = false;
     bool layerShellAvailable_ = false;
     QString layerShellSession_;

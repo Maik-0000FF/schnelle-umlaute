@@ -1,6 +1,7 @@
 #include "SettingsModel.h"
 #include "FcitxReload.h"
 #include "../caret_theme_io.h"
+#include "../config_keys.h"
 #include "../src/layer_shell_capability.h"
 #include "../themes.h"
 
@@ -15,6 +16,10 @@
 #include <QStringList>
 #include <QStyleHints>
 #include <QTextStream>
+
+// The key names the overlay daemon reads back out of the file this model
+// writes. Aliased so both sides spell them the same way.
+namespace keys = schnelle_umlaute::keys;
 
 namespace {
 
@@ -138,9 +143,16 @@ SettingsModel::SettingsModel(QObject *parent) : QObject(parent) {
     // daemon watches it too and reaches the same answer from the same config,
     // rather than being told, so the two stay in step even when the editor is
     // closed for the switch that matters.
+    //
+    // QStyleHints learned about the colour scheme in Qt 6.5, and the oldest
+    // supported distros (Ubuntu 24.04, Linux Mint 22) still ship 6.4. There the
+    // scheme reads as Unknown, which the derivation already handles by keeping
+    // the manual pick, so the build stays whole and the mode is simply inert.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (auto *hints = QGuiApplication::styleHints())
         connect(hints, &QStyleHints::colorSchemeChanged, this,
                 [this](Qt::ColorScheme) { Q_EMIT effectiveThemeChanged(); });
+#endif
 
     load();
 }
@@ -590,7 +602,9 @@ void SettingsModel::setThemeDark(const QString &v) {
 }
 
 // Qt's report translated into the framework-free enum the derivation takes.
+// Unknown on Qt below 6.5, which has no colour-scheme hint at all.
 schnelle_umlaute::SystemScheme SettingsModel::systemScheme() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     auto *hints = QGuiApplication::styleHints();
     if (!hints)
         return schnelle_umlaute::SystemScheme::Unknown;
@@ -602,6 +616,9 @@ schnelle_umlaute::SystemScheme SettingsModel::systemScheme() {
     default:
         return schnelle_umlaute::SystemScheme::Unknown;
     }
+#else
+    return schnelle_umlaute::SystemScheme::Unknown;
+#endif
 }
 
 QString SettingsModel::effectiveTheme() const {
@@ -787,7 +804,7 @@ void SettingsModel::load() {
                 overlayEnabled_ = fromBool(val);
             else if (key == "ShowOnTrigger")
                 overlayShowOnTrigger_ = fromBool(val);
-            else if (key == "Placement") {
+            else if (key == QLatin1String(keys::kPlacement)) {
                 // Ignore an unknown value so a corrupt/hand-edited Placement
                 // keeps the in-memory default instead of round-tripping garbage
                 // that the addon's enum would silently read as Grid anyway.
@@ -803,7 +820,7 @@ void SettingsModel::load() {
                     overlayPlacement_ = QStringLiteral("MouseCursor");
             } else if (key == "ProgressBar")
                 overlayProgressBar_ = fromBool(val);
-            else if (key == "CaretTheme")
+            else if (key == QLatin1String(keys::kCaretTheme))
                 overlayCaretTheme_ = fromBool(val);
             // Pre-1.2 wrote a combined "Position=TopCenter" key. 1.2 splits
             // it into Row + Column because FCITX_CONFIG_ENUM caps at 12
@@ -818,14 +835,16 @@ void SettingsModel::load() {
         } else if (section == QLatin1String("Behavior")) {
             if (key == "SortByFrequency")
                 sortByFrequency_ = fromBool(val);
-        } else if (section == QLatin1String("Theme")) {
-            if (key == "Theme" && isValidTheme(val))
+        } else if (section == QLatin1String(keys::kThemeSection)) {
+            if (key == QLatin1String(keys::kTheme) && isValidTheme(val))
                 theme_ = val;
-            else if (key == "Auto")
+            else if (key == QLatin1String(keys::kThemeAuto))
                 themeAuto_ = fromBool(val);
-            else if (key == "ThemeLight" && isValidTheme(val))
+            else if (key == QLatin1String(keys::kThemeLight) &&
+                     isValidTheme(val))
                 themeLight_ = val;
-            else if (key == "ThemeDark" && isValidTheme(val))
+            else if (key == QLatin1String(keys::kThemeDark) &&
+                     isValidTheme(val))
                 themeDark_ = val;
         }
     }
@@ -972,11 +991,11 @@ void SettingsModel::save() {
     out << "# Preview in the trigger window (all mapped keys)\n"
         << "ShowOnTrigger=" << toBool(overlayShowOnTrigger_) << "\n";
     out << "# Placement (Grid|MouseCursor|TextCaret)\n"
-        << "Placement=" << overlayPlacement_ << "\n";
+        << keys::kPlacement << "=" << overlayPlacement_ << "\n";
     out << "# Show timing progress bar\n"
         << "ProgressBar=" << toBool(overlayProgressBar_) << "\n";
     out << "# Match fcitx5 candidate window to the editor theme (caret mode)\n"
-        << "CaretTheme=" << toBool(overlayCaretTheme_) << "\n";
+        << keys::kCaretTheme << "=" << toBool(overlayCaretTheme_) << "\n";
     // Split "TopCol4" into Row=Top + Column=Col4 for the fcitx5 config
     // schema, which represents each as a small enum (capped at 12 values).
     const int splitAt =
@@ -990,14 +1009,14 @@ void SettingsModel::save() {
     out << "\n[Behavior]\n";
     out << "# Sort each key's variants by how often you use them\n"
         << "SortByFrequency=" << toBool(sortByFrequency_) << "\n";
-    out << "\n[Theme]\n";
+    out << "\n[" << keys::kThemeSection << "]\n";
     out << "# UI theme, see the editor's theme picker for the full list\n"
-        << "Theme=" << theme_ << "\n";
+        << keys::kTheme << "=" << theme_ << "\n";
     out << "# Follow the desktop's light/dark setting instead of Theme=\n"
-        << "Auto=" << toBool(themeAuto_) << "\n";
+        << keys::kThemeAuto << "=" << toBool(themeAuto_) << "\n";
     out << "# The pair Auto= switches between\n"
-        << "ThemeLight=" << themeLight_ << "\n"
-        << "ThemeDark=" << themeDark_ << "\n";
+        << keys::kThemeLight << "=" << themeLight_ << "\n"
+        << keys::kThemeDark << "=" << themeDark_ << "\n";
     out.flush();
     // Only a committed file is worth reloading for: a failed commit leaves the
     // old config on disk, so telling the addon to re-read it would just make it
