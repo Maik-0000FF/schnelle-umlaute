@@ -44,8 +44,72 @@ Item {
                     titleText: qsTr("Theme")
 
                     ThemeSelector {
+                        id: mainThemePicker
                         Layout.fillWidth: true
-                        settingsModel: root.settingsModel
+                        includeAuto: true
+                        // "Automatic" is a mode, so it shows as selected only
+                        // while the mode is on; otherwise the manual pick does.
+                        selectedId: root.settingsModel
+                            ? (root.settingsModel.themeAuto
+                               ? autoId : root.settingsModel.theme)
+                            : "schnelle-umlaute"
+                        // The mode has no palette, so its row previews whatever
+                        // is being rendered right now.
+                        autoPreviewId: root.settingsModel
+                            ? root.settingsModel.effectiveTheme
+                            : "schnelle-umlaute"
+                        onPicked: (id) => {
+                            if (!root.settingsModel)
+                                return;
+                            // Picking a concrete theme leaves the mode; picking
+                            // the mode leaves `theme` alone, so switching back
+                            // returns to the same manual choice.
+                            root.settingsModel.themeAuto = (id === autoId);
+                            if (id !== autoId)
+                                root.settingsModel.theme = id;
+                        }
+                    }
+
+                    // Only meaningful while the mode is on, so the pair appears
+                    // with it instead of sitting there inert.
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.spacingXs
+                        spacing: Theme.spacingXs
+                        visible: root.settingsModel
+                                 && root.settingsModel.themeAuto
+
+                        Text {
+                            text: qsTr("Light")
+                            color: Theme.textMuted
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBody
+                        }
+                        ThemeSelector {
+                            Layout.fillWidth: true
+                            selectedId: root.settingsModel
+                                ? root.settingsModel.themeLight : "light"
+                            onPicked: (id) => {
+                                if (root.settingsModel)
+                                    root.settingsModel.themeLight = id;
+                            }
+                        }
+                        Text {
+                            Layout.topMargin: Theme.spacingXs
+                            text: qsTr("Dark")
+                            color: Theme.textMuted
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBody
+                        }
+                        ThemeSelector {
+                            Layout.fillWidth: true
+                            selectedId: root.settingsModel
+                                ? root.settingsModel.themeDark : "dark"
+                            onPicked: (id) => {
+                                if (root.settingsModel)
+                                    root.settingsModel.themeDark = id;
+                            }
+                        }
                     }
 
                     Text {

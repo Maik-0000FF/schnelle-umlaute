@@ -18,10 +18,4 @@ inline void reloadSchnelleUmlauteAddon() {
     reloadAddonConfig(QStringLiteral("schnelle-umlaute"));
 }
 
-// Re-reads classicui.conf and re-parses the active theme, so a freshly
-// written caret theme takes effect without restarting fcitx5.
-inline void reloadClassicUiAddon() {
-    reloadAddonConfig(QStringLiteral("classicui"));
-}
-
 #endif

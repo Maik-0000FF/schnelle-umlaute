@@ -1,4 +1,5 @@
 #include "OverlayController.h"
+#include "../caret_theme_io.h"
 #include "../overlay_protocol.h"
 #include "../themes.h"
 #include "overlay_render.h"
@@ -115,6 +116,20 @@ void OverlayController::setPlaced(bool on) {
     Q_EMIT placedChanged();
 }
 
+void OverlayController::applyCaretTheme(const QString &background,
+                                        const QString &text,
+                                        const QString &highlight,
+                                        const QString &highlightText,
+                                        const QString &border) {
+    // A daemon has nobody to show an error to, so a failure is logged and
+    // dropped: the candidate window then keeps the colours it had, which is the
+    // same outcome as before this feature existed.
+    if (!schnelle_umlaute::caret::apply(background, text, highlight,
+                                        highlightText, border))
+        qWarning("schnelle-umlaute-overlay: could not write the candidate "
+                 "window theme");
+}
+
 void OverlayController::setCentering(bool horizontally, bool vertically) {
     if (horizontallyCentered_ == horizontally &&
         verticallyCentered_ == vertically)
@@ -198,6 +213,8 @@ void OverlayDBusAdaptor::Quit() { ctrl_->quit(); }
 void OverlayDBusAdaptor::SetTheme(const QString &theme) {
     ctrl_->setTheme(theme);
 }
+
+void OverlayDBusAdaptor::ReloadConfig() { Q_EMIT ctrl_->reloadRequested(); }
 
 // Trust note: this method is unauthenticated, so any session process can push a
 // cursor pixel. The blast radius is bounded: it can only misplace the overlay on

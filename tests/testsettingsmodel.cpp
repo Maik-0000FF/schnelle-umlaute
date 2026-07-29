@@ -634,6 +634,84 @@ void testSetThemeRejectsUnknown() {
     EXPECT(s.theme() == QStringLiteral("dark"));
 }
 
+// -- automatic light/dark ----------------------------------------------------
+
+// The derivation the editor and the daemon both run. Pure, so it can be
+// checked without a desktop that actually reports a colour scheme.
+void testEffectiveThemeDerivation() {
+    using schnelle_umlaute::SystemScheme;
+    const QString manual = QStringLiteral("nord");
+    const QString light = QStringLiteral("solarized-light");
+    const QString dark = QStringLiteral("dracula");
+
+    // Off: the manual pick wins whatever the desktop says, so the setting is
+    // inert until it is switched on.
+    EXPECT(schnelle_umlaute::effectiveTheme(false, manual, light, dark,
+                                            SystemScheme::Light) == manual);
+    EXPECT(schnelle_umlaute::effectiveTheme(false, manual, light, dark,
+                                            SystemScheme::Dark) == manual);
+
+    // On: the pair decides and the manual pick is ignored, but not lost.
+    EXPECT(schnelle_umlaute::effectiveTheme(true, manual, light, dark,
+                                            SystemScheme::Light) == light);
+    EXPECT(schnelle_umlaute::effectiveTheme(true, manual, light, dark,
+                                            SystemScheme::Dark) == dark);
+
+    // A desktop that reports nothing keeps the manual pick, so switching the
+    // mode on there does not cost the user the theme they chose.
+    EXPECT(schnelle_umlaute::effectiveTheme(true, manual, light, dark,
+                                            SystemScheme::Unknown) == manual);
+
+    // A hand-edited pair entry that names no known theme falls back the same
+    // way instead of leaving a process on a nameless palette.
+    EXPECT(schnelle_umlaute::effectiveTheme(true, manual,
+                                            QStringLiteral("solarized"), dark,
+                                            SystemScheme::Light) == manual);
+
+    // Only when the manual pick is unusable too does the default step in. The
+    // daemon needs that: it reads Theme= without the editor's guards.
+    EXPECT(schnelle_umlaute::effectiveTheme(
+               true, QStringLiteral("solarized"), light, dark,
+               SystemScheme::Unknown) == schnelle_umlaute::defaultTheme());
+}
+
+// The three new keys round-trip, and an unknown pair entry is ignored at load
+// exactly as an unknown Theme= is.
+void testAutoThemeRoundTrip() {
+    resetTempdir();
+    writeConfig("[Theme]\n"
+                "Theme=nord\n"
+                "Auto=True\n"
+                "ThemeLight=catppuccin-latte\n"
+                "ThemeDark=gruvbox-dark\n");
+    SettingsModel s;
+    EXPECT(s.theme() == QStringLiteral("nord"));
+    EXPECT(s.themeAuto());
+    EXPECT(s.themeLight() == QStringLiteral("catppuccin-latte"));
+    EXPECT(s.themeDark() == QStringLiteral("gruvbox-dark"));
+
+    resetTempdir();
+    writeConfig("[Theme]\n"
+                "ThemeLight=solarized\n");
+    SettingsModel t;
+    EXPECT(!t.themeAuto());
+    EXPECT(t.themeLight() == schnelle_umlaute::defaultLightTheme());
+    EXPECT(t.themeDark() == schnelle_umlaute::defaultDarkTheme());
+}
+
+// Turning the automatic mode on must not touch the manual pick: it is the
+// value to come back to when the mode goes off again.
+void testAutoKeepsManualTheme() {
+    resetTempdir();
+    SettingsModel s;
+    s.setTheme(QStringLiteral("nord"));
+    s.setThemeAuto(true);
+    EXPECT(s.theme() == QStringLiteral("nord"));
+    s.setThemeAuto(false);
+    EXPECT(s.theme() == QStringLiteral("nord"));
+    EXPECT(s.effectiveTheme() == QStringLiteral("nord"));
+}
+
 // -- isActiveLeaderKey -------------------------------------------------------
 
 // Used by the QML editor to warn when a user tries to map the same character
@@ -827,6 +905,9 @@ const TestCase kTests[] = {
      testExplicitPlacementBeatsLegacyAtCursor},
     {"testUnknownThemeIgnoredAtLoad", testUnknownThemeIgnoredAtLoad},
     {"testSetThemeRejectsUnknown", testSetThemeRejectsUnknown},
+    {"testEffectiveThemeDerivation", testEffectiveThemeDerivation},
+    {"testAutoThemeRoundTrip", testAutoThemeRoundTrip},
+    {"testAutoKeepsManualTheme", testAutoKeepsManualTheme},
     {"testIsActiveLeaderKeyRespectsEnabledFlag",
      testIsActiveLeaderKeyRespectsEnabledFlag},
     {"testOnDiskFormatHasExpectedSections",

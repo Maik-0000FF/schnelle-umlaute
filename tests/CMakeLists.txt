@@ -255,6 +255,10 @@ target_compile_definitions(testsettingsmodel PRIVATE QT_NO_KEYWORDS)
 target_link_libraries(testsettingsmodel
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
+    # SettingsModel reads QGuiApplication::styleHints() to derive the theme from
+    # the desktop's light/dark setting. The test runs headless, where styleHints
+    # is null and the derivation falls back, but the header still has to resolve.
+    Qt${QT_MAJOR_VERSION}::Gui
     Qt${QT_MAJOR_VERSION}::Qml
     Qt${QT_MAJOR_VERSION}::Test)
 add_test(NAME testsettingsmodel COMMAND testsettingsmodel)
@@ -356,14 +360,12 @@ target_link_libraries(testprofilesconf
 add_test(NAME testprofilesconf COMMAND testprofilesconf)
 set_tests_properties(testprofilesconf PROPERTIES TIMEOUT 10)
 
-# Unit test for the pure caret-theme helpers (editor/caret_theme.h): colour
+# Unit test for the pure caret-theme helpers (caret_theme.h): colour
 # normalisation, the classicui.conf parse/patch round-trip, and the generated
 # theme.conf colour-role mapping. Pure QString logic — only Qt6::Core, no
 # SettingsModel/DBus/QML link needed.
 add_executable(testcarettheme testcarettheme.cpp)
-target_include_directories(testcarettheme PRIVATE
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/editor)
+target_include_directories(testcarettheme PRIVATE ${PROJECT_SOURCE_DIR})
 target_compile_options(testcarettheme PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testcarettheme Qt${QT_MAJOR_VERSION}::Core)
 add_test(NAME testcarettheme COMMAND testcarettheme)

@@ -16,6 +16,7 @@
 #include <QRect>
 #include <QScreen>
 #include <QStandardPaths>
+#include <QStyleHints>
 #include <QTextStream>
 #include <QWindow>
 
@@ -24,6 +25,9 @@
 
 #include "CursorSource.h"
 #include "OverlayController.h"
+
+#include "../config_keys.h"
+#include "../themes.h"
 #include "cursor_overlay_geometry.h"
 #include "overlay_render.h"
 #include "progress_overlay_geometry.h"
@@ -34,15 +38,33 @@ using LSWindow = LayerShellQt::Window;
 
 constexpr int kEdgeMargin = schnelle_umlaute::render::kEdgeMargin;
 
-// Reads the Theme= key from the editor's config file so the overlay
-// starts with the user's chosen palette instead of flashing the default
-// one for the first cycle. Absent/malformed file → default theme.
-QString loadInitialTheme() {
+// What the daemon needs from the editor's config file to decide which palette
+// to render and whether an automatic switch should also restyle the fcitx5
+// candidate window.
+struct ThemeConfig {
+    QString manual = schnelle_umlaute::defaultTheme();
+    bool automatic = false;
+    QString light = schnelle_umlaute::defaultLightTheme();
+    QString dark = schnelle_umlaute::defaultDarkTheme();
+    bool caretTheme = false;
+    bool caretPlacement = false;
+};
+
+// Reads that config so the overlay starts on the user's palette instead of
+// flashing the default one for the first cycle, and so it can re-derive on its
+// own later. Absent or malformed file → the defaults above.
+//
+// A deliberately small reader rather than a shared parser: the editor writes
+// this file and owns its schema, the daemon only samples a handful of keys from
+// it, and pulling the editor's model in here would drag QML and the whole
+// settings surface into a process that just paints an overlay.
+ThemeConfig loadThemeConfig() {
+    ThemeConfig cfg;
     const QString base =
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     QFile f(base + QStringLiteral("/fcitx5/conf/schnelle-umlaute.conf"));
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return {};
+        return cfg;
     QTextStream in(&f);
     QString section;
     while (!in.atEnd()) {
@@ -53,16 +75,60 @@ QString loadInitialTheme() {
             section = line.mid(1, line.size() - 2);
             continue;
         }
-        if (section != QLatin1String("Theme"))
-            continue;
         const int eq = static_cast<int>(line.indexOf('='));
         if (eq < 0)
             continue;
-        if (line.left(eq) == QLatin1String("Theme")) {
-            return line.mid(eq + 1).trimmed();
+        const QString key = line.left(eq);
+        const QString val = line.mid(eq + 1).trimmed();
+        const bool isTrue =
+            val.compare(QLatin1String("True"), Qt::CaseInsensitive) == 0;
+        namespace k = schnelle_umlaute::keys;
+        if (section == QLatin1String(k::kThemeSection)) {
+            if (key == QLatin1String(k::kTheme))
+                cfg.manual = val;
+            else if (key == QLatin1String(k::kThemeAuto))
+                cfg.automatic = isTrue;
+            else if (key == QLatin1String(k::kThemeLight))
+                cfg.light = val;
+            else if (key == QLatin1String(k::kThemeDark))
+                cfg.dark = val;
+        } else if (section == QLatin1String(k::kOverlaySection)) {
+            if (key == QLatin1String(k::kCaretTheme))
+                cfg.caretTheme = isTrue;
+            else if (key == QLatin1String(k::kPlacement))
+                cfg.caretPlacement =
+                    val == QLatin1String(k::kPlacementTextCaret);
         }
     }
-    return {};
+    return cfg;
+}
+
+// Qt's report translated into the framework-free enum the shared derivation
+// takes. Mirrors the editor's copy; both have to answer alike or the two
+// windows would disagree about what the desktop is asking for. Unknown on Qt
+// below 6.5, which has no colour-scheme hint at all; the derivation then keeps
+// the manual pick, so the mode is inert rather than the build broken.
+schnelle_umlaute::SystemScheme systemScheme() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    auto *hints = QGuiApplication::styleHints();
+    if (!hints)
+        return schnelle_umlaute::SystemScheme::Unknown;
+    switch (hints->colorScheme()) {
+    case Qt::ColorScheme::Light:
+        return schnelle_umlaute::SystemScheme::Light;
+    case Qt::ColorScheme::Dark:
+        return schnelle_umlaute::SystemScheme::Dark;
+    default:
+        return schnelle_umlaute::SystemScheme::Unknown;
+    }
+#else
+    return schnelle_umlaute::SystemScheme::Unknown;
+#endif
+}
+
+QString derivedTheme(const ThemeConfig &cfg) {
+    return schnelle_umlaute::effectiveTheme(
+        cfg.automatic, cfg.manual, cfg.light, cfg.dark, systemScheme());
 }
 
 struct Anchored {
@@ -224,9 +290,30 @@ public:
         : QObject(ctrl), ctrl_(ctrl) {
         connect(ctrl, &OverlayController::stateChanged, this,
                 &OverlayRenderer::syncToController);
+        // The caret colours come out of QML, so the request has to land on the
+        // side that owns the engine. Going through the renderer rather than a
+        // Connections block inside Overlay.qml is what makes it work before the
+        // first overlay of this daemon's life: the engine is built lazily on
+        // the first show, so a QML-side receiver would not exist yet at startup
+        // and the signal would vanish without a trace. The engine outlives the
+        // call anyway, so building it here costs a login-time QML parse only
+        // for the users who actually switched the caret theme on.
+        connect(ctrl, &OverlayController::caretRefreshRequested, this,
+                &OverlayRenderer::refreshCaretTheme);
     }
 
 private:
+    // Hand the request to QML, which reads the five colours off the shared
+    // palette for the theme now in force. Invoked by name rather than by a
+    // QML-side signal handler so the engine can be built first. The price of
+    // the name is that renaming the QML function shows up as a runtime
+    // invokeMethod warning, not as a build error.
+    void refreshCaretTheme() {
+        if (!ensureEngine() || !qwin_)
+            return;
+        QMetaObject::invokeMethod(qwin_, "refreshCaretTheme");
+    }
+
     void syncToController() {
         const QString pos = ctrl_->position();
         const schnelle_umlaute::render::RenderRequest req{
@@ -723,11 +810,44 @@ int main(int argc, char *argv[]) {
     parser.process(app);
 
     auto *ctrl = new OverlayController(&app);
-    const QString initialTheme = loadInitialTheme();
-    if (!initialTheme.isEmpty())
-        ctrl->setTheme(initialTheme);
+
+    // Re-read the config and re-derive. Split out because three things ask for
+    // it: startup, the editor saying it saved, and the desktop flipping between
+    // light and dark.
+    //
+    // `atStartup` guards the candidate window, not the palette. On a manual
+    // theme the files on disk are whatever the editor last wrote for that same
+    // theme, so rewriting them at every login would restyle a globally shared
+    // fcitx5 theme for no change. In the automatic mode they CAN be stale: log
+    // out dark, log in light, and the last write was for the other half of the
+    // pair. So there the refresh is allowed through.
+    const auto applyThemeConfig = [ctrl](bool atStartup) {
+        const ThemeConfig cfg = loadThemeConfig();
+        const QString theme = derivedTheme(cfg);
+        const bool changed = theme != ctrl->theme();
+        ctrl->setTheme(theme);
+        if (!cfg.caretTheme || !cfg.caretPlacement)
+            return;
+        if (atStartup ? cfg.automatic : changed)
+            ctrl->requestCaretRefresh();
+    };
     new OverlayDBusAdaptor(ctrl);
     new OverlayRenderer(ctrl);
+
+    // After the renderer, never before: it is the receiver of the caret refresh
+    // the startup pass can ask for, and a signal emitted with nobody attached
+    // is simply lost.
+    applyThemeConfig(/*atStartup=*/true);
+    QObject::connect(ctrl, &OverlayController::reloadRequested, &app,
+                     [applyThemeConfig]() { applyThemeConfig(false); });
+    // The switch that this whole path exists for: it usually happens with the
+    // editor closed, so nobody is left to push a theme.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    if (auto *hints = QGuiApplication::styleHints())
+        QObject::connect(
+            hints, &QStyleHints::colorSchemeChanged, &app,
+            [applyThemeConfig](Qt::ColorScheme) { applyThemeConfig(false); });
+#endif
 
     auto bus = QDBusConnection::sessionBus();
     if (!bus.registerObject(QStringLiteral("/de/schnelle_umlaute/Overlay"),

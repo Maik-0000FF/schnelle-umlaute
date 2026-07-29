@@ -25,7 +25,10 @@ ApplicationWindow {
 
     SettingsModel {
         id: settings
-        onThemeChanged: Theme.setCurrent(theme)
+        // The rendered theme, not the manual pick: with the automatic mode on
+        // those differ, and the editor is the visible stand-in for the overlay
+        // theme, so it has to show what the overlay shows.
+        onEffectiveThemeChanged: Theme.setCurrent(effectiveTheme)
         onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
     }
 
@@ -56,7 +59,7 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        Theme.setCurrent(settings.theme);
+        Theme.setCurrent(settings.effectiveTheme);
         // Default the Mappings edit target to the active profile (the two are
         // otherwise independent: you can switch the edit target without
         // changing which profile is active at runtime).

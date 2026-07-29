@@ -1,18 +1,25 @@
 #include "SettingsModel.h"
 #include "FcitxReload.h"
-#include "caret_theme.h"
+#include "../caret_theme_io.h"
+#include "../config_keys.h"
 #include "../src/layer_shell_capability.h"
 #include "../themes.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QMap>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QString>
 #include <QStringList>
+#include <QStyleHints>
 #include <QTextStream>
+
+// The key names the overlay daemon reads back out of the file this model
+// writes. Aliased so both sides spell them the same way.
+namespace keys = schnelle_umlaute::keys;
 
 namespace {
 
@@ -38,75 +45,6 @@ int toKeyCode(const QString &s) {
     bool ok = false;
     const int code = s.trimmed().toInt(&ok);
     return (ok && fcitx::isUsableKeyCode(code)) ? code : kNoKeyCode;
-}
-
-// --- Caret theme: generate an fcitx5 classicui theme matching the editor
-// palette and point classicui at it. All compositor-agnostic (classicui is
-// fcitx5's own renderer); the only "stop following the desktop" switch is
-// UseAccentColor=False, there is no Plasma-specific key.
-
-QString classicUiConfPath() {
-    auto base =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    return base + QStringLiteral("/fcitx5/conf/classicui.conf");
-}
-// User-dir fcitx5 theme; a unique name so it never shadows a system theme.
-QString caretThemeDir() {
-    auto base =
-        QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-    return base + QStringLiteral("/fcitx5/themes/schnelle-umlaute");
-}
-// Kept in the config dir, not the generated theme dir, so removing the
-// throwaway theme never loses the record of the user's previous classicui
-// theme (which restoreClassicUiTheme needs to put it back).
-QString caretThemeBackupPath() {
-    const auto base =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    const auto rel =
-        QStringLiteral("/fcitx5/conf/schnelle-umlaute-classicui-backup.conf");
-    return base + rel;
-}
-
-// Returns false if the file could not be written. Every caller sits behind the
-// caret-theme toggle, whose whole effect is these files, so a failure has to
-// travel back up rather than leave the toggle looking applied.
-bool writeTextFileAtomic(const QString &path, const QString &content) {
-    QDir().mkpath(QFileInfo(path).absolutePath());
-    QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
-        return false;
-    QTextStream ts(&f);
-    ts << content;
-    ts.flush();
-    return f.commit();
-}
-
-// File wrapper around the pure parser in caret_theme.h.
-QMap<QString, QString> readFlatIni(const QString &path) {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return {};
-    return schnelle_umlaute::parseFlatIni(QString::fromUtf8(f.readAll()));
-}
-
-// Read classicui.conf, patch the given keys (the pure line transform lives in
-// caret_theme.h, preserving every other line), write it back atomically.
-// Returns false if the write failed.
-bool setClassicUiKeys(const QMap<QString, QString> &kv) {
-    const QString path = classicUiConfPath();
-    QStringList lines;
-    QFile f(path);
-    if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&f);
-        while (!in.atEnd())
-            lines << in.readLine();
-        f.close();
-    }
-    lines = schnelle_umlaute::applyIniKeys(lines, kv);
-    const QString text =
-        lines.join(QLatin1Char('\n')) +
-        (lines.isEmpty() ? QString() : QStringLiteral("\n"));
-    return writeTextFileAtomic(path, text);
 }
 
 // Pre-1.2 used a 3×3 grid; 1.2 moved to 7×3. Map the old names onto the
@@ -190,6 +128,31 @@ SettingsModel::SettingsModel(QObject *parent) : QObject(parent) {
             &SettingsModel::leadersChanged);
     connect(this, &SettingsModel::customKey2CodeChanged, this,
             &SettingsModel::leadersChanged);
+
+    // Everything the derivation reads feeds one umbrella signal, so QML rebinds
+    // the rendered theme from a single hook no matter which input moved.
+    connect(this, &SettingsModel::themeChanged, this,
+            &SettingsModel::effectiveThemeChanged);
+    connect(this, &SettingsModel::themeAutoChanged, this,
+            &SettingsModel::effectiveThemeChanged);
+    connect(this, &SettingsModel::themeLightChanged, this,
+            &SettingsModel::effectiveThemeChanged);
+    connect(this, &SettingsModel::themeDarkChanged, this,
+            &SettingsModel::effectiveThemeChanged);
+    // The desktop switching between light and dark is the fourth input. The
+    // daemon watches it too and reaches the same answer from the same config,
+    // rather than being told, so the two stay in step even when the editor is
+    // closed for the switch that matters.
+    //
+    // QStyleHints learned about the colour scheme in Qt 6.5, and the oldest
+    // supported distros (Ubuntu 24.04, Linux Mint 22) still ship 6.4. There the
+    // scheme reads as Unknown, which the derivation already handles by keeping
+    // the manual pick, so the build stays whole and the mode is simply inert.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    if (auto *hints = QGuiApplication::styleHints())
+        connect(hints, &QStyleHints::colorSchemeChanged, this,
+                [this](Qt::ColorScheme) { Q_EMIT effectiveThemeChanged(); });
+#endif
 
     load();
 }
@@ -541,6 +504,9 @@ void SettingsModel::setOverlayPlacement(const QString &v) {
     overlayPlacement_ = v;
     Q_EMIT overlayPlacementChanged();
     save();
+    // The daemon needs it: only the at-caret placement makes it write the
+    // candidate-window theme on an automatic switch.
+    overlayClient_.sendReloadConfig();
 }
 void SettingsModel::setOverlayProgressBar(bool v) {
     if (overlayProgressBar_ == v)
@@ -567,65 +533,9 @@ void SettingsModel::setOverlayCaretTheme(bool v) {
     if (!v)
         clearCaretTheme();
     save();
-}
-
-bool SettingsModel::writeCaretThemeFiles(const QString &background,
-                                         const QString &text,
-                                         const QString &highlight,
-                                         const QString &onHighlight,
-                                         const QString &border) {
-    const QString themeConf = schnelle_umlaute::generateCaretThemeConf(
-        background, text, highlight, onHighlight, border);
-    // Bail before touching classicui.conf: pointing it at a theme whose
-    // theme.conf could not be written would leave fcitx5 on a broken theme.
-    if (!writeTextFileAtomic(caretThemeDir() + QStringLiteral("/theme.conf"),
-                             themeConf))
-        return false;
-
-    // Back up the user's current classicui theme once (before we override it),
-    // so turning the toggle off can put it back exactly.
-    if (!QFile::exists(caretThemeBackupPath())) {
-        const QMap<QString, QString> cur = readFlatIni(classicUiConfPath());
-        QStringList backup;
-        backup << QStringLiteral("Theme=") +
-                      cur.value(QStringLiteral("Theme"),
-                                QStringLiteral("default"));
-        backup << QStringLiteral("UseDarkTheme=") +
-                      cur.value(QStringLiteral("UseDarkTheme"),
-                                QStringLiteral("False"));
-        backup << QStringLiteral("UseAccentColor=") +
-                      cur.value(QStringLiteral("UseAccentColor"),
-                                QStringLiteral("True"));
-        // A missing backup is not fatal: restoreClassicUiTheme falls back to
-        // the fcitx5 defaults, so the toggle still works, it just cannot put
-        // an exotic previous theme back. Not worth aborting the apply over.
-        writeTextFileAtomic(caretThemeBackupPath(),
-                            backup.join(QLatin1Char('\n')) +
-                                QStringLiteral("\n"));
-    }
-    // Point classicui at our theme and stop it from following the desktop
-    // accent/dark scheme (UseAccentColor=False is the real override switch;
-    // there is no Plasma-specific key).
-    return setClassicUiKeys(
-        {{QStringLiteral("Theme"), QStringLiteral("schnelle-umlaute")},
-         {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
-         {QStringLiteral("UseAccentColor"), QStringLiteral("False")}});
-}
-
-bool SettingsModel::restoreClassicUiTheme() {
-    QMap<QString, QString> backup = readFlatIni(caretThemeBackupPath());
-    if (backup.isEmpty()) {
-        // No backup recorded: fall back to fcitx5 defaults.
-        backup = {{QStringLiteral("Theme"), QStringLiteral("default")},
-                  {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
-                  {QStringLiteral("UseAccentColor"), QStringLiteral("True")}};
-    }
-    if (!setClassicUiKeys(backup))
-        return false;
-    // Only drop the backup once it has actually been put back, so a failed
-    // restore can be retried instead of losing the record for good.
-    QFile::remove(caretThemeBackupPath());
-    return true;
+    // Same reason as the placement: it decides whether an automatic switch
+    // touches the candidate window at all.
+    overlayClient_.sendReloadConfig();
 }
 
 void SettingsModel::applyCaretTheme(const QString &background,
@@ -633,21 +543,15 @@ void SettingsModel::applyCaretTheme(const QString &background,
                                     const QString &highlight,
                                     const QString &onHighlight,
                                     const QString &border) {
-    if (!writeCaretThemeFiles(background, text, highlight, onHighlight,
-                              border)) {
+    if (!schnelle_umlaute::caret::apply(background, text, highlight,
+                                        onHighlight, border))
         Q_EMIT errorOccurred(tr("Could not write the candidate window theme"));
-        return;
-    }
-    reloadClassicUiAddon();
 }
 
 void SettingsModel::clearCaretTheme() {
-    if (!restoreClassicUiTheme()) {
+    if (!schnelle_umlaute::caret::restore())
         Q_EMIT errorOccurred(
             tr("Could not restore the previous candidate window theme"));
-        return;
-    }
-    reloadClassicUiAddon();
 }
 
 void SettingsModel::setSortByFrequency(bool v) {
@@ -667,7 +571,69 @@ void SettingsModel::setTheme(const QString &v) {
     // Push to the overlay daemon so it switches palette immediately. The
     // client skips the call if the daemon isn't running — we don't want a
     // theme change to spawn it for users who never enabled the overlay.
-    overlayClient_.sendTheme(theme_);
+    pushEffectiveTheme();
+}
+
+void SettingsModel::setThemeAuto(bool v) {
+    if (themeAuto_ == v)
+        return;
+    themeAuto_ = v;
+    Q_EMIT themeAutoChanged();
+    save();
+    pushEffectiveTheme();
+}
+
+void SettingsModel::setThemeLight(const QString &v) {
+    if (!isValidTheme(v) || themeLight_ == v)
+        return;
+    themeLight_ = v;
+    Q_EMIT themeLightChanged();
+    save();
+    pushEffectiveTheme();
+}
+
+void SettingsModel::setThemeDark(const QString &v) {
+    if (!isValidTheme(v) || themeDark_ == v)
+        return;
+    themeDark_ = v;
+    Q_EMIT themeDarkChanged();
+    save();
+    pushEffectiveTheme();
+}
+
+// Qt's report translated into the framework-free enum the derivation takes.
+// Unknown on Qt below 6.5, which has no colour-scheme hint at all.
+schnelle_umlaute::SystemScheme SettingsModel::systemScheme() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    auto *hints = QGuiApplication::styleHints();
+    if (!hints)
+        return schnelle_umlaute::SystemScheme::Unknown;
+    switch (hints->colorScheme()) {
+    case Qt::ColorScheme::Light:
+        return schnelle_umlaute::SystemScheme::Light;
+    case Qt::ColorScheme::Dark:
+        return schnelle_umlaute::SystemScheme::Dark;
+    default:
+        return schnelle_umlaute::SystemScheme::Unknown;
+    }
+#else
+    return schnelle_umlaute::SystemScheme::Unknown;
+#endif
+}
+
+QString SettingsModel::effectiveTheme() const {
+    return schnelle_umlaute::effectiveTheme(themeAuto_, theme_, themeLight_,
+                                            themeDark_, systemScheme());
+}
+
+// Two messages, two jobs. SetTheme renders the new palette straight away, so a
+// pick is visible without a round trip through the file. ReloadConfig makes the
+// daemon re-read what was just saved, so its own derivation is current for the
+// next desktop light/dark switch, which usually happens with the editor closed
+// and nobody left to push anything.
+void SettingsModel::pushEffectiveTheme() {
+    overlayClient_.sendTheme(effectiveTheme());
+    overlayClient_.sendReloadConfig();
 }
 
 bool SettingsModel::isValidTheme(const QString &name) {
@@ -833,12 +799,12 @@ void SettingsModel::load() {
                     whitelist << QString();
                 whitelist[idx] = val;
             }
-        } else if (section == QLatin1String("Overlay")) {
+        } else if (section == QLatin1String(keys::kOverlaySection)) {
             if (key == "Enabled")
                 overlayEnabled_ = fromBool(val);
             else if (key == "ShowOnTrigger")
                 overlayShowOnTrigger_ = fromBool(val);
-            else if (key == "Placement") {
+            else if (key == QLatin1String(keys::kPlacement)) {
                 // Ignore an unknown value so a corrupt/hand-edited Placement
                 // keeps the in-memory default instead of round-tripping garbage
                 // that the addon's enum would silently read as Grid anyway.
@@ -854,7 +820,7 @@ void SettingsModel::load() {
                     overlayPlacement_ = QStringLiteral("MouseCursor");
             } else if (key == "ProgressBar")
                 overlayProgressBar_ = fromBool(val);
-            else if (key == "CaretTheme")
+            else if (key == QLatin1String(keys::kCaretTheme))
                 overlayCaretTheme_ = fromBool(val);
             // Pre-1.2 wrote a combined "Position=TopCenter" key. 1.2 splits
             // it into Row + Column because FCITX_CONFIG_ENUM caps at 12
@@ -869,9 +835,17 @@ void SettingsModel::load() {
         } else if (section == QLatin1String("Behavior")) {
             if (key == "SortByFrequency")
                 sortByFrequency_ = fromBool(val);
-        } else if (section == QLatin1String("Theme")) {
-            if (key == "Theme" && isValidTheme(val))
+        } else if (section == QLatin1String(keys::kThemeSection)) {
+            if (key == QLatin1String(keys::kTheme) && isValidTheme(val))
                 theme_ = val;
+            else if (key == QLatin1String(keys::kThemeAuto))
+                themeAuto_ = fromBool(val);
+            else if (key == QLatin1String(keys::kThemeLight) &&
+                     isValidTheme(val))
+                themeLight_ = val;
+            else if (key == QLatin1String(keys::kThemeDark) &&
+                     isValidTheme(val))
+                themeDark_ = val;
         }
     }
     blacklist_ = blacklist;
@@ -1011,17 +985,17 @@ void SettingsModel::save() {
             out << i << "=" << whitelist_[i] << "\n";
         }
     }
-    out << "\n[Overlay]\n";
+    out << "\n[" << keys::kOverlaySection << "]\n";
     out << "# Show overlay while cycling\n"
         << "Enabled=" << toBool(overlayEnabled_) << "\n";
     out << "# Preview in the trigger window (all mapped keys)\n"
         << "ShowOnTrigger=" << toBool(overlayShowOnTrigger_) << "\n";
     out << "# Placement (Grid|MouseCursor|TextCaret)\n"
-        << "Placement=" << overlayPlacement_ << "\n";
+        << keys::kPlacement << "=" << overlayPlacement_ << "\n";
     out << "# Show timing progress bar\n"
         << "ProgressBar=" << toBool(overlayProgressBar_) << "\n";
     out << "# Match fcitx5 candidate window to the editor theme (caret mode)\n"
-        << "CaretTheme=" << toBool(overlayCaretTheme_) << "\n";
+        << keys::kCaretTheme << "=" << toBool(overlayCaretTheme_) << "\n";
     // Split "TopCol4" into Row=Top + Column=Col4 for the fcitx5 config
     // schema, which represents each as a small enum (capped at 12 values).
     const int splitAt =
@@ -1035,9 +1009,14 @@ void SettingsModel::save() {
     out << "\n[Behavior]\n";
     out << "# Sort each key's variants by how often you use them\n"
         << "SortByFrequency=" << toBool(sortByFrequency_) << "\n";
-    out << "\n[Theme]\n";
-    out << "# UI theme (schnelle-umlaute|dark|light|contrast)\n"
-        << "Theme=" << theme_ << "\n";
+    out << "\n[" << keys::kThemeSection << "]\n";
+    out << "# UI theme, see the editor's theme picker for the full list\n"
+        << keys::kTheme << "=" << theme_ << "\n";
+    out << "# Follow the desktop's light/dark setting instead of Theme=\n"
+        << keys::kThemeAuto << "=" << toBool(themeAuto_) << "\n";
+    out << "# The pair Auto= switches between\n"
+        << keys::kThemeLight << "=" << themeLight_ << "\n"
+        << keys::kThemeDark << "=" << themeDark_ << "\n";
     out.flush();
     // Only a committed file is worth reloading for: a failed commit leaves the
     // old config on disk, so telling the addon to re-read it would just make it

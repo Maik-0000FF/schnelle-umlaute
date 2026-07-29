@@ -96,6 +96,22 @@ public:
     bool progressActive() const { return progressActive_; }
     bool progressFrozen() const { return progressFrozen_; }
     int progressElapsedMs() const { return progressElapsedMs_; }
+    // Write the fcitx5 candidate-window theme for these colours, the same job
+    // the editor does when the user picks a theme. Called from QML, which reads
+    // them out of the shared palette module, so no palette table is needed in
+    // C++. Colours are #rrggbb.
+    Q_INVOKABLE void applyCaretTheme(const QString &background,
+                                     const QString &text,
+                                     const QString &highlight,
+                                     const QString &highlightText,
+                                     const QString &border);
+
+    // Ask QML for that call. main() owns the policy (only when the caret theme
+    // is switched on, the placement is at-caret, and the theme actually
+    // changed), because it is the side that reads the config; QML only supplies
+    // the colours.
+    void requestCaretRefresh() { Q_EMIT caretRefreshRequested(); }
+
     bool verticallyCentered() const { return verticallyCentered_; }
     bool horizontallyCentered() const { return horizontallyCentered_; }
     int edgeMargin() const { return schnelle_umlaute::render::kEdgeMargin; }
@@ -149,6 +165,10 @@ Q_SIGNALS:
     void placedChanged();
     void cursorReported(int requestId, int x, int y);
     void progressChanged();
+    // The config on disk changed; whoever reads it should re-derive.
+    void reloadRequested();
+    // QML should hand back the current palette's five caret colours.
+    void caretRefreshRequested();
 
 private:
     QStringList variants_;
@@ -185,6 +205,10 @@ public Q_SLOTS:
     void Hide();
     void Quit();
     void SetTheme(const QString &theme);
+    // The editor saved a config change. No arguments on purpose: the daemon
+    // re-reads the file, which keeps it the single source and spares a protocol
+    // bump for every future key.
+    void ReloadConfig();
     // Called by the KWin cursor script with the id of the query it answers and
     // the live global pointer pixel. The id is an int because KWin's callDBus()
     // marshals a script number as int32 regardless of the declared signature.

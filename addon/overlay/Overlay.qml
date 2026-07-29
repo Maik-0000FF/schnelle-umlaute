@@ -59,6 +59,21 @@ Window {
                                Screen.width - 2 * OverlayController.edgeMargin
                                - frame.implicitWidth - win.progressOverhangX))
         : 0
+    // The daemon decides WHEN the fcitx5 candidate window has to be restyled
+    // (config and placement live on its side); QML only supplies the colours,
+    // read straight from the shared palette module. That is what keeps the
+    // palettes a single QML source with no colour table in C++.
+    //
+    // Called by name from the renderer, which builds the engine first. A
+    // Connections block here would be created too late for a request made
+    // before this daemon's first overlay, e.g. right after login.
+    function refreshCaretTheme() {
+        const pal = Palettes.get(OverlayController.theme)
+        OverlayController.applyCaretTheme(pal.background, pal.text,
+                                          pal.highlight, pal.highlightText,
+                                          pal.border)
+    }
+
     // Start hidden so main() can configure the layer-shell surface
     // (layer/anchors/screen) before the first commit. main() then calls
     // show() once the surface role is fully set up.
