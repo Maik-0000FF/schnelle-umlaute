@@ -46,17 +46,18 @@ Window {
         ? Math.max(0, win.progressBarWidth - frame.implicitWidth) : 0
     readonly property int panelBottomPad:
         OverlayController.verticallyCentered ? win.progressOverhangY : 0
-    // Capped so the padded surface still fits the output: a bar longer than
-    // (screen + panel) / 2 would otherwise grow it past the screen and the
-    // compositor would centre the overflow onto both sides, cutting the bar's
-    // right end off while only empty padding hangs over on the left. Hitting
-    // the cap leaves the panel left of centre by half the shortfall, the same
-    // trade gridPanelLeftMargin makes for the anchored columns.
+    // Capped so the padded surface still fits the output with the same edge
+    // distance an anchored placement is given: a bar longer than the space
+    // between those margins would otherwise grow the surface past the screen
+    // and the compositor would centre the overflow onto both sides, cutting the
+    // bar's right end off while only empty padding hangs over on the left.
+    // Hitting the cap leaves the panel left of centre by half the shortfall,
+    // the same trade gridPanelLeftMargin makes for the anchored columns.
     readonly property int panelLeftPad:
         OverlayController.horizontallyCentered
         ? Math.max(0, Math.min(win.progressOverhangX,
-                               Screen.width - frame.implicitWidth
-                               - win.progressOverhangX))
+                               Screen.width - 2 * OverlayController.edgeMargin
+                               - frame.implicitWidth - win.progressOverhangX))
         : 0
     // Start hidden so main() can configure the layer-shell surface
     // (layer/anchors/screen) before the first commit. main() then calls

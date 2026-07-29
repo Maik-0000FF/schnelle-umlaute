@@ -5,6 +5,8 @@
 #include <QObject>
 #include <QStringList>
 
+#include "overlay_render.h"
+
 class OverlayController : public QObject {
     Q_OBJECT
 
@@ -64,6 +66,11 @@ class OverlayController : public QObject {
         bool verticallyCentered READ verticallyCentered NOTIFY progressChanged)
     Q_PROPERTY(bool horizontallyCentered READ horizontallyCentered NOTIFY
                    progressChanged)
+    // render::kEdgeMargin, so the surface QML pads for a centred axis keeps the
+    // same distance from the output's edges that every anchored placement is
+    // given. Constant, hence no notify: it exists only so the value is not
+    // spelled out a second time in a QML binding.
+    Q_PROPERTY(int edgeMargin READ edgeMargin CONSTANT)
     // How far the gesture had already elapsed (ms) when SetProgress arrived,
     // measured against the engine's start timestamp on the shared monotonic
     // clock. The QML bar starts pre-advanced by this so D-Bus delivery latency
@@ -91,6 +98,7 @@ public:
     int progressElapsedMs() const { return progressElapsedMs_; }
     bool verticallyCentered() const { return verticallyCentered_; }
     bool horizontallyCentered() const { return horizontallyCentered_; }
+    int edgeMargin() const { return schnelle_umlaute::render::kEdgeMargin; }
     // Both axes in one call: they are decided together from one position, and a
     // single notify keeps QML from laying the surface out at a half-applied
     // size in between.
