@@ -293,12 +293,11 @@ public:
         // The caret colours come out of QML, so the request has to land on the
         // side that owns the engine. Going through the renderer rather than a
         // Connections block inside Overlay.qml is what makes it work before the
-        // first overlay of this daemon's life: the engine is built lazily
-        // on the first show, so a QML-side receiver would not exist yet at
-        // startup, and
-        // the signal would vanish without a trace. The engine outlives the call
-        // anyway, so building it here costs a login-time QML parse only for the
-        // users who actually switched the caret theme on.
+        // first overlay of this daemon's life: the engine is built lazily on
+        // the first show, so a QML-side receiver would not exist yet at startup
+        // and the signal would vanish without a trace. The engine outlives the
+        // call anyway, so building it here costs a login-time QML parse only
+        // for the users who actually switched the caret theme on.
         connect(ctrl, &OverlayController::caretRefreshRequested, this,
                 &OverlayRenderer::refreshCaretTheme);
     }
@@ -306,7 +305,9 @@ public:
 private:
     // Hand the request to QML, which reads the five colours off the shared
     // palette for the theme now in force. Invoked by name rather than by a
-    // QML-side signal handler so the engine can be built first.
+    // QML-side signal handler so the engine can be built first. The price of
+    // the name is that renaming the QML function shows up as a runtime
+    // invokeMethod warning, not as a build error.
     void refreshCaretTheme() {
         if (!ensureEngine() || !qwin_)
             return;
