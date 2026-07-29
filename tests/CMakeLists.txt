@@ -255,6 +255,10 @@ target_compile_definitions(testsettingsmodel PRIVATE QT_NO_KEYWORDS)
 target_link_libraries(testsettingsmodel
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
+    # SettingsModel reads QGuiApplication::styleHints() to derive the theme from
+    # the desktop's light/dark setting. The test runs headless, where styleHints
+    # is null and the derivation falls back, but the header still has to resolve.
+    Qt${QT_MAJOR_VERSION}::Gui
     Qt${QT_MAJOR_VERSION}::Qml
     Qt${QT_MAJOR_VERSION}::Test)
 add_test(NAME testsettingsmodel COMMAND testsettingsmodel)
