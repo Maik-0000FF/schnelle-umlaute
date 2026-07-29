@@ -548,9 +548,17 @@ Rectangle {
                                 color: Theme.text
                                 font.family: Theme.fontFamilyMono
                                 font.pixelSize: Theme.chipFont
+                                // A variant is literal output: never let
+                                // AutoText read something like <b>x</b> as
+                                // markup instead of showing it.
+                                textFormat: Text.PlainText
                                 elide: Text.ElideRight
                                 maximumLineCount: 1
-                                Layout.maximumWidth: Theme.chipTextMaxWidth
+                                // Without the ✕ the layout drops it and its
+                                // gap, so the label may use the full width.
+                                Layout.maximumWidth: chipClose.visible
+                                    ? Theme.chipTextMaxWidth
+                                    : Theme.chipTextMaxWidthBare
                             }
                             // Circular ✕ close button, the conventional chip
                             // delete affordance: a muted circle that separates
@@ -733,6 +741,7 @@ Rectangle {
                                 color: Theme.text
                                 font.family: Theme.fontFamilyMono
                                 font.pixelSize: Theme.chipFont
+                                textFormat: Text.PlainText
                                 elide: Text.ElideRight
                                 maximumLineCount: 1
                                 Layout.maximumWidth: Theme.chipTextMaxWidth

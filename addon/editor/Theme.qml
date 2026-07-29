@@ -123,6 +123,10 @@ QtObject {
     // Derived here so the chip and its label can never drift apart.
     readonly property int chipTextMaxWidth:
         chipMaxWidth - 2 * chipPaddingH - (chipFont + spacingXs) - spacingSm
+    // Budget on a chip without the ✕ (a row whose sole output cannot be
+    // removed): the layout drops the hidden button and its gap, so the label
+    // gets the full width instead of eliding 26px early.
+    readonly property int chipTextMaxWidthBare: chipMaxWidth - 2 * chipPaddingH
 
     // Provenance colours for the composed merge view: one hue per source
     // profile, addressed by 1-based merge position (position 1 = base). Now
