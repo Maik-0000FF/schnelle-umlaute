@@ -453,6 +453,9 @@ Window {
                         verticalAlignment: Text.AlignVCenter
                         fontSizeMode: Text.HorizontalFit
                         text: win.truncateDisplay(modelData)
+                        // A variant is literal output: never let AutoText read
+                        // something like <b>x</b> as markup and drop the cell.
+                        textFormat: Text.PlainText
                         color: active ? win.textActiveColor : win.textInactiveColor
                         font.family: win.fontFamilyMono
                         font.pixelSize: {

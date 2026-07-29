@@ -450,6 +450,9 @@ ApplicationWindow {
 
             Text {
                 id: text
+                // Messages embed user data (a profile or preset name, a file
+                // path), so they are always shown literally.
+                textFormat: Text.PlainText
                 // The snackbar itself is capped at the window width, so a long
                 // message (a file error carrying a full path) has to be elided
                 // here as well; without a cap the Text keeps its implicit width
