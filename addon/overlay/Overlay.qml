@@ -20,25 +20,34 @@ Window {
     // panel's top edge; the panel stays bottom-left at its own size so it never
     // reflows. With no bar the window is exactly the frame.
     //
-    // The Center row is the one placement the compositor centres for us, and it
-    // centres the SURFACE. With the bar's overhang sitting above the panel only,
-    // that drops the panel by half the overhang. So for that row the same
-    // overhang is padded in below the panel: the surface becomes symmetric
-    // around it and the centred surface centres the panel. The padding is empty
-    // and the surface takes no input, so it is invisible in every other respect.
-    width: Math.max(frame.implicitWidth,
-                    OverlayController.progressActive ? win.progressBarWidth : 0)
-    height: frame.implicitHeight + win.progressOverhang + win.panelBottomPad
+    // The bar's overhang sits above the panel and, when the bar is longer than
+    // the panel, to its right. Wherever the renderer leaves the placement to the
+    // compositor's centring, that centres the SURFACE, so a one-sided overhang
+    // pushes the panel off by half of it. On those axes the same overhang is
+    // padded in on the opposite side: the surface becomes symmetric around the
+    // panel and centring it centres the panel. The padding is empty and the
+    // surface takes no input, so it shows up in no other way. Doing it here
+    // rather than through a screen-derived margin is what keeps it exact next to
+    // another client's exclusive zone (a bar): the compositor centres inside the
+    // area that zone leaves over, and the daemon cannot know that area.
+    width: frame.implicitWidth + win.progressOverhangX + win.panelLeftPad
+    height: frame.implicitHeight + win.progressOverhangY + win.panelBottomPad
     // Panel width, read by the daemon to centre the panel (not the wider
-    // panel+bar surface) on a grid column.
+    // panel+bar surface) on an anchored grid column.
     readonly property int frameWidth: frame.implicitWidth
-    // Bar plus its gap, i.e. what the surface adds above the panel while the
-    // progress bar is on, and what the Center row pads in below it.
-    readonly property int progressOverhang:
+    // Bar plus its gap above the panel, and the length the bar runs past the
+    // panel's right edge. Both are 0 without the bar, which is what keeps every
+    // non-progress placement at exactly the frame.
+    readonly property int progressOverhangY:
         OverlayController.progressActive
         ? win.progressBarHeight + win.progressBarGap : 0
+    readonly property int progressOverhangX:
+        OverlayController.progressActive
+        ? Math.max(0, win.progressBarWidth - frame.implicitWidth) : 0
     readonly property int panelBottomPad:
-        OverlayController.verticallyCentered ? win.progressOverhang : 0
+        OverlayController.verticallyCentered ? win.progressOverhangY : 0
+    readonly property int panelLeftPad:
+        OverlayController.horizontallyCentered ? win.progressOverhangX : 0
     // Start hidden so main() can configure the layer-shell surface
     // (layer/anchors/screen) before the first commit. main() then calls
     // show() once the surface role is fully set up.
@@ -252,6 +261,9 @@ Window {
         opacity: win.placementGate
         anchors.top: parent.top
         anchors.left: parent.left
+        // Stays left-aligned with the panel, so it moves with the panel's own
+        // padding rather than hugging the surface edge.
+        anchors.leftMargin: win.panelLeftPad
         width: win.progressBarWidth
         height: win.progressBarHeight
 
@@ -317,9 +329,10 @@ Window {
         id: frame
         anchors.left: parent.left
         anchors.bottom: parent.bottom
-        // Zero except on the Center row, where it leaves the padding that makes
-        // the surface symmetric around this panel.
+        // Zero unless the axis is compositor-centred, where these leave the
+        // padding that makes the surface symmetric around this panel.
         anchors.bottomMargin: win.panelBottomPad
+        anchors.leftMargin: win.panelLeftPad
         // In progress mode the panel is hidden during the lead-in and fades in
         // when the window opens; it keeps its layout slot (opacity, not visible)
         // so the bar can anchor to its top-right corner. Always shown otherwise.

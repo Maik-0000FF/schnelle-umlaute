@@ -115,10 +115,12 @@ void OverlayController::setPlaced(bool on) {
     Q_EMIT placedChanged();
 }
 
-void OverlayController::setVerticallyCentered(bool on) {
-    if (verticallyCentered_ == on)
+void OverlayController::setCentering(bool horizontally, bool vertically) {
+    if (horizontallyCentered_ == horizontally &&
+        verticallyCentered_ == vertically)
         return;
-    verticallyCentered_ = on;
+    horizontallyCentered_ = horizontally;
+    verticallyCentered_ = vertically;
     Q_EMIT progressChanged();
 }
 

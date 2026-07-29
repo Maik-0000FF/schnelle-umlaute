@@ -302,24 +302,33 @@ void testSetAnimateIsIdempotentAndSilent() {
     EXPECT(spy.count() == 2);
 }
 
-// verticallyCentered drives the surface height in QML, so a change has to
-// notify. It rides progressChanged, and it stays silent when nothing changes so
-// a repeated placement on the same row costs no relayout.
-void testVerticallyCenteredNotifiesOnChangeOnly() {
+// The centring flags drive the surface size in QML, so a change has to notify.
+// They ride progressChanged, both axes move on one signal, and a repeat of the
+// same pair stays silent so a second placement on the same cell costs no
+// relayout.
+void testCenteringNotifiesOnChangeOnly() {
     OverlayController ctrl;
+    EXPECT(!ctrl.horizontallyCentered());
     EXPECT(!ctrl.verticallyCentered());
 
     QSignalSpy spy(&ctrl, &OverlayController::progressChanged);
-    ctrl.setVerticallyCentered(true);
+    ctrl.setCentering(true, true);
+    EXPECT(ctrl.horizontallyCentered());
     EXPECT(ctrl.verticallyCentered());
     EXPECT(spy.count() == 1);
 
-    ctrl.setVerticallyCentered(true);
+    ctrl.setCentering(true, true);
     EXPECT(spy.count() == 1);
 
-    ctrl.setVerticallyCentered(false);
+    // One axis alone is a change, and it leaves the other one where it was.
+    ctrl.setCentering(true, false);
+    EXPECT(ctrl.horizontallyCentered());
     EXPECT(!ctrl.verticallyCentered());
     EXPECT(spy.count() == 2);
+
+    ctrl.setCentering(false, false);
+    EXPECT(!ctrl.horizontallyCentered());
+    EXPECT(spy.count() == 3);
 }
 
 int main(int argc, char *argv[]) {
@@ -342,7 +351,7 @@ int main(int argc, char *argv[]) {
     testSetProgressSnaps();
     testGateClosesBeforeStateChanges();
     testSetAnimateIsIdempotentAndSilent();
-    testVerticallyCenteredNotifiesOnChangeOnly();
+    testCenteringNotifiesOnChangeOnly();
 
     std::fprintf(stderr, "testoverlaycontroller: all tests passed\n");
     return 0;
