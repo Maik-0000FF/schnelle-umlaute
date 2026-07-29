@@ -41,7 +41,8 @@ int main() {
 
     // ── gridPanelLeftMargin: centre the PANEL on the column ──────────────
     {
-        const int screen = 1920, frame = 200, window = 400, edge = 24;
+        const int screen = 1920, frame = 200, window = 400;
+        const int edge = schnelle_umlaute::render::kEdgeMargin; // 24
         // Centre column (col 3): centre = 960, panel left = 960 - 100 = 860,
         // and the panel's own centre lands back exactly on 960.
         const int leftCol4 = pg::gridPanelLeftMargin(3, screen, frame, window, edge);
@@ -58,6 +59,33 @@ int main() {
         // Right column (col 6): centre = 1680, panel left = 1580, but the whole
         // window must stay on screen -> clamp to screen - window - edge = 1496.
         EXPECT(pg::gridPanelLeftMargin(6, screen, frame, window, edge) == 1496);
+    }
+
+    // ── gridPanelTopMargin: centre the PANEL on the Center row ───────────
+    {
+        const int edge = schnelle_umlaute::render::kEdgeMargin; // 24
+        const int screen = 1080, frame = 64;
+        // Overhang above the panel: progressBarHeight (6) + progressBarGap (8)
+        // from Overlay.qml.
+        const int overhang = 14;
+        const int window = frame + overhang; // 78
+
+        // The panel sits `overhang` below the surface top, so its own centre
+        // must land back on the screen centre: (1080 - 64) / 2 - 14 = 494.
+        const int top = pg::gridPanelTopMargin(screen, frame, window, edge);
+        EXPECT(top == 494);
+        EXPECT(top + overhang + frame / 2 == screen / 2);
+
+        // Without a bar (window == frame) it is the plain centred panel top,
+        // so the non-progress path is unchanged.
+        EXPECT(pg::gridPanelTopMargin(screen, frame, frame, edge)
+               == (screen - frame) / 2);
+
+        // A surface taller than the output would want a negative top -> clamp
+        // to edgeMargin. (The maxTop clamp mirrors gridPanelLeftMargin but
+        // cannot bind here: a taller surface means a larger overhang, which
+        // only lowers the top, so it never pushes the bottom off-screen.)
+        EXPECT(pg::gridPanelTopMargin(100, frame, 200, edge) == edge);
     }
 
     return 0;

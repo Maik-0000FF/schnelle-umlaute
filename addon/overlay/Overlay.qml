@@ -27,6 +27,9 @@ Window {
     // Panel width, read by the daemon to centre the panel (not the wider
     // panel+bar surface) on a grid column.
     readonly property int frameWidth: frame.implicitWidth
+    // Panel height, read by the daemon to centre the panel (not the taller
+    // panel+bar surface) on the vertical Center row.
+    readonly property int frameHeight: frame.implicitHeight
     // Start hidden so main() can configure the layer-shell surface
     // (layer/anchors/screen) before the first commit. main() then calls
     // show() once the surface role is fully set up.

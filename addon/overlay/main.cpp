@@ -32,7 +32,7 @@ namespace {
 
 using LSWindow = LayerShellQt::Window;
 
-constexpr int kEdgeMargin = 24;
+constexpr int kEdgeMargin = schnelle_umlaute::render::kEdgeMargin;
 
 // Reads the Theme= key from the editor's config file so the overlay
 // starts with the user's chosen palette instead of flashing the default
@@ -415,16 +415,18 @@ private:
     // knows the real output corrects a fractional column that was off by the old
     // monitor's width.
     //
-    // `provisional` caps the horizontal margin at kEdgeMargin for the very first
-    // commit, when the compositor-chosen output is not yet known. A fractional
-    // margin computed for a stale (wider) screen can exceed a narrower target
-    // output's width; the compositor then can't place the NULL-output surface
-    // there and never moves it, so the overlay sticks on the stale monitor. A
-    // margin that fits every output lets it map on the focused one, after which
-    // screenChanged / the first drawn frame applies the real margin. The content
-    // stays hidden (placed) until then, so this provisional position is never
-    // seen. The cap is one-dimensional: only horizontal margins are fractional;
-    // vertical ones are a fixed kEdgeMargin that fits any output height.
+    // `provisional` caps the margins at kEdgeMargin for the very first
+    // commit, when the compositor-chosen output is not yet known. A
+    // screen-derived margin computed for a stale (larger) screen can exceed
+    // a smaller target output; the compositor then can't place the
+    // NULL-output surface there and never moves it, so the overlay sticks on
+    // the stale monitor. A margin that fits every output lets it map on the
+    // focused one, after which screenChanged / the first drawn frame applies
+    // the real margin. The content stays hidden (placed) until then, so this
+    // provisional position is never seen. The cap covers both axes: the
+    // fractional columns are screen-width derived, and in progress mode the
+    // Center row's top margin is screen-height derived. Every other row
+    // margin is a fixed kEdgeMargin, which the cap leaves untouched.
     void applyGridAnchors(const QString &grid, bool provisional = false) {
         auto *ls = LSWindow::get(qwin_);
         if (!ls)
@@ -447,7 +449,6 @@ private:
         int row = 0, col = 0;
         if (ctrl_->progressActive() &&
             parsePosition(canonicalizePosition(grid), row, col)) {
-            (void)row;
             const int frameW = qwin_ ? qwin_->property("frameWidth").toInt() : 0;
             if (frameW > 0) {
                 a.anchors &= ~(LSWindow::AnchorLeft | LSWindow::AnchorRight);
@@ -457,13 +458,44 @@ private:
                         col, sw, frameW, ow, kEdgeMargin));
                 a.margins.setRight(0);
             }
+            // Same fix on the vertical axis: the Center row (row 1) is the
+            // one anchorsFor leaves compositor-centred, which centres the
+            // whole surface, so the bar's overhang above the panel drops the
+            // panel by half of it. Anchor the panel's centred position
+            // instead. frameH is the panel height read from QML; without it
+            // (0) or without a screen, keep anchorsFor's surface-centring.
+            // The Top/Bottom rows are already anchored at a fixed edge margin
+            // and stay as they are.
+            const int frameH =
+                qwin_ ? qwin_->property("frameHeight").toInt() : 0;
+            if (row == 1 && frameH > 0 && scr) {
+                const int sh = scr->geometry().height();
+                const int oh =
+                    qwin_ && qwin_->height() > 0
+                        ? qwin_->height()
+                        : schnelle_umlaute::render::kFallbackOverlayHeight;
+                a.anchors &= ~(LSWindow::AnchorTop | LSWindow::AnchorBottom);
+                a.anchors |= LSWindow::AnchorTop;
+                a.margins.setTop(schnelle_umlaute::progress::gridPanelTopMargin(
+                    sh, frameH, oh, kEdgeMargin));
+                a.margins.setBottom(0);
+            }
         }
-        // Cap the anchored horizontal margin so the first commit fits any output.
-        // The non-anchored side is already 0 (min keeps it 0) and a centred
-        // placement has no horizontal margin, so this needs no left/right branch.
+        // Cap the anchored margins so the first commit fits any output. The
+        // non-anchored side is already 0 (min keeps it 0) and a centred
+        // placement has no margin on that axis, so this needs no per-edge
+        // branch. The vertical cap matters only for the Center row above:
+        // every other row margin is a fixed kEdgeMargin that fits any output
+        // height, but that one is derived from the screen height, so a value
+        // computed for a stale, taller output could exceed a shorter target
+        // one and leave the surface unplaceable there. The content is gated
+        // invisible until the real margin lands, so the capped position is
+        // never seen.
         if (provisional) {
             a.margins.setLeft(std::min(a.margins.left(), kEdgeMargin));
             a.margins.setRight(std::min(a.margins.right(), kEdgeMargin));
+            a.margins.setTop(std::min(a.margins.top(), kEdgeMargin));
+            a.margins.setBottom(std::min(a.margins.bottom(), kEdgeMargin));
         }
         ls->setAnchors(a.anchors);
         ls->setMargins(a.margins);
