@@ -1,4 +1,4 @@
-// Unit tests for the pure caret-theme helpers (addon/editor/caret_theme.h):
+// Unit tests for the pure caret-theme helpers (addon/caret_theme.h):
 // colour normalisation, the flat classicui.conf parse/patch round-trip, and
 // the generated theme.conf colour-role mapping. No file I/O, no DBus, no
 // editor runtime — pure QString logic, so only Qt6::Core is needed.

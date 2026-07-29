@@ -8,6 +8,9 @@
 #include <QStringList>
 
 #include "OverlayDBusClient.h"
+// SystemScheme + the effectiveTheme derivation, shared with the overlay daemon
+// so both sides answer the same question the same way.
+#include "../themes.h"
 // Single source for kNoKeyCode and the evdev+8 keycode convention, so the
 // editor writes exactly what the engine reads.
 #include "../src/hand_classifier.h"
@@ -121,7 +124,27 @@ class SettingsModel : public QObject {
     Q_PROPERTY(bool overlayCaretTheme READ overlayCaretTheme WRITE
                    setOverlayCaretTheme NOTIFY overlayCaretThemeChanged)
 
+    // The manual pick. It stays untouched while themeAuto is on, so switching
+    // the automatic mode back off returns to whatever the user last chose
+    // rather than to whichever half of the pair happened to be showing.
     Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
+
+    // Follow the desktop's light/dark setting, switching between themeLight and
+    // themeDark. Off by default, so an existing config keeps rendering exactly
+    // as before.
+    Q_PROPERTY(bool themeAuto READ themeAuto WRITE setThemeAuto NOTIFY
+                   themeAutoChanged)
+    Q_PROPERTY(QString themeLight READ themeLight WRITE setThemeLight NOTIFY
+                   themeLightChanged)
+    Q_PROPERTY(QString themeDark READ themeDark WRITE setThemeDark NOTIFY
+                   themeDarkChanged)
+
+    // What is actually rendered: the manual pick, or the half of the pair the
+    // desktop currently asks for. Read-only and derived, never stored, which is
+    // what keeps `theme` meaning "the user's choice". Everything that paints
+    // binds to this, so the editor window and the overlay always agree.
+    Q_PROPERTY(
+        QString effectiveTheme READ effectiveTheme NOTIFY effectiveThemeChanged)
 
     // Sort each key's cycling variants by how often they are committed
     // (most-used first). Non-destructive: the stored order is unchanged and
@@ -205,6 +228,10 @@ public:
     QString overlayPosition() const { return overlayPosition_; }
     bool overlayCaretTheme() const { return overlayCaretTheme_; }
     QString theme() const { return theme_; }
+    bool themeAuto() const { return themeAuto_; }
+    QString themeLight() const { return themeLight_; }
+    QString themeDark() const { return themeDark_; }
+    QString effectiveTheme() const;
     bool sortByFrequency() const { return sortByFrequency_; }
 
     // Generate an fcitx5 theme from the given editor-palette colors (hex
@@ -253,6 +280,9 @@ public:
     void setOverlayPosition(const QString &v);
     void setOverlayCaretTheme(bool v);
     void setTheme(const QString &v);
+    void setThemeAuto(bool v);
+    void setThemeLight(const QString &v);
+    void setThemeDark(const QString &v);
     void setSortByFrequency(bool v);
 
     static bool isValidTheme(const QString &name);
@@ -315,6 +345,10 @@ Q_SIGNALS:
     void overlayPositionChanged();
     void overlayCaretThemeChanged();
     void themeChanged();
+    void themeAutoChanged();
+    void themeLightChanged();
+    void themeDarkChanged();
+    void effectiveThemeChanged();
     void sortByFrequencyChanged();
 
 private:
@@ -344,16 +378,13 @@ private:
     void reportSaveError(const QString &message);
     void clearSaveError();
     void reloadFcitx();
-    // Write the generated fcitx5 theme.conf from the given colors and point
-    // classicui at it (backing up the user's previous classicui theme first),
-    // or restore that backup. Helpers for applyCaretTheme/clearCaretTheme.
-    // Both return false if a file could not be written, which the caller turns
-    // into an errorOccurred rather than leaving the toggle looking applied.
-    bool writeCaretThemeFiles(const QString &background, const QString &text,
-                              const QString &highlight,
-                              const QString &onHighlight,
-                              const QString &border);
-    bool restoreClassicUiTheme();
+    // The desktop's current light/dark report, or Unknown where it does not
+    // publish one.
+    static schnelle_umlaute::SystemScheme systemScheme();
+    // Send the derived theme to the overlay daemon. Every path that can change
+    // the derivation goes through here, so the daemon never has to guess which
+    // of the four inputs moved.
+    void pushEffectiveTheme();
 
     int delayLowercase_ = 400;
     int delayUppercase_ = 700;
@@ -391,6 +422,9 @@ private:
     QString overlayPosition_ = "TopCol4";
     bool overlayCaretTheme_ = false;
     QString theme_ = "schnelle-umlaute";
+    bool themeAuto_ = false;
+    QString themeLight_ = "light";
+    QString themeDark_ = "dark";
     bool sortByFrequency_ = false;
     bool layerShellAvailable_ = false;
     QString layerShellSession_;

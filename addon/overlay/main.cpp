@@ -16,6 +16,7 @@
 #include <QRect>
 #include <QScreen>
 #include <QStandardPaths>
+#include <QStyleHints>
 #include <QTextStream>
 #include <QWindow>
 
@@ -24,6 +25,8 @@
 
 #include "CursorSource.h"
 #include "OverlayController.h"
+
+#include "../themes.h"
 #include "cursor_overlay_geometry.h"
 #include "overlay_render.h"
 #include "progress_overlay_geometry.h"
@@ -34,15 +37,33 @@ using LSWindow = LayerShellQt::Window;
 
 constexpr int kEdgeMargin = schnelle_umlaute::render::kEdgeMargin;
 
-// Reads the Theme= key from the editor's config file so the overlay
-// starts with the user's chosen palette instead of flashing the default
-// one for the first cycle. Absent/malformed file → default theme.
-QString loadInitialTheme() {
+// What the daemon needs from the editor's config file to decide which palette
+// to render and whether an automatic switch should also restyle the fcitx5
+// candidate window.
+struct ThemeConfig {
+    QString manual = schnelle_umlaute::defaultTheme();
+    bool automatic = false;
+    QString light = schnelle_umlaute::defaultLightTheme();
+    QString dark = schnelle_umlaute::defaultDarkTheme();
+    bool caretTheme = false;
+    bool caretPlacement = false;
+};
+
+// Reads that config so the overlay starts on the user's palette instead of
+// flashing the default one for the first cycle, and so it can re-derive on its
+// own later. Absent or malformed file → the defaults above.
+//
+// A deliberately small reader rather than a shared parser: the editor writes
+// this file and owns its schema, the daemon only samples a handful of keys from
+// it, and pulling the editor's model in here would drag QML and the whole
+// settings surface into a process that just paints an overlay.
+ThemeConfig loadThemeConfig() {
+    ThemeConfig cfg;
     const QString base =
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     QFile f(base + QStringLiteral("/fcitx5/conf/schnelle-umlaute.conf"));
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return {};
+        return cfg;
     QTextStream in(&f);
     QString section;
     while (!in.atEnd()) {
@@ -53,16 +74,52 @@ QString loadInitialTheme() {
             section = line.mid(1, line.size() - 2);
             continue;
         }
-        if (section != QLatin1String("Theme"))
-            continue;
         const int eq = static_cast<int>(line.indexOf('='));
         if (eq < 0)
             continue;
-        if (line.left(eq) == QLatin1String("Theme")) {
-            return line.mid(eq + 1).trimmed();
+        const QString key = line.left(eq);
+        const QString val = line.mid(eq + 1).trimmed();
+        const bool isTrue =
+            val.compare(QLatin1String("True"), Qt::CaseInsensitive) == 0;
+        if (section == QLatin1String("Theme")) {
+            if (key == QLatin1String("Theme"))
+                cfg.manual = val;
+            else if (key == QLatin1String("Auto"))
+                cfg.automatic = isTrue;
+            else if (key == QLatin1String("ThemeLight"))
+                cfg.light = val;
+            else if (key == QLatin1String("ThemeDark"))
+                cfg.dark = val;
+        } else if (section == QLatin1String("Overlay")) {
+            if (key == QLatin1String("CaretTheme"))
+                cfg.caretTheme = isTrue;
+            else if (key == QLatin1String("Placement"))
+                cfg.caretPlacement = val == QLatin1String("TextCaret");
         }
     }
-    return {};
+    return cfg;
+}
+
+// Qt's report translated into the framework-free enum the shared derivation
+// takes. Mirrors the editor's copy; both have to answer alike or the two
+// windows would disagree about what the desktop is asking for.
+schnelle_umlaute::SystemScheme systemScheme() {
+    auto *hints = QGuiApplication::styleHints();
+    if (!hints)
+        return schnelle_umlaute::SystemScheme::Unknown;
+    switch (hints->colorScheme()) {
+    case Qt::ColorScheme::Light:
+        return schnelle_umlaute::SystemScheme::Light;
+    case Qt::ColorScheme::Dark:
+        return schnelle_umlaute::SystemScheme::Dark;
+    default:
+        return schnelle_umlaute::SystemScheme::Unknown;
+    }
+}
+
+QString derivedTheme(const ThemeConfig &cfg) {
+    return schnelle_umlaute::effectiveTheme(
+        cfg.automatic, cfg.manual, cfg.light, cfg.dark, systemScheme());
 }
 
 struct Anchored {
@@ -723,9 +780,32 @@ int main(int argc, char *argv[]) {
     parser.process(app);
 
     auto *ctrl = new OverlayController(&app);
-    const QString initialTheme = loadInitialTheme();
-    if (!initialTheme.isEmpty())
-        ctrl->setTheme(initialTheme);
+
+    // Re-read the config and re-derive. Split out because three things ask for
+    // it: startup, the editor saying it saved, and the desktop flipping between
+    // light and dark. Only the last two may rewrite the candidate window: at
+    // startup the files on disk already match what the editor last wrote, and
+    // reapplying them would restyle a globally shared fcitx5 theme on every
+    // login for no change.
+    const auto applyThemeConfig = [ctrl](bool allowCaretRefresh) {
+        const ThemeConfig cfg = loadThemeConfig();
+        const QString theme = derivedTheme(cfg);
+        const bool changed = theme != ctrl->theme();
+        ctrl->setTheme(theme);
+        if (allowCaretRefresh && changed && cfg.caretTheme &&
+            cfg.caretPlacement)
+            ctrl->requestCaretRefresh();
+    };
+    applyThemeConfig(/*allowCaretRefresh=*/false);
+    QObject::connect(ctrl, &OverlayController::reloadRequested, &app,
+                     [applyThemeConfig]() { applyThemeConfig(true); });
+    // The switch that this whole path exists for: it usually happens with the
+    // editor closed, so nobody is left to push a theme.
+    if (auto *hints = QGuiApplication::styleHints())
+        QObject::connect(
+            hints, &QStyleHints::colorSchemeChanged, &app,
+            [applyThemeConfig](Qt::ColorScheme) { applyThemeConfig(true); });
+
     new OverlayDBusAdaptor(ctrl);
     new OverlayRenderer(ctrl);
 

@@ -356,14 +356,12 @@ target_link_libraries(testprofilesconf
 add_test(NAME testprofilesconf COMMAND testprofilesconf)
 set_tests_properties(testprofilesconf PROPERTIES TIMEOUT 10)
 
-# Unit test for the pure caret-theme helpers (editor/caret_theme.h): colour
+# Unit test for the pure caret-theme helpers (caret_theme.h): colour
 # normalisation, the classicui.conf parse/patch round-trip, and the generated
 # theme.conf colour-role mapping. Pure QString logic — only Qt6::Core, no
 # SettingsModel/DBus/QML link needed.
 add_executable(testcarettheme testcarettheme.cpp)
-target_include_directories(testcarettheme PRIVATE
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/editor)
+target_include_directories(testcarettheme PRIVATE ${PROJECT_SOURCE_DIR})
 target_compile_options(testcarettheme PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testcarettheme Qt${QT_MAJOR_VERSION}::Core)
 add_test(NAME testcarettheme COMMAND testcarettheme)

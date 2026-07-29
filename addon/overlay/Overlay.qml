@@ -59,6 +59,20 @@ Window {
                                Screen.width - 2 * OverlayController.edgeMargin
                                - frame.implicitWidth - win.progressOverhangX))
         : 0
+    // The daemon decides WHEN the fcitx5 candidate window has to be restyled
+    // (config and placement live on its side); QML only supplies the colours,
+    // read straight from the shared palette module. That is what keeps the
+    // palettes a single QML source with no colour table in C++.
+    Connections {
+        target: OverlayController
+        function onCaretRefreshRequested() {
+            const pal = Palettes.get(OverlayController.theme)
+            OverlayController.applyCaretTheme(pal.background, pal.text,
+                                              pal.highlight, pal.highlightText,
+                                              pal.border)
+        }
+    }
+
     // Start hidden so main() can configure the layer-shell surface
     // (layer/anchors/screen) before the first commit. main() then calls
     // show() once the surface role is fully set up.
