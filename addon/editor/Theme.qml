@@ -115,6 +115,14 @@ QtObject {
     // as a grabbable, deletable pill.
     readonly property int chipPaddingH: 12
     readonly property int chipFont:     14
+    // Widest a variant chip may grow: a long snippet elides instead of
+    // pushing the row's edit/delete actions off (or under) the layout.
+    readonly property int chipMaxWidth: 220
+    // Text budget inside a capped chip: the chip width minus its horizontal
+    // padding, the circular ✕ (chipFont + spacingXs) and the gap before it.
+    // Derived here so the chip and its label can never drift apart.
+    readonly property int chipTextMaxWidth:
+        chipMaxWidth - 2 * chipPaddingH - (chipFont + spacingXs) - spacingSm
 
     // Provenance colours for the composed merge view: one hue per source
     // profile, addressed by 1-based merge position (position 1 = base). Now

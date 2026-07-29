@@ -458,8 +458,11 @@ Rectangle {
                                 : false
                         width: implicitWidth
                         height: implicitHeight
-                        implicitWidth: chipRow.implicitWidth
-                                       + 2 * Theme.chipPaddingH
+                        // Capped so a long snippet elides instead of pushing
+                        // the row actions out of the layout.
+                        implicitWidth: Math.min(chipRow.implicitWidth
+                                                    + 2 * Theme.chipPaddingH,
+                                                Theme.chipMaxWidth)
                         implicitHeight: Theme.controlHeight
                         radius: Theme.radiusSm
                         color: chip.Drag.active ? Theme.surfaceHover
@@ -518,12 +521,18 @@ Rectangle {
                             }
                         }
 
+                        // Drag affordance, prefixed with the full value whenever
+                        // the label is elided: a capped chip would otherwise
+                        // only be readable in full by opening the edit field.
+                        readonly property string dragHint: root.freqSort
+                            ? qsTr("Drag to another key to move")
+                            : qsTr("Drag to reorder, or to another key to move")
                         ThemedToolTip {
                             hovered: dragMouse.containsMouse
                                      && !chipX.containsMouse && !chip.Drag.active
-                            text: root.freqSort
-                                ? qsTr("Drag to another key to move")
-                                : qsTr("Drag to reorder, or to another key to move")
+                            text: chipLabel.truncated
+                                ? chip.variant + "\n" + chip.dragHint
+                                : chip.dragHint
                         }
 
                         RowLayout {
@@ -531,10 +540,17 @@ Rectangle {
                             anchors.centerIn: parent
                             spacing: Theme.spacingSm
                             Text {
+                                id: chipLabel
+                                // A long snippet elides; the full text stays
+                                // editable via the pencil and readable in the
+                                // hover tooltip.
                                 text: chip.variant
                                 color: Theme.text
                                 font.family: Theme.fontFamilyMono
                                 font.pixelSize: Theme.chipFont
+                                elide: Text.ElideRight
+                                maximumLineCount: 1
+                                Layout.maximumWidth: Theme.chipTextMaxWidth
                             }
                             // Circular ✕ close button, the conventional chip
                             // delete affordance: a muted circle that separates
@@ -651,7 +667,10 @@ Rectangle {
                         property string cFromInput: root.inputText
                         width: implicitWidth
                         height: implicitHeight
-                        implicitWidth: cRow.implicitWidth + 2 * Theme.chipPaddingH
+                        // Same cap as the plain chips: long snippets elide.
+                        implicitWidth: Math.min(cRow.implicitWidth
+                                                    + 2 * Theme.chipPaddingH,
+                                                Theme.chipMaxWidth)
                         implicitHeight: Theme.controlHeight
                         radius: Theme.radiusSm
                         color: Qt.rgba(cchip.srcColor.r, cchip.srcColor.g,
@@ -708,10 +727,15 @@ Rectangle {
                             // no inline name tag. The origin stays discoverable on
                             // hover (tooltip below).
                             Text {
+                                id: cLabel
+                                // Same elide rule as the plain chips.
                                 text: cDrop.modelData.value
                                 color: Theme.text
                                 font.family: Theme.fontFamilyMono
                                 font.pixelSize: Theme.chipFont
+                                elide: Text.ElideRight
+                                maximumLineCount: 1
+                                Layout.maximumWidth: Theme.chipTextMaxWidth
                             }
                             // Circular ✕: delete this variant from its source
                             // profile (behind a confirm in the parent).
@@ -749,14 +773,20 @@ Rectangle {
                             }
                         }
 
+                        // Provenance hint, prefixed with the full value whenever
+                        // the label is elided (same rule as the plain chips; a
+                        // composed chip has no edit field at all).
+                        readonly property string originHint: root.freqSort
+                            ? qsTr("From “%1”")
+                              .arg(root.nameForFile(cDrop.modelData.file))
+                            : qsTr("From “%1”, drag to reorder")
+                              .arg(root.nameForFile(cDrop.modelData.file))
                         HoverHandler { id: cchipHover }
                         ThemedToolTip {
                             hovered: cchipHover.hovered && !cchip.Drag.active
-                            text: root.freqSort
-                                ? qsTr("From “%1”")
-                                  .arg(root.nameForFile(cDrop.modelData.file))
-                                : qsTr("From “%1”, drag to reorder")
-                                  .arg(root.nameForFile(cDrop.modelData.file))
+                            text: cLabel.truncated
+                                ? cDrop.modelData.value + "\n" + cchip.originHint
+                                : cchip.originHint
                         }
                     }
                 }
