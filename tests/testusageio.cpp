@@ -82,12 +82,82 @@ void testOverlongLineDropped() {
     EXPECT(c.at("o").at("\xc3\xb6") == 5);
 }
 
+// The bug the escaping exists for: a tab is a legal mapped output (the editor
+// rejects only \n and \r), and unescaped it put a fourth field on the line, so
+// the counter was dropped on every load and could never accumulate.
+void testTabVariantRoundTrips() {
+    UsageCounts c;
+    c["a"]["\t"] = 5;
+    c["a"]["\xc3\xa4"] = 2;
+
+    const std::string text = serializeUsage(c);
+    // On the wire the tab is the two characters backslash + t, so the line
+    // still has exactly two separators.
+    EXPECT(text.find("a\t\\t\t5\n") != std::string::npos);
+
+    auto back = parseString(text);
+    EXPECT(back.at("a").at("\t") == 5);
+    EXPECT(back.at("a").at("\xc3\xa4") == 2);
+    EXPECT(serializeUsage(back) == text);
+}
+
+// The escape character itself has to survive, or a variant carrying a
+// backslash would come back as something else.
+void testBackslashVariantRoundTrips() {
+    UsageCounts c;
+    c["\\"]["\\t"] = 4; // base a lone backslash, variant backslash + t
+    c["a"]["x\\"] = 1;  // trailing backslash
+
+    auto back = parseString(serializeUsage(c));
+    EXPECT(back.at("\\").at("\\t") == 4);
+    EXPECT(back.at("\\").count("\t") == 0); // NOT read as a tab
+    EXPECT(back.at("a").at("x\\") == 1);
+}
+
+// Without the marker the file predates escaping, where a backslash stood for
+// itself. Reading it raw is what keeps such a variant intact.
+void testLegacyFileParsedRaw() {
+    auto c = parseString("a\t\\t\t5\n");
+    EXPECT(c.at("a").at("\\t") == 5); // two characters, not a tab
+    EXPECT(c.at("a").count("\t") == 0);
+
+    // And the next save carries it over into the escaped format unchanged.
+    const std::string text = serializeUsage(c);
+    EXPECT(text.rfind(schnelle_umlaute::kUsageFormatMarker, 0) == 0);
+    auto back = parseString(text);
+    EXPECT(back.at("a").at("\\t") == 5);
+    EXPECT(back.at("a").count("\t") == 0);
+}
+
+// A file hand-edited into an escape the format does not define keeps both
+// characters instead of silently losing the backslash.
+void testUnknownEscapeKeptLiteral() {
+    auto c = parseString(std::string(schnelle_umlaute::kUsageFormatMarker) +
+                         "\n"
+                         "a\t\\q\t3\n"
+                         "o\tx\\\t2\n"); // trailing lone backslash
+    EXPECT(c.at("a").at("\\q") == 3);
+    EXPECT(c.at("o").at("x\\") == 2);
+}
+
+// An empty table must serialize to an empty file, marker and all: the editor
+// reads "no counters" off a zero-byte usage.conf to disable its reset control,
+// so a lone header line would light that control up with nothing behind it.
+void testEmptyTableSerializesEmpty() {
+    EXPECT(serializeUsage(UsageCounts{}).empty());
+}
+
 } // namespace
 
 int main() {
     testRoundTrip();
     testMalformedAndNegativeSkipped();
     testOverlongLineDropped();
+    testTabVariantRoundTrips();
+    testBackslashVariantRoundTrips();
+    testLegacyFileParsedRaw();
+    testUnknownEscapeKeptLiteral();
+    testEmptyTableSerializesEmpty();
     std::printf("testusageio: all passed\n");
     return 0;
 }

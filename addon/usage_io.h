@@ -6,11 +6,25 @@
 // header so both sides agree on the format (Single Source of Truth), the same
 // rationale as mappings-io.h.
 //
-// Format: one counter per line, tab-separated:
+// Format: a marker line, then one counter per line, tab-separated:
+//   #!format=2
 //   <base>\t<variant>\t<count>
-// base and variant are opaque UTF-8 fields (tab-separated so no comma
-// escaping is needed); count is a non-negative decimal integer. Lines
-// starting with '#' are comments; empty and malformed lines are skipped.
+// base and variant are UTF-8 fields; count is a non-negative decimal integer.
+// Lines starting with '#' are comments; empty and malformed lines are skipped.
+//
+// base and variant are escaped: a backslash becomes "\\" and a tab "\t". Both
+// are mapped OUTPUTS, and a mapping may legitimately carry a tab (the editor
+// rejects only \n and \r), which without escaping put a fourth field on the
+// line and made the parser drop that counter on every single load, so the
+// variant could never accumulate a count. Newlines need no escape: a mapping
+// cannot hold one, and the file is line-based.
+//
+// The marker exists because escaping is not backwards compatible: in a file
+// written before it, a backslash stood for itself, so a variant of "\t" (two
+// characters) would now be read as a tab. A file without the marker is
+// therefore parsed raw, and the next save rewrites it escaped, with the
+// marker. Counters are the engine's own derived data, so that upgrade is
+// lossless and needs no separate migration pass.
 
 // readLine: the truncation-guarded line reader every parser here shares.
 #include "line_io.h"
@@ -31,11 +45,69 @@ using UsageCounts =
     std::unordered_map<std::string,
                        std::unordered_map<std::string, long long>>;
 
+// First line of an escaped file. Its absence is what marks a legacy one.
+inline constexpr const char *kUsageFormatMarker = "#!format=2";
+
+// Escape/unescape a single base or variant field. Only the two characters that
+// would otherwise be ambiguous are touched: the field separator and the escape
+// character itself.
+inline std::string escapeUsageField(const std::string &in) {
+    std::string out;
+    out.reserve(in.size());
+    for (const char c : in) {
+        if (c == '\\')
+            out += "\\\\";
+        else if (c == '\t')
+            out += "\\t";
+        else
+            out += c;
+    }
+    return out;
+}
+
+// A backslash before anything else is kept as-is, both characters, so a file
+// hand-edited into an unknown escape loses nothing. Same for a trailing lone
+// backslash.
+inline std::string unescapeUsageField(const std::string &in) {
+    std::string out;
+    out.reserve(in.size());
+    for (size_t i = 0; i < in.size(); ++i) {
+        if (in[i] != '\\' || i + 1 == in.size()) {
+            out += in[i];
+            continue;
+        }
+        const char next = in[i + 1];
+        if (next == '\\') {
+            out += '\\';
+            ++i;
+        } else if (next == 't') {
+            out += '\t';
+            ++i;
+        } else {
+            out += in[i];
+        }
+    }
+    return out;
+}
+
 inline UsageCounts parseUsage(FILE *fp) {
     UsageCounts counts;
     std::string line;
+    // Set by the marker on the first non-empty line. A legacy file leaves it
+    // false and its fields are taken literally.
+    bool escaped = false;
+    bool atFirstLine = true;
     while (readLine(fp, line)) {
-        if (line.empty() || line[0] == '#')
+        if (line.empty())
+            continue;
+        if (atFirstLine) {
+            atFirstLine = false;
+            if (line == kUsageFormatMarker) {
+                escaped = true;
+                continue;
+            }
+        }
+        if (line[0] == '#')
             continue;
         // Split into exactly three fields: base, variant, count. Variant is
         // the middle field; both base and variant are single-tab-free tokens
@@ -46,11 +118,15 @@ inline UsageCounts parseUsage(FILE *fp) {
         const size_t t2 = line.find('\t', t1 + 1);
         if (t2 == std::string::npos)
             continue;
-        const std::string base = line.substr(0, t1);
-        const std::string variant = line.substr(t1 + 1, t2 - t1 - 1);
+        std::string base = line.substr(0, t1);
+        std::string variant = line.substr(t1 + 1, t2 - t1 - 1);
         const std::string countStr = line.substr(t2 + 1);
         if (base.empty() || variant.empty() || countStr.empty())
             continue;
+        if (escaped) {
+            base = unescapeUsageField(base);
+            variant = unescapeUsageField(variant);
+        }
         char *end = nullptr;
         // errno is reset first so ERANGE can be told apart from a leftover
         // value: without it an out-of-range count clamps to LLONG_MAX and is
@@ -74,7 +150,16 @@ inline std::string serializeUsage(const UsageCounts &counts) {
         bases.push_back(kv.first);
     std::sort(bases.begin(), bases.end());
 
-    std::string out;
+    // An empty table stays an EMPTY file, marker included: the editor's
+    // hasUsageData() (and with it the reset control) treats a zero-byte
+    // usage.conf as "nothing to reset", and a lone header would turn that into
+    // a reset button with no counters behind it. A file with no fields has
+    // nothing to escape either, so the marker buys nothing there.
+    if (bases.empty())
+        return {};
+
+    std::string out = kUsageFormatMarker;
+    out += '\n';
     for (const auto &base : bases) {
         const auto &variants = counts.at(base);
         std::vector<std::string> keys;
@@ -83,9 +168,9 @@ inline std::string serializeUsage(const UsageCounts &counts) {
             keys.push_back(kv.first);
         std::sort(keys.begin(), keys.end());
         for (const auto &variant : keys) {
-            out += base;
+            out += escapeUsageField(base);
             out += '\t';
-            out += variant;
+            out += escapeUsageField(variant);
             out += '\t';
             out += std::to_string(variants.at(variant));
             out += '\n';
