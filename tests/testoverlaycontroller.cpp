@@ -302,6 +302,26 @@ void testSetAnimateIsIdempotentAndSilent() {
     EXPECT(spy.count() == 2);
 }
 
+// verticallyCentered drives the surface height in QML, so a change has to
+// notify. It rides progressChanged, and it stays silent when nothing changes so
+// a repeated placement on the same row costs no relayout.
+void testVerticallyCenteredNotifiesOnChangeOnly() {
+    OverlayController ctrl;
+    EXPECT(!ctrl.verticallyCentered());
+
+    QSignalSpy spy(&ctrl, &OverlayController::progressChanged);
+    ctrl.setVerticallyCentered(true);
+    EXPECT(ctrl.verticallyCentered());
+    EXPECT(spy.count() == 1);
+
+    ctrl.setVerticallyCentered(true);
+    EXPECT(spy.count() == 1);
+
+    ctrl.setVerticallyCentered(false);
+    EXPECT(!ctrl.verticallyCentered());
+    EXPECT(spy.count() == 2);
+}
+
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
@@ -322,6 +342,7 @@ int main(int argc, char *argv[]) {
     testSetProgressSnaps();
     testGateClosesBeforeStateChanges();
     testSetAnimateIsIdempotentAndSilent();
+    testVerticallyCenteredNotifiesOnChangeOnly();
 
     std::fprintf(stderr, "testoverlaycontroller: all tests passed\n");
     return 0;

@@ -115,6 +115,13 @@ void OverlayController::setPlaced(bool on) {
     Q_EMIT placedChanged();
 }
 
+void OverlayController::setVerticallyCentered(bool on) {
+    if (verticallyCentered_ == on)
+        return;
+    verticallyCentered_ = on;
+    Q_EMIT progressChanged();
+}
+
 void OverlayController::sendCursor(int requestId, int x, int y) {
     Q_EMIT cursorReported(requestId, x, y);
 }

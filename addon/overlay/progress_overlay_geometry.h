@@ -3,8 +3,7 @@
 
 // Pure geometry for the overlay timing progress bar. Single source of truth for
 // the bar's pixel sizing and the grid placement that centres the panel (not the
-// whole panel+bar surface) on a column and, for the Center row, on the
-// output's vertical midline. Free of Qt/QML so it is unit-testable
+// whole panel+bar surface) on a column. Free of Qt/QML so it is unit-testable
 // (tests/testprogressgeometry.cpp) and shared by the daemon's renderer (grid
 // placement) and QML (bar sizing, via OverlayController Q_INVOKABLE wrappers),
 // so writer and reader can't drift.
@@ -59,23 +58,6 @@ inline int gridPanelLeftMargin(int col, int screenWidth, int frameWidth,
     const int maxLeft =
         std::max(edgeMargin, screenWidth - windowWidth - edgeMargin);
     return std::clamp(left, edgeMargin, maxLeft);
-}
-
-// Top margin (from the output's top edge, for a Top-anchored surface) that
-// vertically centres a frameHeight-tall PANEL on the output. In progress mode
-// the panel sits at the bottom of a taller windowHeight surface (the bar plus
-// its gap overhang ABOVE the panel), so a plain compositor-centred surface
-// would drop the panel by half that overhang. This anchors the panel's centred
-// position instead, mirroring gridPanelLeftMargin on the vertical axis,
-// clamped so the whole surface stays on screen by `edgeMargin`.
-inline int gridPanelTopMargin(int screenHeight, int frameHeight,
-                              int windowHeight, int edgeMargin) {
-    // Bar plus its gap, sitting above the panel.
-    const int overhang = windowHeight - frameHeight;
-    const int top = (screenHeight - frameHeight) / 2 - overhang;
-    const int maxTop =
-        std::max(edgeMargin, screenHeight - windowHeight - edgeMargin);
-    return std::clamp(top, edgeMargin, maxTop);
 }
 
 } // namespace progress

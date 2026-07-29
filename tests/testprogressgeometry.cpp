@@ -61,32 +61,5 @@ int main() {
         EXPECT(pg::gridPanelLeftMargin(6, screen, frame, window, edge) == 1496);
     }
 
-    // ── gridPanelTopMargin: centre the PANEL on the Center row ───────────
-    {
-        const int edge = schnelle_umlaute::render::kEdgeMargin; // 24
-        const int screen = 1080, frame = 64;
-        // Overhang above the panel: progressBarHeight (6) + progressBarGap (8)
-        // from Overlay.qml.
-        const int overhang = 14;
-        const int window = frame + overhang; // 78
-
-        // The panel sits `overhang` below the surface top, so its own centre
-        // must land back on the screen centre: (1080 - 64) / 2 - 14 = 494.
-        const int top = pg::gridPanelTopMargin(screen, frame, window, edge);
-        EXPECT(top == 494);
-        EXPECT(top + overhang + frame / 2 == screen / 2);
-
-        // Without a bar (window == frame) it is the plain centred panel top,
-        // so the non-progress path is unchanged.
-        EXPECT(pg::gridPanelTopMargin(screen, frame, frame, edge)
-               == (screen - frame) / 2);
-
-        // A surface taller than the output would want a negative top -> clamp
-        // to edgeMargin. (The maxTop clamp mirrors gridPanelLeftMargin but
-        // cannot bind here: a taller surface means a larger overhang, which
-        // only lowers the top, so it never pushes the bottom off-screen.)
-        EXPECT(pg::gridPanelTopMargin(100, frame, 200, edge) == edge);
-    }
-
     return 0;
 }
