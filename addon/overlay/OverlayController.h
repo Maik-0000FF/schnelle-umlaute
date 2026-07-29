@@ -5,6 +5,8 @@
 #include <QObject>
 #include <QStringList>
 
+#include "overlay_render.h"
+
 class OverlayController : public QObject {
     Q_OBJECT
 
@@ -51,6 +53,24 @@ class OverlayController : public QObject {
         int progressWindowMs READ progressWindowMs NOTIFY progressChanged)
     Q_PROPERTY(bool progressActive READ progressActive NOTIFY progressChanged)
     Q_PROPERTY(bool progressFrozen READ progressFrozen NOTIFY progressChanged)
+    // Per axis: true while the renderer leaves that axis to the compositor's
+    // centring (the Center row, the centre column, and any position it cannot
+    // parse, which gets no anchors at all). With the progress bar on, the bar
+    // overhangs above the panel and past its right edge, so centring such a
+    // surface would push the panel off by half the overhang; QML pads the
+    // surface by the same overhang on the opposite side instead, which makes it
+    // symmetric so that centring it centres the panel. Both share
+    // progressChanged because they only ever matter together with
+    // progressActive.
+    Q_PROPERTY(
+        bool verticallyCentered READ verticallyCentered NOTIFY progressChanged)
+    Q_PROPERTY(bool horizontallyCentered READ horizontallyCentered NOTIFY
+                   progressChanged)
+    // render::kEdgeMargin, so the surface QML pads for a centred axis keeps the
+    // same distance from the output's edges that every anchored placement is
+    // given. Constant, hence no notify: it exists only so the value is not
+    // spelled out a second time in a QML binding.
+    Q_PROPERTY(int edgeMargin READ edgeMargin CONSTANT)
     // How far the gesture had already elapsed (ms) when SetProgress arrived,
     // measured against the engine's start timestamp on the shared monotonic
     // clock. The QML bar starts pre-advanced by this so D-Bus delivery latency
@@ -76,6 +96,13 @@ public:
     bool progressActive() const { return progressActive_; }
     bool progressFrozen() const { return progressFrozen_; }
     int progressElapsedMs() const { return progressElapsedMs_; }
+    bool verticallyCentered() const { return verticallyCentered_; }
+    bool horizontallyCentered() const { return horizontallyCentered_; }
+    int edgeMargin() const { return schnelle_umlaute::render::kEdgeMargin; }
+    // Both axes in one call: they are decided together from one position, and a
+    // single notify keeps QML from laying the surface out at a half-applied
+    // size in between.
+    void setCentering(bool horizontally, bool vertically);
 
     // Called via DBus adapter
     void show(const QStringList &variants, int currentIndex,
@@ -140,6 +167,8 @@ private:
     qint64 progressStartUsec_ = 0;
     bool progressActive_ = false;
     bool progressFrozen_ = false;
+    bool verticallyCentered_ = false;
+    bool horizontallyCentered_ = false;
 };
 
 // org.freedesktop.DBus adapter matching de.schnelle_umlaute.Overlay1.

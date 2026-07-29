@@ -32,7 +32,7 @@ namespace {
 
 using LSWindow = LayerShellQt::Window;
 
-constexpr int kEdgeMargin = 24;
+constexpr int kEdgeMargin = schnelle_umlaute::render::kEdgeMargin;
 
 // Reads the Theme= key from the editor's config file so the overlay
 // starts with the user's chosen palette instead of flashing the default
@@ -139,6 +139,26 @@ bool parsePosition(const QString &pos, int &row, int &col) {
     return true;
 }
 
+// The column anchorsFor leaves horizontally unanchored, i.e. the one the
+// compositor centres.
+constexpr int kCenterCol = schnelle_umlaute::render::kGridColumns / 2;
+
+// Per axis: whether anchorsFor leaves the placement to the compositor's
+// centring. QML pads the surface symmetrically on exactly those axes, so it has
+// to be told. A position that does not parse gets no anchors at all, so it is
+// centred on both.
+struct Centering {
+    bool horizontally;
+    bool vertically;
+};
+
+Centering centeringFor(const QString &position) {
+    int row = 0, col = 0;
+    if (!parsePosition(canonicalizePosition(position), row, col))
+        return {true, true};
+    return {col == kCenterCol, row == 1};
+}
+
 // 7-column × 3-row grid on the active output, uniformly spaced at 12.5%
 // of screen width: columns land at 12.5/25/37.5/50/62.5/75/87.5 %.
 // Col 2 and Col 6 hit the centers of a 50/50 splitscreen (25 % and
@@ -165,10 +185,9 @@ Anchored anchorsFor(const QString &position, int screenWidth,
 
     // The middle column is the one the compositor centres for us; everything
     // left of it anchors left, everything right of it anchors right.
-    const int centerCol = schnelle_umlaute::render::kGridColumns / 2;
-    if (col == centerCol) {
+    if (col == kCenterCol) {
         // no horizontal anchor → screen-centered
-    } else if (col < centerCol) {
+    } else if (col < kCenterCol) {
         const int center =
             schnelle_umlaute::render::columnCenter(col, screenWidth);
         a |= LSWindow::AnchorLeft;
@@ -440,16 +459,24 @@ private:
         auto a = anchorsFor(grid, sw, ow);
         // In progress mode the surface includes the bar overhang to the right of
         // the panel; anchorsFor centres the whole surface, which would shift the
-        // panel left by half the bar. Re-anchor horizontally so the PANEL lands
-        // on the column (vertical/row placement stays), clamped so the bar's
-        // right end stays on the output. frameW is the panel width read from QML;
-        // if it can't be read (0), keep anchorsFor's surface-centring.
+        // panel left by half the bar. For an ANCHORED column, re-anchor
+        // horizontally so the PANEL lands on it (the row placement stays),
+        // clamped so the bar's right end stays on the output. frameW is the
+        // panel width read from QML; if it can't be read (0), keep anchorsFor's
+        // surface-centring.
+        //
+        // The compositor-centred axes need no margin at all: QML pads the
+        // surface symmetrically around the panel there, so centring the surface
+        // centres the panel. That is what keeps them exact next to another
+        // client's exclusive zone, which a screen-derived margin cannot see and
+        // would miss by half the zone. Only the anchored columns are left with
+        // that weakness.
         int row = 0, col = 0;
         if (ctrl_->progressActive() &&
             parsePosition(canonicalizePosition(grid), row, col)) {
             (void)row;
             const int frameW = qwin_ ? qwin_->property("frameWidth").toInt() : 0;
-            if (frameW > 0) {
+            if (col != kCenterCol && frameW > 0) {
                 a.anchors &= ~(LSWindow::AnchorLeft | LSWindow::AnchorRight);
                 a.anchors |= LSWindow::AnchorLeft;
                 a.margins.setLeft(
@@ -508,6 +535,12 @@ private:
             // rather than the last one's. On the deferred paths it additionally
             // catches up with any cycling that happened while the pointer query
             // was in flight.
+            //
+            // The centring flags go first: they change the surface size, so
+            // settleLayout has to run after them or the anchor math and the
+            // first commit would use the previous placement's size.
+            const Centering c = centeringFor(grid);
+            ctrl_->setCentering(c.horizontally, c.vertically);
             settleLayout();
             if (!LSWindow::get(qwinPtr))
                 return;
@@ -556,7 +589,10 @@ private:
                 // This path reads the size itself rather than going through
                 // revealGrid(), so it settles the layout itself too: it runs event
                 // loops after the placement started, and a variants update in
-                // between would have invalidated the implicit sizes.
+                // between would have invalidated the implicit sizes. The cursor
+                // placement is never centred, so the padding a preceding grid
+                // placement left on has to go before the size is read.
+                ctrl_->setCentering(false, false);
                 settleLayout();
                 QScreen *scr =
                     QGuiApplication::screenAt(QPoint(cur->x, cur->y));
