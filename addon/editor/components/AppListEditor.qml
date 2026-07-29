@@ -94,6 +94,8 @@ ColumnLayout {
                         color: Theme.text
                         font.family: Theme.fontFamilyMono
                         font.pixelSize: Theme.fontBody
+                        // A typed app id is shown literally.
+                        textFormat: Text.PlainText
                         elide: Text.ElideRight
                     }
 

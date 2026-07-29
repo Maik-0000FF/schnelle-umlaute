@@ -335,6 +335,8 @@ Rectangle {
                 color: Theme.text
                 font.family: Theme.fontFamilyMono
                 font.pixelSize: Theme.fontStrong
+                // A trigger key is literal input, same rule as the chips.
+                textFormat: Text.PlainText
             }
         }
 

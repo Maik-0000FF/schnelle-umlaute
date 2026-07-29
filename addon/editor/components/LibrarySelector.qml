@@ -229,6 +229,8 @@ Item {
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontBody
                                 font.weight: Font.Medium
+                                // Preset metadata is data, not markup.
+                                textFormat: Text.PlainText
                             }
 
                             Repeater {
@@ -262,6 +264,7 @@ Item {
                                                 color: Theme.text
                                                 font.family: Theme.fontFamily
                                                 font.pixelSize: Theme.fontBody
+                                                textFormat: Text.PlainText
                                                 elide: Text.ElideRight
                                             }
                                             Text {
@@ -271,6 +274,7 @@ Item {
                                                 color: Theme.textMuted
                                                 font.family: Theme.fontFamily
                                                 font.pixelSize: Theme.fontBody
+                                                textFormat: Text.PlainText
                                                 elide: Text.ElideRight
                                             }
                                         }

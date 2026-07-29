@@ -83,6 +83,8 @@ Item {
             color: Theme.text
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody
+            // A profile name is user input, shown literally.
+            textFormat: Text.PlainText
             elide: Text.ElideRight
         }
         DropdownIndicator {
@@ -261,6 +263,8 @@ Item {
                 color: Theme.error
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBody
+                // The message quotes the typed name back.
+                textFormat: Text.PlainText
                 wrapMode: Text.WordWrap
             }
 
@@ -545,6 +549,7 @@ Item {
                             color: Theme.text
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontBody
+                            textFormat: Text.PlainText
                             elide: Text.ElideRight
                             verticalAlignment: Text.AlignVCenter
                             MouseArea {
