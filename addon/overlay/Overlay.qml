@@ -21,15 +21,15 @@ Window {
     // reflows. With no bar the window is exactly the frame.
     //
     // The bar's overhang sits above the panel and, when the bar is longer than
-    // the panel, to its right. Wherever the renderer leaves the placement to the
-    // compositor's centring, that centres the SURFACE, so a one-sided overhang
-    // pushes the panel off by half of it. On those axes the same overhang is
-    // padded in on the opposite side: the surface becomes symmetric around the
-    // panel and centring it centres the panel. The padding is empty and the
-    // surface takes no input, so it shows up in no other way. Doing it here
-    // rather than through a screen-derived margin is what keeps it exact next to
-    // another client's exclusive zone (a bar): the compositor centres inside the
-    // area that zone leaves over, and the daemon cannot know that area.
+    // the panel, to its right. Wherever the renderer leaves the placement to
+    // the compositor's centring, that centres the SURFACE, so a one-sided
+    // overhang pushes the panel off by half of it. On those axes the same
+    // overhang is padded in on the opposite side: the surface becomes symmetric
+    // around the panel and centring it centres the panel. The padding is empty
+    // and the surface takes no input, so it shows up in no other way. Doing it
+    // here rather than through a screen-derived margin is what keeps it exact
+    // next to another client's exclusive zone (a bar): the compositor centres
+    // inside the area that zone leaves over, and the daemon cannot know it.
     width: frame.implicitWidth + win.progressOverhangX + win.panelLeftPad
     height: frame.implicitHeight + win.progressOverhangY + win.panelBottomPad
     // Panel width, read by the daemon to centre the panel (not the wider
@@ -46,8 +46,18 @@ Window {
         ? Math.max(0, win.progressBarWidth - frame.implicitWidth) : 0
     readonly property int panelBottomPad:
         OverlayController.verticallyCentered ? win.progressOverhangY : 0
+    // Capped so the padded surface still fits the output: a bar longer than
+    // (screen + panel) / 2 would otherwise grow it past the screen and the
+    // compositor would centre the overflow onto both sides, cutting the bar's
+    // right end off while only empty padding hangs over on the left. Hitting
+    // the cap leaves the panel left of centre by half the shortfall, the same
+    // trade gridPanelLeftMargin makes for the anchored columns.
     readonly property int panelLeftPad:
-        OverlayController.horizontallyCentered ? win.progressOverhangX : 0
+        OverlayController.horizontallyCentered
+        ? Math.max(0, Math.min(win.progressOverhangX,
+                               Screen.width - frame.implicitWidth
+                               - win.progressOverhangX))
+        : 0
     // Start hidden so main() can configure the layer-shell surface
     // (layer/anchors/screen) before the first commit. main() then calls
     // show() once the surface role is fully set up.

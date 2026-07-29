@@ -43,8 +43,11 @@ int main() {
     {
         const int screen = 1920, frame = 200, window = 400;
         const int edge = schnelle_umlaute::render::kEdgeMargin; // 24
-        // Centre column (col 3): centre = 960, panel left = 960 - 100 = 860,
-        // and the panel's own centre lands back exactly on 960.
+        // Col 3 is the centre column, which the daemon no longer routes through
+        // this function (it pads the surface symmetrically and lets the
+        // compositor centre it). Kept as the formula's own symmetric case:
+        // centre = 960, panel left = 960 - 100 = 860, and the panel's own
+        // centre lands back exactly on 960.
         const int leftCol4 = pg::gridPanelLeftMargin(3, screen, frame, window, edge);
         EXPECT(leftCol4 == 860);
         EXPECT(leftCol4 + frame / 2 == 960);
