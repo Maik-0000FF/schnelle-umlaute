@@ -4957,10 +4957,13 @@ static void scheduleAltStaleStateTests(Instance *instance) {
     // layouts and reports plain Alt modifier state, so it drives the same
     // bypass; enabling AltGr alone must behave exactly like Alt alone.
     // Scope, exact: this is the Alt-state (Mod1) AltGr. A level-3 AltGr
-    // reports Mod5, which hasModifiers() ignores by design, so keys held with
-    // THAT AltGr never enter the modifier block and never reach the bypass at
-    // all. The teardown itself does not split by sym: the release eater
-    // matches on raw keycode, so Alt_R and ISO_Level3_Shift disarm alike.
+    // reports Mod5, and TWO independent layers keep that out of the modifier
+    // block: KeyEvent::key() is the normalized key, and normalize() drops Mod5
+    // before any check runs, and hasModifiers() tests only Ctrl/Alt/Super in
+    // the first place. Either layer alone is enough, so keys held with THAT
+    // AltGr never reach the bypass (TEST 165 covers them). The teardown does
+    // not split by sym at all: the release eater matches on raw keycode, so
+    // Alt_R and ISO_Level3_Shift disarm alike.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 163;
@@ -5078,10 +5081,18 @@ static void scheduleAltStaleStateTests(Instance *instance) {
     // =========================================================================
     // TEST 165: The level-3 AltGr, the other half of TEST 163's scope note.
     // ISO_Level3_Shift leads the gesture and the keys held with it carry Mod5,
-    // which hasModifiers() ignores, so they never enter the modifier block and
-    // never touch the bypass. They must still land as plain input: the mapped
-    // key supersedes the session exactly like the Mod1 path in TEST 164, and
-    // the leader release stays symmetric afterwards.
+    // which never reaches the modifier block: normalize() drops it from the
+    // event's key(), and hasModifiers() does not test it either. They must
+    // still land as plain input, so the mapped key supersedes the session
+    // exactly like the Mod1 path in TEST 164, and the leader release stays
+    // symmetric afterwards.
+    //
+    // What this pins, measured: breaking one layer changes nothing, because
+    // the other still holds. Only with BOTH broken (the gate reading rawKey()
+    // AND hasModifiers() testing Mod5) does the key enter the modifier block,
+    // where the normalized states carry no Alt, the bypass declines it, and
+    // the shortcut branch leaks the input. That is the failure this test
+    // catches, on its own assertion.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 165;
