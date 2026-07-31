@@ -4956,6 +4956,11 @@ static void scheduleAltStaleStateTests(Instance *instance) {
     // TEST 163: Same teardown for the AltGr half. Alt_R is the AltGr key on EU
     // layouts and reports plain Alt modifier state, so it drives the same
     // bypass; enabling AltGr alone must behave exactly like Alt alone.
+    // Scope, exact: this is the Alt-state (Mod1) AltGr. A level-3 AltGr
+    // reports Mod5, which hasModifiers() ignores by design, so keys held with
+    // THAT AltGr never enter the modifier block and never reach the bypass at
+    // all. The teardown itself does not split by sym: the release eater
+    // matches on raw keycode, so Alt_R and ISO_Level3_Shift disarm alike.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 163;
@@ -5015,7 +5020,7 @@ static void scheduleAltStaleStateTests(Instance *instance) {
     // dead one. Here an Alt-modified mapped key arrives INSIDE a live AltGr
     // session and must be consumed: with the clause gone the shortcut branch
     // takes it and it leaks to the application (the AltGr counterpart of the
-    // Alt-side coverage in TEST 154).
+    // Alt-side coverage in TEST 154). Same Mod1 scope as TEST 163.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 164;
