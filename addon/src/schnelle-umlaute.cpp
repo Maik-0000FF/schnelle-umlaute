@@ -418,13 +418,18 @@ public:
         // =========================================
         bool didAltBypass = false;
         if (hasModifiers(key)) {
-            // When Alt is the leader key and a gesture is active, ignore
-            // Alt-only modifier state — input key repeats with Alt held
-            // should not commit the gesture and leak through.
+            // When Alt is the leader key and a gesture or Alt-led session is
+            // live, ignore Alt-only modifier state: input key repeats with Alt
+            // held must not commit the gesture and leak through. Gated on
+            // altSessionOver(), the same predicate as the release eater.
+            // consumedAltCode_ deliberately does NOT widen this: after a
+            // shortcut abort it stays armed for the still-owed leader release,
+            // and honoring it here would keep the bypass alive with no gesture
+            // left, turning the next Alt+key application shortcut into
+            // committed text while that Alt is still held (issue #147 class).
             bool altLeaderBypass =
                 (*config_.leader->alt || *config_.leader->altGr) &&
-                (state->waitingKey_ || state->cyclingInput_ ||
-                 state->consumedAltCode_ != 0 || state->altGestureSession_);
+                !state->altSessionOver();
             if (altLeaderBypass) {
                 KeyStates mods = key.states();
                 altLeaderBypass = mods.test(KeyState::Alt) &&
@@ -441,12 +446,13 @@ public:
                 // altGestureSession_ would keep the Alt-leader bypass armed
                 // forever, turning later Alt+key application shortcuts into
                 // committed text (issue #147 class). consumedAltCode_ stays
-                // armed on purpose: the consumed leader press still owes one
-                // release, which the one-shot release eater consumes. Until
-                // then the bypass stays active through consumedAltCode_,
-                // which is right while that Alt is still physically held;
-                // the awaited release (or a fresh Alt press after a lost
-                // one) disarms it fully.
+                // armed on purpose, but no longer feeds the bypass (see
+                // altSessionOver() above): it only marks the release the
+                // consumed leader press still owes, which the one-shot
+                // release eater consumes. Alt+key keeps working as a normal
+                // application shortcut in the meantime, while that Alt is
+                // still physically held. The awaited release, or a fresh Alt
+                // press after a lost one, disarms it.
                 state->altGestureSession_ = false;
                 return; // Let the shortcut through
             }
@@ -1521,6 +1527,14 @@ private:
         }
         state->resetWaitingGesture();
         state->resetCycling();
+        // Committing the cycling value ends the gesture, and with it any
+        // Alt-led session that drove it. Leaving altGestureSession_ set here
+        // would keep the Alt-leader bypass armed with nothing live behind it,
+        // so the next Alt+key application shortcut would be committed as text
+        // while that Alt is still held (issue #147 class). The deferred-commit
+        // path does not come through here: it owns its own teardown, so the
+        // KWin Wayland auto-repeat gap it guards is untouched.
+        state->altGestureSession_ = false;
         overlayHide();
     }
 
