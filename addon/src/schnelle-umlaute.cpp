@@ -418,13 +418,18 @@ public:
         // =========================================
         bool didAltBypass = false;
         if (hasModifiers(key)) {
-            // When Alt is the leader key and a gesture is active, ignore
-            // Alt-only modifier state — input key repeats with Alt held
-            // should not commit the gesture and leak through.
+            // When Alt is the leader key and a gesture or Alt-led session is
+            // live, ignore Alt-only modifier state: input key repeats with Alt
+            // held must not commit the gesture and leak through. Gated on
+            // altSessionOver(), the same predicate as the release eater.
+            // consumedAltCode_ deliberately does NOT widen this: after a
+            // shortcut abort it stays armed for the still-owed leader release,
+            // and honoring it here would keep the bypass alive with no gesture
+            // left, turning the next Alt+key application shortcut into
+            // committed text while that Alt is still held (issue #147 class).
             bool altLeaderBypass =
                 (*config_.leader->alt || *config_.leader->altGr) &&
-                (state->waitingKey_ || state->cyclingInput_ ||
-                 state->consumedAltCode_ != 0 || state->altGestureSession_);
+                !state->altSessionOver();
             if (altLeaderBypass) {
                 KeyStates mods = key.states();
                 altLeaderBypass = mods.test(KeyState::Alt) &&
