@@ -5011,9 +5011,14 @@ static void scheduleAltStaleStateTests(Instance *instance) {
     // =========================================================================
     // TEST 164: The counter-pin to the one-shot eater. Inside a LIVE Alt-led
     // session, KWin Wayland auto-repeat delivers the held Alt as release-press
-    // pairs: every one of those releases must stay eaten and keep the arming,
-    // otherwise input key events leak through hasModifiers mid-gesture. Cycling
-    // must survive the pair, which the committed second variant proves.
+    // pairs, and every one of those releases must stay eaten AND keep the
+    // arming. The single-output mapping is what makes this discriminating: the
+    // paired re-press then takes the "same-Alt repeat" branch, which is chosen
+    // by `rawCode == consumedAltCode_`. A dropped arming turns that press into
+    // the "different leader" branch, which commits early and ends the session,
+    // so the deferred commit at the real release never happens. With a
+    // multi-variant mapping the re-press would re-arm before the second
+    // release is ever tested, and the test would pass either way.
     // =========================================================================
     testDispatcher->schedule([instance]() {
         g_currentTest = 164;
@@ -5021,7 +5026,6 @@ static void scheduleAltStaleStateTests(Instance *instance) {
                         "keeps the arming ===";
         configureLeaders(instance, false, false, false, false, false,
                          /*alt=*/true);
-        setMappings(instance, {{"a", "\xc3\xa4,ae"}});
         auto *tf = instance->addonManager().addon("testfrontend");
         auto uuid = createAndActivate(instance, tf, "test164");
 
@@ -5029,26 +5033,29 @@ static void scheduleAltStaleStateTests(Instance *instance) {
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
         bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
-        FCITX_ASSERT(consumed) << "Alt leader must be consumed (index 0)";
+        FCITX_ASSERT(consumed) << "Alt leader must be consumed";
 
         // Auto-repeat pair 1: the release is eaten and the arming survives.
         consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
         FCITX_ASSERT(consumed)
             << "Alt release inside a live session must be eaten";
+        // The paired re-press: with the arming intact it is a same-Alt repeat,
+        // consumed with the preedit untouched. A lost arming commits "ä" here
+        // instead, which the frontend rejects (no expectation pushed yet).
         consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
-        FCITX_ASSERT(consumed) << "Repeated Alt must cycle on (index 1)";
+        FCITX_ASSERT(consumed) << "The paired Alt re-press must be consumed";
 
-        // Pair 2: only reachable with the arming still in place.
+        // Pair 2: still inside the session, so still eaten.
         consumed = tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
         FCITX_ASSERT(consumed)
             << "A second Alt release inside the session must still be eaten";
 
-        // Real release of the input key: the deferred commit delivers the
-        // variant the two pairs cycled to.
-        tf->call<ITestFrontend::pushCommitExpectation>("ae");
+        // Real release of the input key: the session outlived both pairs, so
+        // the deferred commit still owes the value.
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
         tf->call<ITestFrontend::keyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 

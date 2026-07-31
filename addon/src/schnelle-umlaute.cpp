@@ -446,12 +446,13 @@ public:
                 // altGestureSession_ would keep the Alt-leader bypass armed
                 // forever, turning later Alt+key application shortcuts into
                 // committed text (issue #147 class). consumedAltCode_ stays
-                // armed on purpose: the consumed leader press still owes one
-                // release, which the one-shot release eater consumes. Until
-                // then the bypass stays active through consumedAltCode_,
-                // which is right while that Alt is still physically held;
-                // the awaited release (or a fresh Alt press after a lost
-                // one) disarms it fully.
+                // armed on purpose, but no longer feeds the bypass (see
+                // altSessionOver() above): it only marks the release the
+                // consumed leader press still owes, which the one-shot
+                // release eater consumes. Alt+key keeps working as a normal
+                // application shortcut in the meantime, while that Alt is
+                // still physically held. The awaited release, or a fresh Alt
+                // press after a lost one, disarms it.
                 state->altGestureSession_ = false;
                 return; // Let the shortcut through
             }
