@@ -3362,21 +3362,19 @@ static void scheduleTestsAfterAltVerify(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
-        // Wait for deferred commit to fire
-        struct TimerHolder {
-            std::unique_ptr<EventSourceTime> timer;
-        };
-        auto holder = std::make_shared<TimerHolder>();
-        holder->timer = instance->eventLoop().addTimeEvent(
-            CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
-            [instance, uuid, holder](EventSourceTime *, uint64_t) {
-                auto *tf = instance->addonManager().addon("testfrontend");
-                tf->call<ITestFrontend::destroyInputContext>(uuid);
-                FCITX_INFO() << "Test 58 PASSED";
-
-                scheduleTimeoutTests(instance);
-                return false;
-            });
+        // Tear down only once the deferred commit has actually fired (empty
+        // preedit), never after a fixed wait. A loaded runner stalls past the
+        // fixed delay, and then destroying the IC cancels the still-pending
+        // 5ms commit with it: the "ä" expectation is never consumed, survives
+        // into the NEXT test, and aborts that one on a mismatch that has
+        // nothing to do with it (seen on Arch Clang, where test 59 died on
+        // "commitString: a"). destroyAfterDeferredCommit polls for the commit
+        // instead and is what tests 21-23 already use.
+        auto holder = std::make_shared<AltVerifyHolder>();
+        destroyAfterDeferredCommit(instance, uuid, holder, [instance]() {
+            FCITX_INFO() << "Test 58 PASSED";
+            scheduleTimeoutTests(instance);
+        });
     });
 }
 
