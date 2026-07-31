@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (166 tests)
+// Test Suite for Schnelle Umlaute (167 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -40,7 +40,7 @@
 // 156     Alt/AltGr split      each disabled Alt-key stays inert mid-gesture (Alt/AltGr enable independently)
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
-// 161-165 Alt stale state      shortcut abort tears Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, arming survives in-session repeat (issue #147 class)
+// 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
 // clang-format on
 
 #include <unistd.h>
@@ -4827,7 +4827,7 @@ static void scheduleRemainingTests(Instance *instance) {
 }
 
 // =============================================================================
-// ALT STALE-STATE TESTS (161-165) — a modifier shortcut aborting an Alt-led
+// ALT STALE-STATE TESTS (161-166) — a modifier shortcut aborting an Alt-led
 // session must not leave the Alt-leader bypass or the release eater armed
 // (issue #147 class: stale per-IC state after a compositor shortcut turns
 // Alt+key shortcuts into text and eats real Alt releases, leaving the
@@ -5057,12 +5057,90 @@ static void scheduleAltStaleStateTests(Instance *instance) {
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // Both gestures are over now, AltGr is still held. The Alt-led session
+        // died with the cycling value it drove, so the bypass must be off and
+        // Alt+key is an application shortcut again. This needs no compositor
+        // grab: a mapped key pressed with AltGr held is enough to supersede
+        // the session, and a session flag left standing here would swallow
+        // every later Alt+key as text.
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_b, KeyState::Alt, kCodeB), false);
+        FCITX_ASSERT(!consumed)
+            << "Alt+b after the superseded session must pass through";
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_b, KeyState::Alt, kCodeB), true);
+
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 164 PASSED";
     });
 
     // =========================================================================
-    // TEST 165: The counter-pin to the one-shot eater. Inside a LIVE Alt-led
+    // TEST 165: The level-3 AltGr, the other half of TEST 163's scope note.
+    // ISO_Level3_Shift leads the gesture and the keys held with it carry Mod5,
+    // which hasModifiers() ignores, so they never enter the modifier block and
+    // never touch the bypass. They must still land as plain input: the mapped
+    // key supersedes the session exactly like the Mod1 path in TEST 164, and
+    // the leader release stays symmetric afterwards.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 165;
+        FCITX_INFO() << "=== Test 165: Level-3 AltGr session with Mod5 input "
+                        "===";
+        configureLeaders(instance, false, false, false, false, false,
+                         /*alt=*/false, "", "", fcitx::kNoKeyCode,
+                         fcitx::kNoKeyCode, false, false, false, false,
+                         /*altReverse=*/false, /*altGrReverse=*/false,
+                         /*altGr=*/true);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test165");
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr),
+            false);
+        FCITX_ASSERT(consumed) << "Level-3 AltGr leader must be consumed";
+
+        // Mod5-modified mapped key: commits the cycling value and starts an
+        // 's' gesture, the same outcome the Mod1 path reaches via the bypass.
+        tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(KeyState::Mod5), kCodeS), false);
+        FCITX_ASSERT(consumed)
+            << "A Mod5-modified mapped key must be taken as input";
+
+        tf->call<ITestFrontend::pushCommitExpectation>("s");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_s, KeyStates(KeyState::Mod5), kCodeS), true);
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        // The leader press owes exactly one release, then the arming is gone:
+        // the same one-shot symmetry as the Mod1 keys, since the eater matches
+        // on raw keycode and never looks at the sym.
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr),
+            true);
+        FCITX_ASSERT(consumed)
+            << "The consumed level-3 AltGr press's own release must be eaten";
+
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr),
+            false);
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_ISO_Level3_Shift, KeyStates(), kCodeAltGr),
+            true);
+        FCITX_ASSERT(!consumed)
+            << "An unrelated level-3 AltGr release must not be eaten";
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 165 PASSED";
+    });
+
+    // =========================================================================
+    // TEST 166: The counter-pin to the one-shot eater. Inside a LIVE Alt-led
     // session, KWin Wayland auto-repeat delivers the held Alt as release-press
     // pairs, and every one of those releases must stay eaten AND keep the
     // arming. The single-output mapping is what makes this discriminating: the
@@ -5074,13 +5152,13 @@ static void scheduleAltStaleStateTests(Instance *instance) {
     // release is ever tested, and the test would pass either way.
     // =========================================================================
     testDispatcher->schedule([instance]() {
-        g_currentTest = 165;
-        FCITX_INFO() << "=== Test 165: Alt auto-repeat inside a live session "
+        g_currentTest = 166;
+        FCITX_INFO() << "=== Test 166: Alt auto-repeat inside a live session "
                         "keeps the arming ===";
         configureLeaders(instance, false, false, false, false, false,
                          /*alt=*/true);
         auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test165");
+        auto uuid = createAndActivate(instance, tf, "test166");
 
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -5114,7 +5192,7 @@ static void scheduleAltStaleStateTests(Instance *instance) {
 
         auto holder = std::make_shared<AltVerifyHolder>();
         destroyAfterDeferredCommit(instance, uuid, holder, [instance]() {
-            FCITX_INFO() << "Test 165 PASSED";
+            FCITX_INFO() << "Test 166 PASSED";
             scheduleEmptyOutputTests(instance);
         });
     });
@@ -7188,7 +7266,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 166 tests PASSED ===";
+                                FCITX_INFO() << "=== All 167 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });

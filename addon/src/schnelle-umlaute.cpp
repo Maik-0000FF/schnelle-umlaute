@@ -1527,6 +1527,14 @@ private:
         }
         state->resetWaitingGesture();
         state->resetCycling();
+        // Committing the cycling value ends the gesture, and with it any
+        // Alt-led session that drove it. Leaving altGestureSession_ set here
+        // would keep the Alt-leader bypass armed with nothing live behind it,
+        // so the next Alt+key application shortcut would be committed as text
+        // while that Alt is still held (issue #147 class). The deferred-commit
+        // path does not come through here: it owns its own teardown, so the
+        // KWin Wayland auto-repeat gap it guards is untouched.
+        state->altGestureSession_ = false;
         overlayHide();
     }
 
