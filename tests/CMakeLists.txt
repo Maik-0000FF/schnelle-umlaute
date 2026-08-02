@@ -371,6 +371,17 @@ target_link_libraries(testcarettheme Qt${QT_MAJOR_VERSION}::Core)
 add_test(NAME testcarettheme COMMAND testcarettheme)
 set_tests_properties(testcarettheme PROPERTIES TIMEOUT 10)
 
+# Unit test for the file side (caret_theme_io.h): what restore() does to the
+# user's own classicui theme, including the case where the backup exists but
+# yields nothing. Runs against a temporary XDG_CONFIG_HOME, and needs DBus on
+# the link line because the header ends its writes with a classicui reload.
+add_executable(testcaretthemeio testcaretthemeio.cpp)
+target_include_directories(testcaretthemeio PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testcaretthemeio PRIVATE ${SU_TEST_WARN_FLAGS})
+target_link_libraries(testcaretthemeio Qt${QT_MAJOR_VERSION}::Core Qt${QT_MAJOR_VERSION}::DBus)
+add_test(NAME testcaretthemeio COMMAND testcaretthemeio)
+set_tests_properties(testcaretthemeio PROPERTIES TIMEOUT 10)
+
 # Pure base-anchored merge compose (profile_compose.h): duplicate-preserving
 # composition with per-instance provenance, self-healing order overrides, and
 # the runtime unique-value projection. No fcitx/Qt runtime needed.
