@@ -66,6 +66,14 @@ inline QString backupPath() {
     return base + rel;
 }
 
+// Where a backup that could not be read is moved to. Same directory, so the
+// content stays findable next to the file it came from.
+inline constexpr const char *kBrokenBackupSuffix = ".broken";
+
+inline QString brokenBackupPath() {
+    return backupPath() + QLatin1String(kBrokenBackupSuffix);
+}
+
 // Returns false if the file could not be written. Every caller sits behind the
 // caret-theme toggle, whose whole effect is these files, so a failure has to
 // travel back up rather than leave the toggle looking applied.
@@ -177,27 +185,44 @@ inline bool apply(const QString &background, const QString &text,
     return true;
 }
 
+// A backup that parsed empty is moved aside rather than overwritten or
+// deleted, so a truncated write or a stray hand-edit stays readable while the
+// normal path is free again. Without the move the failure would repeat on
+// every switch-off: turning the feature back on does not rewrite an existing
+// backup (writeFiles() only records one when there is none), so the unusable
+// file would sit there for good.
+inline bool moveBrokenBackupAside() {
+    // A leftover from an earlier failure would make the rename fail.
+    QFile::remove(brokenBackupPath());
+    return QFile::rename(backupPath(), brokenBackupPath());
+}
+
 // Put the user's own classicui theme back and make fcitx5 pick that up.
-inline bool restore() {
-    QMap<QString, QString> backup;
+// `failedPath` names the file that stopped a failed restore, so the caller can
+// say which one needs attention instead of reporting a bare failure.
+inline bool restore(QString *failedPath = nullptr) {
+    const auto fail = [failedPath](const QString &path) {
+        if (failedPath)
+            *failedPath = path;
+        return false;
+    };
+    // What fcitx5 itself would use, and the only sensible target when there is
+    // nothing recorded to put back.
+    QMap<QString, QString> backup = {
+        {QStringLiteral("Theme"), QStringLiteral("default")},
+        {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
+        {QStringLiteral("UseAccentColor"), QStringLiteral("True")}};
     if (QFile::exists(backupPath())) {
-        backup = readFlatIni(backupPath());
-        // The file is there but yielded nothing: unreadable, truncated, or
-        // emptied by hand. Taking the defaults branch here would overwrite the
-        // user's theme with fcitx5's and then remove the only record of what it
-        // had been, so the recorded theme would be lost for good. Report the
-        // failure instead and leave both files alone, which keeps a later
-        // attempt able to find an intact backup.
-        if (backup.isEmpty())
-            return false;
-    } else {
-        // No backup recorded: fall back to fcitx5 defaults.
-        backup = {{QStringLiteral("Theme"), QStringLiteral("default")},
-                  {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
-                  {QStringLiteral("UseAccentColor"), QStringLiteral("True")}};
+        const QMap<QString, QString> recorded = readFlatIni(backupPath());
+        // Restoring below ends in removing the backup, so an unreadable one has
+        // to be secured first; if that cannot be done, nothing else may run.
+        if (recorded.isEmpty() && !moveBrokenBackupAside())
+            return fail(backupPath());
+        if (!recorded.isEmpty())
+            backup = recorded;
     }
     if (!setClassicUiKeys(backup))
-        return false;
+        return fail(classicUiConfPath());
     // Only drop the backup once it has actually been put back, so a failed
     // restore can be retried instead of losing the record for good.
     QFile::remove(backupPath());

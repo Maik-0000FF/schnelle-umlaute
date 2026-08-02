@@ -12,6 +12,7 @@ No config or mapping migration. Pull / reinstall and restart fcitx5. If you use 
 - **Safer saving.** Save failures are reported instead of failing silently, a variant added on a new mapping row is escaped correctly, and tabs and backslashes are escaped in the usage counter file.
 - **Frequency preview after a reset.** Resetting the usage counters now clears the preview instead of leaving it on the old counts.
 - **Non-interactive install.** `install.sh` and `uninstall.sh` no longer abort halfway through in unattended runs (piped input, CI).
+- **Candidate window theme backup.** Turning [`CaretTheme`](CONFIGURATION.md#candidate-window-theming-carettheme) off used to fall back to fcitx5's defaults and delete the backup when that file could not be read, losing the record of your own classicui theme. The unreadable file is now kept as `schnelle-umlaute-classicui-backup.conf.broken` next to it.
 
 ## Upgrading from v1.8.x to v1.9.0
 

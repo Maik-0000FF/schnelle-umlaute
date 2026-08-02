@@ -549,9 +549,14 @@ void SettingsModel::applyCaretTheme(const QString &background,
 }
 
 void SettingsModel::clearCaretTheme() {
-    if (!schnelle_umlaute::caret::restore())
+    // The path is part of the message because both files it can name live in
+    // fcitx5's config dir, where nothing points at them: without it the user
+    // is told that something failed but not what to look at.
+    QString failedPath;
+    if (!schnelle_umlaute::caret::restore(&failedPath))
         Q_EMIT errorOccurred(
-            tr("Could not restore the previous candidate window theme"));
+            tr("Could not restore the previous candidate window theme (%1)")
+                .arg(failedPath));
 }
 
 void SettingsModel::setSortByFrequency(bool v) {
