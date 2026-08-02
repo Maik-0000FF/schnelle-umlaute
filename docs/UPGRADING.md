@@ -1,5 +1,16 @@
 # Upgrading
 
+## Upgrading from v1.9.x to v1.10.0
+
+No config or mapping migration. Pull / reinstall and restart fcitx5. If you use the overlay, restart the `schnelle-umlaute-overlay` daemon (or toggle it off and on in the editor).
+
+### What changed
+
+- **Automatic light/dark theme.** The theme picker gains an "Automatic" mode that follows the desktop colour scheme, with a separate theme pick for light and for dark. Picking a concrete theme leaves the mode and keeps your manual choice.
+- **Alt shortcuts no longer swallowed.** A stale Alt leader session could turn the next Alt shortcut into typed text; the session is now torn down on modifier shortcuts.
+- **Overlay and editor fixes.** The progress panel is centred on the Center row, dead emoji codepoints are replaced, long variant chips are capped, and mapping text is rendered as plain text.
+- **Safer saving.** Save failures are reported instead of failing silently, and tabs and backslashes are escaped in the usage counter file.
+
 ## Upgrading from v1.8.x to v1.9.0
 
 No config or mapping migration. Pull / reinstall and restart fcitx5. If you use the overlay, restart the `schnelle-umlaute-overlay` daemon (or toggle it off and on in the editor).
