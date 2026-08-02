@@ -179,8 +179,18 @@ inline bool apply(const QString &background, const QString &text,
 
 // Put the user's own classicui theme back and make fcitx5 pick that up.
 inline bool restore() {
-    QMap<QString, QString> backup = readFlatIni(backupPath());
-    if (backup.isEmpty()) {
+    QMap<QString, QString> backup;
+    if (QFile::exists(backupPath())) {
+        backup = readFlatIni(backupPath());
+        // The file is there but yielded nothing: unreadable, truncated, or
+        // emptied by hand. Taking the defaults branch here would overwrite the
+        // user's theme with fcitx5's and then remove the only record of what it
+        // had been, so the recorded theme would be lost for good. Report the
+        // failure instead and leave both files alone, which keeps a later
+        // attempt able to find an intact backup.
+        if (backup.isEmpty())
+            return false;
+    } else {
         // No backup recorded: fall back to fcitx5 defaults.
         backup = {{QStringLiteral("Theme"), QStringLiteral("default")},
                   {QStringLiteral("UseDarkTheme"), QStringLiteral("False")},
