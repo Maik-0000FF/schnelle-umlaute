@@ -380,19 +380,41 @@ l=a,, b,, c
 
 ## Theme
 
-The editor and the cycle overlay share a theme. Pick one from the dropdown in the Settings tab.
+The editor and the cycle overlay share a theme. Pick one from the picker in the Settings tab.
 
-| Theme | Description |
-|---|---|
-| **Schnelle Umlaute** (default) | Project signature, dark with violet accent |
-| **Dark** | Neutral dark palette |
-| **Light** | Neutral light palette |
-| **Contrast** | High-contrast palette meeting WCAG AAA (7:1) |
+| Theme | Id | Description |
+|---|---|---|
+| **Schnelle Umlaute** (default) | `schnelle-umlaute` | Project signature, dark with violet accent |
+| **Dark** | `dark` | Neutral dark palette |
+| **Light** | `light` | Neutral light palette |
+| **Contrast** | `contrast` | High-contrast palette meeting WCAG AAA (7:1) |
+| **Catppuccin Mocha** | `catppuccin-mocha` | Pastel dark |
+| **Catppuccin Latte** | `catppuccin-latte` | Pastel light |
+| **Nord** | `nord` | Cool arctic blues, dark |
+| **Gruvbox Dark** | `gruvbox-dark` | Warm retro dark |
+| **Dracula** | `dracula` | Vivid dark with purple accent |
+| **Tokyo Night** | `tokyo-night` | Deep blue night palette |
+| **Rosé Pine** | `rose-pine` | Muted rose-tinted dark |
+| **Solarized Light** | `solarized-light` | Classic low-contrast light |
+| **Eldritch** | `eldritch` | Saturated dark with neon highlights |
+| **Kanagawa** | `kanagawa` | Muted ink-and-paper dark |
 
 ```ini
 [Theme]
 Theme=schnelle-umlaute
+Auto=False
+ThemeLight=light
+ThemeDark=dark
 ```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Theme` | `schnelle-umlaute` | The theme used while `Auto=False` |
+| `Auto` | `False` | Follow the desktop's light/dark setting instead of `Theme` |
+| `ThemeLight` | `light` | Theme picked while the desktop is light and `Auto=True` |
+| `ThemeDark` | `dark` | Theme picked while the desktop is dark and `Auto=True` |
+
+With `Auto=True`, the desktop colour scheme selects between `ThemeLight` and `ThemeDark`, and `Theme` is left untouched, so turning the mode off returns to the same manual choice.
 
 The theme applies to both the editor window and the on-screen cycle overlay (when enabled), so they share a consistent look.
 
