@@ -28,6 +28,7 @@ Saves through the editor are **applied live** via fcitx5's `Controller1.ReloadAd
 - [Cycle Overlay](#cycle-overlay)
   - [Instant overlay on animating compositors](#instant-overlay-on-animating-compositors)
   - [Caret placement (`TextCaret`)](#caret-placement-textcaret)
+  - [Candidate window theming (`CaretTheme`)](#candidate-window-theming-carettheme)
 - [App Filter](#app-filter)
 
 ---
@@ -476,6 +477,17 @@ The rule syntax varies per compositor (mango parses `no_anim`). Compositors that
 - Needs the compositor's **input-method** support: KDE Plasma, sway, Hyprland, niri and other wlroots compositors. **GNOME (Wayland)** does not implement it for native Wayland apps (XWayland apps still work via the X11 path).
 - The look is fcitx5's **standard candidate window** (styled by your fcitx5 / classic-ui theme), not the custom layer-shell overlay, and the **timing progress bar does not apply**.
 - Apps that don't report a cursor rectangle to the input method (some GTK on first focus, Chromium/Electron without `--wayland-text-input-version=3`) may place it at a default position.
+
+### Candidate window theming (`CaretTheme`)
+
+`CaretTheme=True` styles fcitx5's candidate window after the active [theme](#theme). In the editor it is the **Match candidate window to this theme** switch, shown only while the placement is `TextCaret`.
+
+```ini
+[Overlay]
+CaretTheme=False
+```
+
+It writes a generated fcitx5 theme and points `classicui.conf` at it (`Theme=`, plus `UseDarkTheme=False` and `UseAccentColor=False` so the candidate window stops following the desktop accent). That is a **global classicui setting**: every fcitx5 input method uses that candidate window, not just Schnelle Umlaute. Hence the opt-in. Your previous classicui theme is backed up once before the override and restored when you turn the switch off.
 
 ---
 
