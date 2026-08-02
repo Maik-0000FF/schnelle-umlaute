@@ -7,23 +7,46 @@ import SchnelleUmlautePalette
 // Theme picker: a compact dropdown. Each row (and the collapsed header) shows
 // the theme name plus a small preview "pill" that holds the theme's four accent
 // swatch circles on the theme's own background colour, a quick visual preview.
-// Reads and writes settingsModel.theme. Mirrors ThemedComboBox's header + Popup
-// + keyboard model (see that file for why a custom dropdown, not a ComboBox).
+// Mirrors ThemedComboBox's header + Popup + keyboard model (see that file for
+// why a custom dropdown, not a ComboBox).
+//
+// Holds no state of its own: the caller passes the selected id in and gets the
+// pick back as a signal. That is what lets the same picker serve the main
+// choice and the two halves of the automatic light/dark pair, instead of three
+// near-copies wired to three different properties.
 Item {
     id: sel
     implicitHeight: Theme.controlHeight
     implicitWidth: 200
 
-    property var settingsModel
+    // The synthetic first entry: a mode, not a palette. Named once here so the
+    // call sites, the label and the preview cannot drift apart.
+    readonly property string autoId: "auto"
 
-    readonly property string currentTheme:
-        sel.settingsModel ? sel.settingsModel.theme : "schnelle-umlaute"
+    property string selectedId: "schnelle-umlaute"
+    // Only the main picker offers the automatic entry; offering it inside the
+    // pair would let the mode point at itself.
+    property bool includeAuto: false
+    // The automatic entry has no palette of its own, so its pill borrows the
+    // half that is currently rendered.
+    property string autoPreviewId: "schnelle-umlaute"
+    signal picked(string id)
+
+    readonly property var ids:
+        sel.includeAuto ? [sel.autoId].concat(Palettes.ids) : Palettes.ids
     readonly property int currentIndex: Math.max(0,
-        Palettes.ids.indexOf(sel.currentTheme))
+        sel.ids.indexOf(sel.selectedId))
+
+    function labelFor(id) {
+        return id === sel.autoId ? qsTr("Automatic (follow system)")
+                                 : (Palettes.labels[id] || id);
+    }
+    function pillIdFor(id) {
+        return id === sel.autoId ? sel.autoPreviewId : id;
+    }
 
     function selectId(id) {
-        if (sel.settingsModel)
-            sel.settingsModel.theme = id;
+        sel.picked(id);
         popup.close();
     }
 
@@ -91,7 +114,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: Palettes.labels[sel.currentTheme] || sel.currentTheme
+                text: sel.labelFor(sel.selectedId)
                 color: Theme.text
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBody
@@ -99,7 +122,7 @@ Item {
             }
             ColorPill {
                 Layout.alignment: Qt.AlignVCenter
-                themeId: sel.currentTheme
+                themeId: sel.pillIdFor(sel.selectedId)
             }
             DropdownIndicator {
                 Layout.alignment: Qt.AlignVCenter
@@ -127,7 +150,7 @@ Item {
         width: header.width
         padding: Theme.spacingXs
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        // Cap at 6 rows plus padding so the 13-theme list still fits on small
+        // Cap at 6 rows plus padding so the full list still fits on small
         // screens; the rest scrolls.
         implicitHeight: Math.min(contentItem.implicitHeight + 2 * Theme.spacingXs,
                                  6 * Theme.controlHeight + 2 * Theme.spacingXs)
@@ -148,7 +171,7 @@ Item {
             id: list
             clip: true
             implicitHeight: contentHeight
-            model: Palettes.ids
+            model: sel.ids
             keyNavigationEnabled: true
             ScrollIndicator.vertical: ScrollIndicator {}
             property bool keyboardActive: false
@@ -167,7 +190,7 @@ Item {
                 case Qt.Key_Return:
                 case Qt.Key_Enter:
                 case Qt.Key_Space:
-                    sel.selectId(Palettes.ids[list.currentIndex]);
+                    sel.selectId(sel.ids[list.currentIndex]);
                     event.accepted = true;
                     break;
                 }
@@ -180,7 +203,8 @@ Item {
                 width: ListView.view.width
                 height: Theme.controlHeight
                 radius: Theme.radiusSm
-                readonly property bool selected: row.modelData === sel.currentTheme
+                readonly property bool selected:
+                    row.modelData === sel.selectedId
                 readonly property bool highlighted: list.keyboardActive
                     ? (row.ListView.isCurrentItem && list.activeFocus)
                     : rowHover.hovered
@@ -199,7 +223,7 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text: Palettes.labels[row.modelData] || row.modelData
+                        text: sel.labelFor(row.modelData)
                         // Theme.accent (per-theme) marks the active entry so it
                         // reads as part of the current theme.
                         color: row.selected ? Theme.accent : Theme.text
@@ -210,7 +234,7 @@ Item {
                     }
                     ColorPill {
                         Layout.alignment: Qt.AlignVCenter
-                        themeId: row.modelData
+                        themeId: sel.pillIdFor(row.modelData)
                     }
                 }
 

@@ -25,6 +25,26 @@ constexpr int kFallbackScreenWidth = 1920;
 constexpr int kFallbackOverlayWidth = 200;
 constexpr int kFallbackOverlayHeight = 64;
 
+// Distance the anchored overlay keeps from the output's edges, and the floor
+// for every grid panel margin. Defined here so the daemon's anchor code and
+// the placement tests consume one value instead of each spelling out 24.
+constexpr int kEdgeMargin = 24;
+
+// The placement grid is 7 columns wide, uniformly spaced at 12.5% of the output
+// width, so column `col` (0-based) is centred at
+// screenWidth * (col + 1) / (kGridColumns + 1).
+constexpr int kGridColumns = 7;
+
+// Centre of a grid column in output coordinates. Both placements derive their
+// margins from it — the daemon's anchorsFor, which centres the whole surface,
+// and progress::gridPanelLeftMargin, which centres just the panel inside it —
+// so it lives here once. The integer division is part of the contract: the two
+// must round identically or the same column lands a pixel apart depending on
+// whether the timing bar is on.
+inline int columnCenter(int col, int screenWidth) {
+    return screenWidth * (col + 1) / (kGridColumns + 1);
+}
+
 enum class RenderAction {
     // Leave the window as it is: the content changed (variants, current index,
     // theme, progress), and the QML bindings render that on the surface that is

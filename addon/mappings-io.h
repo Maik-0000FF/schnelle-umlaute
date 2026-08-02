@@ -5,6 +5,9 @@
 // Used by the addon engine (std::string) and the config editor (QString).
 // Keeping the format definition in one place prevents the two from diverging.
 
+// readLine: the truncation-guarded line reader every parser here shares.
+#include "line_io.h"
+
 #include <cstdio>
 #include <string>
 #include <utility>
@@ -69,45 +72,12 @@ inline size_t utf8FirstCharBytes(const char *s, size_t len) {
 // since the delimiter is always the '=' after the first UTF-8 character.
 // Lines starting with '#' are comments, empty lines are skipped.
 //
-// Lines longer than sizeof(buf)-1 bytes are dropped entirely: fgets would
-// otherwise split them into two chunks, causing the prefix to be parsed as
-// a truncated mapping and the tail as a garbled second line.
+// Overlong lines are dropped entirely rather than parsed in pieces; readLine
+// owns that rule for every parser in this project.
 inline std::vector<RawMapping> parseMappings(FILE *fp) {
     std::vector<RawMapping> entries;
-    char buf[4096];
-    bool streamEnded = false;
-    while (!streamEnded && fgets(buf, sizeof(buf), fp)) {
-        std::string line(buf);
-        // fgets filled the whole buffer AND did not reach a newline →
-        // candidate for truncation. Still ambiguous: the line could end
-        // exactly at the buffer boundary (next char is '\n' or EOF),
-        // in which case it is actually complete.
-        bool mightBeTruncated =
-            (line.size() == sizeof(buf) - 1) && line.back() != '\n';
-        // Trim trailing newline / carriage return
-        while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) {
-            line.pop_back();
-        }
-        if (mightBeTruncated) {
-            int c = std::fgetc(fp);
-            if (c == EOF) {
-                // Stream ended on the buffer boundary. Parse this line
-                // as the final one; setting streamEnded ensures we don't
-                // re-enter fgets on a stream already in EOF state.
-                streamEnded = true;
-            } else if (c != '\n') {
-                // Truly truncated — drain the rest of the physical line
-                // and drop this entry. Parsing the prefix would store a
-                // corrupt mapping and misinterpret the tail as new lines.
-                while ((c = std::fgetc(fp)) != EOF && c != '\n') {
-                }
-                if (c == EOF)
-                    break;
-                continue;
-            }
-            // c == '\n' → the line just happened to end on the buffer
-            // boundary. It is complete; proceed with normal parsing.
-        }
+    std::string line;
+    while (readLine(fp, line)) {
         if (line.empty())
             continue;
         // A leading backslash escapes an input key that the plain parse would

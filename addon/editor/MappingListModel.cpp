@@ -76,7 +76,22 @@ void MappingListModel::ensureUsageWatch() {
     const QString path =
         schnelle_umlaute::configDirPath() +
         QString::fromLatin1(schnelle_umlaute::kUsageFile);
-    if (QFileInfo::exists(path) && !usageWatcher_->files().contains(path)) {
+    if (!QFileInfo::exists(path)) {
+        // The file is gone — a reset consumed the marker and the engine deleted
+        // it. Drop the stale watch entry and disarm, so its re-creation counts
+        // as a first appearance again. Without this the flag stayed armed
+        // across the reset and the block below skipped the refresh, leaving the
+        // frequency preview on the pre-reset counts until the engine's next
+        // flush happened to fire onUsageFileChanged.
+        usageWatcher_->removePath(path);
+        usageWatchArmed_ = false;
+        // Symmetric to the arm branch below. onUsageFileChanged already emits
+        // this for a deletion it saw itself, but a deletion noticed only
+        // through directoryChanged (the file was never in files()) reaches us
+        // here alone, and the reset control would stay enabled with nothing
+        // left to reset.
+        Q_EMIT usageDataChanged();
+    } else if (!usageWatcher_->files().contains(path)) {
         usageWatcher_->addPath(path);
         // The file just appeared (fresh setup) or was re-armed after the
         // engine's atomic rename; let the reset control's hasUsageData update.
@@ -820,8 +835,12 @@ bool MappingListModel::moveVariantInProfileFile(const QString &relFile,
         found = true;
         break;
     }
-    if (!found)
-        rows.push_back({to, val});
+    if (!found) {
+        // Store the escaped form, exactly as the branch above does via
+        // joinOutputs: a value carrying a literal comma would otherwise be
+        // written raw and split into two variants on the next parse.
+        rows.push_back({to, schnelle_umlaute::joinOutputs({val})});
+    }
     // Write back atomically, in the same escaped format as save().
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile file(path);
@@ -897,8 +916,13 @@ bool MappingListModel::moveComposedVariant(const QString &fromInput,
             found = true;
             break;
         }
-        if (!found)
-            entries_.push_back({toInput, value});
+        if (!found) {
+            // Same escaping duty as the loop above: entries_ always holds the
+            // joined form, so a comma-carrying value must not go in raw.
+            entries_.push_back(
+                {toInput, QString::fromStdString(schnelle_umlaute::joinOutputs(
+                              {value.toStdString()}))});
+        }
         save();
         reloadComposed();
         return true;
@@ -930,7 +954,7 @@ void MappingListModel::load() {
                                 QString::fromStdString(m.output)});
         }
     }
-    setSaveStatus(tr("Loaded"));
+    setSaveState(Loaded);
     recomputeDuplicates();
 }
 
@@ -939,7 +963,7 @@ bool MappingListModel::save() {
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        setSaveStatus(tr("Open failed"));
+        setSaveState(OpenFailed);
         Q_EMIT errorOccurred(file.errorString());
         return false;
     }
@@ -956,19 +980,37 @@ bool MappingListModel::save() {
         buf += '\n';
     }
     if (file.write(buf) != buf.size() || !file.commit()) {
-        setSaveStatus(tr("Write failed"));
+        setSaveState(WriteFailed);
         Q_EMIT errorOccurred(file.errorString());
         return false;
     }
-    setSaveStatus(tr("Saved"));
+    setSaveState(Saved);
     recomputeDuplicates();
     reloadSchnelleUmlauteAddon();
     return true;
 }
 
-void MappingListModel::setSaveStatus(const QString &status) {
-    if (saveStatus_ != status) {
-        saveStatus_ = status;
+// The text is derived, never stored, so it can never fall out of step with the
+// state the footer decides on.
+QString MappingListModel::saveStatus() const {
+    switch (saveState_) {
+    case Loaded:
+        return tr("Loaded");
+    case Saved:
+        return tr("Saved");
+    case OpenFailed:
+        return tr("Open failed");
+    case WriteFailed:
+        return tr("Write failed");
+    case NoState:
+        break;
+    }
+    return {};
+}
+
+void MappingListModel::setSaveState(SaveState state) {
+    if (saveState_ != state) {
+        saveState_ = state;
         Q_EMIT saveStatusChanged();
     }
 }

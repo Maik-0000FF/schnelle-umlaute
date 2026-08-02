@@ -115,6 +115,18 @@ QtObject {
     // as a grabbable, deletable pill.
     readonly property int chipPaddingH: 12
     readonly property int chipFont:     14
+    // Widest a variant chip may grow: a long snippet elides instead of
+    // pushing the row's edit/delete actions off (or under) the layout.
+    readonly property int chipMaxWidth: 220
+    // Text budget inside a capped chip: the chip width minus its horizontal
+    // padding, the circular ✕ (chipFont + spacingXs) and the gap before it.
+    // Derived here so the chip and its label can never drift apart.
+    readonly property int chipTextMaxWidth:
+        chipMaxWidth - 2 * chipPaddingH - (chipFont + spacingXs) - spacingSm
+    // Budget on a chip without the ✕ (a row whose sole output cannot be
+    // removed): the layout drops the hidden button and its gap, so the label
+    // gets the full width instead of eliding 26px early.
+    readonly property int chipTextMaxWidthBare: chipMaxWidth - 2 * chipPaddingH
 
     // Provenance colours for the composed merge view: one hue per source
     // profile, addressed by 1-based merge position (position 1 = base). Now
@@ -152,6 +164,11 @@ QtObject {
 
     readonly property int animShort: 150
     readonly property int animMed:   220
+    // How long the snackbar stays up after its last show(). Named because it is
+    // not purely cosmetic: SettingsModel suppresses a repeated save error for a
+    // window deliberately shorter than this, so a repeat always lands on a
+    // snackbar that is still on screen (see kSaveErrorRepeatMs).
+    readonly property int snackbarDuration: 4000
 
     // Hover tooltips: one delay before they appear and one max width (so long
     // text wraps instead of running off), shared by every ThemedToolTip.

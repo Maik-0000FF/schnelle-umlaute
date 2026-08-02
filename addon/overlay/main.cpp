@@ -16,6 +16,7 @@
 #include <QRect>
 #include <QScreen>
 #include <QStandardPaths>
+#include <QStyleHints>
 #include <QTextStream>
 #include <QWindow>
 
@@ -24,6 +25,9 @@
 
 #include "CursorSource.h"
 #include "OverlayController.h"
+
+#include "../config_keys.h"
+#include "../themes.h"
 #include "cursor_overlay_geometry.h"
 #include "overlay_render.h"
 #include "progress_overlay_geometry.h"
@@ -32,17 +36,35 @@ namespace {
 
 using LSWindow = LayerShellQt::Window;
 
-constexpr int kEdgeMargin = 24;
+constexpr int kEdgeMargin = schnelle_umlaute::render::kEdgeMargin;
 
-// Reads the Theme= key from the editor's config file so the overlay
-// starts with the user's chosen palette instead of flashing the default
-// one for the first cycle. Absent/malformed file → default theme.
-QString loadInitialTheme() {
+// What the daemon needs from the editor's config file to decide which palette
+// to render and whether an automatic switch should also restyle the fcitx5
+// candidate window.
+struct ThemeConfig {
+    QString manual = schnelle_umlaute::defaultTheme();
+    bool automatic = false;
+    QString light = schnelle_umlaute::defaultLightTheme();
+    QString dark = schnelle_umlaute::defaultDarkTheme();
+    bool caretTheme = false;
+    bool caretPlacement = false;
+};
+
+// Reads that config so the overlay starts on the user's palette instead of
+// flashing the default one for the first cycle, and so it can re-derive on its
+// own later. Absent or malformed file → the defaults above.
+//
+// A deliberately small reader rather than a shared parser: the editor writes
+// this file and owns its schema, the daemon only samples a handful of keys from
+// it, and pulling the editor's model in here would drag QML and the whole
+// settings surface into a process that just paints an overlay.
+ThemeConfig loadThemeConfig() {
+    ThemeConfig cfg;
     const QString base =
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     QFile f(base + QStringLiteral("/fcitx5/conf/schnelle-umlaute.conf"));
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return {};
+        return cfg;
     QTextStream in(&f);
     QString section;
     while (!in.atEnd()) {
@@ -53,16 +75,60 @@ QString loadInitialTheme() {
             section = line.mid(1, line.size() - 2);
             continue;
         }
-        if (section != QLatin1String("Theme"))
-            continue;
         const int eq = static_cast<int>(line.indexOf('='));
         if (eq < 0)
             continue;
-        if (line.left(eq) == QLatin1String("Theme")) {
-            return line.mid(eq + 1).trimmed();
+        const QString key = line.left(eq);
+        const QString val = line.mid(eq + 1).trimmed();
+        const bool isTrue =
+            val.compare(QLatin1String("True"), Qt::CaseInsensitive) == 0;
+        namespace k = schnelle_umlaute::keys;
+        if (section == QLatin1String(k::kThemeSection)) {
+            if (key == QLatin1String(k::kTheme))
+                cfg.manual = val;
+            else if (key == QLatin1String(k::kThemeAuto))
+                cfg.automatic = isTrue;
+            else if (key == QLatin1String(k::kThemeLight))
+                cfg.light = val;
+            else if (key == QLatin1String(k::kThemeDark))
+                cfg.dark = val;
+        } else if (section == QLatin1String(k::kOverlaySection)) {
+            if (key == QLatin1String(k::kCaretTheme))
+                cfg.caretTheme = isTrue;
+            else if (key == QLatin1String(k::kPlacement))
+                cfg.caretPlacement =
+                    val == QLatin1String(k::kPlacementTextCaret);
         }
     }
-    return {};
+    return cfg;
+}
+
+// Qt's report translated into the framework-free enum the shared derivation
+// takes. Mirrors the editor's copy; both have to answer alike or the two
+// windows would disagree about what the desktop is asking for. Unknown on Qt
+// below 6.5, which has no colour-scheme hint at all; the derivation then keeps
+// the manual pick, so the mode is inert rather than the build broken.
+schnelle_umlaute::SystemScheme systemScheme() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    auto *hints = QGuiApplication::styleHints();
+    if (!hints)
+        return schnelle_umlaute::SystemScheme::Unknown;
+    switch (hints->colorScheme()) {
+    case Qt::ColorScheme::Light:
+        return schnelle_umlaute::SystemScheme::Light;
+    case Qt::ColorScheme::Dark:
+        return schnelle_umlaute::SystemScheme::Dark;
+    default:
+        return schnelle_umlaute::SystemScheme::Unknown;
+    }
+#else
+    return schnelle_umlaute::SystemScheme::Unknown;
+#endif
+}
+
+QString derivedTheme(const ThemeConfig &cfg) {
+    return schnelle_umlaute::effectiveTheme(
+        cfg.automatic, cfg.manual, cfg.light, cfg.dark, systemScheme());
 }
 
 struct Anchored {
@@ -139,6 +205,26 @@ bool parsePosition(const QString &pos, int &row, int &col) {
     return true;
 }
 
+// The column anchorsFor leaves horizontally unanchored, i.e. the one the
+// compositor centres.
+constexpr int kCenterCol = schnelle_umlaute::render::kGridColumns / 2;
+
+// Per axis: whether anchorsFor leaves the placement to the compositor's
+// centring. QML pads the surface symmetrically on exactly those axes, so it has
+// to be told. A position that does not parse gets no anchors at all, so it is
+// centred on both.
+struct Centering {
+    bool horizontally;
+    bool vertically;
+};
+
+Centering centeringFor(const QString &position) {
+    int row = 0, col = 0;
+    if (!parsePosition(canonicalizePosition(position), row, col))
+        return {true, true};
+    return {col == kCenterCol, row == 1};
+}
+
 // 7-column × 3-row grid on the active output, uniformly spaced at 12.5%
 // of screen width: columns land at 12.5/25/37.5/50/62.5/75/87.5 %.
 // Col 2 and Col 6 hit the centers of a 50/50 splitscreen (25 % and
@@ -163,14 +249,19 @@ Anchored anchorsFor(const QString &position, int screenWidth,
         bottom = kEdgeMargin;
     }
 
-    if (col == 3) {
+    // The middle column is the one the compositor centres for us; everything
+    // left of it anchors left, everything right of it anchors right.
+    if (col == kCenterCol) {
         // no horizontal anchor → screen-centered
-    } else if (col < 3) {
-        const int center = screenWidth * (col + 1) / 8;
+    } else if (col < kCenterCol) {
+        const int center =
+            schnelle_umlaute::render::columnCenter(col, screenWidth);
         a |= LSWindow::AnchorLeft;
         left = std::max(kEdgeMargin, center - overlayWidth / 2);
     } else {
-        const int centerFromRight = screenWidth * (7 - col) / 8;
+        // Anchored from the right, so the mirrored column index is what counts.
+        const int centerFromRight = schnelle_umlaute::render::columnCenter(
+            schnelle_umlaute::render::kGridColumns - 1 - col, screenWidth);
         a |= LSWindow::AnchorRight;
         right = std::max(kEdgeMargin, centerFromRight - overlayWidth / 2);
     }
@@ -199,9 +290,30 @@ public:
         : QObject(ctrl), ctrl_(ctrl) {
         connect(ctrl, &OverlayController::stateChanged, this,
                 &OverlayRenderer::syncToController);
+        // The caret colours come out of QML, so the request has to land on the
+        // side that owns the engine. Going through the renderer rather than a
+        // Connections block inside Overlay.qml is what makes it work before the
+        // first overlay of this daemon's life: the engine is built lazily on
+        // the first show, so a QML-side receiver would not exist yet at startup
+        // and the signal would vanish without a trace. The engine outlives the
+        // call anyway, so building it here costs a login-time QML parse only
+        // for the users who actually switched the caret theme on.
+        connect(ctrl, &OverlayController::caretRefreshRequested, this,
+                &OverlayRenderer::refreshCaretTheme);
     }
 
 private:
+    // Hand the request to QML, which reads the five colours off the shared
+    // palette for the theme now in force. Invoked by name rather than by a
+    // QML-side signal handler so the engine can be built first. The price of
+    // the name is that renaming the QML function shows up as a runtime
+    // invokeMethod warning, not as a build error.
+    void refreshCaretTheme() {
+        if (!ensureEngine() || !qwin_)
+            return;
+        QMetaObject::invokeMethod(qwin_, "refreshCaretTheme");
+    }
+
     void syncToController() {
         const QString pos = ctrl_->position();
         const schnelle_umlaute::render::RenderRequest req{
@@ -434,16 +546,24 @@ private:
         auto a = anchorsFor(grid, sw, ow);
         // In progress mode the surface includes the bar overhang to the right of
         // the panel; anchorsFor centres the whole surface, which would shift the
-        // panel left by half the bar. Re-anchor horizontally so the PANEL lands
-        // on the column (vertical/row placement stays), clamped so the bar's
-        // right end stays on the output. frameW is the panel width read from QML;
-        // if it can't be read (0), keep anchorsFor's surface-centring.
+        // panel left by half the bar. For an ANCHORED column, re-anchor
+        // horizontally so the PANEL lands on it (the row placement stays),
+        // clamped so the bar's right end stays on the output. frameW is the
+        // panel width read from QML; if it can't be read (0), keep anchorsFor's
+        // surface-centring.
+        //
+        // The compositor-centred axes need no margin at all: QML pads the
+        // surface symmetrically around the panel there, so centring the surface
+        // centres the panel. That is what keeps them exact next to another
+        // client's exclusive zone, which a screen-derived margin cannot see and
+        // would miss by half the zone. Only the anchored columns are left with
+        // that weakness.
         int row = 0, col = 0;
         if (ctrl_->progressActive() &&
             parsePosition(canonicalizePosition(grid), row, col)) {
             (void)row;
             const int frameW = qwin_ ? qwin_->property("frameWidth").toInt() : 0;
-            if (frameW > 0) {
+            if (col != kCenterCol && frameW > 0) {
                 a.anchors &= ~(LSWindow::AnchorLeft | LSWindow::AnchorRight);
                 a.anchors |= LSWindow::AnchorLeft;
                 a.margins.setLeft(
@@ -502,6 +622,12 @@ private:
             // rather than the last one's. On the deferred paths it additionally
             // catches up with any cycling that happened while the pointer query
             // was in flight.
+            //
+            // The centring flags go first: they change the surface size, so
+            // settleLayout has to run after them or the anchor math and the
+            // first commit would use the previous placement's size.
+            const Centering c = centeringFor(grid);
+            ctrl_->setCentering(c.horizontally, c.vertically);
             settleLayout();
             if (!LSWindow::get(qwinPtr))
                 return;
@@ -550,7 +676,10 @@ private:
                 // This path reads the size itself rather than going through
                 // revealGrid(), so it settles the layout itself too: it runs event
                 // loops after the placement started, and a variants update in
-                // between would have invalidated the implicit sizes.
+                // between would have invalidated the implicit sizes. The cursor
+                // placement is never centred, so the padding a preceding grid
+                // placement left on has to go before the size is read.
+                ctrl_->setCentering(false, false);
                 settleLayout();
                 QScreen *scr =
                     QGuiApplication::screenAt(QPoint(cur->x, cur->y));
@@ -681,11 +810,44 @@ int main(int argc, char *argv[]) {
     parser.process(app);
 
     auto *ctrl = new OverlayController(&app);
-    const QString initialTheme = loadInitialTheme();
-    if (!initialTheme.isEmpty())
-        ctrl->setTheme(initialTheme);
+
+    // Re-read the config and re-derive. Split out because three things ask for
+    // it: startup, the editor saying it saved, and the desktop flipping between
+    // light and dark.
+    //
+    // `atStartup` guards the candidate window, not the palette. On a manual
+    // theme the files on disk are whatever the editor last wrote for that same
+    // theme, so rewriting them at every login would restyle a globally shared
+    // fcitx5 theme for no change. In the automatic mode they CAN be stale: log
+    // out dark, log in light, and the last write was for the other half of the
+    // pair. So there the refresh is allowed through.
+    const auto applyThemeConfig = [ctrl](bool atStartup) {
+        const ThemeConfig cfg = loadThemeConfig();
+        const QString theme = derivedTheme(cfg);
+        const bool changed = theme != ctrl->theme();
+        ctrl->setTheme(theme);
+        if (!cfg.caretTheme || !cfg.caretPlacement)
+            return;
+        if (atStartup ? cfg.automatic : changed)
+            ctrl->requestCaretRefresh();
+    };
     new OverlayDBusAdaptor(ctrl);
     new OverlayRenderer(ctrl);
+
+    // After the renderer, never before: it is the receiver of the caret refresh
+    // the startup pass can ask for, and a signal emitted with nobody attached
+    // is simply lost.
+    applyThemeConfig(/*atStartup=*/true);
+    QObject::connect(ctrl, &OverlayController::reloadRequested, &app,
+                     [applyThemeConfig]() { applyThemeConfig(false); });
+    // The switch that this whole path exists for: it usually happens with the
+    // editor closed, so nobody is left to push a theme.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    if (auto *hints = QGuiApplication::styleHints())
+        QObject::connect(
+            hints, &QStyleHints::colorSchemeChanged, &app,
+            [applyThemeConfig](Qt::ColorScheme) { applyThemeConfig(false); });
+#endif
 
     auto bus = QDBusConnection::sessionBus();
     if (!bus.registerObject(QStringLiteral("/de/schnelle_umlaute/Overlay"),

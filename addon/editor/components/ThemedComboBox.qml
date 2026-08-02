@@ -45,10 +45,14 @@ Item {
         combo.currentData !== null ? combo.labelFor(combo.currentData) : ""
     readonly property bool currentUnavailable: combo.isUnavailable(combo.currentData)
 
-    // Commit a choice: update the current index (so the callers' onActivated,
-    // which reads model[currentIndex], sees the new pick), notify, and close.
+    // Commit a choice: notify with the picked index and close. Deliberately
+    // does NOT assign currentIndex — call sites bind that to their model, and
+    // an imperative write here would destroy the binding on the first pick,
+    // after which the box would keep showing whatever was chosen last even if
+    // the model rejected the value or changed from elsewhere. The handler gets
+    // the index as its argument, so the write is not needed for the round trip:
+    // the model changes, the binding re-evaluates, the box follows.
     function select(i) {
-        combo.currentIndex = i;
         combo.activated(i);
         popup.close();
     }

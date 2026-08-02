@@ -188,10 +188,21 @@ public:
                 (state->waitingKey_ || state->cyclingInput_)) {
                 // Fall through to leader key handling
             } else {
-                // Don't clear consumedAltCode_ here — during KWin Wayland
-                // auto-repeat gaps, no gesture is active but the Alt session
-                // may still be ongoing. Cleared via clearAllState() or when
-                // a non-gesture key is pressed.
+                // A fresh press of the very key whose consumed-leader release
+                // is still awaited proves that release was lost (a compositor
+                // grab swallowed it, issue #147 class): disarm, so the release
+                // eater cannot consume this press's REAL release and leave the
+                // application with a stuck modifier. Only outside an active
+                // gesture and Alt session; during KWin Wayland auto-repeat
+                // gaps the session is still ongoing and the arming must
+                // survive (see the release-side comment). Any other pure
+                // modifier press keeps the arming: its own release is not the
+                // awaited one.
+                if (state->consumedAltCode_ != 0 &&
+                    rawCode == state->consumedAltCode_ &&
+                    state->altSessionOver()) {
+                    state->consumedAltCode_ = 0;
+                }
                 return;
             }
         }
@@ -252,12 +263,18 @@ public:
             // Prevents compositor state confusion and TUI side effects.
             if (state->consumedAltCode_ != 0 &&
                 rawCode == state->consumedAltCode_) {
-                // Don't clear consumedAltCode_ here. On KWin Wayland,
-                // Alt auto-repeat sends release-press pairs — clearing on
-                // release leaves a gap where input key events leak through
-                // hasModifiers. Cleared when Alt arrives outside a gesture
-                // (pure modifier handler / leader key handler) or via
-                // clearAllState().
+                // While a gesture or Alt session is active the arming must
+                // survive this release: on KWin Wayland, Alt auto-repeat
+                // sends release-press pairs, and clearing here would leave a
+                // gap where input key events leak through hasModifiers. Once
+                // the session is over, this release is the final, symmetric
+                // counterpart of the consumed leader press: consume it and
+                // disarm (one-shot), so a stale arming can never eat a later,
+                // unrelated Alt release, which would leave the application
+                // with a stuck modifier (issue #147 class).
+                if (state->altSessionOver()) {
+                    state->consumedAltCode_ = 0;
+                }
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -401,13 +418,18 @@ public:
         // =========================================
         bool didAltBypass = false;
         if (hasModifiers(key)) {
-            // When Alt is the leader key and a gesture is active, ignore
-            // Alt-only modifier state — input key repeats with Alt held
-            // should not commit the gesture and leak through.
+            // When Alt is the leader key and a gesture or Alt-led session is
+            // live, ignore Alt-only modifier state: input key repeats with Alt
+            // held must not commit the gesture and leak through. Gated on
+            // altSessionOver(), the same predicate as the release eater.
+            // consumedAltCode_ deliberately does NOT widen this: after a
+            // shortcut abort it stays armed for the still-owed leader release,
+            // and honoring it here would keep the bypass alive with no gesture
+            // left, turning the next Alt+key application shortcut into
+            // committed text while that Alt is still held (issue #147 class).
             bool altLeaderBypass =
                 (*config_.leader->alt || *config_.leader->altGr) &&
-                (state->waitingKey_ || state->cyclingInput_ ||
-                 state->consumedAltCode_ != 0 || state->altGestureSession_);
+                !state->altSessionOver();
             if (altLeaderBypass) {
                 KeyStates mods = key.states();
                 altLeaderBypass = mods.test(KeyState::Alt) &&
@@ -420,6 +442,18 @@ public:
                 commitPendingKey(ic, state);
                 commitCyclingValue(ic, state);
                 state->inputKeyPressed_ = false;
+                // The shortcut also ends any Alt-led session: a stale
+                // altGestureSession_ would keep the Alt-leader bypass armed
+                // forever, turning later Alt+key application shortcuts into
+                // committed text (issue #147 class). consumedAltCode_ stays
+                // armed on purpose, but no longer feeds the bypass (see
+                // altSessionOver() above): it only marks the release the
+                // consumed leader press still owes, which the one-shot
+                // release eater consumes. Alt+key keeps working as a normal
+                // application shortcut in the meantime, while that Alt is
+                // still physically held. The awaited release, or a fresh Alt
+                // press after a lost one, disarms it.
+                state->altGestureSession_ = false;
                 return; // Let the shortcut through
             }
             // Alt-only during gesture: resolve the physical key's base
@@ -1493,6 +1527,14 @@ private:
         }
         state->resetWaitingGesture();
         state->resetCycling();
+        // Committing the cycling value ends the gesture, and with it any
+        // Alt-led session that drove it. Leaving altGestureSession_ set here
+        // would keep the Alt-leader bypass armed with nothing live behind it,
+        // so the next Alt+key application shortcut would be committed as text
+        // while that Alt is still held (issue #147 class). The deferred-commit
+        // path does not come through here: it owns its own teardown, so the
+        // KWin Wayland auto-repeat gap it guards is untouched.
+        state->altGestureSession_ = false;
         overlayHide();
     }
 

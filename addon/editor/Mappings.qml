@@ -325,13 +325,23 @@ Item {
 
                 property int editingIndex: -1
 
-                // Switching the edit target reloads the model in place, but the
-                // row-index-keyed editingIndex would otherwise survive and reopen
-                // an unconfirmed edit at the same position in the new profile.
-                // Discard any open edit whenever the profile changes.
+                // editingIndex is keyed by row position, so it only means what
+                // it says as long as the rows keep their positions. Anything
+                // that renumbers them (a profile switch reloading the model, a
+                // delete, a reorder) would otherwise leave the edit open on
+                // whatever row inherited that index: the open editor jumps to a
+                // different mapping and the text typed so far is silently
+                // dropped. Close the edit instead, so the row it belonged to is
+                // the only one it can ever have applied to.
+                //
+                // Insertions need no handler: addMapping always appends, which
+                // cannot renumber a row above it.
                 Connections {
                     target: root.mappingsModel
                     function onProfileFileChanged() { listView.editingIndex = -1; }
+                    function onRowsRemoved() { listView.editingIndex = -1; }
+                    function onRowsMoved() { listView.editingIndex = -1; }
+                    function onModelReset() { listView.editingIndex = -1; }
                 }
 
                 delegate: MappingRow {

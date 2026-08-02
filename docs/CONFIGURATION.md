@@ -28,6 +28,7 @@ Saves through the editor are **applied live** via fcitx5's `Controller1.ReloadAd
 - [Cycle Overlay](#cycle-overlay)
   - [Instant overlay on animating compositors](#instant-overlay-on-animating-compositors)
   - [Caret placement (`TextCaret`)](#caret-placement-textcaret)
+  - [Candidate window theming (`CaretTheme`)](#candidate-window-theming-carettheme)
 - [App Filter](#app-filter)
 
 ---
@@ -380,19 +381,43 @@ l=a,, b,, c
 
 ## Theme
 
-The editor and the cycle overlay share a theme. Pick one from the dropdown in the Settings tab.
+The editor and the cycle overlay share a theme. Pick one from the picker in the Settings tab.
 
-| Theme | Description |
-|---|---|
-| **Schnelle Umlaute** (default) | Project signature, dark with violet accent |
-| **Dark** | Neutral dark palette |
-| **Light** | Neutral light palette |
-| **Contrast** | High-contrast palette meeting WCAG AAA (7:1) |
+| Theme | Id | Description |
+|---|---|---|
+| **Schnelle Umlaute** (default) | `schnelle-umlaute` | Project signature, dark with violet accent |
+| **Dark** | `dark` | Neutral dark palette |
+| **Light** | `light` | Neutral light palette |
+| **Contrast** | `contrast` | High-contrast palette meeting WCAG AAA (7:1) |
+| **Catppuccin Mocha** | `catppuccin-mocha` | Pastel dark |
+| **Catppuccin Latte** | `catppuccin-latte` | Pastel light |
+| **Nord** | `nord` | Cool arctic blues, dark |
+| **Gruvbox Dark** | `gruvbox-dark` | Warm retro dark |
+| **Dracula** | `dracula` | Vivid dark with purple accent |
+| **Tokyo Night** | `tokyo-night` | Deep blue night palette |
+| **Rosé Pine** | `rose-pine` | Muted rose-tinted dark |
+| **Solarized Light** | `solarized-light` | Classic low-contrast light |
+| **Eldritch** | `eldritch` | Saturated dark with neon highlights |
+| **Kanagawa** | `kanagawa` | Muted ink-and-paper dark |
 
 ```ini
 [Theme]
 Theme=schnelle-umlaute
+Auto=False
+ThemeLight=light
+ThemeDark=dark
 ```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Theme` | `schnelle-umlaute` | The theme used while `Auto=False` |
+| `Auto` | `False` | Follow the desktop's light/dark setting instead of `Theme` |
+| `ThemeLight` | `light` | Theme picked while the desktop is light and `Auto=True` |
+| `ThemeDark` | `dark` | Theme picked while the desktop is dark and `Auto=True` |
+
+With `Auto=True`, the desktop colour scheme selects between `ThemeLight` and `ThemeDark`, and `Theme` is left untouched, so turning the mode off returns to the same manual choice.
+
+> **`Auto` needs Qt 6.5 or newer.** Older Qt has no colour-scheme hint, so the desktop setting cannot be read and both the editor and the overlay keep rendering `Theme=`. Distributions still on Qt 6.4 (Ubuntu 24.04, Linux Mint 22) build and run fine, the mode just has no effect there.
 
 The theme applies to both the editor window and the on-screen cycle overlay (when enabled), so they share a consistent look.
 
@@ -410,6 +435,7 @@ An optional on-screen indicator that mirrors the current variant while you cycle
 | **ShowOnTrigger** | `False` | Preview all mapped keys in the trigger window, not just the variants currently being cycled |
 | **Placement** | `Grid` | Where the overlay appears: `Grid` (the fixed Row/Column position below), `MouseCursor` (at the mouse pointer; the grid is the fallback when the compositor can't report it), or `TextCaret` (at the text input caret where you type, see below) |
 | **ProgressBar** | `False` | Draw a timing bar for the accent gesture: a lead-in segment (min-hold) fills, then the `[min, max]` leader window counts down. `Grid`/`MouseCursor` only |
+| **CaretTheme** | `False` | Style fcitx5's candidate window after the active theme, `TextCaret` only (see [Candidate window theming](#candidate-window-theming-carettheme)) |
 | **Row** | `Top` | Grid vertical position (`Grid`, and `MouseCursor` fallback): `Top`, `Center`, `Bottom` |
 | **Column** | `Col4` | Horizontal grid position: `Col1` (far left) … `Col4` (center) … `Col7` (far right) |
 
@@ -419,6 +445,7 @@ Enabled=True
 ShowOnTrigger=False
 Placement=Grid
 ProgressBar=False
+CaretTheme=False
 Row=Center
 Column=Col1
 ```
@@ -454,6 +481,12 @@ The rule syntax varies per compositor (mango parses `no_anim`). Compositors that
 - Needs the compositor's **input-method** support: KDE Plasma, sway, Hyprland, niri and other wlroots compositors. **GNOME (Wayland)** does not implement it for native Wayland apps (XWayland apps still work via the X11 path).
 - The look is fcitx5's **standard candidate window** (styled by your fcitx5 / classic-ui theme), not the custom layer-shell overlay, and the **timing progress bar does not apply**.
 - Apps that don't report a cursor rectangle to the input method (some GTK on first focus, Chromium/Electron without `--wayland-text-input-version=3`) may place it at a default position.
+
+### Candidate window theming (`CaretTheme`)
+
+`CaretTheme=True` styles fcitx5's candidate window after the active [theme](#theme). In the editor it is the **Match candidate window to this theme** switch, shown only while the overlay is enabled and the placement is `TextCaret`.
+
+It writes a generated fcitx5 theme and points `classicui.conf` at it (`Theme=`, plus `UseDarkTheme=False` and `UseAccentColor=False` so the candidate window stops following the desktop accent). That is a **global classicui setting**: every fcitx5 input method uses that candidate window, not just Schnelle Umlaute. Hence the opt-in. Your previous classicui theme is backed up once before the override and restored when you turn the switch off.
 
 ---
 

@@ -302,6 +302,35 @@ void testSetAnimateIsIdempotentAndSilent() {
     EXPECT(spy.count() == 2);
 }
 
+// The centring flags drive the surface size in QML, so a change has to notify.
+// They ride progressChanged, both axes move on one signal, and a repeat of the
+// same pair stays silent so a second placement on the same cell costs no
+// relayout.
+void testCenteringNotifiesOnChangeOnly() {
+    OverlayController ctrl;
+    EXPECT(!ctrl.horizontallyCentered());
+    EXPECT(!ctrl.verticallyCentered());
+
+    QSignalSpy spy(&ctrl, &OverlayController::progressChanged);
+    ctrl.setCentering(true, true);
+    EXPECT(ctrl.horizontallyCentered());
+    EXPECT(ctrl.verticallyCentered());
+    EXPECT(spy.count() == 1);
+
+    ctrl.setCentering(true, true);
+    EXPECT(spy.count() == 1);
+
+    // One axis alone is a change, and it leaves the other one where it was.
+    ctrl.setCentering(true, false);
+    EXPECT(ctrl.horizontallyCentered());
+    EXPECT(!ctrl.verticallyCentered());
+    EXPECT(spy.count() == 2);
+
+    ctrl.setCentering(false, false);
+    EXPECT(!ctrl.horizontallyCentered());
+    EXPECT(spy.count() == 3);
+}
+
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
@@ -322,6 +351,7 @@ int main(int argc, char *argv[]) {
     testSetProgressSnaps();
     testGateClosesBeforeStateChanges();
     testSetAnimateIsIdempotentAndSilent();
+    testCenteringNotifiesOnChangeOnly();
 
     std::fprintf(stderr, "testoverlaycontroller: all tests passed\n");
     return 0;

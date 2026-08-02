@@ -18,11 +18,15 @@
 // containing a literal tab is not supported (never occurs in accent mappings).
 // Lines starting with '#' are comments; empty and unrecognized lines skipped.
 
-#include "profile_compose.h" // OrderOverride, Variant
+// line_io.h: readLine, the truncation-guarded line reader every parser shares.
+// profile_compose.h: OrderOverride, Variant.
+#include "line_io.h"
+#include "profile_compose.h"
 
 #include <algorithm>
 #include <cstdio>
 #include <string>
+#include <utility> // std::move
 #include <vector>
 
 namespace schnelle_umlaute {
@@ -62,11 +66,8 @@ inline bool startsWith(const std::string &s, const char *prefix) {
 inline MergeManifest parseMergeManifest(FILE *fp) {
     using namespace merge_manifest_detail;
     MergeManifest manifest;
-    char buf[4096];
-    while (std::fgets(buf, sizeof(buf), fp)) {
-        std::string line(buf);
-        while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
-            line.pop_back();
+    std::string line;
+    while (readLine(fp, line)) {
         if (line.empty() || line[0] == '#')
             continue;
         if (startsWith(line, "base=")) {

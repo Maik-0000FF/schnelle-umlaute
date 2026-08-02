@@ -69,6 +69,9 @@ Popup {
             color: Theme.textMuted
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBody
+            // Callers embed user data (a mapping value, a profile name, an app
+            // id), so the message is always shown literally.
+            textFormat: Text.PlainText
             wrapMode: Text.WordWrap
         }
 

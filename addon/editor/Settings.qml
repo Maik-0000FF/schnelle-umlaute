@@ -44,8 +44,72 @@ Item {
                     titleText: qsTr("Theme")
 
                     ThemeSelector {
+                        id: mainThemePicker
                         Layout.fillWidth: true
-                        settingsModel: root.settingsModel
+                        includeAuto: true
+                        // "Automatic" is a mode, so it shows as selected only
+                        // while the mode is on; otherwise the manual pick does.
+                        selectedId: root.settingsModel
+                            ? (root.settingsModel.themeAuto
+                               ? autoId : root.settingsModel.theme)
+                            : "schnelle-umlaute"
+                        // The mode has no palette, so its row previews whatever
+                        // is being rendered right now.
+                        autoPreviewId: root.settingsModel
+                            ? root.settingsModel.effectiveTheme
+                            : "schnelle-umlaute"
+                        onPicked: (id) => {
+                            if (!root.settingsModel)
+                                return;
+                            // Picking a concrete theme leaves the mode; picking
+                            // the mode leaves `theme` alone, so switching back
+                            // returns to the same manual choice.
+                            root.settingsModel.themeAuto = (id === autoId);
+                            if (id !== autoId)
+                                root.settingsModel.theme = id;
+                        }
+                    }
+
+                    // Only meaningful while the mode is on, so the pair appears
+                    // with it instead of sitting there inert.
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.spacingXs
+                        spacing: Theme.spacingXs
+                        visible: root.settingsModel
+                                 && root.settingsModel.themeAuto
+
+                        Text {
+                            text: qsTr("Light")
+                            color: Theme.textMuted
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBody
+                        }
+                        ThemeSelector {
+                            Layout.fillWidth: true
+                            selectedId: root.settingsModel
+                                ? root.settingsModel.themeLight : "light"
+                            onPicked: (id) => {
+                                if (root.settingsModel)
+                                    root.settingsModel.themeLight = id;
+                            }
+                        }
+                        Text {
+                            Layout.topMargin: Theme.spacingXs
+                            text: qsTr("Dark")
+                            color: Theme.textMuted
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontBody
+                        }
+                        ThemeSelector {
+                            Layout.fillWidth: true
+                            selectedId: root.settingsModel
+                                ? root.settingsModel.themeDark : "dark"
+                            onPicked: (id) => {
+                                if (root.settingsModel)
+                                    root.settingsModel.themeDark = id;
+                            }
+                        }
                     }
 
                     Text {
@@ -304,15 +368,20 @@ Item {
                                 }
                                 return 0;
                             }
-                            onActivated: {
+                            // Read the picked row from the signal argument, not
+                            // from currentIndex: that stays a pure binding on
+                            // the model, so the box always shows what was
+                            // actually persisted.
+                            onActivated: (index) => {
                                 if (!root.settingsModel)
                                     return;
-                                root.settingsModel.overlayPlacement = model[currentIndex].key;
+                                const key = model[index].key;
+                                root.settingsModel.overlayPlacement = key;
                                 // The caret theme override only makes sense in
                                 // caret mode: apply it on entering, restore the
                                 // user's theme on leaving (keeping the toggle).
                                 if (root.settingsModel.overlayCaretTheme) {
-                                    if (model[currentIndex].key === "TextCaret")
+                                    if (key === "TextCaret")
                                         root.reapplyCaretTheme();
                                     else
                                         root.settingsModel.clearCaretTheme();
@@ -478,9 +547,13 @@ Item {
                             currentIndex: root.settingsModel
                                 ? model.indexOf(root.settingsModel.appFilterMode)
                                 : 0
-                            onActivated: {
+                            // As above: the signal argument carries the pick, so
+                            // currentIndex stays bound to appFilterMode. The
+                            // sibling rows below key their visibility off that
+                            // same binding, so they follow the persisted mode.
+                            onActivated: (index) => {
                                 if (root.settingsModel) {
-                                    root.settingsModel.appFilterMode = model[currentIndex];
+                                    root.settingsModel.appFilterMode = model[index];
                                 }
                             }
                         }

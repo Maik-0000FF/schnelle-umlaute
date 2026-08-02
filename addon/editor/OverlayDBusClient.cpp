@@ -6,7 +6,7 @@
 
 OverlayDBusClient::OverlayDBusClient(QObject *parent) : QObject(parent) {}
 
-void OverlayDBusClient::sendTheme(const QString &theme) {
+void OverlayDBusClient::call(const QString &method, const QVariantList &args) {
     auto bus = QDBusConnection::sessionBus();
     if (!bus.isConnected())
         return;
@@ -20,8 +20,15 @@ void OverlayDBusClient::sendTheme(const QString &theme) {
     auto msg = QDBusMessage::createMethodCall(
         QStringLiteral("de.schnelle_umlaute.Overlay"),
         QStringLiteral("/de/schnelle_umlaute/Overlay"),
-        QStringLiteral("de.schnelle_umlaute.Overlay1"),
-        QStringLiteral("SetTheme"));
-    msg << theme;
+        QStringLiteral("de.schnelle_umlaute.Overlay1"), method);
+    msg.setArguments(args);
     bus.asyncCall(msg);
+}
+
+void OverlayDBusClient::sendTheme(const QString &theme) {
+    call(QStringLiteral("SetTheme"), {theme});
+}
+
+void OverlayDBusClient::sendReloadConfig() {
+    call(QStringLiteral("ReloadConfig"));
 }

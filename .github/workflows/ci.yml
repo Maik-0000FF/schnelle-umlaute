@@ -110,6 +110,20 @@ jobs:
         if: matrix.distro == 'Ubuntu 24.04'
         run: echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/01keep-debs
 
+      - name: Sync the rolling image to the repo snapshot (openSUSE)
+        # opensuse/tumbleweed:latest and download.opensuse.org are published
+        # independently, so the image regularly carries packages NEWER than the
+        # snapshot the repos serve. A single one of those is enough to make an
+        # unrelated install unresolvable: a newer libeconf0 in the image left
+        # qt6-gui-devel uninstallable, zypper asked which of three solutions to
+        # take, got no answer under --non-interactive and exited 4 before a line
+        # was compiled. `dup` is the openSUSE-blessed remedy for exactly that
+        # drift: it aligns the installed set with the repos and may downgrade to
+        # do it, which is the solution zypper proposed and could not apply on
+        # its own. Costs a few minutes of downloads per run.
+        if: matrix.distro == 'openSUSE'
+        run: zypper --non-interactive dup
+
       - name: Install dependencies
         run: ${{ matrix.install }}
 
@@ -367,6 +381,14 @@ jobs:
       options: --user root
 
     steps:
+      - name: Sync the rolling image to the repo snapshot (openSUSE)
+        # Same drift as in the build job, and it lands here too: install.sh
+        # installs the build dependencies itself, so an image out of step with
+        # the repos aborts the run inside the script instead of at a setup step.
+        # See that job's copy for the full reasoning.
+        if: matrix.distro == 'openSUSE'
+        run: zypper --non-interactive dup
+
       - name: Bootstrap sudo
         run: ${{ matrix.bootstrap }}
 
@@ -535,6 +557,7 @@ jobs:
           bash -n install.sh
           bash -n uninstall.sh
           bash -n scripts/_distro.sh
+          bash -n scripts/_ask.sh
           bash -n addon/scripts/schnelle-umlaute-setup
 
       - name: Shellcheck (warnings and above)
@@ -544,6 +567,7 @@ jobs:
           shellcheck -S warning install.sh
           shellcheck -S warning uninstall.sh
           shellcheck -S warning scripts/_distro.sh
+          shellcheck -S warning scripts/_ask.sh
           shellcheck -S warning addon/scripts/schnelle-umlaute-setup
 
   nix:

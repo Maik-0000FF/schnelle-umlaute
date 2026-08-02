@@ -29,6 +29,16 @@ add_dependencies(testschnelleumlaute copy-addon-conf copy-im-conf schnelle-umlau
 add_test(NAME testschnelleumlaute COMMAND testschnelleumlaute)
 set_tests_properties(testschnelleumlaute PROPERTIES TIMEOUT 30)
 
+# Unit test for readLine() — the truncation-guarded line reader every config
+# parser shares. Header-only, no fcitx5 runtime needed.
+add_executable(testlineio testlineio.cpp)
+target_include_directories(testlineio PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(testlineio PRIVATE ${SU_TEST_WARN_FLAGS})
+add_test(NAME testlineio COMMAND testlineio)
+set_tests_properties(testlineio PROPERTIES TIMEOUT 10)
+
 # Standalone unit test for the mappings-io parser — no fcitx5 runtime needed.
 add_executable(testmappingsio testmappingsio.cpp)
 target_include_directories(testmappingsio PRIVATE ${PROJECT_SOURCE_DIR})
@@ -245,10 +255,17 @@ target_compile_definitions(testsettingsmodel PRIVATE QT_NO_KEYWORDS)
 target_link_libraries(testsettingsmodel
     Qt${QT_MAJOR_VERSION}::Core
     Qt${QT_MAJOR_VERSION}::DBus
+    # SettingsModel reads QGuiApplication::styleHints() to derive the theme from
+    # the desktop's light/dark setting. The test runs headless, where styleHints
+    # is null and the derivation falls back, but the header still has to resolve.
+    Qt${QT_MAJOR_VERSION}::Gui
     Qt${QT_MAJOR_VERSION}::Qml
     Qt${QT_MAJOR_VERSION}::Test)
 add_test(NAME testsettingsmodel COMMAND testsettingsmodel)
-set_tests_properties(testsettingsmodel PROPERTIES TIMEOUT 10)
+# Longer than the other unit tests: testSaveErrorRepeatsAfterWindow waits out
+# SettingsModel::kSaveErrorRepeatMs (2s) for real, so 10s left too little room
+# on a loaded runner.
+set_tests_properties(testsettingsmodel PROPERTIES TIMEOUT 30)
 
 # Pure profile-cycle logic (profile_cycle.h): favorites-vs-all selection and
 # the wrapping next/previous step. No fcitx/Qt runtime needed.
@@ -343,18 +360,27 @@ target_link_libraries(testprofilesconf
 add_test(NAME testprofilesconf COMMAND testprofilesconf)
 set_tests_properties(testprofilesconf PROPERTIES TIMEOUT 10)
 
-# Unit test for the pure caret-theme helpers (editor/caret_theme.h): colour
+# Unit test for the pure caret-theme helpers (caret_theme.h): colour
 # normalisation, the classicui.conf parse/patch round-trip, and the generated
 # theme.conf colour-role mapping. Pure QString logic — only Qt6::Core, no
 # SettingsModel/DBus/QML link needed.
 add_executable(testcarettheme testcarettheme.cpp)
-target_include_directories(testcarettheme PRIVATE
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/editor)
+target_include_directories(testcarettheme PRIVATE ${PROJECT_SOURCE_DIR})
 target_compile_options(testcarettheme PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testcarettheme Qt${QT_MAJOR_VERSION}::Core)
 add_test(NAME testcarettheme COMMAND testcarettheme)
 set_tests_properties(testcarettheme PROPERTIES TIMEOUT 10)
+
+# Unit test for the file side (caret_theme_io.h): what restore() does to the
+# user's own classicui theme, including the case where the backup exists but
+# yields nothing. Runs against a temporary XDG_CONFIG_HOME, and needs DBus on
+# the link line because the header ends its writes with a classicui reload.
+add_executable(testcaretthemeio testcaretthemeio.cpp)
+target_include_directories(testcaretthemeio PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_options(testcaretthemeio PRIVATE ${SU_TEST_WARN_FLAGS})
+target_link_libraries(testcaretthemeio Qt${QT_MAJOR_VERSION}::Core Qt${QT_MAJOR_VERSION}::DBus)
+add_test(NAME testcaretthemeio COMMAND testcaretthemeio)
+set_tests_properties(testcaretthemeio PROPERTIES TIMEOUT 10)
 
 # Pure base-anchored merge compose (profile_compose.h): duplicate-preserving
 # composition with per-instance provenance, self-healing order overrides, and

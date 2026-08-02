@@ -224,13 +224,18 @@ void testNoTrailingNewline() {
 
 // -- F2: overlong lines must be dropped, not split ---------------------------
 
-// The parser's internal fgets buffer is 4096 bytes. A single line longer
-// than that would otherwise be split into two fgets reads, producing a
-// truncated prefix (parsed as a bogus mapping) and a tail (misparsed as
-// a new line). All three entries below must parse in full; the overlong
-// line in the middle must be dropped.
+// All sizes below are derived from kLineBufferSize (the shared read buffer in
+// line_io.h) rather than restated as literals, so the cases stay meaningful if
+// the buffer is ever resized. fgets reads at most kLineBufferSize - 1 bytes, so
+// that is the longest line that still fits in one read.
+constexpr size_t kMaxLine = schnelle_umlaute::kLineBufferSize - 1;
+
+// A single line longer than the read buffer would otherwise be split into two
+// fgets reads, producing a truncated prefix (parsed as a bogus mapping) and a
+// tail (misparsed as a new line). The two surrounding entries must parse in
+// full; the overlong line in the middle must be dropped.
 void testOverlongLineSkipped() {
-    std::string big(5000, 'x');
+    std::string big(kMaxLine + 100, 'x');
     auto r = parseString("a=eins\no=" + big + "\nu=drei\n");
     EXPECT(r.size() == 2);
     EXPECT(r[0].input == "a");
@@ -239,39 +244,40 @@ void testOverlongLineSkipped() {
     EXPECT(r[1].output == "drei");
 }
 
-// A line whose byte layout lands exactly on the buffer boundary (4094
-// content bytes + '\n' = 4095 bytes read) must parse normally — back
-// character is '\n', truncation check does not trigger.
+// A line whose byte layout lands exactly on the buffer boundary (content +
+// '\n' == kMaxLine bytes read) must parse normally — the back character is
+// '\n', so the truncation check does not trigger.
 void testLineExactlyAtBufferBoundary() {
-    // "o=" + 4092 x's + "\n" = 4095 bytes → fits, back is '\n'
-    std::string big(4092, 'x');
+    // "o=" + big + "\n" == kMaxLine bytes → fits, back is '\n'
+    const size_t bigLen = kMaxLine - std::string("o=\n").size();
+    std::string big(bigLen, 'x');
     auto r = parseString("a=eins\no=" + big + "\nu=drei\n");
     EXPECT(r.size() == 3);
     EXPECT(r[0].input == "a");
     EXPECT(r[0].output == "eins");
     EXPECT(r[1].input == "o");
-    EXPECT(r[1].output.size() == 4092);
+    EXPECT(r[1].output.size() == bigLen);
     EXPECT(r[2].input == "u");
     EXPECT(r[2].output == "drei");
 }
 
-// A line of 4095 content bytes with no trailing newline, followed by EOF.
-// fgets fills the buffer (size == 4095, back != '\n'), but the next read
-// returns EOF — the line is actually complete and must be accepted.
+// A line of exactly kMaxLine content bytes with no trailing newline, followed
+// by EOF. fgets fills the buffer (size == kMaxLine, back != '\n'), but the next
+// read returns EOF — the line is actually complete and must be accepted.
 void testLineFillsBufferEofNoNewline() {
-    // "a=" + 4093 x's = 4095 bytes, no '\n', EOF follows
-    std::string big(4093, 'x');
+    const size_t bigLen = kMaxLine - std::string("a=").size();
+    std::string big(bigLen, 'x');
     auto r = parseString("a=" + big);
     EXPECT(r.size() == 1);
     EXPECT(r[0].input == "a");
-    EXPECT(r[0].output.size() == 4093);
+    EXPECT(r[0].output.size() == bigLen);
 }
 
 // Two overlong lines back-to-back must both be skipped without corrupting
 // parser state for the trailing valid line.
 void testConsecutiveOverlongLinesSkipped() {
-    std::string big1(6000, 'x');
-    std::string big2(7000, 'y');
+    std::string big1(kMaxLine * 2, 'x');
+    std::string big2(kMaxLine * 3, 'y');
     auto r = parseString("a=" + big1 +
                          "\n"
                          "o=" +

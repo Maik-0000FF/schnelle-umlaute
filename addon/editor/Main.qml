@@ -25,7 +25,11 @@ ApplicationWindow {
 
     SettingsModel {
         id: settings
-        onThemeChanged: Theme.setCurrent(theme)
+        // The rendered theme, not the manual pick: with the automatic mode on
+        // those differ, and the editor is the visible stand-in for the overlay
+        // theme, so it has to show what the overlay shows.
+        onEffectiveThemeChanged: Theme.setCurrent(effectiveTheme)
+        onErrorOccurred: (msg) => snackbar.show(msg, Theme.error)
     }
 
     // Sole owner of the merge manifest (merge.conf). Shared by the profile
@@ -55,7 +59,7 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        Theme.setCurrent(settings.theme);
+        Theme.setCurrent(settings.effectiveTheme);
         // Default the Mappings edit target to the active profile (the two are
         // otherwise independent: you can switch the edit target without
         // changing which profile is active at runtime).
@@ -380,6 +384,7 @@ ApplicationWindow {
         Footer {
             Layout.fillWidth: true
             saveStatus: mappings.saveStatus
+            saveState: mappings.saveState
         }
     }
 
@@ -387,8 +392,18 @@ ApplicationWindow {
         id: snackbar
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
+        // Vertical lift above the footer. Unrelated to edgeInset below, despite
+        // the same number: changing one must not be assumed to move the other.
         anchors.bottomMargin: Theme.spacingXl + 40
-        width: Math.min(rowLayout.implicitWidth + Theme.spacingLg * 2, root.width - 40)
+        // Horizontal inset from the window edge, consumed by the box cap here
+        // and by the text cap further down so the two can't drift apart.
+        // Deliberately rooted in root.width and NOT in snackbar.width: this
+        // width is derived from rowLayout.implicitWidth, so capping the text
+        // against it would close a binding loop.
+        readonly property int edgeInset: 40
+        readonly property int maxBoxWidth: root.width - edgeInset
+        width: Math.min(rowLayout.implicitWidth + Theme.spacingLg * 2,
+                        maxBoxWidth)
         height: 44
         radius: Theme.radiusMd
         color: Theme.surface
@@ -424,7 +439,7 @@ ApplicationWindow {
 
         Timer {
             id: hideTimer
-            interval: 4000
+            interval: Theme.snackbarDuration
             onTriggered: snackbar.opacity = 0
         }
 
@@ -435,6 +450,19 @@ ApplicationWindow {
 
             Text {
                 id: text
+                // Messages embed user data (a profile or preset name, a file
+                // path), so they are always shown literally.
+                textFormat: Text.PlainText
+                // The snackbar itself is capped at the window width, so a long
+                // message (a file error carrying a full path) has to be elided
+                // here as well; without a cap the Text keeps its implicit width
+                // and draws straight through the rounded frame.
+                Layout.maximumWidth: snackbar.maxBoxWidth - Theme.spacingLg * 2
+                                     - (undoButton.visible
+                                        ? undoButton.implicitWidth
+                                          + Theme.spacingMd
+                                        : 0)
+                elide: Text.ElideRight
                 color: Theme.text
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBody

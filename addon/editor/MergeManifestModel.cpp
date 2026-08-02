@@ -76,7 +76,7 @@ void MergeManifestModel::setCombinedRefs(const std::vector<std::string> &refs) {
         manifest_.sources.assign(refs.begin() + 1, refs.end());
     }
     pruneOrder();
-    save();
+    persist();
 }
 
 void MergeManifestModel::toggleMerge(const QString &file) {
@@ -131,7 +131,7 @@ void MergeManifestModel::setOrderOverride(const QString &base,
         manifest_.order.erase(b);
     else
         manifest_.order[b] = std::move(seq);
-    save();
+    persist();
 }
 
 void MergeManifestModel::pruneOrder() {
@@ -157,12 +157,18 @@ void MergeManifestModel::pruneOrder() {
 
 bool MergeManifestModel::save() {
     const QString path = mergeConfPath();
-    bool ok = true;
     // Fully dissolved (no base): remove merge.conf so the engine reads
     // "no merge", mirroring how the profile sidecars are deleted when empty.
     if (manifest_.base.empty()) {
-        if (QFile::exists(path))
-            ok = QFile::remove(path);
+        // A merge.conf that could not be deleted still describes the old merge,
+        // so the engine keeps composing. Report it and bail on the same path as
+        // a failed write, instead of announcing a manifest change that did not
+        // happen and reloading the addon onto the stale file.
+        if (QFile::exists(path) && !QFile::remove(path)) {
+            Q_EMIT errorOccurred(
+                tr("Could not remove the merge configuration"));
+            return false;
+        }
     } else {
         const std::string data =
             schnelle_umlaute::serializeMergeManifest(manifest_);
@@ -181,5 +187,15 @@ bool MergeManifestModel::save() {
     Q_EMIT manifestChanged();
     // A merge on the active base recomposes only after the engine reloads.
     reloadSchnelleUmlauteAddon();
-    return ok;
+    return true;
+}
+
+void MergeManifestModel::persist() {
+    if (save())
+        return;
+    // Write failed and save() has reported it. Discard the in-memory change so
+    // the editor shows what is actually on disk, and let the views rebuild off
+    // that state instead of a merge that never landed.
+    load();
+    Q_EMIT manifestChanged();
 }

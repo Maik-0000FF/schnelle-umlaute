@@ -18,6 +18,8 @@ echo
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/_distro.sh
 . "$PROJECT_ROOT/scripts/_distro.sh"
+# shellcheck source=scripts/_ask.sh
+. "$PROJECT_ROOT/scripts/_ask.sh"
 detect_distro_info
 
 # Show detected distro using the PRETTY_NAME line if available; falls
@@ -152,7 +154,7 @@ echo
 
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     echo -e "${YELLOW}Missing dependencies: ${MISSING_DEPS[*]}${NC}"
-    read -p "Install missing dependencies? [Y/n] " -r
+    ask "Install missing dependencies? [Y/n]"
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         echo -e "${BLUE}Installing dependencies...${NC}"
@@ -271,7 +273,7 @@ if [ ${#STALE_FILES[@]} -ne 0 ]; then
         echo "  - $file"
     done
     echo
-    read -p "Remove before reinstalling? [Y/n] " -r
+    ask "Remove before reinstalling? [Y/n]"
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         sudo rm -f "${STALE_FILES[@]}"
@@ -340,7 +342,7 @@ if [ -f "$ENV_FILE" ]; then
     echo "Contents:"
     cat "$ENV_FILE"
     echo
-    read -p "Overwrite with fcitx5 settings? [Y/n] " -r
+    ask "Overwrite with fcitx5 settings? [Y/n]"
     echo
     if [[ $REPLY =~ ^[Nn]$ ]]; then
         echo -e "${YELLOW}Skipping environment setup. Make sure the fcitx5 input-method variables are set.${NC}"
@@ -391,7 +393,7 @@ if [ -f "$FCITX_CONFIG" ] && sed -n '/\[Hotkey\/TriggerKeys\]/,/^\[/p' "$FCITX_C
     echo -e "${YELLOW}mappings (e.g. Shift+A → Ä). With Shift as trigger, fcitx5 will${NC}"
     echo -e "${YELLOW}switch input methods instead.${NC}"
     echo
-    read -p "Replace trigger key with Ctrl+Space? [Y/n] " -r
+    ask "Replace trigger key with Ctrl+Space? [Y/n]"
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         # Atomic replace via rename(2): write into a mktemp file in the

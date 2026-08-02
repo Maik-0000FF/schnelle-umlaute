@@ -3,6 +3,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <utility> // std::move
 #include <vector>
 
 // Pure logic for the base-anchored profile merge: compose the effective

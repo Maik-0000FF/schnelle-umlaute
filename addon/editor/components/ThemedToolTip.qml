@@ -45,6 +45,9 @@ ToolTip {
         text: tip.text
         color: Theme.text
         font: tip.font
+        // Tips can carry user data (a variant value, a profile name), so the
+        // text is always shown literally instead of being sniffed as markup.
+        textFormat: Text.PlainText
         wrapMode: Text.WordWrap
         // Fill the tooltip's (capped) content area, so long text wraps.
         width: tip.availableWidth

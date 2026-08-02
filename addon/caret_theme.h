@@ -1,5 +1,5 @@
-#ifndef SCHNELLE_UMLAUTE_EDITOR_CARET_THEME_H
-#define SCHNELLE_UMLAUTE_EDITOR_CARET_THEME_H
+#ifndef SCHNELLE_UMLAUTE_CARET_THEME_H
+#define SCHNELLE_UMLAUTE_CARET_THEME_H
 
 // Pure helpers for the caret candidate-window theming: colour normalisation,
 // flat classicui.conf parse/patch, and the generated fcitx5 theme.conf. Kept
