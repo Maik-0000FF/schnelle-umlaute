@@ -417,6 +417,8 @@ ThemeDark=dark
 
 With `Auto=True`, the desktop colour scheme selects between `ThemeLight` and `ThemeDark`, and `Theme` is left untouched, so turning the mode off returns to the same manual choice.
 
+> **`Auto` needs Qt 6.5 or newer.** Older Qt has no colour-scheme hint, so the desktop setting cannot be read and both the editor and the overlay keep rendering `Theme=`. Distributions still on Qt 6.4 (Ubuntu 24.04, Linux Mint 22) build and run fine, the mode just has no effect there.
+
 The theme applies to both the editor window and the on-screen cycle overlay (when enabled), so they share a consistent look.
 
 ---
@@ -433,6 +435,7 @@ An optional on-screen indicator that mirrors the current variant while you cycle
 | **ShowOnTrigger** | `False` | Preview all mapped keys in the trigger window, not just the variants currently being cycled |
 | **Placement** | `Grid` | Where the overlay appears: `Grid` (the fixed Row/Column position below), `MouseCursor` (at the mouse pointer; the grid is the fallback when the compositor can't report it), or `TextCaret` (at the text input caret where you type, see below) |
 | **ProgressBar** | `False` | Draw a timing bar for the accent gesture: a lead-in segment (min-hold) fills, then the `[min, max]` leader window counts down. `Grid`/`MouseCursor` only |
+| **CaretTheme** | `False` | Style fcitx5's candidate window after the active theme, `TextCaret` only (see [Candidate window theming](#candidate-window-theming-carettheme)) |
 | **Row** | `Top` | Grid vertical position (`Grid`, and `MouseCursor` fallback): `Top`, `Center`, `Bottom` |
 | **Column** | `Col4` | Horizontal grid position: `Col1` (far left) … `Col4` (center) … `Col7` (far right) |
 
@@ -442,6 +445,7 @@ Enabled=True
 ShowOnTrigger=False
 Placement=Grid
 ProgressBar=False
+CaretTheme=False
 Row=Center
 Column=Col1
 ```
@@ -480,12 +484,7 @@ The rule syntax varies per compositor (mango parses `no_anim`). Compositors that
 
 ### Candidate window theming (`CaretTheme`)
 
-`CaretTheme=True` styles fcitx5's candidate window after the active [theme](#theme). In the editor it is the **Match candidate window to this theme** switch, shown only while the placement is `TextCaret`.
-
-```ini
-[Overlay]
-CaretTheme=False
-```
+`CaretTheme=True` styles fcitx5's candidate window after the active [theme](#theme). In the editor it is the **Match candidate window to this theme** switch, shown only while the overlay is enabled and the placement is `TextCaret`.
 
 It writes a generated fcitx5 theme and points `classicui.conf` at it (`Theme=`, plus `UseDarkTheme=False` and `UseAccentColor=False` so the candidate window stops following the desktop accent). That is a **global classicui setting**: every fcitx5 input method uses that candidate window, not just Schnelle Umlaute. Hence the opt-in. Your previous classicui theme is backed up once before the override and restored when you turn the switch off.
 

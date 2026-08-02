@@ -11,7 +11,7 @@ No config or mapping migration. Pull / reinstall and restart fcitx5. If you use 
 - **Overlay and editor fixes.** The progress panel is centred on the centre row and column, dead emoji codepoints are replaced, long variant chips are capped, and mapping text is rendered as plain text.
 - **Safer saving.** Save failures are reported instead of failing silently, a variant added on a new mapping row is escaped correctly, and tabs and backslashes are escaped in the usage counter file.
 - **Frequency preview after a reset.** Resetting the usage counters now clears the preview instead of leaving it on the old counts.
-- **Non-interactive install.** `install.sh` and `uninstall.sh` no longer abort halfway through when run without a terminal (`curl | bash`, CI).
+- **Non-interactive install.** `install.sh` and `uninstall.sh` no longer abort halfway through in unattended runs (piped input, CI).
 
 ## Upgrading from v1.8.x to v1.9.0
 
