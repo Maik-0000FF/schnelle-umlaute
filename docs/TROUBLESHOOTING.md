@@ -342,3 +342,22 @@ Not all applications fully support Fcitx5's input method protocol. The addon rel
 - Input context state management
 
 Applications with custom text rendering or non-standard input handling may not work correctly. If you encounter issues in a specific application, please report it on the GitHub issues page.
+
+## Collecting input events for a bug report (IME probe page)
+
+Input-method problems in browsers are hard to describe in words, because the same
+symptom can come from the addon, from the browser's composition handling, or from
+the compositor swallowing a key release. The IME probe page records what actually
+reaches the page:
+
+**<https://maik-0000ff.github.io/schnelle-umlaute_Website/ime-probe/>**
+
+It logs every `keydown`, `keyup`, `composition*`, `beforeinput` and `input` event in
+two plain `<textarea>` fields, one of them inside an iframe, and highlights three
+things: text arriving with no keystroke behind it, keys pressed but never released,
+and window focus changes. It also measures the keyboard auto-repeat delay and period
+and the variant sequence the leader key cycles through.
+
+The page is static and self-contained; nothing is transmitted anywhere. It cannot
+read the addon configuration, so the leader key, overlay placement, addon version,
+desktop environment and compositor still need to be stated by hand.
