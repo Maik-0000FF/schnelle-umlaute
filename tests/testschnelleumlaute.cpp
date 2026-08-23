@@ -41,7 +41,7 @@
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
-// 167-168 Swallowed release   a grab-swallowed input-key release no longer freezes cycling: the next reset() drops the stale gesture, while auto-repeat of the held key keeps a live one (issue #147)
+// 167-168 Swallowed release   a grab-swallowed input-key release no longer freezes cycling: the next key or reset() drops the stale gesture (leader taps included), while auto-repeat of the held key keeps a live one and the owed Alt release stays consumed (issue #147)
 // clang-format on
 
 #include <unistd.h>
@@ -7177,6 +7177,28 @@ static void scheduleTest113(Instance *instance) {
         tf->call<ITestFrontend::sendKeyEvent>(
             uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
 
+        // Second phase, same swallowed release, but this time nothing resets:
+        // the user just keeps tapping the leader. Those taps reach the stuck
+        // gesture, and a gesture that counted them as its own liveness would
+        // cycle, swallow them and stay alive forever, so the Space key would
+        // stop producing spaces for the rest of the session. The first tap
+        // after the window must drop the gesture and pass through untouched.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+            << "Space must start cycling again, got '"
+            << getClientPreedit(instance) << "'";
+        std::this_thread::sleep_for(kStaleGestureTestWait);
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(!consumed)
+            << "A leader tap must not be swallowed by a stale gesture";
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "The leader tap must drop the stale gesture, got '"
+            << getClientPreedit(instance) << "'";
+
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 167 PASSED";
     });
@@ -7232,8 +7254,27 @@ static void scheduleTest113(Instance *instance) {
             << "A gesture kept alive by auto-repeat must survive reset(), got '"
             << getClientPreedit(instance) << "'";
 
-        // Torn down without a release, so nothing commits and a stray commit
-        // would abort on the empty expectation queue.
+        // Now let the repeat stop, as a grab on the menu does, and wait the
+        // session out. The application's next reset() drops it. Deliberately
+        // not driven by a key press here: an unmapped key clears the Alt
+        // bookkeeping on its own way through, which would hide what the next
+        // assert is about.
+        std::this_thread::sleep_for(kStaleGestureTestWait);
+        ic->reset();
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "The stale Alt session must be dropped, got '"
+            << getClientPreedit(instance) << "'";
+
+        // The Alt leader press was swallowed on its way to the application, so
+        // the debt outlives the drop: its release must still be eaten, or the
+        // application sees a modifier go up that never went down.
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+        FCITX_ASSERT(consumed)
+            << "The owed Alt release must still be consumed after the drop";
+
+        // Torn down without an input-key release, so nothing commits and a
+        // stray commit would abort on the empty expectation queue.
         tf->call<ITestFrontend::destroyInputContext>(uuid);
         FCITX_INFO() << "Test 168 PASSED";
     });

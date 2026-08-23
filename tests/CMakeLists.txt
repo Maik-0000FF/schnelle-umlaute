@@ -27,7 +27,12 @@ target_compile_options(testschnelleumlaute PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testschnelleumlaute Fcitx5::Core Fcitx5::Module::TestFrontend Fcitx5::Module::TestIM PkgConfig::XKBCommon)
 add_dependencies(testschnelleumlaute copy-addon-conf copy-im-conf schnelle-umlaute)
 add_test(NAME testschnelleumlaute COMMAND testschnelleumlaute)
-set_tests_properties(testschnelleumlaute PROPERTIES TIMEOUT 30)
+# Wall time here is dominated by real waits, not by work: the suite drives
+# accent windows, deferred commits and stale-gesture windows through the actual
+# clock, so it barely slows down under sanitizers but grows with every timing
+# case added. Budgeted well above the current runtime so a new timing test does
+# not have to touch this line, while a hang still fails instead of blocking CI.
+set_tests_properties(testschnelleumlaute PROPERTIES TIMEOUT 60)
 
 # Unit test for readLine() — the truncation-guarded line reader every config
 # parser shares. Header-only, no fcitx5 runtime needed.

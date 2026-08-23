@@ -205,22 +205,6 @@ public:
         lastGestureActivityUsec_ = 0;
     }
 
-    // Wipe as clearAllState(), but carry the committed-key repeat suppression
-    // across: that arming belongs to a key whose commit already happened, and
-    // dropping it lets the next auto-repeat re-enter as a fresh press and
-    // duplicate the character (issue #92). excludeCode opts one code out, for
-    // callers that have just decided this key is NOT held any more; without it
-    // the restored heldRawCodes_ entry would swallow that key's next real press
-    // as a repeat.
-    void clearAllStateKeepingCommitted(int excludeCode = 0) {
-        const auto keep = committed_;
-        clearAllState();
-        if (keep.code != 0 && keep.code != excludeCode) {
-            committed_ = keep;
-            heldRawCodes_.insert(keep.code);
-        }
-    }
-
     void resetCycling() {
         cyclingInput_.reset();
         cyclingIndex_ = 0;
@@ -237,13 +221,18 @@ public:
         pendingSpaceCommit_ = false;
     }
 
+    // Milliseconds between a monotonic stamp and now. The one place the
+    // microsecond clock is converted, so the three time predicates below cannot
+    // drift apart on the unit.
+    static uint64_t elapsedMsSince(uint64_t stampUsec) {
+        return (nowUsec() - stampUsec) / kMicrosecondsPerMillisecond;
+    }
+
     bool isTimeoutExpired(int effectiveDelay) const {
         if (!waitingKey_)
             return false;
-        uint64_t now_usec = nowUsec();
-        uint64_t elapsed_ms =
-            (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
-        return elapsed_ms > static_cast<uint64_t>(effectiveDelay);
+        return elapsedMsSince(startTimeUsec_) >
+               static_cast<uint64_t>(effectiveDelay);
     }
 
     // Mark the gesture as alive. Every site that starts or advances one calls
@@ -282,17 +271,16 @@ public:
     // Reachable when the input key's release was swallowed on its way here: a
     // compositor grab (KWin's window operations menu on Alt+Space, issue #147)
     // takes the keyboard without moving the focus, so neither the release nor a
-    // FocusOut ever arrives. Lets reset() tell a gesture the user is still
-    // driving from one nothing can end any more. Cycling only, on purpose: it
+    // FocusOut ever arrives. Lets the next key event and the next app reset()
+    // tell a gesture the user is still driving from one nothing can end any
+    // more, whichever of the two comes first. Cycling only, on purpose: it
     // is the single phase without a timer of its own (the leader press cancels
     // the accent window), so a waiting gesture always ends by itself and must
     // not have its pending character dropped here instead of committed.
     bool isGestureStale() const {
         if (!cyclingInput_ || lastGestureActivityUsec_ == 0)
             return false;
-        return (nowUsec() - lastGestureActivityUsec_) /
-                   kMicrosecondsPerMillisecond >
-               kStaleGestureGraceMs;
+        return elapsedMsSince(lastGestureActivityUsec_) > kStaleGestureGraceMs;
     }
 
     // Lower bound of the accent window: true while the input key has been
@@ -302,10 +290,8 @@ public:
     bool isBeforeMinHold(int minHoldMs) const {
         if (!waitingKey_ || minHoldMs <= 0)
             return false;
-        uint64_t now_usec = nowUsec();
-        uint64_t elapsed_ms =
-            (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
-        return elapsed_ms < static_cast<uint64_t>(minHoldMs);
+        return elapsedMsSince(startTimeUsec_) <
+               static_cast<uint64_t>(minHoldMs);
     }
 
     static uint64_t nowUsec() {

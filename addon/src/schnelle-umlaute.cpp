@@ -156,6 +156,18 @@ public:
         bool isPress = !keyEvent.isRelease();
         int rawCode = keyEvent.rawKey().code();
 
+        // A gesture nothing has moved for the whole grace period is over,
+        // whatever this key turns out to be: its input key's release was
+        // swallowed by a compositor grab (issue #147) and no release can end it
+        // any more. Drop it before the handlers below run, so this key is
+        // processed against a clean state instead of being fed to a gesture
+        // that cannot end. Ahead of the liveness stamp on purpose: a stuck
+        // gesture must not keep itself alive from the keys it is eating, which
+        // is what a leader tap would do (it cycles, stamps and is swallowed, so
+        // hammering Space would never produce a space).
+        if (state->isGestureStale())
+            dropStaleGesture(ic, state);
+
         // Second liveness site next to updateClientPreedit(): an event on the
         // gesture's own input key or on its consumed Alt leader proves the
         // gesture is still being driven, even when it produces no visible
@@ -919,16 +931,24 @@ public:
         // (overlayHideEvent_ stays non-null after firing, like overlayShowEvent_).
         // A still-held key whose char was already committed via single-output
         // keeps committed_ armed so its auto-repeat is consumed instead of
-        // starting a fresh gesture (the "üu"-class guard). A plain
-        // clearAllState() would drop that arming, so the app-reset() Chromium
-        // and Neovide fire after every commit would let the next auto-repeat
-        // re-enter as a fresh press (isNewKeyPress == true, so the repeat guard
-        // below the arming sites no longer matches) and start a duplicate
-        // gesture (issue #92). clearAllStateKeepingCommitted() carries the
-        // bundle across; the focus-change path (deactivate/activate) keeps
-        // clearing everything.
+        // starting a fresh gesture (the "üu"-class guard). clearAllState() drops
+        // committed_ and its heldRawCodes_ entry, so the app-reset() Chromium and
+        // Neovide fire after every commit lets the next auto-repeat re-enter as a
+        // fresh press (isNewKeyPress == true, so the repeat guard below the arming
+        // sites no longer matches) and start a duplicate gesture (issue #92).
+        // Preserve the whole committed_ bundle across the wipe; the focus-change
+        // path (deactivate/activate) keeps clearing everything. Self-guarding:
+        // code == 0 means nothing was armed (a release already cleared it via the
+        // committed-key release branch). The stale path deliberately does not
+        // take part in this: see dropStaleGesture().
+        const auto heldCommitted = state->committed_;
+
         auto flash = std::move(state->overlayHideEvent_);
-        state->clearAllStateKeepingCommitted();
+        state->clearAllState();
+        if (heldCommitted.code != 0) {
+            state->committed_ = heldCommitted;
+            state->heldRawCodes_.insert(heldCommitted.code);
+        }
         if (flash && overlayVisible_) {
             state->overlayHideEvent_ = std::move(flash);
             return;
@@ -1577,16 +1597,27 @@ private:
     // preedit survives and keeps feeding the duplicates. recentlyCommitted_ is
     // left alone, like everywhere else in reset() (see its comment in state.h).
     void dropStaleGesture(InputContext *ic, SchnelleUmlauteState *state) {
-        // Same commit-arming carry as the normal reset() path, minus this
-        // gesture's own key: declaring it stale is declaring that key not held,
-        // so restoring its heldRawCodes_ entry would swallow its next real
-        // press as a repeat. The two can be the same code when a single-output
-        // commit armed the key that a later gesture then reused.
-        const int staleCode = state->waitingKeyCode_;
+        // Unlike reset(), nothing about the held-key bookkeeping is carried
+        // across. Declaring the gesture stale is declaring that the key events
+        // stopped arriving, so every "this key is still down" entry is exactly
+        // the kind of claim that is no longer trustworthy: keeping the
+        // committed_ arming (and with it a heldRawCodes_ entry) would swallow
+        // that key.s next real press as an auto-repeat. The opposite bet costs
+        // a duplicate character in the mirror case (issue #92), which the whole
+        // arming exists to prevent; a swallowed keypress is the worse of the
+        // two, and both need a second key held through the same grab.
+        //
+        // consumedAltCode_ is the exception, because it is not a held-key claim
+        // but an unpaid debt: the Alt leader press was swallowed on its way to
+        // the application, so its release has to be swallowed too or the
+        // application sees a modifier go up that never went down. A stale
+        // marker is harmless, the next fresh Alt press disarms it.
+        const int owedAltRelease = state->consumedAltCode_;
         overlayHide();
         ic->inputPanel().reset();
         ic->updatePreedit();
-        state->clearAllStateKeepingCommitted(staleCode);
+        state->clearAllState();
+        state->consumedAltCode_ = owedAltRelease;
     }
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs
