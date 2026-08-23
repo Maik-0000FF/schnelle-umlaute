@@ -53,14 +53,14 @@ public:
 
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
-    // Monotonic time of the last key event of any kind seen on this input
-    // context (press or release, consumed or passed through). A physically held
-    // key keeps auto-repeat flowing, so this stamp stays fresh for as long as
-    // inputKeyPressed_ is legitimately set; a frozen stamp means no key traffic
-    // reaches the addon at all. See isHeldKeyStale(). Deliberately NOT cleared
-    // in clearAllState(): it is a plain "when did the keyboard last talk to
-    // us" clock, not gesture state.
-    uint64_t lastKeyEventUsec_ = 0;
+    // Monotonic time the gesture last moved: started waiting, started cycling,
+    // stepped to another variant, or survived a KWin auto-repeat gap. Only
+    // events that carry the gesture forward count, NOT key traffic in general:
+    // a held key produces no auto-repeat once a leader has been tapped (the
+    // platform repeats the most recently pressed key only), and unrelated
+    // presses like Shift must not make a dead gesture look alive. Refreshed
+    // through touchGesture(); read by isGestureStale().
+    uint64_t lastGestureActivityUsec_ = 0;
     int waitingKeyCode_ = 0;
     // Frontend event time (KeyEvent::time(), ms) of the press that started the
     // current waiting gesture. On KWin/Wayland the compositor freezes the
@@ -225,28 +225,37 @@ public:
         return elapsed_ms > static_cast<uint64_t>(effectiveDelay);
     }
 
-    // Grace period for isHeldKeyStale(). It has to sit well above the
-    // platform's auto-repeat delay, because that repeat is what refreshes
-    // lastKeyEventUsec_ while a key is held without any other key traffic;
-    // the usual delays are a few hundred milliseconds. Accepted trade-off: with
-    // auto-repeat switched off system-wide nothing refreshes the stamp, so a
-    // reset() landing inside a hold longer than this drops the preedit. Losing
-    // one preview character in that setup beats a gesture that stays stuck for
-    // the rest of the session.
-    static constexpr uint64_t kStuckHeldKeyGraceMs = 1'500;
+    // Mark the gesture as alive. Every site that starts or advances one calls
+    // this, so isGestureStale() has a single source for "when did this gesture
+    // last move" instead of a stamp per call site.
+    void touchGesture() { lastGestureActivityUsec_ = nowUsec(); }
 
-    // True when the addon still believes the input key is physically down but
-    // no key event has arrived for the whole grace period. That combination is
-    // only reachable when the release was swallowed on its way here: a
+    // Grace period for isGestureStale(). Measured against how long a user can
+    // sit inside a live gesture without moving it: cycling means tapping the
+    // leader every few hundred milliseconds while the input key stays down, so
+    // whole seconds of silence are not part of the flow. Deliberately not tied
+    // to auto-repeat timing, which cannot be relied on here (see
+    // lastGestureActivityUsec_). Accepted trade-off: a user who holds the key
+    // and pauses longer than this loses the preview character if the
+    // application happens to reset in that window, which costs one retyped key
+    // against a gesture that would otherwise stay stuck for the whole session.
+    static constexpr uint64_t kStaleGestureGraceMs = 2'000;
+
+    // True when a cycling gesture has not moved for the whole grace period.
+    // Reachable when the input key's release was swallowed on its way here: a
     // compositor grab (KWin's window operations menu on Alt+Space, issue #147)
     // takes the keyboard without moving the focus, so neither the release nor a
-    // FocusOut ever arrives and the gesture would stay live for the rest of the
-    // session. Lets reset() tell a real hold from a lost release.
-    bool isHeldKeyStale() const {
-        if (!inputKeyPressed_ || lastKeyEventUsec_ == 0)
+    // FocusOut ever arrives. Lets reset() tell a gesture the user is still
+    // driving from one nothing can end any more. Cycling only, on purpose: it
+    // is the single phase without a timer of its own (the leader press cancels
+    // the accent window), so a waiting gesture always ends by itself and must
+    // not have its pending character dropped here instead of committed.
+    bool isGestureStale() const {
+        if (!cyclingInput_ || lastGestureActivityUsec_ == 0)
             return false;
-        return (nowUsec() - lastKeyEventUsec_) / kMicrosecondsPerMillisecond >
-               kStuckHeldKeyGraceMs;
+        return (nowUsec() - lastGestureActivityUsec_) /
+                   kMicrosecondsPerMillisecond >
+               kStaleGestureGraceMs;
     }
 
     // Lower bound of the accent window: true while the input key has been

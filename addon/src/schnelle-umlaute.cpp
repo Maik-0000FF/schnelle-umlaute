@@ -147,12 +147,6 @@ public:
 
         auto *state = ic->propertyFor(&factory_);
 
-        // Stamp every key event, before any branch can return: reset() reads
-        // this to tell a genuinely held key (whose auto-repeat keeps arriving)
-        // from one whose release a compositor grab swallowed. A key that only
-        // passes through counts as traffic just as much as a consumed one.
-        state->lastKeyEventUsec_ = SchnelleUmlauteState::nowUsec();
-
         // Deliver a still-pending deferred space before this key is processed,
         // so its text can never land behind this key's output if the key event
         // wins the race against the zero-delay timer. See scheduleSpaceCommit().
@@ -486,6 +480,10 @@ public:
             rawCode == state->waitingKeyCode_) {
             state->cancelTimeout();
             state->inputKeyPressed_ = true;
+            // Carrying the session across a repeat gap keeps the gesture alive
+            // without rewriting the preview, so the liveness stamp that
+            // updateClientPreedit() normally owns has to be set here too.
+            state->touchGesture();
             keyEvent.filterAndAccept();
             return;
         }
@@ -578,7 +576,7 @@ public:
                              leaderStep(key, rawCode) + n) %
                             n;
                         state->cyclingIndex_ = static_cast<size_t>(next);
-                        updateClientPreedit(ic,
+                        updateClientPreedit(ic, state,
                                             it->second[state->cyclingIndex_]);
                         overlayShow(ic, it->second,
                                     static_cast<int>(state->cyclingIndex_));
@@ -659,7 +657,7 @@ public:
                             state->altGestureSession_ = true;
 
                         // Update preedit with the starting variant
-                        updateClientPreedit(ic, it->second[startIdx]);
+                        updateClientPreedit(ic, state, it->second[startIdx]);
                         // Overlay is for choosing among variants; suppress it
                         // when there's nothing to cycle (single-output Alt
                         // still needs the cycling state above for the deferred
@@ -802,7 +800,7 @@ public:
             }
 
             // Set preedit text
-            updateClientPreedit(ic, keyChar);
+            updateClientPreedit(ic, state, keyChar);
 
             keyEvent.filterAndAccept();
             return;
@@ -883,13 +881,13 @@ public:
         auto *ic = event.inputContext();
         auto *state = ic->propertyFor(&factory_);
         if (state->inputKeyPressed_) {
-            // ... unless the key is not really pressed any more: a compositor
-            // grab can swallow the release (issue #147), and then this guard
-            // would keep every later reset() a no-op for the rest of the
-            // session. isHeldKeyStale() separates the two by key traffic.
-            if (!state->isHeldKeyStale())
+            // ... unless nothing can press it any more: a compositor grab can
+            // swallow the release (issue #147), and then this guard would keep
+            // every later reset() a no-op for the rest of the session.
+            // isGestureStale() separates the two by gesture activity.
+            if (!state->isGestureStale())
                 return; // Keep all state intact
-            dropStuckGesture(ic, state);
+            dropStaleGesture(ic, state);
             return;
         }
 
@@ -1416,7 +1414,13 @@ private:
         overlayClient_.applyEnabledTransition(*config_.overlay->enabled);
     }
 
-    void updateClientPreedit(InputContext *ic, const std::string &text) {
+    // Every gesture advance ends here: starting the waiting phase, starting to
+    // cycle, and each step to another variant all rewrite the preview. That
+    // makes this the one choke point for the liveness stamp isGestureStale()
+    // reads, so no site can move a gesture without marking it alive.
+    void updateClientPreedit(InputContext *ic, SchnelleUmlauteState *state,
+                             const std::string &text) {
+        state->touchGesture();
         Text preedit(text);
         preedit.setCursor(static_cast<int>(preedit.textLength()));
         ic->inputPanel().setClientPreedit(preedit);
@@ -1552,16 +1556,16 @@ private:
         overlayHide();
     }
 
-    // Tear down a gesture whose input key is still marked as held although its
-    // release never arrived (issue #147). A compositor grab, KWin's window
-    // operations menu on Alt+Space, takes the keyboard without moving the
-    // focus: the release goes to the menu and no FocusOut follows. In the
-    // cycling phase nothing else can end the gesture then, because the accent
-    // window's timer was cancelled by the leader press and the Alt deferred
-    // commit only ever starts from a release. The gesture stays live for the
-    // rest of the session, every app reset() is a no-op, and the client preedit
-    // stays registered, which apps like Chromium re-confirm as real text on
-    // every caret change (one spurious character per mouse click).
+    // Tear down a gesture that has not moved for the whole grace period while
+    // its input key is still marked as held (issue #147). A compositor grab,
+    // KWin's window operations menu on Alt+Space, takes the keyboard without
+    // moving the focus: the release goes to the menu and no FocusOut follows.
+    // In the cycling phase nothing else can end the gesture then, because the
+    // accent window's timer was cancelled by the leader press and the Alt
+    // deferred commit only ever starts from a release. The gesture stays live
+    // for the rest of the session, every app reset() is a no-op, and the client
+    // preedit stays registered, which apps like Chromium re-confirm as real
+    // text on every caret change (one spurious character per mouse click).
     //
     // Drop the pending character instead of committing it: it was never more
     // than a preedit, the client has long since shown or dropped it on its own,
@@ -1570,15 +1574,23 @@ private:
     // clearAllState() only touches addon state, so without it the stale client
     // preedit survives and keeps feeding the duplicates. recentlyCommitted_ is
     // left alone, like everywhere else in reset() (see its comment in state.h).
-    void dropStuckGesture(InputContext *ic, SchnelleUmlauteState *state) {
-        // A deferred space was already consumed from the user; deliver it
-        // before clearAllState() cancels it, as every other teardown site does
-        // (issue #90).
-        flushPendingSpaceCommit(ic, state);
+    void dropStaleGesture(InputContext *ic, SchnelleUmlauteState *state) {
+        // Carry a single-output commit's repeat suppression across the wipe,
+        // exactly as the normal reset() path does: that arming belongs to a key
+        // whose commit already happened, not to the gesture being dropped here,
+        // so losing it would let the next auto-repeat start a duplicate gesture
+        // (issue #92). The dropped gesture's own key is deliberately NOT kept
+        // in heldRawCodes_ — a stale gesture means that key is not down any
+        // more, and keeping it would swallow its next real press as a repeat.
+        const auto heldCommitted = state->committed_;
         overlayHide();
         ic->inputPanel().reset();
         ic->updatePreedit();
         state->clearAllState();
+        if (heldCommitted.code != 0) {
+            state->committed_ = heldCommitted;
+            state->heldRawCodes_.insert(heldCommitted.code);
+        }
     }
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs

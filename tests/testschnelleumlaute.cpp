@@ -146,6 +146,7 @@ constexpr int kCodeHash = 20;
 constexpr int kCodeO = 32;
 constexpr int kCodeU = 30;
 [[maybe_unused]] constexpr int kCodeE = 26;
+constexpr int kCodeEscape = 9;
 constexpr int kCodeReturn = 36;
 constexpr int kCodeBackSpace = 22;
 constexpr int kCodeTab = 23;
@@ -174,13 +175,13 @@ constexpr auto kSyntheticReleaseTestHold =
     std::chrono::milliseconds(1);
 
 // Stand in for the time a compositor grab holds the keyboard while the input
-// key's release is swallowed (test 167): the engine's stuck-held-key grace
-// period plus 100 ms margin, so the following reset() classifies the hold as
+// key's release is swallowed (test 167): the engine's stale-gesture grace
+// period plus 100 ms margin, so the following reset() classifies the gesture as
 // stale. Derived from the engine constant, so raising it cannot silently make
 // this wait too short and flip the test to a false pass. See state.h.
-constexpr auto kStuckHeldKeyTestWait =
+constexpr auto kStaleGestureTestWait =
     std::chrono::milliseconds(
-        static_cast<long long>(SchnelleUmlauteState::kStuckHeldKeyGraceMs)) +
+        static_cast<long long>(SchnelleUmlauteState::kStaleGestureGraceMs)) +
     std::chrono::milliseconds(100);
 
 // Helper: load mappings via setSubConfig (the path loadMappingsFromFile reads)
@@ -7147,15 +7148,22 @@ static void scheduleTest113(Instance *instance) {
             << "reset() during a live hold must keep the gesture, got '"
             << getClientPreedit(instance) << "'";
 
-        // The release is swallowed here: while the menu holds the grab, no key
-        // event of any kind arrives.
-        std::this_thread::sleep_for(kStuckHeldKeyTestWait);
+        // The release is swallowed here: while the menu holds the grab, nothing
+        // moves the gesture on.
+        std::this_thread::sleep_for(kStaleGestureTestWait);
+
+        // Closing the menu leaks a lone release for a key the addon never saw
+        // pressed (the real recording shows exactly that for Escape). It cannot
+        // end the gesture, so counting plain key traffic as liveness would keep
+        // the dead gesture alive past this point.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Escape, KeyStates(), kCodeEscape), true);
 
         // The next reset() (Chromium fires one per mouse click) must recognise
-        // the stale hold and drop the gesture instead of returning early.
+        // the stale gesture and drop it instead of returning early.
         ic->reset();
         FCITX_ASSERT(getClientPreedit(instance).empty())
-            << "A stale hold must drop the preedit, got '"
+            << "A stale gesture must drop the preedit, got '"
             << getClientPreedit(instance) << "'";
 
         // The key works again: clearAllState() dropped its heldRawCodes_ entry,
