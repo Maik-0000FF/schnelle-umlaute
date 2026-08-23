@@ -158,6 +158,21 @@ public:
         bool isPress = !keyEvent.isRelease();
         int rawCode = keyEvent.rawKey().code();
 
+        // Liveness for the cycling backstop. An event on the gesture's own
+        // input key or on its consumed Alt leader proves that key is still
+        // physically down: nothing but the platform's own auto-repeat can
+        // produce it while the gesture runs. Such events are swallowed further
+        // down by the repeat and synthetic-release guards and change nothing
+        // visible, so without this re-arm a hold that merely repeats looks
+        // abandoned and the watchdog would end a living gesture, handing
+        // Alt+key to the application as a shortcut (issue #147 class). Any
+        // other key is ignored on purpose: it says nothing about the held key.
+        // A no-op unless a gesture is cycling.
+        if (rawCode != 0 && (rawCode == state->waitingKeyCode_ ||
+                             rawCode == state->consumedAltCode_)) {
+            armCyclingWatchdog(ic, state);
+        }
+
         // Track physical key state for repeat detection.
         // A key already in heldRawCodes_ is a repeat (auto-repeat).
         bool isNewKeyPress = true;
@@ -1608,8 +1623,17 @@ private:
     // who set a snappy window wants a snappy backstop, someone who set a long
     // one is a deliberate typist. The floor keeps the shortest windows from
     // making it twitchy.
+    //
+    // Reads the cycling key, not waitingKey_: cycling resets the waiting
+    // gesture, so from the second arming on getEffectiveDelay() would see no
+    // key and hand an uppercase gesture the lowercase window, halving its
+    // backstop mid-flight. armCyclingWatchdog() returns before calling this
+    // unless cyclingInput_ is set.
     int cyclingWatchdogMs(SchnelleUmlauteState *state) {
-        const int derived = getEffectiveDelay(state) * kCyclingWatchdogFactor;
+        const int derived =
+            delayForKey(state->cyclingInput_ ? &*state->cyclingInput_
+                                             : nullptr) *
+            kCyclingWatchdogFactor;
         return std::max(kCyclingWatchdogFloorMs, derived);
     }
 
@@ -1816,15 +1840,18 @@ private:
             return key2Left ? !inputLeft : inputLeft;
     }
 
-    // ASCII-only uppercase check — sufficient because input keys are
-    // physical keyboard keys which are always single ASCII bytes.
-    int getEffectiveDelay(const SchnelleUmlauteState *state) const {
-        if (!state->waitingKey_)
-            return *config_.delay->lowercase;
-        bool isUpper = state->waitingKey_->length() == 1 &&
-                       (*state->waitingKey_)[0] >= 'A' &&
-                       (*state->waitingKey_)[0] <= 'Z';
+    // The accent window one gesture key gets. A key of nullptr reads as
+    // lowercase: that is the window a gesture without a key yet would use.
+    // ASCII-only uppercase check, sufficient because input keys are physical
+    // keyboard keys which are always single ASCII bytes.
+    int delayForKey(const std::string *key) const {
+        const bool isUpper =
+            key && key->length() == 1 && (*key)[0] >= 'A' && (*key)[0] <= 'Z';
         return isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
+    }
+
+    int getEffectiveDelay(const SchnelleUmlauteState *state) const {
+        return delayForKey(state->waitingKey_ ? &*state->waitingKey_ : nullptr);
     }
 
     // Lower bound (minimum hold) of the accent window for the waiting key.

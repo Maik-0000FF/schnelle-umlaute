@@ -45,6 +45,7 @@
 // clang-format on
 
 #include <unistd.h>
+#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -146,7 +147,6 @@ constexpr int kCodeHash = 20;
 constexpr int kCodeO = 32;
 constexpr int kCodeU = 30;
 [[maybe_unused]] constexpr int kCodeE = 26;
-constexpr int kCodeEscape = 9;
 constexpr int kCodeReturn = 36;
 constexpr int kCodeBackSpace = 22;
 constexpr int kCodeTab = 23;
@@ -179,15 +179,28 @@ constexpr auto kSyntheticReleaseTestHold =
 // enough to sit in a test suite: 50 ms * factor 10 lands on the floor, 500 ms.
 constexpr int kWatchdogTestDelayMs = kDelayMin;
 
-// One whole watchdog window plus 100 ms margin, computed exactly as the engine
-// computes it, so changing either constant moves the tests with it instead of
-// silently flipping them to a false pass. See armCyclingWatchdog().
+// The point the watchdog fires at, computed exactly as the engine computes it,
+// so changing either constant moves the tests with it instead of silently
+// flipping them to a false pass. See armCyclingWatchdog().
 constexpr int kWatchdogTestDerivedMs =
     kWatchdogTestDelayMs * kCyclingWatchdogFactor;
+constexpr int kWatchdogFireMs =
+    std::max(kCyclingWatchdogFloorMs, kWatchdogTestDerivedMs);
+
+// Test 171 needs the two windows to differ: an uppercase delay of twice the
+// lowercase one puts the uppercase backstop above the floor the lowercase one
+// sits on, so a wait between them tells the two apart.
+constexpr int kWatchdogTestUpperDelayMs = kWatchdogTestDelayMs * 2;
+constexpr int kWatchdogUpperDerivedMs =
+    kWatchdogTestUpperDelayMs * kCyclingWatchdogFactor;
+constexpr int kWatchdogUpperFireMs =
+    std::max(kCyclingWatchdogFloorMs, kWatchdogUpperDerivedMs);
+
+// Margin on top of a whole window for the tests that wait the watchdog OUT: by
+// then it must have fired even on a loaded machine.
+constexpr auto kWatchdogTestMargin = std::chrono::milliseconds(100);
 constexpr auto kCyclingWatchdogTestWait =
-    std::chrono::milliseconds(
-        std::max(kCyclingWatchdogFloorMs, kWatchdogTestDerivedMs)) +
-    std::chrono::milliseconds(100);
+    std::chrono::milliseconds(kWatchdogFireMs) + kWatchdogTestMargin;
 
 // Helper: load mappings via setSubConfig (the path loadMappingsFromFile reads)
 static void
@@ -510,6 +523,30 @@ static void configureWatchdogCycling(Instance *instance) {
                        true, false, 0, 0);
     setMappings(instance, {
                               {"a", "\xc3\xa4,\xc3\xa0,\xc3\xa1"},
+                              {"o", "\xc3\xb6"},
+                          });
+}
+
+// The same setup led by Alt instead of Space, for the Alt-session watchdog test
+// (170). 'o' carries it: a single output is the mapping whose Alt auto-repeat
+// changes nothing on screen, which is the whole point of that test.
+static void configureWatchdogCyclingAlt(Instance *instance) {
+    configureWithDelay(instance, kWatchdogTestDelayMs, kWatchdogTestDelayMs,
+                       false, true, 0, 0);
+    setMappings(instance, {
+                              {"a", "\xc3\xa4,\xc3\xa0,\xc3\xa1"},
+                              {"o", "\xc3\xb6"},
+                          });
+}
+
+// The same setup with an uppercase window twice the lowercase one and a
+// two-variant 'A', so test 171 can step an uppercase gesture and see which of
+// the two windows the re-arming picked.
+static void configureWatchdogCyclingUpper(Instance *instance) {
+    configureWithDelay(instance, kWatchdogTestDelayMs,
+                       kWatchdogTestUpperDelayMs, true, false, 0, 0);
+    setMappings(instance, {
+                              {"A", "\xc3\x84,\xc3\x80"},
                               {"o", "\xc3\xb6"},
                           });
 }
@@ -877,6 +914,8 @@ static void scheduleTest113(Instance *instance);
 static void scheduleWatchdogTests(Instance *instance);
 static void scheduleWatchdogTest168(Instance *instance);
 static void scheduleWatchdogTest169(Instance *instance);
+static void scheduleWatchdogTest170(Instance *instance);
+static void scheduleWatchdogTest171(Instance *instance);
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -7336,6 +7375,32 @@ constexpr uint64_t kWatchdogWindowUsec =
                               kCyclingWatchdogTestWait)
                               .count());
 
+// One cycling step for the tests that keep a gesture ALIVE across the backstop:
+// three fifths of the firing point, so two steps outlast a whole window, which
+// is what those tests have to prove, while a single step still leaves two
+// fifths of the window as slack on a loaded machine. Derived from the firing
+// point rather than from kWatchdogWindowUsec, whose wait-it-out margin would
+// eat that slack.
+constexpr uint64_t watchdogUsec(int ms) {
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::milliseconds(ms))
+            .count());
+}
+
+constexpr uint64_t kWatchdogStepUsec = watchdogUsec(kWatchdogFireMs) * 3 / 5;
+
+// Test 171 probes between the two firing points: past where a lowercase window
+// would wrongly end an uppercase gesture, short of where its own window ends
+// it. The midpoint leaves the same slack on either side.
+constexpr uint64_t kWatchdogUpperProbeUsec =
+    watchdogUsec(kWatchdogFireMs + kWatchdogUpperFireMs) / 2;
+
+// Alt auto-repeat pairs test 170 sends. Three steps of three fifths of a window
+// each outlast a whole window with room to spare, so surviving them cannot be
+// an artefact of the gesture simply not having aged enough yet.
+constexpr int kWatchdogRepeatCount = 3;
+
 // Give the event loop usec to run, then continue. A blocking sleep cannot be
 // used where an addon timer has to fire, because it freezes the very loop that
 // timer runs on. The holder carries the source across the wait, the same shape
@@ -7375,41 +7440,38 @@ static void scheduleWatchdogTest168(Instance *instance) {
         << "'";
 
     auto holder = std::make_shared<AltVerifyHolder>();
-    afterDelay(
-        instance, holder, kWatchdogWindowUsec * 2 / 3,
-        [instance, uuid, holder]() {
-            auto *tf = instance->addonManager().addon("testfrontend");
-            // Still live, and this tap steps on and postpones the backstop.
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-            FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa0")
-                << "The second tap must step to the next variant, got '"
-                << getClientPreedit(instance) << "'";
+    afterDelay(instance, holder, kWatchdogStepUsec, [instance, uuid, holder]() {
+        auto *tf = instance->addonManager().addon("testfrontend");
+        // Still live, and this tap steps on and postpones the backstop.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa0")
+            << "The second tap must step to the next variant, got '"
+            << getClientPreedit(instance) << "'";
 
-            afterDelay(
-                instance, holder, kWatchdogWindowUsec * 2 / 3,
-                [instance, uuid, holder]() {
-                    auto *tf = instance->addonManager().addon("testfrontend");
-                    // Well past a whole window since cycling started, still
-                    // live.
-                    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa0")
-                        << "A cycling step must postpone the watchdog, got '"
-                        << getClientPreedit(instance) << "'";
+        afterDelay(
+            instance, holder, kWatchdogStepUsec, [instance, uuid, holder]() {
+                auto *tf = instance->addonManager().addon("testfrontend");
+                // Well past a whole window since cycling started, still
+                // live.
+                FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa0")
+                    << "A cycling step must postpone the watchdog, got '"
+                    << getClientPreedit(instance) << "'";
 
-                    // The release still owns the commit.
-                    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa0");
-                    tf->call<ITestFrontend::sendKeyEvent>(
-                        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
-                    FCITX_ASSERT(getClientPreedit(instance).empty())
-                        << "The release must commit and clear the preedit, got "
-                           "'"
-                        << getClientPreedit(instance) << "'";
+                // The release still owns the commit.
+                tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa0");
+                tf->call<ITestFrontend::sendKeyEvent>(
+                    uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+                FCITX_ASSERT(getClientPreedit(instance).empty())
+                    << "The release must commit and clear the preedit, got "
+                       "'"
+                    << getClientPreedit(instance) << "'";
 
-                    tf->call<ITestFrontend::destroyInputContext>(uuid);
-                    FCITX_INFO() << "Test 168 PASSED";
-                    scheduleWatchdogTest169(instance);
-                });
-        });
+                tf->call<ITestFrontend::destroyInputContext>(uuid);
+                FCITX_INFO() << "Test 168 PASSED";
+                scheduleWatchdogTest169(instance);
+            });
+    });
 }
 
 // =========================================================================
@@ -7454,8 +7516,132 @@ static void scheduleWatchdogTest169(Instance *instance) {
 
                    tf->call<ITestFrontend::destroyInputContext>(uuid);
                    FCITX_INFO() << "Test 169 PASSED";
+                   scheduleWatchdogTest170(instance);
+               });
+}
 
-                   FCITX_INFO() << "=== All 169 tests PASSED ===";
+// Send one Alt auto-repeat pair every step, checking before each that the
+// gesture is still on screen. KWin sends auto-repeat as a release followed by a
+// press, and neither is allowed to change anything visible here.
+static void altRepeatKeepsAlive(Instance *instance, ICUUID uuid,
+                                const std::shared_ptr<AltVerifyHolder> &holder,
+                                int left, const std::function<void()> &done) {
+    if (left == 0) {
+        done();
+        return;
+    }
+    afterDelay(instance, holder, kWatchdogStepUsec,
+               [instance, uuid, holder, left, done]() {
+                   auto *tf = instance->addonManager().addon("testfrontend");
+                   FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xb6")
+                       << "The gesture must still be live at repeat "
+                       << (kWatchdogRepeatCount - left + 1) << ", got '"
+                       << getClientPreedit(instance) << "'";
+                   tf->call<ITestFrontend::sendKeyEvent>(
+                       uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+                   tf->call<ITestFrontend::sendKeyEvent>(
+                       uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL),
+                       false);
+                   altRepeatKeepsAlive(instance, uuid, holder, left - 1, done);
+               });
+}
+
+// =========================================================================
+// TEST 170: a session held open by nothing but auto-repeat stays alive. While
+// the user keeps a single-output Alt gesture down, KWin repeats Alt as
+// release-press pairs, the release eater and the same-Alt-repeat guard swallow
+// them, and the preedit never moves. That silence is not idleness: it is the
+// platform saying the key is still down, so it has to push the backstop along.
+// Otherwise the backstop ends a living gesture and the next repeat reaches the
+// application as an Alt shortcut (issue #147 class). Three repeat pairs, spread
+// well past one window, and not a single cycling step.
+// =========================================================================
+static void scheduleWatchdogTest170(Instance *instance) {
+    g_currentTest = 170;
+    FCITX_INFO() << "=== Test 170: Alt auto-repeat alone keeps a gesture alive "
+                    "===";
+    configureWatchdogCyclingAlt(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test170");
+
+    // Hold 'o' (single output) and press Alt: both keys stay down from here.
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xb6")
+        << "Alt must start a session on the single output, got '"
+        << getClientPreedit(instance) << "'";
+
+    auto holder = std::make_shared<AltVerifyHolder>();
+    altRepeatKeepsAlive(
+        instance, uuid, holder, kWatchdogRepeatCount,
+        [instance, uuid, holder]() {
+            auto *tf = instance->addonManager().addon("testfrontend");
+            // The user finally lets go. The release owns the commit, exactly
+            // once, and the Alt release that follows is the leader's own.
+            tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+            tf->call<ITestFrontend::sendKeyEvent>(
+                uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+            tf->call<ITestFrontend::sendKeyEvent>(
+                uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+
+            destroyAfterDeferredCommit(instance, uuid, holder, [instance]() {
+                FCITX_INFO() << "Test 170 PASSED";
+                scheduleWatchdogTest171(instance);
+            });
+        });
+}
+
+// =========================================================================
+// TEST 171: an uppercase gesture keeps its own, longer window for its whole
+// life. The backstop scales with the user's accent window, and uppercase has a
+// window of its own. Cycling resets the waiting gesture, so a re-arming that
+// asks the waiting key how long to wait finds nothing there and quietly falls
+// back to the lowercase window: generous once, half as long ever after, ending
+// an uppercase gesture early. The probe sits past the lowercase window and
+// short of the uppercase one, so only the right window keeps it on screen.
+// =========================================================================
+static void scheduleWatchdogTest171(Instance *instance) {
+    g_currentTest = 171;
+    FCITX_INFO() << "=== Test 171: an uppercase gesture keeps the uppercase "
+                    "window ===";
+    configureWatchdogCyclingUpper(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test171");
+
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), false);
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\x84")
+        << "Space must start cycling on the uppercase mapping, got '"
+        << getClientPreedit(instance) << "'";
+
+    // The step that re-arms the backstop. This is the arming that used to lose
+    // the uppercase window.
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\x80")
+        << "The second tap must step to the next variant, got '"
+        << getClientPreedit(instance) << "'";
+
+    auto holder = std::make_shared<AltVerifyHolder>();
+    afterDelay(instance, holder, kWatchdogUpperProbeUsec,
+               [instance, uuid, holder]() {
+                   auto *tf = instance->addonManager().addon("testfrontend");
+                   FCITX_ASSERT(getClientPreedit(instance) == "\xc3\x80")
+                       << "The uppercase window must still be running, got '"
+                       << getClientPreedit(instance) << "'";
+
+                   tf->call<ITestFrontend::pushCommitExpectation>("\xc3\x80");
+                   tf->call<ITestFrontend::sendKeyEvent>(
+                       uuid, Key(FcitxKey_A, KeyState::Shift, kCodeA), true);
+
+                   tf->call<ITestFrontend::destroyInputContext>(uuid);
+                   FCITX_INFO() << "Test 171 PASSED";
+
+                   FCITX_INFO() << "=== All 171 tests PASSED ===";
                    instance->exit();
                });
 }
