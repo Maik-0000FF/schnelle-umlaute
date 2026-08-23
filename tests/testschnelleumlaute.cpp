@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (168 tests)
+// Test Suite for Schnelle Umlaute (169 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -41,7 +41,7 @@
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
-// 167     Swallowed release    a grab-swallowed input-key release no longer freezes cycling: the next reset() drops the stale gesture (issue #147)
+// 167-168 Swallowed release   a grab-swallowed input-key release no longer freezes cycling: the next reset() drops the stale gesture, while auto-repeat of the held key keeps a live one (issue #147)
 // clang-format on
 
 #include <unistd.h>
@@ -7182,6 +7182,63 @@ static void scheduleTest113(Instance *instance) {
     });
 
     // =========================================================================
+    // TEST 168: the counter-pin to 167. An Alt-led single-output session shows
+    // nothing new while it runs: the held Alt's auto-repeat arrives as
+    // release-press pairs that the eater and the same-Alt repeat branch swallow
+    // without touching the preview. Counting only visible changes as liveness
+    // would therefore declare this provably live gesture stale and destroy it
+    // under the user's fingers. Split across two waits of half the stale window
+    // each: together they exceed it, so the gesture is only saved by the repeat
+    // pair in between marking it alive.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 168;
+        FCITX_INFO() << "=== Test 168: Alt auto-repeat keeps a gesture alive "
+                        "(#147) ===";
+        configureLeaders(instance, false, false, false, false, false,
+                         /*alt=*/true);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test168");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // Hold 'a' + Alt → single-output Alt session, preview on "ä". The
+        // commit waits for the input key's release, so the gesture stays live.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+        FCITX_ASSERT(consumed) << "Alt leader must be consumed";
+        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+            << "Alt must start the single-output session, got '"
+            << getClientPreedit(instance) << "'";
+
+        std::this_thread::sleep_for(kStaleGestureTestWait / 2);
+
+        // One auto-repeat pair of the held Alt: eaten, nothing visible changes.
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
+        FCITX_ASSERT(consumed) << "Alt release in the session must be eaten";
+        consumed = tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+        FCITX_ASSERT(consumed) << "The paired Alt re-press must be consumed";
+
+        std::this_thread::sleep_for(kStaleGestureTestWait / 2);
+
+        // More than a full stale window has passed since the session started,
+        // but not since the repeat pair, so this reset() must leave it alone.
+        ic->reset();
+        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+            << "A gesture kept alive by auto-repeat must survive reset(), got '"
+            << getClientPreedit(instance) << "'";
+
+        // Torn down without a release, so nothing commits and a stray commit
+        // would abort on the empty expectation queue.
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 168 PASSED";
+    });
+
+    // =========================================================================
     // TEST 141: Post-timeout ordering guard splits char and space (issue #90
     // twin). The accent window has expired but the timeout timer has not
     // fired: the blocking sleep below keeps the single-threaded event loop
@@ -7364,7 +7421,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 168 tests PASSED ===";
+                                FCITX_INFO() << "=== All 169 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });

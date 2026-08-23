@@ -53,13 +53,14 @@ public:
 
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
-    // Monotonic time the gesture last moved: started waiting, started cycling,
-    // stepped to another variant, or survived a KWin auto-repeat gap. Only
-    // events that carry the gesture forward count, NOT key traffic in general:
-    // a held key produces no auto-repeat once a leader has been tapped (the
-    // platform repeats the most recently pressed key only), and unrelated
-    // presses like Shift must not make a dead gesture look alive. Refreshed
-    // through touchGesture(); read by isGestureStale().
+    // Monotonic time the gesture last showed a sign of life: it started
+    // waiting, started cycling, stepped to another variant, or an event arrived
+    // on its own input key or consumed Alt leader (auto-repeat included, which
+    // the guards below swallow without any visible change). Key traffic in
+    // general does NOT count: a lone release leaking in from a compositor grab,
+    // or an unrelated Shift press, says nothing about the key the gesture
+    // believes is held. Refreshed through touchGesture() and
+    // touchGestureIfOwnKey(); read by isGestureStale().
     uint64_t lastGestureActivityUsec_ = 0;
     int waitingKeyCode_ = 0;
     // Frontend event time (KeyEvent::time(), ms) of the press that started the
@@ -198,6 +199,26 @@ public:
         clearCommittedKey();
         consumedAltCode_ = 0;
         altGestureSession_ = false;
+        // No gesture left to be alive, so the stamp goes with it. Keeping it
+        // would leave a time from the previous gesture lying around for the
+        // next one to be measured against before its first touch.
+        lastGestureActivityUsec_ = 0;
+    }
+
+    // Wipe as clearAllState(), but carry the committed-key repeat suppression
+    // across: that arming belongs to a key whose commit already happened, and
+    // dropping it lets the next auto-repeat re-enter as a fresh press and
+    // duplicate the character (issue #92). excludeCode opts one code out, for
+    // callers that have just decided this key is NOT held any more; without it
+    // the restored heldRawCodes_ entry would swallow that key's next real press
+    // as a repeat.
+    void clearAllStateKeepingCommitted(int excludeCode = 0) {
+        const auto keep = committed_;
+        clearAllState();
+        if (keep.code != 0 && keep.code != excludeCode) {
+            committed_ = keep;
+            heldRawCodes_.insert(keep.code);
+        }
     }
 
     void resetCycling() {
@@ -230,15 +251,31 @@ public:
     // last move" instead of a stamp per call site.
     void touchGesture() { lastGestureActivityUsec_ = nowUsec(); }
 
+    // Same, for a key event that carries no visible change: only the gesture's
+    // own input key and its consumed Alt leader count, every other code is
+    // ignored. Keyed on the codes rather than on the event kind so a press, a
+    // release and a synthetic auto-repeat pair all qualify.
+    void touchGestureIfOwnKey(int rawCode) {
+        if (rawCode == 0 || !cyclingInput_)
+            return;
+        if (rawCode == waitingKeyCode_ ||
+            (consumedAltCode_ != 0 && rawCode == consumedAltCode_))
+            touchGesture();
+    }
+
     // Grace period for isGestureStale(). Measured against how long a user can
     // sit inside a live gesture without moving it: cycling means tapping the
     // leader every few hundred milliseconds while the input key stays down, so
     // whole seconds of silence are not part of the flow. Deliberately not tied
     // to auto-repeat timing, which cannot be relied on here (see
-    // lastGestureActivityUsec_). Accepted trade-off: a user who holds the key
-    // and pauses longer than this loses the preview character if the
-    // application happens to reset in that window, which costs one retyped key
-    // against a gesture that would otherwise stay stuck for the whole session.
+    // lastGestureActivityUsec_). Accepted trade-off: if an application resets
+    // during a pause this long, the gesture is dropped under a still-held key.
+    // The preview character is lost, and because cycling is over, the leader
+    // taps that follow reach the application raw (a Space types a space) until
+    // the key is released and pressed again. Weighed against a gesture that
+    // otherwise stays stuck for the rest of the session, and reachable only in
+    // an application that resets while the user holds a key without touching
+    // it for seconds.
     static constexpr uint64_t kStaleGestureGraceMs = 2'000;
 
     // True when a cycling gesture has not moved for the whole grace period.

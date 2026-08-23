@@ -156,6 +156,17 @@ public:
         bool isPress = !keyEvent.isRelease();
         int rawCode = keyEvent.rawKey().code();
 
+        // Second liveness site next to updateClientPreedit(): an event on the
+        // gesture's own input key or on its consumed Alt leader proves the
+        // gesture is still being driven, even when it produces no visible
+        // change. Auto-repeat of a held key runs through exactly these two
+        // codes and is swallowed by the repeat and synthetic-release guards
+        // further down, so without this stamp a hold that only repeats would
+        // look abandoned to isGestureStale(). Any other key is ignored on
+        // purpose: it says nothing about the held key (see
+        // lastGestureActivityUsec_).
+        state->touchGestureIfOwnKey(rawCode);
+
         // Track physical key state for repeat detection.
         // A key already in heldRawCodes_ is a repeat (auto-repeat).
         bool isNewKeyPress = true;
@@ -480,10 +491,6 @@ public:
             rawCode == state->waitingKeyCode_) {
             state->cancelTimeout();
             state->inputKeyPressed_ = true;
-            // Carrying the session across a repeat gap keeps the gesture alive
-            // without rewriting the preview, so the liveness stamp that
-            // updateClientPreedit() normally owns has to be set here too.
-            state->touchGesture();
             keyEvent.filterAndAccept();
             return;
         }
@@ -880,6 +887,17 @@ public:
         // Some apps (Chromium, Neovide) call reset() after every commit.
         auto *ic = event.inputContext();
         auto *state = ic->propertyFor(&factory_);
+
+        // A deferred trailing space was already consumed from the user; deliver
+        // it before any path below can cancel it, mirroring deactivate(). The
+        // reachable case is a char that committed synchronously and cleared
+        // inputKeyPressed_, so a reset() landing in the sub-millisecond window
+        // before the zero-delay space timer (Chromium and Neovide fire reset()
+        // after every commit) would drop the trailing space (issue #90). It
+        // runs ahead of the held-key branch so no future path can end up
+        // wiping a consumed space through a return this flush never saw.
+        flushPendingSpaceCommit(ic, state);
+
         if (state->inputKeyPressed_) {
             // ... unless nothing can press it any more: a compositor grab can
             // swallow the release (issue #147), and then this guard would keep
@@ -891,15 +909,6 @@ public:
             return;
         }
 
-        // A deferred trailing space was already consumed from the user; deliver
-        // it before clearAllState() cancels it, mirroring deactivate(). The char
-        // committed synchronously and cleared inputKeyPressed_, so the early
-        // return above does not cover it; without this flush a reset() landing
-        // in the sub-millisecond window before the zero-delay space timer
-        // (Chromium and Neovide fire reset() after every commit) drops the
-        // trailing space (issue #90).
-        flushPendingSpaceCommit(ic, state);
-
         // A running commit-flash must survive the post-commit reset that
         // Chromium and Neovide fire, otherwise the confirmation overlay would
         // vanish in the same frame as the commit (single-output commits set
@@ -910,23 +919,16 @@ public:
         // (overlayHideEvent_ stays non-null after firing, like overlayShowEvent_).
         // A still-held key whose char was already committed via single-output
         // keeps committed_ armed so its auto-repeat is consumed instead of
-        // starting a fresh gesture (the "üu"-class guard). clearAllState() drops
-        // committed_ and its heldRawCodes_ entry, so the app-reset() Chromium and
-        // Neovide fire after every commit lets the next auto-repeat re-enter as a
-        // fresh press (isNewKeyPress == true, so the repeat guard below the arming
-        // sites no longer matches) and start a duplicate gesture (issue #92).
-        // Preserve the whole committed_ bundle across the wipe; the focus-change
-        // path (deactivate/activate) keeps clearing everything. Self-guarding:
-        // code == 0 means nothing was armed (a release already cleared it via the
-        // committed-key release branch).
-        const auto heldCommitted = state->committed_;
-
+        // starting a fresh gesture (the "üu"-class guard). A plain
+        // clearAllState() would drop that arming, so the app-reset() Chromium
+        // and Neovide fire after every commit would let the next auto-repeat
+        // re-enter as a fresh press (isNewKeyPress == true, so the repeat guard
+        // below the arming sites no longer matches) and start a duplicate
+        // gesture (issue #92). clearAllStateKeepingCommitted() carries the
+        // bundle across; the focus-change path (deactivate/activate) keeps
+        // clearing everything.
         auto flash = std::move(state->overlayHideEvent_);
-        state->clearAllState();
-        if (heldCommitted.code != 0) {
-            state->committed_ = heldCommitted;
-            state->heldRawCodes_.insert(heldCommitted.code);
-        }
+        state->clearAllStateKeepingCommitted();
         if (flash && overlayVisible_) {
             state->overlayHideEvent_ = std::move(flash);
             return;
@@ -1575,22 +1577,16 @@ private:
     // preedit survives and keeps feeding the duplicates. recentlyCommitted_ is
     // left alone, like everywhere else in reset() (see its comment in state.h).
     void dropStaleGesture(InputContext *ic, SchnelleUmlauteState *state) {
-        // Carry a single-output commit's repeat suppression across the wipe,
-        // exactly as the normal reset() path does: that arming belongs to a key
-        // whose commit already happened, not to the gesture being dropped here,
-        // so losing it would let the next auto-repeat start a duplicate gesture
-        // (issue #92). The dropped gesture's own key is deliberately NOT kept
-        // in heldRawCodes_ — a stale gesture means that key is not down any
-        // more, and keeping it would swallow its next real press as a repeat.
-        const auto heldCommitted = state->committed_;
+        // Same commit-arming carry as the normal reset() path, minus this
+        // gesture's own key: declaring it stale is declaring that key not held,
+        // so restoring its heldRawCodes_ entry would swallow its next real
+        // press as a repeat. The two can be the same code when a single-output
+        // commit armed the key that a later gesture then reused.
+        const int staleCode = state->waitingKeyCode_;
         overlayHide();
         ic->inputPanel().reset();
         ic->updatePreedit();
-        state->clearAllState();
-        if (heldCommitted.code != 0) {
-            state->committed_ = heldCommitted;
-            state->heldRawCodes_.insert(heldCommitted.code);
-        }
+        state->clearAllStateKeepingCommitted(staleCode);
     }
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs
