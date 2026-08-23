@@ -53,6 +53,14 @@ public:
 
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
+    // Monotonic time of the last key event of any kind seen on this input
+    // context (press or release, consumed or passed through). A physically held
+    // key keeps auto-repeat flowing, so this stamp stays fresh for as long as
+    // inputKeyPressed_ is legitimately set; a frozen stamp means no key traffic
+    // reaches the addon at all. See isHeldKeyStale(). Deliberately NOT cleared
+    // in clearAllState(): it is a plain "when did the keyboard last talk to
+    // us" clock, not gesture state.
+    uint64_t lastKeyEventUsec_ = 0;
     int waitingKeyCode_ = 0;
     // Frontend event time (KeyEvent::time(), ms) of the press that started the
     // current waiting gesture. On KWin/Wayland the compositor freezes the
@@ -215,6 +223,30 @@ public:
         uint64_t elapsed_ms =
             (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
         return elapsed_ms > static_cast<uint64_t>(effectiveDelay);
+    }
+
+    // Grace period for isHeldKeyStale(). It has to sit well above the
+    // platform's auto-repeat delay, because that repeat is what refreshes
+    // lastKeyEventUsec_ while a key is held without any other key traffic;
+    // the usual delays are a few hundred milliseconds. Accepted trade-off: with
+    // auto-repeat switched off system-wide nothing refreshes the stamp, so a
+    // reset() landing inside a hold longer than this drops the preedit. Losing
+    // one preview character in that setup beats a gesture that stays stuck for
+    // the rest of the session.
+    static constexpr uint64_t kStuckHeldKeyGraceMs = 1'500;
+
+    // True when the addon still believes the input key is physically down but
+    // no key event has arrived for the whole grace period. That combination is
+    // only reachable when the release was swallowed on its way here: a
+    // compositor grab (KWin's window operations menu on Alt+Space, issue #147)
+    // takes the keyboard without moving the focus, so neither the release nor a
+    // FocusOut ever arrives and the gesture would stay live for the rest of the
+    // session. Lets reset() tell a real hold from a lost release.
+    bool isHeldKeyStale() const {
+        if (!inputKeyPressed_ || lastKeyEventUsec_ == 0)
+            return false;
+        return (nowUsec() - lastKeyEventUsec_) / kMicrosecondsPerMillisecond >
+               kStuckHeldKeyGraceMs;
     }
 
     // Lower bound of the accent window: true while the input key has been

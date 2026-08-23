@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (167 tests)
+// Test Suite for Schnelle Umlaute (168 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -41,6 +41,7 @@
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
+// 167     Swallowed release    a grab-swallowed input-key release no longer freezes cycling: the next reset() drops the stale gesture (issue #147)
 // clang-format on
 
 #include <unistd.h>
@@ -73,6 +74,9 @@
 #include <xkbcommon/xkbcommon.h>
 // The shipped classifier and kNoKeyCode, tested directly rather than copied.
 #include "src/hand_classifier.h"
+// The stuck-held-key grace period, so the wait below is derived from the
+// engine constant instead of a second copy of the number.
+#include "src/state.h"
 #include "src/synthetic_autorepeat.h"
 #include "testdir.h"
 #include "testfrontend_public.h"
@@ -168,6 +172,16 @@ constexpr int kCodeSection = 21; // physical key for §
 constexpr auto kSyntheticReleaseTestHold =
     std::chrono::microseconds(kSyntheticReleaseMinElapsedUsec) +
     std::chrono::milliseconds(1);
+
+// Stand in for the time a compositor grab holds the keyboard while the input
+// key's release is swallowed (test 167): the engine's stuck-held-key grace
+// period plus 100 ms margin, so the following reset() classifies the hold as
+// stale. Derived from the engine constant, so raising it cannot silently make
+// this wait too short and flip the test to a false pass. See state.h.
+constexpr auto kStuckHeldKeyTestWait =
+    std::chrono::milliseconds(
+        static_cast<long long>(SchnelleUmlauteState::kStuckHeldKeyGraceMs)) +
+    std::chrono::milliseconds(100);
 
 // Helper: load mappings via setSubConfig (the path loadMappingsFromFile reads)
 static void
@@ -7093,6 +7107,73 @@ static void scheduleTest113(Instance *instance) {
     });
 
     // =========================================================================
+    // TEST 167: a swallowed input-key release no longer freezes the gesture
+    // (issue #147). KWin's window operations menu (Alt+Space) grabs the
+    // keyboard without moving the focus, so the release goes to the menu and
+    // neither a release nor a FocusOut ever reaches the addon: inputKeyPressed_
+    // stays set. Cycling has no timer left to fall back on (the leader press
+    // cancels the accent window), so before the fix every later reset() hit the
+    // early return and the client preedit stayed registered for the rest of the
+    // session, which Chromium re-confirms as real text on every caret change.
+    // Pinned in three steps: a reset() while the hold is fresh stays a no-op, a
+    // reset() after the grace period drops the gesture WITHOUT committing (no
+    // expectation is pushed, so a stray commit aborts on the empty queue), and
+    // the input key works again afterwards.
+    // =========================================================================
+    testDispatcher->schedule([instance]() {
+        g_currentTest = 167;
+        FCITX_INFO() << "=== Test 167: reset() recovers a swallowed release "
+                        "(#147) ===";
+        // Multi-variant mapping: 'a' keeps cycling instead of committing on the
+        // first leader, which is the state that used to freeze.
+        configureMultilingualCycling(instance, true, false);
+        auto *tf = instance->addonManager().addon("testfrontend");
+        auto uuid = createAndActivate(instance, tf, "test167");
+        auto *ic = instance->inputContextManager().findByUUID(uuid);
+        FCITX_ASSERT(ic) << "IC must exist";
+
+        // Hold 'a' + Space → cycling on the first variant, key still held.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+            << "Space must start cycling, got '" << getClientPreedit(instance)
+            << "'";
+
+        // Fresh hold: an app reset() must leave the live gesture alone.
+        ic->reset();
+        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+            << "reset() during a live hold must keep the gesture, got '"
+            << getClientPreedit(instance) << "'";
+
+        // The release is swallowed here: while the menu holds the grab, no key
+        // event of any kind arrives.
+        std::this_thread::sleep_for(kStuckHeldKeyTestWait);
+
+        // The next reset() (Chromium fires one per mouse click) must recognise
+        // the stale hold and drop the gesture instead of returning early.
+        ic->reset();
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "A stale hold must drop the preedit, got '"
+            << getClientPreedit(instance) << "'";
+
+        // The key works again: clearAllState() dropped its heldRawCodes_ entry,
+        // so this press counts as fresh instead of being eaten as a repeat.
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+        FCITX_ASSERT(getClientPreedit(instance) == "a")
+            << "The stuck key must start a fresh gesture, got '"
+            << getClientPreedit(instance) << "'";
+        tf->call<ITestFrontend::pushCommitExpectation>("a");
+        tf->call<ITestFrontend::sendKeyEvent>(
+            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+        tf->call<ITestFrontend::destroyInputContext>(uuid);
+        FCITX_INFO() << "Test 167 PASSED";
+    });
+
+    // =========================================================================
     // TEST 141: Post-timeout ordering guard splits char and space (issue #90
     // twin). The accent window has expired but the timeout timer has not
     // fired: the blocking sleep below keeps the single-threaded event loop
@@ -7275,7 +7356,7 @@ static void scheduleTest113(Instance *instance) {
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
 
-                                FCITX_INFO() << "=== All 167 tests PASSED ===";
+                                FCITX_INFO() << "=== All 168 tests PASSED ===";
                                 instance->exit();
                                 return false;
                             });
