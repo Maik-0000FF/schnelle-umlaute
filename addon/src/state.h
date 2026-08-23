@@ -61,13 +61,11 @@ public:
     // of the gesture re-arms it, so cycling is only ever cut short by doing
     // nothing at all. Own slot: timeoutEvent_ carries the Alt deferred commit
     // during the same phase.
-    std::unique_ptr<EventSourceTime> cyclingWatchdogEvent_;
-    // True only while the watchdog callback runs. Destroying an EventSourceTime
-    // from inside its own callback is a use-after-free, and the callback
-    // commits through the shared path, which tears the gesture down and would
-    // cancel the timer. The guard makes that cancel a no-op; returning false
-    // from the callback disables the source, and the next arming replaces it.
-    bool cyclingWatchdogFiring_ = false;
+    // When this gesture last wrote its own preedit, as the monotonic clock. A
+    // client reports the caret's new position after every such write, so this
+    // stamp is what separates that echo from a caret the user moved (see
+    // kCaretEchoGraceMs).
+    uint64_t lastPreeditUsec_ = 0;
 
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
@@ -211,11 +209,11 @@ public:
     }
 
     // The one teardown every end of a cycling phase runs through (commit,
-    // cancel, wipe), so the watchdog cannot outlive the gesture it guards.
+    // cancel, wipe).
     void resetCycling() {
         cyclingInput_.reset();
         cyclingIndex_ = 0;
-        cancelCyclingWatchdog();
+        lastPreeditUsec_ = 0;
     }
 
     void cancelTimeout() { timeoutEvent_.reset(); }
@@ -229,11 +227,11 @@ public:
         pendingSpaceCommit_ = false;
     }
 
-    // No-op while the watchdog is firing: see cyclingWatchdogFiring_.
-    void cancelCyclingWatchdog() {
-        if (cyclingWatchdogFiring_)
-            return;
-        cyclingWatchdogEvent_.reset();
+    // True while a cursor-rect report can still be the client echoing our own
+    // preedit rather than the user moving the caret. See kCaretEchoGraceMs.
+    bool inCaretEchoWindow(int graceMs) const {
+        return lastPreeditUsec_ != 0 && elapsedMsSince(lastPreeditUsec_) <
+                                            static_cast<uint64_t>(graceMs);
     }
 
     // Milliseconds between a monotonic stamp and now. The one place the
