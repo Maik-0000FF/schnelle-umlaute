@@ -26,14 +26,6 @@ constexpr int kDelayMax = 2000;
 constexpr int kDelayStep = 10;
 constexpr int kDeferredCommitDelayMs = 5;
 
-// How long a client's cursor-rect report still counts as an echo of our own
-// preedit (see dropGestureOnCaretMove, issue #147). Setting a preedit makes the
-// client re-lay out its text and report the caret's new position back, so that
-// report says nothing about the user. It arrives within a rendering round trip;
-// a caret that moves because someone clicked comes far later, with no preedit
-// change of ours before it.
-constexpr int kCaretEchoGraceMs = 150;
-
 // Minimum-hold lower bound (ms). The accent window is [min, max]: a leader
 // that arrives before min has elapsed yields the plain character instead of
 // the accent. 0 reproduces the historic behavior (no lower bound), so it is

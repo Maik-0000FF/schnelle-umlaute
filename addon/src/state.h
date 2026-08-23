@@ -51,21 +51,13 @@ public:
     std::unique_ptr<EventSourceTime> spaceCommitEvent_;
     bool pendingSpaceCommit_ = false;
 
-    // Backstop for the cycling phase, which has no timer of its own: the leader
-    // press cancels the accent window, and from then on only the input key's
-    // release ends the gesture. A compositor grab can swallow that release
-    // (KWin's window operations menu on Alt+Space, issue #147) without moving
-    // the focus, so no release and no FocusOut ever arrive and the gesture
-    // would stay live for the rest of the session. This timer ends it the way
-    // the release would have, by committing the variant on screen. Every step
-    // of the gesture re-arms it, so cycling is only ever cut short by doing
-    // nothing at all. Own slot: timeoutEvent_ carries the Alt deferred commit
-    // during the same phase.
-    // When this gesture last wrote its own preedit, as the monotonic clock. A
-    // client reports the caret's new position after every such write, so this
-    // stamp is what separates that echo from a caret the user moved (see
-    // kCaretEchoGraceMs).
-    uint64_t lastPreeditUsec_ = 0;
+    // Set when this gesture writes a preedit, cleared by the first caret report
+    // that follows. Writing a preedit makes the client re-lay out its text and
+    // report the caret's new position back, and that report says nothing about
+    // the user, so the first one after a write is spoken for (see
+    // dropGestureOnCaretMove). Counting rather than timing keeps a slow client
+    // from looking like a click.
+    bool caretEchoPending_ = false;
 
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
@@ -213,7 +205,7 @@ public:
     void resetCycling() {
         cyclingInput_.reset();
         cyclingIndex_ = 0;
-        lastPreeditUsec_ = 0;
+        caretEchoPending_ = false;
     }
 
     void cancelTimeout() { timeoutEvent_.reset(); }
@@ -225,13 +217,6 @@ public:
     void cancelSpaceCommit() {
         spaceCommitEvent_.reset();
         pendingSpaceCommit_ = false;
-    }
-
-    // True while a cursor-rect report can still be the client echoing our own
-    // preedit rather than the user moving the caret. See kCaretEchoGraceMs.
-    bool inCaretEchoWindow(int graceMs) const {
-        return lastPreeditUsec_ != 0 && elapsedMsSince(lastPreeditUsec_) <
-                                            static_cast<uint64_t>(graceMs);
     }
 
     // Milliseconds between a monotonic stamp and now. The one place the

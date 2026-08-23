@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (169 tests)
+// Test Suite for Schnelle Umlaute (171 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -41,11 +41,10 @@
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
-// 167-169 Stale gesture      a swallowed input-key release no longer freezes cycling: the client's caret moving ends the gesture, the client's answer to our own preedit does not, and a long pause changes nothing at all (issue #147)
+// 167-171 Stale gesture      a swallowed input-key release no longer freezes cycling: the client's caret moving ends the gesture, the client's answer to our own preedit does not, a long pause changes nothing at all, a client without preedit support gets the character committed rather than dropped, and a deferred commit already under way survives (issue #147)
 // clang-format on
 
 #include <unistd.h>
-#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -495,6 +494,18 @@ static void configureWithDelay(Instance *instance, int delayLower,
 // on) and a three-variant 'a' mapping: the setup the stale-gesture tests
 // (167-169) share. 'o' stays single-output as a clean "types normally again"
 // probe.
+// The same setup led by Alt instead of Space, for the deferred-commit test
+// (171). Only an Alt-led gesture defers its commit, which is the window that
+// test probes.
+static void configureStaleGestureCyclingAlt(Instance *instance) {
+    configureWithDelay(instance, kStaleTestDelayMs, kStaleTestDelayMs, false,
+                       true, 0, 0);
+    setMappings(instance, {
+                              {"a", "\xc3\xa4,\xc3\xa0,\xc3\xa1"},
+                              {"o", "\xc3\xb6"},
+                          });
+}
+
 static void configureStaleGestureCycling(Instance *instance) {
     configureWithDelay(instance, kStaleTestDelayMs, kStaleTestDelayMs, true,
                        false, 0, 0);
@@ -867,6 +878,8 @@ static void scheduleTest113(Instance *instance);
 static void scheduleStaleGestureTests(Instance *instance);
 static void scheduleStaleGestureTest168(Instance *instance);
 static void scheduleStaleGestureTest169(Instance *instance);
+static void scheduleStaleGestureTest170(Instance *instance);
+static void scheduleStaleGestureTest171(Instance *instance);
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -7311,27 +7324,45 @@ static void scheduleTest113(Instance *instance) {
 }
 
 // =============================================================================
-// STALE-GESTURE TESTS (167-169): a cycling gesture whose input-key release
+// =============================================================================
+// STALE-GESTURE TESTS (167-171): a cycling gesture whose input-key release
 // never arrived ends when the client reports its caret somewhere else (issue
-// #147). Timer-chained instead of dispatcher-scheduled with a blocking sleep,
-// because the echo window these tests probe is measured on the very event loop
-// such a sleep would freeze.
+// #147). Two client kinds appear here, because what happens to the character
+// depends on whether the client ever received it: one that shows a preedit and
+// one that does not. The test frontend is the latter by default, so the preedit
+// tests say so explicitly.
 // =============================================================================
 
-// Tell the addon where the client's caret went. The value is irrelevant, the
-// event is the signal; the frontend has no API for it, so the test sets it on
-// the context directly, exactly as a real frontend does.
-static void moveCaret(Instance *instance) {
+// Make the context's client one that receives preedits, like Chromium. The
+// default test frontend carries no such capability, and that is exactly the
+// other case worth testing (see test 170).
+static void enableClientPreedit(Instance *instance) {
     instance->inputContextManager().foreach([](InputContext *ic) {
-        ic->setCursorRect(Rect(1, 1, 1, 1));
+        ic->setCapabilityFlags(CapabilityFlags{CapabilityFlag::Preedit});
         return true;
     });
 }
 
-// A wait comfortably past the echo window, so a caret report after it counts as
-// the user having moved rather than the client answering our own preedit.
-constexpr uint64_t kPastCaretEchoUsec =
-    static_cast<uint64_t>(kCaretEchoGraceMs + 100) * 1000;
+// Tell the addon where the client's caret went. A fresh position every call:
+// setCursorRect drops a report that repeats the rect it already holds, so
+// reusing one would make the second call in a test silently do nothing and
+// assert against an event that never fired.
+static void moveCaret(Instance *instance) {
+    static int step = 0;
+    ++step;
+    instance->inputContextManager().foreach([](InputContext *ic) {
+        ic->setCursorRect(Rect(step, step, 1, 1));
+        return true;
+    });
+}
+
+// A pause long enough that any clock someone puts back on the picker would have
+// run out. Nothing in the engine measures time here, and that is the point.
+constexpr int kStalePauseProbeMs = 600;
+constexpr uint64_t kStalePauseProbeUsec =
+    static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                              std::chrono::milliseconds(kStalePauseProbeMs))
+                              .count());
 
 // Give the event loop usec to run, then continue. A blocking sleep cannot be
 // used where an addon timer has to fire, because it freezes the very loop that
@@ -7349,11 +7380,11 @@ static void afterDelay(Instance *instance,
 }
 
 // =========================================================================
-// TEST 168: the counter-pin to 167. The caret report a client sends straight
-// after our own preedit is the client answering us, not the user going
-// somewhere: it must leave the gesture alone. Every cycling step writes a
-// preedit, so this is what happens on every single step of every gesture in
-// every client that reports a caret at all.
+// TEST 168: the counter-pin to 167. A client that shows a preedit answers every
+// write with the caret's new position, and that answer is not the user going
+// anywhere. Each step claims the next report, so a gesture whose every step is
+// followed by one caret report survives all of them. This is what happens on
+// every single step of every gesture in such a client.
 // =========================================================================
 static void scheduleStaleGestureTest168(Instance *instance) {
     g_currentTest = 168;
@@ -7362,6 +7393,7 @@ static void scheduleStaleGestureTest168(Instance *instance) {
     configureStaleGestureCycling(instance);
     auto *tf = instance->addonManager().addon("testfrontend");
     auto uuid = createAndActivate(instance, tf, "test168");
+    enableClientPreedit(instance);
 
     tf->call<ITestFrontend::sendKeyEvent>(
         uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
@@ -7371,13 +7403,13 @@ static void scheduleStaleGestureTest168(Instance *instance) {
         << "Space must start cycling, got '" << getClientPreedit(instance)
         << "'";
 
-    // The echo of that preedit.
+    // The echo of that write.
     moveCaret(instance);
     FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
         << "The echo of our own preedit must not end the gesture, got '"
         << getClientPreedit(instance) << "'";
 
-    // And again on the next step, which writes another preedit.
+    // A step, and its own echo.
     tf->call<ITestFrontend::sendKeyEvent>(
         uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
     moveCaret(instance);
@@ -7420,7 +7452,7 @@ static void scheduleStaleGestureTest169(Instance *instance) {
         uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
 
     auto holder = std::make_shared<AltVerifyHolder>();
-    afterDelay(instance, holder, kPastCaretEchoUsec,
+    afterDelay(instance, holder, kStalePauseProbeUsec,
                [instance, uuid, holder]() {
                    auto *tf = instance->addonManager().addon("testfrontend");
                    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
@@ -7442,10 +7474,84 @@ static void scheduleStaleGestureTest169(Instance *instance) {
 
                    tf->call<ITestFrontend::destroyInputContext>(uuid);
                    FCITX_INFO() << "Test 169 PASSED";
-
-                   FCITX_INFO() << "=== All 169 tests PASSED ===";
-                   instance->exit();
+                   scheduleStaleGestureTest170(instance);
                });
+}
+
+// =========================================================================
+// TEST 170: a client that shows no preedit must not lose the character. There
+// the picker only ever existed in the addon's own panel, so the client has
+// nothing to re-confirm and nothing to duplicate: discarding would delete a
+// character the user picked and never saw committed. The caret move ends the
+// gesture the way the missing release would have, by committing it.
+// =========================================================================
+static void scheduleStaleGestureTest170(Instance *instance) {
+    g_currentTest = 170;
+    FCITX_INFO() << "=== Test 170: without preedit support the character is "
+                    "committed, not dropped ===";
+    configureStaleGestureCycling(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test170");
+
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+        << "Space must start cycling, got '" << getClientPreedit(instance)
+        << "'";
+
+    // No preedit ever reached the client, so no write claimed an echo: the
+    // very first report is the user.
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+    moveCaret(instance);
+    FCITX_ASSERT(getClientPreedit(instance).empty())
+        << "The caret move must end the gesture, got '"
+        << getClientPreedit(instance) << "'";
+
+    tf->call<ITestFrontend::destroyInputContext>(uuid);
+    FCITX_INFO() << "Test 170 PASSED";
+    scheduleStaleGestureTest171(instance);
+}
+
+// =========================================================================
+// TEST 171: a caret report must not wipe a commit that is already on its way.
+// An Alt-led gesture hands its commit to a 5 ms timer and clears the held-key
+// flag while doing so, which is the one moment a live gesture legitimately
+// claims no key is down. A report landing in that window used to tear the state
+// down from under the timer and lose the character. Nothing is pushed onto the
+// expectation queue before the report, so a commit fired there counts as
+// unexpected and fails.
+// =========================================================================
+static void scheduleStaleGestureTest171(Instance *instance) {
+    g_currentTest = 171;
+    FCITX_INFO() << "=== Test 171: a caret report must not wipe a deferred "
+                    "commit ===";
+    configureStaleGestureCyclingAlt(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test171");
+
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+        << "Alt must start cycling, got '" << getClientPreedit(instance) << "'";
+
+    // The release hands the commit to the deferred timer.
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+    moveCaret(instance);
+
+    // Only now is a commit due, and only one.
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+    auto holder = std::make_shared<AltVerifyHolder>();
+    destroyAfterDeferredCommit(instance, uuid, holder, [instance]() {
+        FCITX_INFO() << "Test 171 PASSED";
+
+        FCITX_INFO() << "=== All 171 tests PASSED ===";
+        instance->exit();
+    });
 }
 
 // =========================================================================
@@ -7457,8 +7563,9 @@ static void scheduleStaleGestureTest169(Instance *instance) {
 // rest of the session with its client preedit still registered, which
 // applications like Chromium re-confirm as text on every caret change: one
 // spurious character per mouse click. That caret change is also the way out.
-// The first one ends the gesture, so the second click and every one after it
-// finds nothing left to re-confirm.
+// The gesture's last write has one report coming to it, so it is the click
+// after that one which ends it, and every click from then on finds nothing left
+// to re-confirm.
 // =========================================================================
 static void scheduleStaleGestureTests(Instance *instance) {
     g_currentTest = 167;
@@ -7467,6 +7574,7 @@ static void scheduleStaleGestureTests(Instance *instance) {
     configureStaleGestureCycling(instance);
     auto *tf = instance->addonManager().addon("testfrontend");
     auto uuid = createAndActivate(instance, tf, "test167");
+    enableClientPreedit(instance);
 
     // Hold 'a' + Space → cycling on the first variant, key still held.
     tf->call<ITestFrontend::sendKeyEvent>(
@@ -7479,37 +7587,37 @@ static void scheduleStaleGestureTests(Instance *instance) {
 
     // The release is swallowed here: the menu owns the keyboard, so no further
     // key event of any kind arrives. The user clicks into the text instead.
-    auto holder = std::make_shared<AltVerifyHolder>();
-    afterDelay(
-        instance, holder, kPastCaretEchoUsec, [instance, uuid, holder]() {
-            auto *tf = instance->addonManager().addon("testfrontend");
-            moveCaret(instance);
-            FCITX_ASSERT(getClientPreedit(instance).empty())
-                << "A caret move must end the gesture and clear the preedit, "
-                   "got '"
-                << getClientPreedit(instance) << "'";
+    // The first report is the one that write had coming.
+    moveCaret(instance);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+        << "The write's own echo must not end the gesture, got '"
+        << getClientPreedit(instance) << "'";
 
-            // The character is NOT committed here: the client already turned
-            // the preedit into text at the old caret, and a commit would put a
-            // second copy where the user just clicked. An unexpected commit
-            // fails the frontend's expectation queue.
+    // This one is the user.
+    moveCaret(instance);
+    FCITX_ASSERT(getClientPreedit(instance).empty())
+        << "A caret move must end the gesture and clear the preedit, got '"
+        << getClientPreedit(instance) << "'";
 
-            // The key works again: no repeat suppression was armed for it, so
-            // its next real press starts a fresh gesture instead of being
-            // swallowed.
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-            FCITX_ASSERT(getClientPreedit(instance) == "a")
-                << "The key must start a fresh gesture, got '"
-                << getClientPreedit(instance) << "'";
-            tf->call<ITestFrontend::pushCommitExpectation>("a");
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+    // The character is NOT committed here: the client already turned the
+    // preedit into text at the old caret, and a commit would put a second copy
+    // where the user just clicked. An unexpected commit fails the frontend's
+    // expectation queue.
 
-            tf->call<ITestFrontend::destroyInputContext>(uuid);
-            FCITX_INFO() << "Test 167 PASSED";
-            scheduleStaleGestureTest168(instance);
-        });
+    // The key works again: no repeat suppression was armed for it, so its next
+    // real press starts a fresh gesture instead of being swallowed.
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "a")
+        << "The key must start a fresh gesture, got '"
+        << getClientPreedit(instance) << "'";
+    tf->call<ITestFrontend::pushCommitExpectation>("a");
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+    tf->call<ITestFrontend::destroyInputContext>(uuid);
+    FCITX_INFO() << "Test 167 PASSED";
+    scheduleStaleGestureTest168(instance);
 }
 
 int main() {

@@ -1428,11 +1428,13 @@ private:
     // report its caret back.
     void updateClientPreedit(InputContext *ic, SchnelleUmlauteState *state,
                              const std::string &text) {
-        // Stamp before the write, not after: the client may report its new
-        // caret position synchronously from inside updatePreedit(), and that
-        // report has to fall inside the echo window (see
-        // dropGestureOnCaretMove).
-        state->lastPreeditUsec_ = SchnelleUmlauteState::nowUsec();
+        // Claim the echo before the write, not after: the client may report its
+        // new caret position synchronously from inside updatePreedit(), and
+        // that report has to find the claim already standing (see
+        // dropGestureOnCaretMove). Only a client that receives preedits can
+        // answer one, so for any other the write claims nothing.
+        state->caretEchoPending_ =
+            ic->capabilityFlags().test(CapabilityFlag::Preedit);
         Text preedit(text);
         preedit.setCursor(static_cast<int>(preedit.textLength()));
         ic->inputPanel().setClientPreedit(preedit);
@@ -1587,14 +1589,19 @@ private:
     //
     // The one report that must not count is the client's answer to our own
     // preedit: writing one makes the client re-lay out its text and hand the
-    // caret's new position straight back. kCaretEchoGraceMs separates the two,
-    // a rendering round trip against a human reaching for the mouse.
+    // caret's new position straight back. Each write claims the next report for
+    // exactly that answer, which needs no clock and so cannot mistake a slow
+    // client for a click. When a write leaves the caret where it was, the
+    // client sends nothing and the claim stands until the next report, which
+    // costs one more spurious character before the gesture ends. That is the
+    // right way to be wrong: the claim can only ever keep a gesture alive.
     //
-    // Discarding rather than committing: the client has already turned the
-    // preedit into text at the old caret position (that is the spurious
-    // character), so committing would put a second copy where the user just
-    // clicked. Nothing about the held-key bookkeeping survives either, see
-    // dropStaleGesture().
+    // What happens to the character depends on whether the client ever saw it.
+    // With preedit support it has already turned the preedit into text at the
+    // old caret (that is the spurious character), so committing would put a
+    // second copy where the user just clicked: discard. Without it the preedit
+    // never left the panel, so discarding would lose the character silently:
+    // commit it, then wipe the stale bookkeeping the same way.
     //
     // Cycling only. The waiting phase carries the accent window as its own
     // upper bound, so a swallowed release there resolves by itself; leaving it
@@ -1603,8 +1610,18 @@ private:
         auto *state = ic->propertyFor(&factory_);
         if (!state->cyclingInput_)
             return;
-        if (state->inCaretEchoWindow(kCaretEchoGraceMs))
+        // Only while the gesture still claims its key is down, which is the
+        // claim being contradicted here. The Alt deferred commit clears that
+        // flag and leaves a 5 ms timer holding the character, and wiping the
+        // state from under it would drop that commit for nothing.
+        if (!state->inputKeyPressed_)
             return;
+        if (state->caretEchoPending_) {
+            state->caretEchoPending_ = false;
+            return;
+        }
+        if (!ic->capabilityFlags().test(CapabilityFlag::Preedit))
+            commitCyclingValue(ic, state);
         dropStaleGesture(ic, state);
     }
 
@@ -1833,18 +1850,13 @@ private:
             return key2Left ? !inputLeft : inputLeft;
     }
 
-    // The accent window one gesture key gets. A key of nullptr reads as
-    // lowercase: that is the window a gesture without a key yet would use.
-    // ASCII-only uppercase check, sufficient because input keys are physical
-    // keyboard keys which are always single ASCII bytes.
-    int delayForKey(const std::string *key) const {
-        const bool isUpper =
-            key && key->length() == 1 && (*key)[0] >= 'A' && (*key)[0] <= 'Z';
-        return isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
-    }
-
     int getEffectiveDelay(const SchnelleUmlauteState *state) const {
-        return delayForKey(state->waitingKey_ ? &*state->waitingKey_ : nullptr);
+        if (!state->waitingKey_)
+            return *config_.delay->lowercase;
+        bool isUpper = state->waitingKey_->length() == 1 &&
+                       (*state->waitingKey_)[0] >= 'A' &&
+                       (*state->waitingKey_)[0] <= 'Z';
+        return isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
     }
 
     // Lower bound (minimum hold) of the accent window for the waiting key.
