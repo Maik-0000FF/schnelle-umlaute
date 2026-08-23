@@ -51,17 +51,26 @@ public:
     std::unique_ptr<EventSourceTime> spaceCommitEvent_;
     bool pendingSpaceCommit_ = false;
 
+    // Backstop for the cycling phase, which has no timer of its own: the leader
+    // press cancels the accent window, and from then on only the input key's
+    // release ends the gesture. A compositor grab can swallow that release
+    // (KWin's window operations menu on Alt+Space, issue #147) without moving
+    // the focus, so no release and no FocusOut ever arrive and the gesture
+    // would stay live for the rest of the session. This timer ends it the way
+    // the release would have, by committing the variant on screen. Every step
+    // of the gesture re-arms it, so cycling is only ever cut short by doing
+    // nothing at all. Own slot: timeoutEvent_ carries the Alt deferred commit
+    // during the same phase.
+    std::unique_ptr<EventSourceTime> cyclingWatchdogEvent_;
+    // True only while the watchdog callback runs. Destroying an EventSourceTime
+    // from inside its own callback is a use-after-free, and the callback
+    // commits through the shared path, which tears the gesture down and would
+    // cancel the timer. The guard makes that cancel a no-op; returning false
+    // from the callback disables the source, and the next arming replaces it.
+    bool cyclingWatchdogFiring_ = false;
+
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
-    // Monotonic time the gesture last showed a sign of life: it started
-    // waiting, started cycling, stepped to another variant, or an event arrived
-    // on its own input key or consumed Alt leader (auto-repeat included, which
-    // the guards below swallow without any visible change). Key traffic in
-    // general does NOT count: a lone release leaking in from a compositor grab,
-    // or an unrelated Shift press, says nothing about the key the gesture
-    // believes is held. Refreshed through touchGesture() and
-    // touchGestureIfOwnKey(); read by isGestureStale().
-    uint64_t lastGestureActivityUsec_ = 0;
     int waitingKeyCode_ = 0;
     // Frontend event time (KeyEvent::time(), ms) of the press that started the
     // current waiting gesture. On KWin/Wayland the compositor freezes the
@@ -199,15 +208,14 @@ public:
         clearCommittedKey();
         consumedAltCode_ = 0;
         altGestureSession_ = false;
-        // No gesture left to be alive, so the stamp goes with it. Keeping it
-        // would leave a time from the previous gesture lying around for the
-        // next one to be measured against before its first touch.
-        lastGestureActivityUsec_ = 0;
     }
 
+    // The one teardown every end of a cycling phase runs through (commit,
+    // cancel, wipe), so the watchdog cannot outlive the gesture it guards.
     void resetCycling() {
         cyclingInput_.reset();
         cyclingIndex_ = 0;
+        cancelCyclingWatchdog();
     }
 
     void cancelTimeout() { timeoutEvent_.reset(); }
@@ -221,8 +229,15 @@ public:
         pendingSpaceCommit_ = false;
     }
 
+    // No-op while the watchdog is firing: see cyclingWatchdogFiring_.
+    void cancelCyclingWatchdog() {
+        if (cyclingWatchdogFiring_)
+            return;
+        cyclingWatchdogEvent_.reset();
+    }
+
     // Milliseconds between a monotonic stamp and now. The one place the
-    // microsecond clock is converted, so the three time predicates below cannot
+    // microsecond clock is converted, so the two time predicates below cannot
     // drift apart on the unit.
     static uint64_t elapsedMsSince(uint64_t stampUsec) {
         return (nowUsec() - stampUsec) / kMicrosecondsPerMillisecond;
@@ -233,54 +248,6 @@ public:
             return false;
         return elapsedMsSince(startTimeUsec_) >
                static_cast<uint64_t>(effectiveDelay);
-    }
-
-    // Mark the gesture as alive. Every site that starts or advances one calls
-    // this, so isGestureStale() has a single source for "when did this gesture
-    // last move" instead of a stamp per call site.
-    void touchGesture() { lastGestureActivityUsec_ = nowUsec(); }
-
-    // Same, for a key event that carries no visible change: only the gesture's
-    // own input key and its consumed Alt leader count, every other code is
-    // ignored. Keyed on the codes rather than on the event kind so a press, a
-    // release and a synthetic auto-repeat pair all qualify.
-    void touchGestureIfOwnKey(int rawCode) {
-        if (rawCode == 0 || !cyclingInput_)
-            return;
-        if (rawCode == waitingKeyCode_ ||
-            (consumedAltCode_ != 0 && rawCode == consumedAltCode_))
-            touchGesture();
-    }
-
-    // Grace period for isGestureStale(). Measured against how long a user can
-    // sit inside a live gesture without moving it: cycling means tapping the
-    // leader every few hundred milliseconds while the input key stays down, so
-    // whole seconds of silence are not part of the flow. Deliberately not tied
-    // to auto-repeat timing, which cannot be relied on here (see
-    // lastGestureActivityUsec_). Accepted trade-off: if an application resets
-    // during a pause this long, the gesture is dropped under a still-held key.
-    // The preview character is lost, and because cycling is over, the leader
-    // taps that follow reach the application raw (a Space types a space) until
-    // the key is released and pressed again. Weighed against a gesture that
-    // otherwise stays stuck for the rest of the session, and reachable only in
-    // an application that resets while the user holds a key without touching
-    // it for seconds.
-    static constexpr uint64_t kStaleGestureGraceMs = 2'000;
-
-    // True when a cycling gesture has not moved for the whole grace period.
-    // Reachable when the input key's release was swallowed on its way here: a
-    // compositor grab (KWin's window operations menu on Alt+Space, issue #147)
-    // takes the keyboard without moving the focus, so neither the release nor a
-    // FocusOut ever arrives. Lets the next key event and the next app reset()
-    // tell a gesture the user is still driving from one nothing can end any
-    // more, whichever of the two comes first. Cycling only, on purpose: it
-    // is the single phase without a timer of its own (the leader press cancels
-    // the accent window), so a waiting gesture always ends by itself and must
-    // not have its pending character dropped here instead of committed.
-    bool isGestureStale() const {
-        if (!cyclingInput_ || lastGestureActivityUsec_ == 0)
-            return false;
-        return elapsedMsSince(lastGestureActivityUsec_) > kStaleGestureGraceMs;
     }
 
     // Lower bound of the accent window: true while the input key has been

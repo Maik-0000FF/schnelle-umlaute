@@ -42,7 +42,9 @@ constexpr uint32_t kMaxUnicodeCodepoint = 0x10FFFF;
 // =============================================================================
 // Key insight: Track whether input key is PHYSICALLY PRESSED
 // - Cycling only works while input key is held down
-// - No timer during cycling - cycle as long as you want
+// - Cycle as long as you want: every step postpones the only timer that runs
+//   during cycling, a backstop for the case where the release never arrives
+//   (armCyclingWatchdog, issue #147)
 // - When input key is released, cycling ends
 // =============================================================================
 
@@ -155,29 +157,6 @@ public:
         auto key = keyEvent.key();
         bool isPress = !keyEvent.isRelease();
         int rawCode = keyEvent.rawKey().code();
-
-        // A gesture nothing has moved for the whole grace period is over,
-        // whatever this key turns out to be: its input key's release was
-        // swallowed by a compositor grab (issue #147) and no release can end it
-        // any more. Drop it before the handlers below run, so this key is
-        // processed against a clean state instead of being fed to a gesture
-        // that cannot end. Ahead of the liveness stamp on purpose: a stuck
-        // gesture must not keep itself alive from the keys it is eating, which
-        // is what a leader tap would do (it cycles, stamps and is swallowed, so
-        // hammering Space would never produce a space).
-        if (state->isGestureStale())
-            dropStaleGesture(ic, state);
-
-        // Second liveness site next to updateClientPreedit(): an event on the
-        // gesture's own input key or on its consumed Alt leader proves the
-        // gesture is still being driven, even when it produces no visible
-        // change. Auto-repeat of a held key runs through exactly these two
-        // codes and is swallowed by the repeat and synthetic-release guards
-        // further down, so without this stamp a hold that only repeats would
-        // look abandoned to isGestureStale(). Any other key is ignored on
-        // purpose: it says nothing about the held key (see
-        // lastGestureActivityUsec_).
-        state->touchGestureIfOwnKey(rawCode);
 
         // Track physical key state for repeat detection.
         // A key already in heldRawCodes_ is a repeat (auto-repeat).
@@ -503,6 +482,10 @@ public:
             rawCode == state->waitingKeyCode_) {
             state->cancelTimeout();
             state->inputKeyPressed_ = true;
+            // Carrying the session across a repeat gap keeps the gesture going
+            // without rewriting the preview, so the backstop that
+            // updateClientPreedit() normally postpones must be postponed here.
+            armCyclingWatchdog(ic, state);
             keyEvent.filterAndAccept();
             return;
         }
@@ -900,26 +883,18 @@ public:
         auto *ic = event.inputContext();
         auto *state = ic->propertyFor(&factory_);
 
-        // A deferred trailing space was already consumed from the user; deliver
-        // it before any path below can cancel it, mirroring deactivate(). The
-        // reachable case is a char that committed synchronously and cleared
-        // inputKeyPressed_, so a reset() landing in the sub-millisecond window
-        // before the zero-delay space timer (Chromium and Neovide fire reset()
-        // after every commit) would drop the trailing space (issue #90). It
-        // runs ahead of the held-key branch so no future path can end up
-        // wiping a consumed space through a return this flush never saw.
-        flushPendingSpaceCommit(ic, state);
-
         if (state->inputKeyPressed_) {
-            // ... unless nothing can press it any more: a compositor grab can
-            // swallow the release (issue #147), and then this guard would keep
-            // every later reset() a no-op for the rest of the session.
-            // isGestureStale() separates the two by gesture activity.
-            if (!state->isGestureStale())
-                return; // Keep all state intact
-            dropStaleGesture(ic, state);
-            return;
+            return; // Keep all state intact
         }
+
+        // A deferred trailing space was already consumed from the user; deliver
+        // it before clearAllState() cancels it, mirroring deactivate(). The char
+        // committed synchronously and cleared inputKeyPressed_, so the early
+        // return above does not cover it; without this flush a reset() landing
+        // in the sub-millisecond window before the zero-delay space timer
+        // (Chromium and Neovide fire reset() after every commit) drops the
+        // trailing space (issue #90).
+        flushPendingSpaceCommit(ic, state);
 
         // A running commit-flash must survive the post-commit reset that
         // Chromium and Neovide fire, otherwise the confirmation overlay would
@@ -939,8 +914,7 @@ public:
         // Preserve the whole committed_ bundle across the wipe; the focus-change
         // path (deactivate/activate) keeps clearing everything. Self-guarding:
         // code == 0 means nothing was armed (a release already cleared it via the
-        // committed-key release branch). The stale path deliberately does not
-        // take part in this: see dropStaleGesture().
+        // committed-key release branch).
         const auto heldCommitted = state->committed_;
 
         auto flash = std::move(state->overlayHideEvent_);
@@ -1438,11 +1412,12 @@ private:
 
     // Every gesture advance ends here: starting the waiting phase, starting to
     // cycle, and each step to another variant all rewrite the preview. That
-    // makes this the one choke point for the liveness stamp isGestureStale()
-    // reads, so no site can move a gesture without marking it alive.
+    // makes it the one choke point for re-arming the cycling watchdog, so no
+    // site can move a gesture on without postponing its backstop. Waiting is a
+    // no-op there: it has the accent window as its own upper bound.
     void updateClientPreedit(InputContext *ic, SchnelleUmlauteState *state,
                              const std::string &text) {
-        state->touchGesture();
+        armCyclingWatchdog(ic, state);
         Text preedit(text);
         preedit.setCursor(static_cast<int>(preedit.textLength()));
         ic->inputPanel().setClientPreedit(preedit);
@@ -1578,46 +1553,64 @@ private:
         overlayHide();
     }
 
-    // Tear down a gesture that has not moved for the whole grace period while
-    // its input key is still marked as held (issue #147). A compositor grab,
-    // KWin's window operations menu on Alt+Space, takes the keyboard without
-    // moving the focus: the release goes to the menu and no FocusOut follows.
-    // In the cycling phase nothing else can end the gesture then, because the
-    // accent window's timer was cancelled by the leader press and the Alt
-    // deferred commit only ever starts from a release. The gesture stays live
-    // for the rest of the session, every app reset() is a no-op, and the client
-    // preedit stays registered, which apps like Chromium re-confirm as real
-    // text on every caret change (one spurious character per mouse click).
+    // Backstop timer for the cycling phase (issue #147). Cycling deliberately
+    // has no upper bound: the user holds the input key and taps the leader for
+    // as long as it takes, and only the release ends it. A compositor grab can
+    // swallow that release, KWin's window operations menu on Alt+Space being
+    // the reported case, and because the menu takes the keyboard without moving
+    // the focus, no FocusOut follows either. Nothing is left that could end the
+    // gesture: it stays live for the rest of the session, the client preedit
+    // stays registered, and applications like Chromium re-confirm that preedit
+    // as real text on every caret change, which is one spurious character per
+    // mouse click.
     //
-    // Drop the pending character instead of committing it: it was never more
-    // than a preedit, the client has long since shown or dropped it on its own,
-    // and a commit landing here would insert text wherever the user just
-    // clicked. Wiping the input panel is the point of this path:
-    // clearAllState() only touches addon state, so without it the stale client
-    // preedit survives and keeps feeding the duplicates. recentlyCommitted_ is
-    // left alone, like everywhere else in reset() (see its comment in state.h).
-    void dropStaleGesture(InputContext *ic, SchnelleUmlauteState *state) {
-        // Unlike reset(), nothing about the held-key bookkeeping is carried
-        // across. Declaring the gesture stale is declaring that the key events
-        // stopped arriving, so every "this key is still down" entry is exactly
-        // the kind of claim that is no longer trustworthy: keeping the
-        // committed_ arming (and with it a heldRawCodes_ entry) would swallow
-        // that key.s next real press as an auto-repeat. The opposite bet costs
-        // a duplicate character in the mirror case (issue #92), which the whole
-        // arming exists to prevent; a swallowed keypress is the worse of the
-        // two, and both need a second key held through the same grab.
-        //
-        // consumedAltCode_ is the exception, because it is not a held-key claim
-        // but an unpaid debt: the Alt leader press was swallowed on its way to
-        // the application, so its release has to be swallowed too or the
-        // application sees a modifier go up that never went down. A stale
-        // marker is harmless, the next fresh Alt press disarms it.
-        const int owedAltRelease = state->consumedAltCode_;
-        overlayHide();
-        ic->inputPanel().reset();
-        ic->updatePreedit();
-        state->clearAllState();
-        state->consumedAltCode_ = owedAltRelease;
+    // The timer ends such a gesture the way the missing release would have, by
+    // committing the variant on screen. Committing rather than discarding is
+    // what makes this safe to fire on a live gesture too: the worst case is
+    // that a user who holds the key and stops for a very long time gets the
+    // character they were looking at slightly early, instead of losing it.
+    // Every step of the gesture re-arms the timer, so cycling stays unbounded
+    // as long as anything happens at all.
+    void armCyclingWatchdog(InputContext *ic, SchnelleUmlauteState *state) {
+        if (!state->cyclingInput_)
+            return;
+        state->cancelCyclingWatchdog();
+
+        auto savedRef = ic->watch();
+        uint64_t target = SchnelleUmlauteState::nowUsec() +
+                          static_cast<uint64_t>(cyclingWatchdogMs(state)) *
+                              kMicrosecondsPerMillisecond;
+        state->cyclingWatchdogEvent_ = instance_->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, target, 0,
+            [this, state, savedRef](EventSourceTime *, uint64_t) {
+                // Safety: see scheduleTimeout, the single-threaded event loop
+                // guarantees state outlives savedRef.get() != nullptr.
+                auto *ctx = savedRef.get();
+                if (!ctx || !state->cyclingInput_)
+                    return false;
+                // No repeat suppression is armed for the input key here, unlike
+                // the window-timeout commit. That arming assumes the key is
+                // still down, and the firing of this timer is the one moment
+                // that assumption is in doubt: if the release was swallowed the
+                // key is long up, and the arming would swallow its next real
+                // press. Left unarmed, that press simply starts a new gesture.
+                // The cost in the other direction is an unpaired key-up for a
+                // character key, which applications ignore.
+                state->cyclingWatchdogFiring_ = true;
+                commitCyclingValue(ctx, state);
+                state->cyclingWatchdogFiring_ = false;
+                return false;
+            });
+    }
+
+    // How long a cycling gesture may sit untouched before the watchdog commits
+    // it. Derived from the user's own accent window rather than fixed: someone
+    // who set a snappy window wants a snappy backstop, someone who set a long
+    // one is a deliberate typist. The floor keeps the shortest windows from
+    // making it twitchy.
+    int cyclingWatchdogMs(SchnelleUmlauteState *state) {
+        const int derived = getEffectiveDelay(state) * kCyclingWatchdogFactor;
+        return std::max(kCyclingWatchdogFloorMs, derived);
     }
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs

@@ -26,6 +26,15 @@ constexpr int kDelayMax = 2000;
 constexpr int kDelayStep = 10;
 constexpr int kDeferredCommitDelayMs = 5;
 
+// Backstop for the cycling phase, which is otherwise ended only by the input
+// key's release (see armCyclingWatchdog): how long the variant picker may sit
+// completely untouched, as a multiple of the accent window, with a floor so the
+// shortest windows do not make it twitchy. Ten windows of silence is far past
+// any tapping rhythm and still short enough that a gesture whose release was
+// swallowed cannot outlive the sentence being typed.
+constexpr int kCyclingWatchdogFactor = 10;
+constexpr int kCyclingWatchdogFloorMs = 500;
+
 // Minimum-hold lower bound (ms). The accent window is [min, max]: a leader
 // that arrives before min has elapsed yields the plain character instead of
 // the accent. 0 reproduces the historic behavior (no lower bound), so it is

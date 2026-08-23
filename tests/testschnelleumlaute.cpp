@@ -41,7 +41,7 @@
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
-// 167-168 Swallowed release   a grab-swallowed input-key release no longer freezes cycling: the next key or reset() drops the stale gesture (leader taps included), while auto-repeat of the held key keeps a live one and the owed Alt release stays consumed (issue #147)
+// 167-169 Cycling watchdog   a swallowed input-key release no longer freezes cycling: the backstop commits the picked variant, every cycling step postpones it, and a long pause neither loses nor doubles the character (issue #147)
 // clang-format on
 
 #include <unistd.h>
@@ -74,9 +74,9 @@
 #include <xkbcommon/xkbcommon.h>
 // The shipped classifier and kNoKeyCode, tested directly rather than copied.
 #include "src/hand_classifier.h"
-// The stuck-held-key grace period, so the wait below is derived from the
-// engine constant instead of a second copy of the number.
-#include "src/state.h"
+// The delay bounds and the cycling-watchdog constants, so the waits below are
+// derived from the engine's numbers instead of a second copy of them.
+#include "src/config.h"
 #include "src/synthetic_autorepeat.h"
 #include "testdir.h"
 #include "testfrontend_public.h"
@@ -174,14 +174,19 @@ constexpr auto kSyntheticReleaseTestHold =
     std::chrono::microseconds(kSyntheticReleaseMinElapsedUsec) +
     std::chrono::milliseconds(1);
 
-// Stand in for the time a compositor grab holds the keyboard while the input
-// key's release is swallowed (test 167): the engine's stale-gesture grace
-// period plus 100 ms margin, so the following reset() classifies the gesture as
-// stale. Derived from the engine constant, so raising it cannot silently make
-// this wait too short and flip the test to a false pass. See state.h.
-constexpr auto kStaleGestureTestWait =
+// Accent window for the cycling-watchdog tests (167-169). The watchdog scales
+// with the user's own window, so the smallest valid one keeps its wait short
+// enough to sit in a test suite: 50 ms * factor 10 lands on the floor, 500 ms.
+constexpr int kWatchdogTestDelayMs = kDelayMin;
+
+// One whole watchdog window plus 100 ms margin, computed exactly as the engine
+// computes it, so changing either constant moves the tests with it instead of
+// silently flipping them to a false pass. See armCyclingWatchdog().
+constexpr int kWatchdogTestDerivedMs =
+    kWatchdogTestDelayMs * kCyclingWatchdogFactor;
+constexpr auto kCyclingWatchdogTestWait =
     std::chrono::milliseconds(
-        static_cast<long long>(SchnelleUmlauteState::kStaleGestureGraceMs)) +
+        std::max(kCyclingWatchdogFloorMs, kWatchdogTestDerivedMs)) +
     std::chrono::milliseconds(100);
 
 // Helper: load mappings via setSubConfig (the path loadMappingsFromFile reads)
@@ -493,6 +498,19 @@ static void configureWithDelay(Instance *instance, int delayLower,
                               {"A", "\xc3\x84"},
                               {"O", "\xc3\x96"},
                               {"U", "\xc3\x9c"},
+                          });
+}
+
+// Space leader, smallest accent window (so the cycling watchdog is at its
+// floor) and a three-variant 'a' mapping: the setup the watchdog tests
+// (167-169) share. 'o' stays single-output as a clean "types normally again"
+// probe.
+static void configureWatchdogCycling(Instance *instance) {
+    configureWithDelay(instance, kWatchdogTestDelayMs, kWatchdogTestDelayMs,
+                       true, false, 0, 0);
+    setMappings(instance, {
+                              {"a", "\xc3\xa4,\xc3\xa0,\xc3\xa1"},
+                              {"o", "\xc3\xb6"},
                           });
 }
 
@@ -856,6 +874,9 @@ static void scheduleDelayBoundaryTests(Instance *instance);
 static void scheduleTest111(Instance *instance);
 static void scheduleTest112(Instance *instance);
 static void scheduleTest113(Instance *instance);
+static void scheduleWatchdogTests(Instance *instance);
+static void scheduleWatchdogTest168(Instance *instance);
+static void scheduleWatchdogTest169(Instance *instance);
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -7108,178 +7129,6 @@ static void scheduleTest113(Instance *instance) {
     });
 
     // =========================================================================
-    // TEST 167: a swallowed input-key release no longer freezes the gesture
-    // (issue #147). KWin's window operations menu (Alt+Space) grabs the
-    // keyboard without moving the focus, so the release goes to the menu and
-    // neither a release nor a FocusOut ever reaches the addon: inputKeyPressed_
-    // stays set. Cycling has no timer left to fall back on (the leader press
-    // cancels the accent window), so before the fix every later reset() hit the
-    // early return and the client preedit stayed registered for the rest of the
-    // session, which Chromium re-confirms as real text on every caret change.
-    // Pinned in three steps: a reset() while the hold is fresh stays a no-op, a
-    // reset() after the grace period drops the gesture WITHOUT committing (no
-    // expectation is pushed, so a stray commit aborts on the empty queue), and
-    // the input key works again afterwards.
-    // =========================================================================
-    testDispatcher->schedule([instance]() {
-        g_currentTest = 167;
-        FCITX_INFO() << "=== Test 167: reset() recovers a swallowed release "
-                        "(#147) ===";
-        // Multi-variant mapping: 'a' keeps cycling instead of committing on the
-        // first leader, which is the state that used to freeze.
-        configureMultilingualCycling(instance, true, false);
-        auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test167");
-        auto *ic = instance->inputContextManager().findByUUID(uuid);
-        FCITX_ASSERT(ic) << "IC must exist";
-
-        // Hold 'a' + Space → cycling on the first variant, key still held.
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
-            << "Space must start cycling, got '" << getClientPreedit(instance)
-            << "'";
-
-        // Fresh hold: an app reset() must leave the live gesture alone.
-        ic->reset();
-        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
-            << "reset() during a live hold must keep the gesture, got '"
-            << getClientPreedit(instance) << "'";
-
-        // The release is swallowed here: while the menu holds the grab, nothing
-        // moves the gesture on.
-        std::this_thread::sleep_for(kStaleGestureTestWait);
-
-        // Closing the menu leaks a lone release for a key the addon never saw
-        // pressed (the real recording shows exactly that for Escape). It cannot
-        // end the gesture, so counting plain key traffic as liveness would keep
-        // the dead gesture alive past this point.
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_Escape, KeyStates(), kCodeEscape), true);
-
-        // The next reset() (Chromium fires one per mouse click) must recognise
-        // the stale gesture and drop it instead of returning early.
-        ic->reset();
-        FCITX_ASSERT(getClientPreedit(instance).empty())
-            << "A stale gesture must drop the preedit, got '"
-            << getClientPreedit(instance) << "'";
-
-        // The key works again: clearAllState() dropped its heldRawCodes_ entry,
-        // so this press counts as fresh instead of being eaten as a repeat.
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        FCITX_ASSERT(getClientPreedit(instance) == "a")
-            << "The stuck key must start a fresh gesture, got '"
-            << getClientPreedit(instance) << "'";
-        tf->call<ITestFrontend::pushCommitExpectation>("a");
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
-
-        // Second phase, same swallowed release, but this time nothing resets:
-        // the user just keeps tapping the leader. Those taps reach the stuck
-        // gesture, and a gesture that counted them as its own liveness would
-        // cycle, swallow them and stay alive forever, so the Space key would
-        // stop producing spaces for the rest of the session. The first tap
-        // after the window must drop the gesture and pass through untouched.
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
-            << "Space must start cycling again, got '"
-            << getClientPreedit(instance) << "'";
-        std::this_thread::sleep_for(kStaleGestureTestWait);
-        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
-        FCITX_ASSERT(!consumed)
-            << "A leader tap must not be swallowed by a stale gesture";
-        FCITX_ASSERT(getClientPreedit(instance).empty())
-            << "The leader tap must drop the stale gesture, got '"
-            << getClientPreedit(instance) << "'";
-
-        tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 167 PASSED";
-    });
-
-    // =========================================================================
-    // TEST 168: the counter-pin to 167. An Alt-led single-output session shows
-    // nothing new while it runs: the held Alt's auto-repeat arrives as
-    // release-press pairs that the eater and the same-Alt repeat branch swallow
-    // without touching the preview. Counting only visible changes as liveness
-    // would therefore declare this provably live gesture stale and destroy it
-    // under the user's fingers. Split across two waits of half the stale window
-    // each: together they exceed it, so the gesture is only saved by the repeat
-    // pair in between marking it alive.
-    // =========================================================================
-    testDispatcher->schedule([instance]() {
-        g_currentTest = 168;
-        FCITX_INFO() << "=== Test 168: Alt auto-repeat keeps a gesture alive "
-                        "(#147) ===";
-        configureLeaders(instance, false, false, false, false, false,
-                         /*alt=*/true);
-        auto *tf = instance->addonManager().addon("testfrontend");
-        auto uuid = createAndActivate(instance, tf, "test168");
-        auto *ic = instance->inputContextManager().findByUUID(uuid);
-        FCITX_ASSERT(ic) << "IC must exist";
-
-        // Hold 'a' + Alt → single-output Alt session, preview on "ä". The
-        // commit waits for the input key's release, so the gesture stays live.
-        tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-        bool consumed = tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
-        FCITX_ASSERT(consumed) << "Alt leader must be consumed";
-        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
-            << "Alt must start the single-output session, got '"
-            << getClientPreedit(instance) << "'";
-
-        std::this_thread::sleep_for(kStaleGestureTestWait / 2);
-
-        // One auto-repeat pair of the held Alt: eaten, nothing visible changes.
-        consumed = tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
-        FCITX_ASSERT(consumed) << "Alt release in the session must be eaten";
-        consumed = tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
-        FCITX_ASSERT(consumed) << "The paired Alt re-press must be consumed";
-
-        std::this_thread::sleep_for(kStaleGestureTestWait / 2);
-
-        // More than a full stale window has passed since the session started,
-        // but not since the repeat pair, so this reset() must leave it alone.
-        ic->reset();
-        FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
-            << "A gesture kept alive by auto-repeat must survive reset(), got '"
-            << getClientPreedit(instance) << "'";
-
-        // Now let the repeat stop, as a grab on the menu does, and wait the
-        // session out. The application's next reset() drops it. Deliberately
-        // not driven by a key press here: an unmapped key clears the Alt
-        // bookkeeping on its own way through, which would hide what the next
-        // assert is about.
-        std::this_thread::sleep_for(kStaleGestureTestWait);
-        ic->reset();
-        FCITX_ASSERT(getClientPreedit(instance).empty())
-            << "The stale Alt session must be dropped, got '"
-            << getClientPreedit(instance) << "'";
-
-        // The Alt leader press was swallowed on its way to the application, so
-        // the debt outlives the drop: its release must still be eaten, or the
-        // application sees a modifier go up that never went down.
-        consumed = tf->call<ITestFrontend::sendKeyEvent>(
-            uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), true);
-        FCITX_ASSERT(consumed)
-            << "The owed Alt release must still be consumed after the drop";
-
-        // Torn down without an input-key release, so nothing commits and a
-        // stray commit would abort on the empty expectation queue.
-        tf->call<ITestFrontend::destroyInputContext>(uuid);
-        FCITX_INFO() << "Test 168 PASSED";
-    });
-
-    // =========================================================================
     // TEST 141: Post-timeout ordering guard splits char and space (issue #90
     // twin). The accent window has expired but the timeout timer has not
     // fired: the blocking sleep below keeps the single-threaded event loop
@@ -7461,9 +7310,7 @@ static void scheduleTest113(Instance *instance) {
                                 tf->call<ITestFrontend::destroyInputContext>(
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
-
-                                FCITX_INFO() << "=== All 169 tests PASSED ===";
-                                instance->exit();
+                                scheduleWatchdogTests(instance);
                                 return false;
                             });
                         return false;
@@ -7471,6 +7318,204 @@ static void scheduleTest113(Instance *instance) {
                 return false;
             });
     });
+}
+
+// =============================================================================
+// CYCLING WATCHDOG TESTS (167-169): the backstop that ends a cycling gesture
+// whose input-key release never arrived (issue #147). Timer-chained instead of
+// dispatcher-scheduled with a blocking sleep: the watchdog runs on the very
+// event loop such a sleep would freeze, so these tests hand control back and
+// continue in a callback.
+// =============================================================================
+
+// One whole watchdog window plus margin, in the microseconds the event loop
+// takes. Converted rather than restated, so the millisecond definition above
+// stays the only place the number lives.
+constexpr uint64_t kWatchdogWindowUsec =
+    static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                              kCyclingWatchdogTestWait)
+                              .count());
+
+// Give the event loop usec to run, then continue. A blocking sleep cannot be
+// used where an addon timer has to fire, because it freezes the very loop that
+// timer runs on. The holder carries the source across the wait, the same shape
+// destroyAfterDeferredCommit() uses.
+static void afterDelay(Instance *instance,
+                       const std::shared_ptr<AltVerifyHolder> &holder,
+                       uint64_t usec, const std::function<void()> &next) {
+    holder->timer = instance->eventLoop().addTimeEvent(
+        CLOCK_MONOTONIC, nowUsec() + usec, 0,
+        [holder, next](EventSourceTime *, uint64_t) {
+            next();
+            return false;
+        });
+}
+
+// =========================================================================
+// TEST 168: the counter-pin to 167. Cycling is unbounded by design, and the
+// watchdog must not quietly put a ceiling on it: every step postpones it. Two
+// waits of two thirds of the window each, with a leader tap in between, add up
+// to more than a whole window, so the gesture survives only if that tap
+// re-armed the timer.
+// =========================================================================
+static void scheduleWatchdogTest168(Instance *instance) {
+    g_currentTest = 168;
+    FCITX_INFO() << "=== Test 168: every cycling step postpones the watchdog "
+                    "===";
+    configureWatchdogCycling(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test168");
+
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+        << "Space must start cycling, got '" << getClientPreedit(instance)
+        << "'";
+
+    auto holder = std::make_shared<AltVerifyHolder>();
+    afterDelay(
+        instance, holder, kWatchdogWindowUsec * 2 / 3,
+        [instance, uuid, holder]() {
+            auto *tf = instance->addonManager().addon("testfrontend");
+            // Still live, and this tap steps on and postpones the backstop.
+            tf->call<ITestFrontend::sendKeyEvent>(
+                uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+            FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa0")
+                << "The second tap must step to the next variant, got '"
+                << getClientPreedit(instance) << "'";
+
+            afterDelay(
+                instance, holder, kWatchdogWindowUsec * 2 / 3,
+                [instance, uuid, holder]() {
+                    auto *tf = instance->addonManager().addon("testfrontend");
+                    // Well past a whole window since cycling started, still
+                    // live.
+                    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa0")
+                        << "A cycling step must postpone the watchdog, got '"
+                        << getClientPreedit(instance) << "'";
+
+                    // The release still owns the commit.
+                    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa0");
+                    tf->call<ITestFrontend::sendKeyEvent>(
+                        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+                    FCITX_ASSERT(getClientPreedit(instance).empty())
+                        << "The release must commit and clear the preedit, got "
+                           "'"
+                        << getClientPreedit(instance) << "'";
+
+                    tf->call<ITestFrontend::destroyInputContext>(uuid);
+                    FCITX_INFO() << "Test 168 PASSED";
+                    scheduleWatchdogTest169(instance);
+                });
+        });
+}
+
+// =========================================================================
+// TEST 169: thinking time never costs the character. The variant picker exists
+// to be looked at, and cycling gets no auto-repeat to prove it is still alive
+// (the platform repeats the most recently pressed key, which the leader tap
+// took over), so a long pause leaves no trace at all. The watchdog resolves
+// such a pause by committing, never by discarding, and the release arriving
+// afterwards must not commit a second time. Exactly one "ä" for the whole
+// sequence: a missing or a doubled one shows up as a mismatch against the "o"
+// typed at the end.
+// =========================================================================
+static void scheduleWatchdogTest169(Instance *instance) {
+    g_currentTest = 169;
+    FCITX_INFO() << "=== Test 169: a long pause must not lose or double the "
+                    "variant ===";
+    configureWatchdogCycling(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test169");
+
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+
+    auto holder = std::make_shared<AltVerifyHolder>();
+    afterDelay(instance, holder, kWatchdogWindowUsec,
+               [instance, uuid, holder]() {
+                   auto *tf = instance->addonManager().addon("testfrontend");
+                   // The user finally lets go, long after the backstop resolved
+                   // it.
+                   tf->call<ITestFrontend::sendKeyEvent>(
+                       uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+                   // And types on cleanly.
+                   tf->call<ITestFrontend::pushCommitExpectation>("o");
+                   tf->call<ITestFrontend::sendKeyEvent>(
+                       uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+                   tf->call<ITestFrontend::sendKeyEvent>(
+                       uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+
+                   tf->call<ITestFrontend::destroyInputContext>(uuid);
+                   FCITX_INFO() << "Test 169 PASSED";
+
+                   FCITX_INFO() << "=== All 169 tests PASSED ===";
+                   instance->exit();
+               });
+}
+
+// =========================================================================
+// TEST 167: a swallowed input-key release no longer freezes the gesture (issue
+// #147). KWin's window operations menu (Alt+Space) grabs the keyboard without
+// moving the focus, so the release goes to the menu and neither a release nor a
+// FocusOut ever reaches the addon. Cycling has no other way to end (the leader
+// press cancelled the accent window), so the gesture used to stay live for the
+// rest of the session with its client preedit still registered, which
+// applications like Chromium re-confirm as text on every caret change: one
+// spurious character per mouse click. The watchdog must end it exactly as the
+// missing release would have, by committing the variant on screen, once.
+// =========================================================================
+static void scheduleWatchdogTests(Instance *instance) {
+    g_currentTest = 167;
+    FCITX_INFO() << "=== Test 167: the watchdog ends a gesture whose release "
+                    "was swallowed (#147) ===";
+    configureWatchdogCycling(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test167");
+
+    // Hold 'a' + Space → cycling on the first variant, key still held.
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+        << "Space must start cycling, got '" << getClientPreedit(instance)
+        << "'";
+
+    // The release is swallowed here: the menu owns the keyboard, so no further
+    // event of any kind arrives.
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+
+    auto holder = std::make_shared<AltVerifyHolder>();
+    afterDelay(
+        instance, holder, kWatchdogWindowUsec, [instance, uuid, holder]() {
+            auto *tf = instance->addonManager().addon("testfrontend");
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "The watchdog must commit and clear the preedit, got '"
+                << getClientPreedit(instance) << "'";
+
+            // The key works again: no repeat suppression was armed for it, so
+            // its next real press starts a fresh gesture instead of being
+            // swallowed.
+            tf->call<ITestFrontend::sendKeyEvent>(
+                uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+            FCITX_ASSERT(getClientPreedit(instance) == "a")
+                << "The key must start a fresh gesture, got '"
+                << getClientPreedit(instance) << "'";
+            tf->call<ITestFrontend::pushCommitExpectation>("a");
+            tf->call<ITestFrontend::sendKeyEvent>(
+                uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+
+            tf->call<ITestFrontend::destroyInputContext>(uuid);
+            FCITX_INFO() << "Test 167 PASSED";
+            scheduleWatchdogTest168(instance);
+        });
 }
 
 int main() {
