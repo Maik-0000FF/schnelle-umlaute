@@ -735,6 +735,9 @@ public:
                         state->recentlyCommitted_ = true;
                     }
 
+                    // Defensive: the window timer is already guarded by
+                    // waitingKey_ in its own callback, so no test can see this
+                    // line. It keeps the slot free for the next gesture.
                     state->cancelTimeout();
                     if (isAlt)
                         state->consumedAltCode_ = rawCode;
@@ -907,6 +910,52 @@ public:
         auto *state = ic->propertyFor(&factory_);
 
         if (state->inputKeyPressed_) {
+            // ... unless the client ended a live composition on its own, which
+            // is what a mouse click into the field does (issue #162). It keeps
+            // the preedit as text at the old caret, so the release that follows
+            // would put a second copy there.
+            //
+            // recentlyCommitted_ is what separates that from the reset those
+            // applications fire after every commit. Committing does NOT leave
+            // the key released: the next mapped key commits the pending one and
+            // starts its own gesture in the same event, so the reset that
+            // follows finds the flag set again. It also finds this marker set,
+            // and a gesture that was just born out of a commit is not one the
+            // client has taken over. The marker is cleared by the next press,
+            // so a click that follows one costs a missed detection, never a
+            // character.
+            //
+            // Whether the character is dropped or committed depends on whether
+            // the client ever saw it. updatePreedit() returns without doing
+            // anything when the context has no preedit capability (the global
+            // "show preedit in application" off, XIM clients without preedit
+            // callbacks), so there the character lives only here and dropping
+            // it would lose it silently. With preedit the client already turned
+            // it into text, and committing would be the second copy.
+            //
+            // Either way the held-key claim stays, since the key really is
+            // still down: the committed-key suppression keeps its release
+            // swallowed and its auto-repeat from starting a fresh gesture. An
+            // arming that is already live belongs to another key and is left
+            // alone, it guards a duplicate this one does not.
+            if ((state->waitingKey_ || state->cyclingInput_) &&
+                !state->recentlyCommitted_) {
+                if (state->committed_.code == 0)
+                    state->armCommittedFromWaiting();
+                if (ic->capabilityFlags().test(CapabilityFlag::Preedit)) {
+                    hideTriggerOverlay(state);
+                    overlayHide();
+                    ic->inputPanel().reset();
+                    ic->updatePreedit();
+                    state->resetWaitingGesture();
+                    state->resetCycling();
+                    state->cancelTimeout();
+                } else {
+                    commitPendingKey(ic, state);
+                    commitCyclingValue(ic, state);
+                }
+                state->altGestureSession_ = false;
+            }
             return; // Keep all state intact
         }
 
