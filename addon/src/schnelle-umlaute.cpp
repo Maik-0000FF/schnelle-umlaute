@@ -907,6 +907,29 @@ public:
         auto *state = ic->propertyFor(&factory_);
 
         if (state->inputKeyPressed_) {
+            // ... with one exception: a client that resets while a gesture is
+            // live has ended the composition on its own, which is what a mouse
+            // click into the field does (issue #162). It keeps the preedit as
+            // text at the old caret, so the release that follows would put a
+            // second copy there. The resets those apps fire after a commit
+            // cannot be confused with it: a commit clears inputKeyPressed_, so
+            // they arrive with the key already up and never reach this branch.
+            //
+            // Drop the gesture without committing, because the client already
+            // has the character. The held-key claim stays, since the key really
+            // is still down: arming the committed-key suppression keeps its
+            // release swallowed and its auto-repeat from starting a fresh
+            // gesture, exactly as a single-output commit does.
+            if (state->waitingKey_ || state->cyclingInput_) {
+                state->armCommittedFromWaiting();
+                overlayHide();
+                ic->inputPanel().reset();
+                ic->updatePreedit();
+                state->resetWaitingGesture();
+                state->resetCycling();
+                state->cancelTimeout();
+                state->altGestureSession_ = false;
+            }
             return; // Keep all state intact
         }
 
