@@ -51,13 +51,23 @@ public:
     std::unique_ptr<EventSourceTime> spaceCommitEvent_;
     bool pendingSpaceCommit_ = false;
 
-    // Set when this gesture writes a preedit, cleared by the first caret report
-    // that follows. Writing a preedit makes the client re-lay out its text and
-    // report the caret's new position back, and that report says nothing about
-    // the user, so the first one after a write is spoken for (see
-    // dropGestureOnCaretMove). Counting rather than timing keeps a slow client
-    // from looking like a click.
-    bool caretEchoPending_ = false;
+    // Backstop for the cycling phase, which has no timer of its own: the leader
+    // press cancels the accent window, and from then on only the input key's
+    // release ends the gesture. A compositor grab can swallow that release
+    // (KWin's window operations menu on Alt+Space, issue #147) without moving
+    // the focus, so no release and no FocusOut ever arrive and the gesture
+    // would stay live for the rest of the session. This timer ends it the way
+    // the release would have, by committing the variant on screen. Every step
+    // of the gesture re-arms it, so cycling is only ever cut short by doing
+    // nothing at all. Own slot: timeoutEvent_ carries the Alt deferred commit
+    // during the same phase.
+    std::unique_ptr<EventSourceTime> cyclingWatchdogEvent_;
+    // True only while the watchdog callback runs. Destroying an EventSourceTime
+    // from inside its own callback is a use-after-free, and the callback
+    // commits through the shared path, which tears the gesture down and would
+    // cancel the timer. The guard makes that cancel a no-op; returning false
+    // from the callback disables the source, and the next arming replaces it.
+    bool cyclingWatchdogFiring_ = false;
 
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
@@ -201,11 +211,11 @@ public:
     }
 
     // The one teardown every end of a cycling phase runs through (commit,
-    // cancel, wipe).
+    // cancel, wipe), so the watchdog cannot outlive the gesture it guards.
     void resetCycling() {
         cyclingInput_.reset();
         cyclingIndex_ = 0;
-        caretEchoPending_ = false;
+        cancelCyclingWatchdog();
     }
 
     void cancelTimeout() { timeoutEvent_.reset(); }
@@ -217,6 +227,13 @@ public:
     void cancelSpaceCommit() {
         spaceCommitEvent_.reset();
         pendingSpaceCommit_ = false;
+    }
+
+    // No-op while the watchdog is firing: see cyclingWatchdogFiring_.
+    void cancelCyclingWatchdog() {
+        if (cyclingWatchdogFiring_)
+            return;
+        cyclingWatchdogEvent_.reset();
     }
 
     // Milliseconds between a monotonic stamp and now. The one place the
