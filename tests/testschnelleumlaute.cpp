@@ -41,7 +41,7 @@
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
-// 167-172 Cycling watchdog   a swallowed input-key release no longer freezes cycling: the backstop commits the picked variant, every cycling step postpones it, a long pause neither loses nor doubles the character, Alt auto-repeat alone keeps the gesture alive, an uppercase gesture is measured against its own window, and the ceiling ends a gesture that feeds itself from the keys it swallows (issue #147)
+// 167-172 Cycling watchdog     a swallowed input-key release no longer freezes cycling: the backstop commits the picked variant, every cycling step postpones it, a long pause neither loses nor doubles the character, Alt auto-repeat alone keeps the gesture alive, an uppercase gesture is measured against its own window, and the ceiling ends a gesture that feeds itself from the keys it swallows (issue #147)
 // clang-format on
 
 #include <unistd.h>
@@ -197,19 +197,21 @@ constexpr int kWatchdogUpperFireMs =
 // of a window, and asks for half a tick wherever it wants exactly one.
 constexpr int kEventLoopTickMs = 250;
 
-// Where the ceiling ends a cycling gesture that shows no visible progress.
+// Where the ceiling ends a cycling phase, counted from its start.
 constexpr int kWatchdogCapMs = kWatchdogFireMs * kCyclingWatchdogCapFactor;
+constexpr int kWatchdogCapTicks = kWatchdogCapMs / kEventLoopTickMs;
 
-// Test 172 feeds the gesture a press of its own input key once per tick, well
-// inside the backstop, so the backstop stays postponed for as long as the
-// feeding lasts and only the ceiling can end the gesture. The feeding runs PAST
-// the ceiling on purpose: without a ceiling the gesture would then still be
-// alive at the final check, which is what makes that check discriminating.
-constexpr int kWatchdogFeedCount = 9;
+// Test 172 feeds the gesture once per tick, well inside the backstop, so the
+// backstop stays postponed for as long as the feeding lasts and only the
+// ceiling can end the gesture. The feeding runs PAST the ceiling on purpose:
+// without a ceiling the gesture would then still be alive at the final check,
+// which is what makes that check discriminating. Both counts follow the cap
+// factor, so changing it moves the test with it.
+constexpr int kWatchdogFeedCount = kWatchdogCapTicks + 2;
 
 // Up to here a feed must still find the gesture alive; past it the ceiling can
-// fire at any moment, so those feeds asserting nothing is not laxness.
-constexpr int kWatchdogLastLiveFeed = 5;
+// fire at any tick, so those feeds asserting nothing is not laxness.
+constexpr int kWatchdogLastLiveFeed = kWatchdogCapTicks - 2;
 
 static_assert(kWatchdogLastLiveFeed * kEventLoopTickMs < kWatchdogCapMs,
               "the live assertions must sit below the ceiling");
@@ -7684,10 +7686,10 @@ static void scheduleWatchdogTest171(Instance *instance) {
 // that follow look exactly like a repeat. They change nothing on screen (a
 // single-output Alt session shows the same preedit however often the leader
 // repeats) and they keep postponing the backstop, which is the one case the
-// backstop cannot resolve on its own. The ceiling, measured from the last time
-// the picker actually moved, ends the gesture regardless, by committing as
-// usual, and the feeding deliberately runs on past it: without a ceiling the
-// gesture would still be alive at the final check.
+// backstop cannot resolve on its own. The ceiling, counted from the gesture's
+// start, ends it regardless, by committing as usual, and the feeding
+// deliberately runs on past it: without a ceiling the gesture would still be
+// alive at the final check.
 // =========================================================================
 static void feedStuckGesture(Instance *instance, ICUUID uuid,
                              const std::shared_ptr<AltVerifyHolder> &holder,

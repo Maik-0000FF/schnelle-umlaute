@@ -160,32 +160,26 @@ public:
 
         // Liveness for the cycling backstop. An event on the gesture's own
         // input key or on its consumed Alt leader is the platform repeating a
-        // key the gesture believes is held. Such events are swallowed further
-        // down by the repeat and synthetic-release guards and change nothing
-        // visible, so without this re-arm a hold that merely repeats would look
-        // abandoned and the backstop would end a living gesture, handing
-        // Alt+key to the application as a shortcut (issue #147 class). Any
-        // other key is ignored on purpose: it says nothing about the held key.
-        // A no-op unless a gesture is cycling.
+        // key the gesture believes is held. On a single output such a repeat is
+        // consumed without changing anything on screen, so without this re-arm
+        // a hold that merely repeats would look abandoned and the backstop
+        // would end a living gesture, handing Alt+key to the application as a
+        // shortcut (issue #147 class). Any other key is ignored on purpose: it
+        // says nothing about the held key. A no-op unless a gesture is cycling.
         //
         // What it cannot do is tell that repeat from a FRESH press of the same
         // key, and that is not a theoretical case: after a swallowed release
         // the key is physically up while its code still sits in the held set,
         // because only a release erases it. Such a press postpones the very
-        // backstop that exists for it. Deliberately left unclassified here,
-        // where the information is not available; the ceiling in
-        // armCyclingWatchdog() bounds it instead, so the misreading costs a
-        // delay rather than a gesture that never ends.
-        //
-        // The Alt leader carries the same hole and is the likelier feeder of
-        // the two, because every foreign Alt shortcut lands on
-        // consumedAltCode_. It differs in one way: while cycling, an Alt press
-        // does not stay in the pure-modifier branch below but reaches the
-        // leader handling, and with more than one variant it steps the picker.
-        // That is real progress, and it pushes the ceiling along with it.
+        // backstop that exists for it, and the Alt leader is the likelier
+        // feeder of the two, because every foreign Alt shortcut lands on
+        // consumedAltCode_. Deliberately left unclassified here, where the
+        // information is not available; the ceiling in armCyclingWatchdog()
+        // bounds it instead, so the misreading costs a delay rather than a
+        // gesture that never ends.
         if (rawCode != 0 && (rawCode == state->waitingKeyCode_ ||
                              rawCode == state->consumedAltCode_)) {
-            armCyclingWatchdog(ic, state, /*progress=*/false);
+            armCyclingWatchdog(ic, state);
         }
 
         // Track physical key state for repeat detection.
@@ -515,7 +509,7 @@ public:
             // Carrying the session across a repeat gap keeps the gesture going
             // without rewriting the preview, so the backstop that
             // updateClientPreedit() normally postpones must be postponed here.
-            armCyclingWatchdog(ic, state, /*progress=*/false);
+            armCyclingWatchdog(ic, state);
             keyEvent.filterAndAccept();
             return;
         }
@@ -1447,7 +1441,7 @@ private:
     // no-op there: it has the accent window as its own upper bound.
     void updateClientPreedit(InputContext *ic, SchnelleUmlauteState *state,
                              const std::string &text) {
-        armCyclingWatchdog(ic, state, /*progress=*/true);
+        armCyclingWatchdog(ic, state);
         Text preedit(text);
         preedit.setCursor(static_cast<int>(preedit.textLength()));
         ic->inputPanel().setClientPreedit(preedit);
@@ -1601,30 +1595,24 @@ private:
     // character they were looking at slightly early, instead of losing it.
     //
     // Every step of the gesture re-arms the timer, so cycling stays unbounded
-    // as long as anything happens at all, bounded only by the ceiling below.
+    // as long as anything happens at all, up to the ceiling below.
     //
-    // progress says whether the caller moved the picker. Only a visible step
-    // pushes the ceiling along; a bare liveness re-arm postpones the backstop
-    // but leaves the ceiling where it is, so a gesture that is already stuck
-    // cannot hold itself alive on the keys it swallows (see
-    // kCyclingWatchdogCapFactor).
-    void armCyclingWatchdog(InputContext *ic, SchnelleUmlauteState *state,
-                            bool progress) {
+    // The ceiling runs from the gesture's own start (startTimeUsec_, which
+    // cycling leaves standing) and cannot be pushed by anything, which is the
+    // point: no re-arm, right or wrong, can keep a gesture alive past it. See
+    // kCyclingWatchdogCapFactor for why it does not try to tell a driven
+    // gesture from a stuck one.
+    void armCyclingWatchdog(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->cyclingInput_)
             return;
         state->cancelCyclingWatchdog();
 
         const uint64_t now = SchnelleUmlauteState::nowUsec();
-        // The zero case is the first arming of a phase whose stamp a teardown
-        // cleared: anchor it here rather than leave the ceiling in the past.
-        if (progress || state->lastCyclingProgressUsec_ == 0)
-            state->lastCyclingProgressUsec_ = now;
-
         const uint64_t backstop =
             static_cast<uint64_t>(cyclingWatchdogMs(state)) *
             kMicrosecondsPerMillisecond;
         const uint64_t ceiling =
-            state->lastCyclingProgressUsec_ +
+            state->startTimeUsec_ +
             backstop * static_cast<uint64_t>(kCyclingWatchdogCapFactor);
         // Never behind now: a ceiling already in the past means the gesture is
         // due, and the event loop runs the timer on its next turn.
@@ -1640,22 +1628,28 @@ private:
                 auto *ctx = savedRef.get();
                 if (!ctx || !state->cyclingInput_)
                     return false;
-                // No repeat suppression is armed for the input key here, unlike
-                // the window-timeout commit. That arming assumes the key is
-                // still down, and the firing of this timer is the one moment
-                // that assumption is in doubt: if the release was swallowed the
-                // key is long up, and the arming would swallow its next real
-                // press. Left unarmed, that press simply starts a new gesture.
-                // The cost in the other direction is an unpaired key-up for a
-                // character key, which applications ignore.
+                // Two decisions about the state this leaves behind, taken
+                // together because they pull against each other.
                 //
-                // For the same reason the key's code leaves the held set here.
-                // The release that would have erased it is exactly what went
-                // missing, and a stale entry makes the next press of that key
-                // read as auto-repeat: harmless on its own, but swallowed
-                // outright once another gesture is running (the repeat guard in
-                // the accent-key branch). Erasing costs nothing if the key
-                // really is still down, because its next repeat re-inserts it.
+                // No repeat suppression is armed for the input key, unlike the
+                // window-timeout commit. That arming assumes the key is still
+                // down, and the firing of this timer is the one moment the
+                // assumption is in doubt: if the release was swallowed the key
+                // is long up, and the arming would swallow its next real press.
+                // A swallowed keypress is worse than the duplicate it would
+                // prevent, so the arming stays out. Left unarmed, a repeat of a
+                // key that really is still down starts a fresh gesture and adds
+                // its plain character, and an unpaired key-up reaches the
+                // application, which ignores it for a character key.
+                //
+                // The key's code does leave the held set, because the release
+                // that would have erased it is exactly what went missing. A
+                // stale entry makes the next press of that key read as
+                // auto-repeat: harmless on its own, but swallowed outright once
+                // another gesture is running (the repeat guard in the
+                // accent-key branch). Note that this is also why arming and
+                // erasing cannot be combined as a middle ground: the guard that
+                // an arming feeds needs the entry to still be there.
                 state->heldRawCodes_.erase(state->waitingKeyCode_);
                 state->cyclingWatchdogFiring_ = true;
                 commitCyclingValue(ctx, state);
