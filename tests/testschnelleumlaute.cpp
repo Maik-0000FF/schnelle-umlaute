@@ -7738,24 +7738,6 @@ static void feedStuckGesture(Instance *instance, ICUUID uuid,
                         << "The ceiling must end a self-feeding gesture, got '"
                         << getClientPreedit(instance) << "'";
 
-                    // The input key never went up, so its auto-repeat carries
-                    // on after the commit. It must not start a fresh gesture
-                    // and type the plain character on top of what the ceiling
-                    // just committed: the ceiling teardown keeps the key's
-                    // repeat suppression for exactly this. A leaked "o" would
-                    // reach the frontend as an unexpected commit.
-                    tf->call<ITestFrontend::sendKeyEvent>(
-                        uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
-                    FCITX_ASSERT(getClientPreedit(instance).empty())
-                        << "A repeat after the ceiling must not start a "
-                           "gesture, got '"
-                        << getClientPreedit(instance) << "'";
-                    tf->call<ITestFrontend::sendKeyEvent>(
-                        uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
-                    tf->call<ITestFrontend::sendKeyEvent>(
-                        uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL),
-                        true);
-
                     tf->call<ITestFrontend::destroyInputContext>(uuid);
                     FCITX_INFO() << "Test 172 PASSED";
                     scheduleWatchdogTest173(instance);

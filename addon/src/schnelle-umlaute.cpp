@@ -1618,45 +1618,39 @@ private:
         // due, and the event loop runs the timer on its next turn.
         const uint64_t target =
             std::max(now, std::min(now + backstop, ceiling));
-        // Which of the two limits this arming runs into decides what the
-        // teardown may assume about the input key, so it travels with the
-        // timer.
-        const bool ceilingFires = ceiling <= now + backstop;
 
         auto savedRef = ic->watch();
         state->cyclingWatchdogEvent_ = instance_->eventLoop().addTimeEvent(
             CLOCK_MONOTONIC, target, 0,
-            [this, state, savedRef, ceilingFires](EventSourceTime *, uint64_t) {
+            [this, state, savedRef](EventSourceTime *, uint64_t) {
                 // Safety: see scheduleTimeout, the single-threaded event loop
                 // guarantees state outlives savedRef.get() != nullptr.
                 auto *ctx = savedRef.get();
                 if (!ctx || !state->cyclingInput_)
                     return false;
-                // What the input key is doing depends on which limit fired, and
-                // the two answers are opposite, so the teardown splits here.
+                // The key's code leaves the held set, and no repeat suppression
+                // is armed in its place. Both halves are one decision about a
+                // question this callback cannot answer: whether the input key
+                // is still down. The backstop fires on silence, where it almost
+                // certainly is not, and the ceiling fires on a gesture that was
+                // fed, where the feeder may have been the Alt leader rather
+                // than the input key. Arming for a key nobody holds swallows
+                // that key's next real press, and a swallowed keypress weighs
+                // more than the duplicate it would prevent, so the arming stays
+                // out in both cases.
                 //
-                // The backstop fires on silence. Silence means no auto-repeat
-                // arrived, which is the best evidence there is that the key is
-                // no longer down: its release was swallowed. So the code leaves
-                // the held set, because the release that would have erased it
-                // is exactly what went missing, and a stale entry makes the
-                // next press of that key read as auto-repeat, which is
-                // swallowed outright once another gesture is running. No repeat
-                // suppression is armed either, because it assumes a key that is
-                // down and would swallow that next real press, and a swallowed
-                // keypress weighs more than the duplicate it would prevent.
+                // Erasing follows from the same doubt: the release that would
+                // have erased the code is exactly what went missing, and a
+                // stale entry makes the next press of that key read as
+                // auto-repeat, which is swallowed outright once another gesture
+                // is running.
                 //
-                // The ceiling fires on a gesture that was fed all the way to
-                // it, and only events on its own keys feed it, so the key is
-                // down and its repeat is still coming. Here the entry stays and
-                // the repeat suppression is armed: without it the next repeat
-                // starts a fresh gesture and types the plain character on top
-                // of the commit just made. Both halves are needed together, the
-                // guard the arming feeds is keyed on that entry.
-                if (ceilingFires)
-                    state->armCommittedKey(state->waitingKeyCode_, 0, 0);
-                else
-                    state->heldRawCodes_.erase(state->waitingKeyCode_);
+                // The accepted cost, named rather than hidden: when the key IS
+                // still down, its next repeat starts a fresh gesture and types
+                // the plain character on top of the commit just made. Telling
+                // the two apart needs evidence about the physical key that the
+                // addon does not have here, so it is not guessed at.
+                state->heldRawCodes_.erase(state->waitingKeyCode_);
                 state->cyclingWatchdogFiring_ = true;
                 commitCyclingValue(ctx, state);
                 state->cyclingWatchdogFiring_ = false;
