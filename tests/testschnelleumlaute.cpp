@@ -221,8 +221,11 @@ static_assert(kEventLoopTickMs < kWatchdogFireMs,
               "ceiling from a plain backstop");
 
 // Margin on top of a whole window for the tests that wait the watchdog OUT: by
-// then it must have fired even on a loaded machine.
-constexpr auto kWatchdogTestMargin = std::chrono::milliseconds(100);
+// then it must have fired even on a loaded machine. A whole tick, because
+// anything shorter cannot separate two timers at all: both land in the same
+// tick, and only the order of their deadlines decides which runs first.
+constexpr auto kWatchdogTestMargin =
+    std::chrono::milliseconds(kEventLoopTickMs);
 constexpr auto kCyclingWatchdogTestWait =
     std::chrono::milliseconds(kWatchdogFireMs) + kWatchdogTestMargin;
 
@@ -7447,11 +7450,10 @@ static void afterDelay(Instance *instance,
 }
 
 // =========================================================================
-// TEST 168: the counter-pin to 167. Cycling is unbounded by design, and the
-// watchdog must not quietly put a ceiling on it: every step postpones it. Two
-// waits of two thirds of the window each, with a leader tap in between, add up
-// to more than a whole window, so the gesture survives only if that tap
-// re-armed the timer.
+// TEST 168: the counter-pin to 167. A step must postpone the backstop, so that
+// what limits cycling is the ceiling alone. Two waits of three fifths of the
+// window each, with a leader tap in between, add up to more than a whole
+// window, so the gesture survives only if that tap re-armed the timer.
 // =========================================================================
 static void scheduleWatchdogTest168(Instance *instance) {
     g_currentTest = 168;

@@ -42,8 +42,8 @@ constexpr uint32_t kMaxUnicodeCodepoint = 0x10FFFF;
 // =============================================================================
 // Key insight: Track whether input key is PHYSICALLY PRESSED
 // - Cycling only works while input key is held down
-// - Cycle as long as you want: every step postpones the only timer that runs
-//   during cycling, a backstop for the case where the release never arrives
+// - Cycle as long as you want: every step postpones the backstop that ends a
+//   gesture whose release never arrives, bounded only by its ceiling
 //   (armCyclingWatchdog, issue #147)
 // - When input key is released, cycling ends
 // =============================================================================
