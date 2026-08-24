@@ -33,6 +33,22 @@ constexpr int kDeferredCommitDelayMs = 5;
 // whose release was swallowed cannot outlive the sentence being typed.
 constexpr int kCyclingWatchdogFactor = 10;
 
+// Ceiling on how far that backstop may be postponed, as a multiple of itself.
+// Every re-arm is a claim that the gesture is still being driven, and one of
+// those claims can be wrong: after a swallowed release the input key is
+// physically up, yet a fresh press of it carries the gesture's own key code and
+// reads as auto-repeat, because only a release erases that code from the held
+// set. Such a press is swallowed and postpones the backstop, so a gesture that
+// is already stuck can be fed by the very keys it eats. Bounding the
+// postponement turns any such misreading into a delay instead of a permanent
+// state, and it does so without having to classify the event that caused it.
+//
+// Measured from the last VISIBLE progress, not from the gesture's start: a user
+// stepping through variants moves the picker with every tap and pushes the
+// ceiling along, so deliberate cycling stays as unbounded as it always was.
+// Only silence, and the invisible kind of liveness above, run into it.
+constexpr int kCyclingWatchdogCapFactor = 3;
+
 // The shortest window the slider offers must still leave a backstop that does
 // not feel twitchy. Asserted instead of clamped at runtime: a clamp would be
 // dead code, because the slider's own lower bound already decides this.

@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (169 tests)
+// Test Suite for Schnelle Umlaute (172 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -41,7 +41,7 @@
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
-// 167-171 Cycling watchdog   a swallowed input-key release no longer freezes cycling: the backstop commits the picked variant, every cycling step postpones it, a long pause neither loses nor doubles the character, Alt auto-repeat alone keeps the gesture alive, and an uppercase gesture is measured against its own window (issue #147)
+// 167-172 Cycling watchdog   a swallowed input-key release no longer freezes cycling: the backstop commits the picked variant, every cycling step postpones it, a long pause neither loses nor doubles the character, Alt auto-repeat alone keeps the gesture alive, an uppercase gesture is measured against its own window, and the ceiling ends a gesture that feeds itself from the keys it swallows (issue #147)
 // clang-format on
 
 #include <unistd.h>
@@ -190,6 +190,35 @@ constexpr int kWatchdogFireMs = kWatchdogTestDelayMs * kCyclingWatchdogFactor;
 constexpr int kWatchdogTestUpperDelayMs = kWatchdogTestDelayMs * 2;
 constexpr int kWatchdogUpperFireMs =
     kWatchdogTestUpperDelayMs * kCyclingWatchdogFactor;
+
+// The event loop batches its timers on a coarse grid: every timer in this suite
+// fires on the same 250 ms tick, and asking for less than a tick still costs a
+// whole one. Test 172 therefore counts its waits in ticks instead of fractions
+// of a window, and asks for half a tick wherever it wants exactly one.
+constexpr int kEventLoopTickMs = 250;
+
+// Where the ceiling ends a cycling gesture that shows no visible progress.
+constexpr int kWatchdogCapMs = kWatchdogFireMs * kCyclingWatchdogCapFactor;
+
+// Test 172 feeds the gesture a press of its own input key once per tick, well
+// inside the backstop, so the backstop stays postponed for as long as the
+// feeding lasts and only the ceiling can end the gesture. The feeding runs PAST
+// the ceiling on purpose: without a ceiling the gesture would then still be
+// alive at the final check, which is what makes that check discriminating.
+constexpr int kWatchdogFeedCount = 9;
+
+// Up to here a feed must still find the gesture alive; past it the ceiling can
+// fire at any moment, so those feeds asserting nothing is not laxness.
+constexpr int kWatchdogLastLiveFeed = 5;
+
+static_assert(kWatchdogLastLiveFeed * kEventLoopTickMs < kWatchdogCapMs,
+              "the live assertions must sit below the ceiling");
+static_assert(kWatchdogFeedCount * kEventLoopTickMs > kWatchdogCapMs,
+              "the feeding must outlast the ceiling, or nothing is proven");
+static_assert(kEventLoopTickMs < kWatchdogFireMs,
+              "one tick after the last feed must still be short of the "
+              "backstop that feed postponed, or the final check cannot tell a "
+              "ceiling from a plain backstop");
 
 // Margin on top of a whole window for the tests that wait the watchdog OUT: by
 // then it must have fired even on a loaded machine.
@@ -911,6 +940,7 @@ static void scheduleWatchdogTest168(Instance *instance);
 static void scheduleWatchdogTest169(Instance *instance);
 static void scheduleWatchdogTest170(Instance *instance);
 static void scheduleWatchdogTest171(Instance *instance);
+static void scheduleWatchdogTest172(Instance *instance);
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -7355,7 +7385,7 @@ static void scheduleTest113(Instance *instance) {
 }
 
 // =============================================================================
-// CYCLING WATCHDOG TESTS (167-169): the backstop that ends a cycling gesture
+// CYCLING WATCHDOG TESTS (167-172): the backstop that ends a cycling gesture
 // whose input-key release never arrived (issue #147). Timer-chained instead of
 // dispatcher-scheduled with a blocking sleep: the watchdog runs on the very
 // event loop such a sleep would freeze, so these tests hand control back and
@@ -7395,6 +7425,11 @@ constexpr uint64_t kWatchdogUpperProbeUsec =
 // each outlast a whole window with room to spare, so surviving them cannot be
 // an artefact of the gesture simply not having aged enough yet.
 constexpr int kWatchdogRepeatCount = 3;
+
+// The wait test 172 runs on, once between feeds and once before its final
+// check. Half a tick, which the loop rounds up to exactly one: less than a tick
+// is impossible, and asking for a whole one would cost two.
+constexpr uint64_t kWatchdogFeedUsec = watchdogUsec(kEventLoopTickMs / 2);
 
 // Give the event loop usec to run, then continue. A blocking sleep cannot be
 // used where an addon timer has to fire, because it freezes the very loop that
@@ -7635,10 +7670,92 @@ static void scheduleWatchdogTest171(Instance *instance) {
 
                    tf->call<ITestFrontend::destroyInputContext>(uuid);
                    FCITX_INFO() << "Test 171 PASSED";
-
-                   FCITX_INFO() << "=== All 171 tests PASSED ===";
-                   instance->exit();
+                   scheduleWatchdogTest172(instance);
                });
+}
+
+// =========================================================================
+// TEST 172: a stuck gesture must not be able to feed itself. Every event on the
+// gesture's own keys re-arms the backstop, and that re-arm cannot tell the
+// platform's auto-repeat from a fresh press: after a swallowed release the key
+// is physically up while its code still sits in the held set, so the presses
+// that follow look exactly like a repeat. They change nothing on screen (a
+// single-output Alt session shows the same preedit however often the leader
+// repeats) and they keep postponing the backstop, which is the one case the
+// backstop cannot resolve on its own. The ceiling, measured from the last time
+// the picker actually moved, ends the gesture regardless, by committing as
+// usual, and the feeding deliberately runs on past it: without a ceiling the
+// gesture would still be alive at the final check.
+// =========================================================================
+static void feedStuckGesture(Instance *instance, ICUUID uuid,
+                             const std::shared_ptr<AltVerifyHolder> &holder,
+                             int sent) {
+    afterDelay(
+        instance, holder, kWatchdogFeedUsec, [instance, uuid, holder, sent]() {
+            auto *tf = instance->addonManager().addon("testfrontend");
+            const int feed = sent + 1;
+            if (feed <= kWatchdogLastLiveFeed) {
+                FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xb6")
+                    << "Feed " << feed << " must still find the gesture live, "
+                    << "got '" << getClientPreedit(instance) << "'";
+            }
+            // What a stuck gesture eats: the leader repeating on a single
+            // output, consumed without a visible change, and enough to re-arm
+            // the backstop. Once the ceiling has ended the gesture the same
+            // press is an ordinary modifier again and starts nothing.
+            tf->call<ITestFrontend::sendKeyEvent>(
+                uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+            // From here on the ceiling may fire at any tick, and the commit it
+            // owes is the one the missing release would have made.
+            if (feed == kWatchdogLastLiveFeed)
+                tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+
+            if (feed < kWatchdogFeedCount) {
+                feedStuckGesture(instance, uuid, holder, feed);
+                return;
+            }
+
+            afterDelay(
+                instance, holder, kWatchdogFeedUsec,
+                [instance, uuid, holder]() {
+                    auto *tf = instance->addonManager().addon("testfrontend");
+                    // Fed to the last tick and ended anyway. Only the ceiling
+                    // can have done it: the backstop that last feed postponed
+                    // is still a tick away.
+                    FCITX_ASSERT(getClientPreedit(instance).empty())
+                        << "The ceiling must end a self-feeding gesture, got '"
+                        << getClientPreedit(instance) << "'";
+
+                    tf->call<ITestFrontend::destroyInputContext>(uuid);
+                    FCITX_INFO() << "Test 172 PASSED";
+
+                    FCITX_INFO() << "=== All 172 tests PASSED ===";
+                    instance->exit();
+                });
+        });
+}
+
+static void scheduleWatchdogTest172(Instance *instance) {
+    g_currentTest = 172;
+    FCITX_INFO() << "=== Test 172: the ceiling ends a gesture that feeds "
+                    "itself ===";
+    configureWatchdogCyclingAlt(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test172");
+
+    // Hold 'o' (single output) and press Alt, the same shape test 170 uses.
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xb6")
+        << "Alt must start a session on the single output, got '"
+        << getClientPreedit(instance) << "'";
+
+    // No release from here on: this is the swallowed-release state, and the
+    // only thing that arrives is the key the gesture keeps eating.
+    auto holder = std::make_shared<AltVerifyHolder>();
+    feedStuckGesture(instance, uuid, holder, 0);
 }
 
 // =========================================================================

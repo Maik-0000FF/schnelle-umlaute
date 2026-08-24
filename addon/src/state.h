@@ -69,6 +69,13 @@ public:
     // from the callback disables the source, and the next arming replaces it.
     bool cyclingWatchdogFiring_ = false;
 
+    // Monotonic stamp of the last VISIBLE progress of the cycling phase, i.e.
+    // the last time the picker actually moved. The ceiling in
+    // armCyclingWatchdog() is measured from here rather than from the gesture's
+    // start, so deliberate cycling pushes it along while invisible liveness
+    // does not (see kCyclingWatchdogCapFactor). Zero while nothing is cycling.
+    uint64_t lastCyclingProgressUsec_ = 0;
+
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
     int waitingKeyCode_ = 0;
@@ -216,6 +223,7 @@ public:
         cyclingInput_.reset();
         cyclingIndex_ = 0;
         cancelCyclingWatchdog();
+        lastCyclingProgressUsec_ = 0;
     }
 
     void cancelTimeout() { timeoutEvent_.reset(); }
