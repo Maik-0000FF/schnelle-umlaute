@@ -174,27 +174,22 @@ constexpr auto kSyntheticReleaseTestHold =
     std::chrono::microseconds(kSyntheticReleaseMinElapsedUsec) +
     std::chrono::milliseconds(1);
 
-// Accent window for the cycling-watchdog tests (167-169). The watchdog scales
-// with the user's own window, so the smallest valid one keeps its wait short
-// enough to sit in a test suite: 50 ms * factor 10 lands on the floor, 500 ms.
+// Accent window for the cycling-watchdog tests. The watchdog scales with the
+// user's own window, so the smallest valid one keeps its wait short enough to
+// sit in a test suite: 50 ms times factor 10 is 500 ms.
 constexpr int kWatchdogTestDelayMs = kDelayMin;
 
 // The point the watchdog fires at, computed exactly as the engine computes it,
 // so changing either constant moves the tests with it instead of silently
 // flipping them to a false pass. See armCyclingWatchdog().
-constexpr int kWatchdogTestDerivedMs =
-    kWatchdogTestDelayMs * kCyclingWatchdogFactor;
-constexpr int kWatchdogFireMs =
-    std::max(kCyclingWatchdogFloorMs, kWatchdogTestDerivedMs);
+constexpr int kWatchdogFireMs = kWatchdogTestDelayMs * kCyclingWatchdogFactor;
 
 // Test 171 needs the two windows to differ: an uppercase delay of twice the
-// lowercase one puts the uppercase backstop above the floor the lowercase one
-// sits on, so a wait between them tells the two apart.
+// lowercase one doubles the uppercase backstop with it, so a wait between the
+// two firing points tells them apart.
 constexpr int kWatchdogTestUpperDelayMs = kWatchdogTestDelayMs * 2;
-constexpr int kWatchdogUpperDerivedMs =
-    kWatchdogTestUpperDelayMs * kCyclingWatchdogFactor;
 constexpr int kWatchdogUpperFireMs =
-    std::max(kCyclingWatchdogFloorMs, kWatchdogUpperDerivedMs);
+    kWatchdogTestUpperDelayMs * kCyclingWatchdogFactor;
 
 // Margin on top of a whole window for the tests that wait the watchdog OUT: by
 // then it must have fired even on a loaded machine.

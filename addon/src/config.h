@@ -28,12 +28,16 @@ constexpr int kDeferredCommitDelayMs = 5;
 
 // Backstop for the cycling phase, which is otherwise ended only by the input
 // key's release (see armCyclingWatchdog): how long the variant picker may sit
-// completely untouched, as a multiple of the accent window, with a floor so the
-// shortest windows do not make it twitchy. Ten windows of silence is far past
-// any tapping rhythm and still short enough that a gesture whose release was
-// swallowed cannot outlive the sentence being typed.
+// completely untouched, as a multiple of the accent window. Ten windows of
+// silence is far past any tapping rhythm and still short enough that a gesture
+// whose release was swallowed cannot outlive the sentence being typed.
 constexpr int kCyclingWatchdogFactor = 10;
-constexpr int kCyclingWatchdogFloorMs = 500;
+
+// The shortest window the slider offers must still leave a backstop that does
+// not feel twitchy. Asserted instead of clamped at runtime: a clamp would be
+// dead code, because the slider's own lower bound already decides this.
+static_assert(kDelayMin * kCyclingWatchdogFactor >= 500,
+              "shortest accent window leaves a twitchy cycling backstop");
 
 // Minimum-hold lower bound (ms). The accent window is [min, max]: a leader
 // that arrives before min has elapsed yields the plain character instead of

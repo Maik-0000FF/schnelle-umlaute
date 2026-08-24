@@ -1621,8 +1621,7 @@ private:
     // How long a cycling gesture may sit untouched before the watchdog commits
     // it. Derived from the user's own accent window rather than fixed: someone
     // who set a snappy window wants a snappy backstop, someone who set a long
-    // one is a deliberate typist. The floor keeps the shortest windows from
-    // making it twitchy.
+    // one is a deliberate typist.
     //
     // Reads the cycling key, not waitingKey_: cycling resets the waiting
     // gesture, so from the second arming on getEffectiveDelay() would see no
@@ -1630,11 +1629,9 @@ private:
     // backstop mid-flight. armCyclingWatchdog() returns before calling this
     // unless cyclingInput_ is set.
     int cyclingWatchdogMs(SchnelleUmlauteState *state) {
-        const int derived =
-            delayForKey(state->cyclingInput_ ? &*state->cyclingInput_
-                                             : nullptr) *
-            kCyclingWatchdogFactor;
-        return std::max(kCyclingWatchdogFloorMs, derived);
+        return delayForKey(state->cyclingInput_ ? &*state->cyclingInput_
+                                                : nullptr) *
+               kCyclingWatchdogFactor;
     }
 
     // Intentionally no whitespace trimming: leading/trailing spaces in outputs
