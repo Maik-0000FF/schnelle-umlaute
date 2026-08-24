@@ -27,10 +27,7 @@ target_compile_options(testschnelleumlaute PRIVATE ${SU_TEST_WARN_FLAGS})
 target_link_libraries(testschnelleumlaute Fcitx5::Core Fcitx5::Module::TestFrontend Fcitx5::Module::TestIM PkgConfig::XKBCommon)
 add_dependencies(testschnelleumlaute copy-addon-conf copy-im-conf schnelle-umlaute)
 add_test(NAME testschnelleumlaute COMMAND testschnelleumlaute)
-# The cycling-watchdog tests wait real timers out, and the ceiling test alone
-# runs for ten backstops. Generous, so a loaded CI machine cannot turn a slow
-# run into a failure.
-set_tests_properties(testschnelleumlaute PROPERTIES TIMEOUT 60)
+set_tests_properties(testschnelleumlaute PROPERTIES TIMEOUT 30)
 
 # Unit test for readLine() — the truncation-guarded line reader every config
 # parser shares. Header-only, no fcitx5 runtime needed.

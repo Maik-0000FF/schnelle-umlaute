@@ -26,46 +26,6 @@ constexpr int kDelayMax = 2000;
 constexpr int kDelayStep = 10;
 constexpr int kDeferredCommitDelayMs = 5;
 
-// Backstop for the cycling phase, which is otherwise ended only by the input
-// key's release (see armCyclingWatchdog): how long the variant picker may sit
-// completely untouched, as a multiple of the accent window. Ten windows of
-// silence is far past any tapping rhythm and still short enough that a gesture
-// whose release was swallowed cannot outlive the sentence being typed.
-constexpr int kCyclingWatchdogFactor = 10;
-
-// Ceiling on a whole cycling phase, as a multiple of that backstop, counted
-// from the gesture's own start. Every re-arm is a claim that the gesture is
-// still being driven, and one of those claims can be wrong: after a swallowed
-// release the input key is physically up, yet a fresh press of it carries the
-// gesture's own key code and reads as auto-repeat, because only a release
-// erases that code from the held set. Such a press is swallowed and postpones
-// the backstop, so a gesture that is already stuck can be fed by the very keys
-// it eats. The ceiling turns any such misreading into a delay instead of a
-// permanent state.
-//
-// It deliberately does not try to tell a driven gesture from a stuck one. That
-// distinction is not available: a leader press steps the picker either way, and
-// whether the user meant to step it or was reaching for an application shortcut
-// is not something the addon can see. Anchoring on the last visible step would
-// therefore bound the wrong case and leave the intended one unbounded.
-//
-// Generous on purpose, because the two failure costs are not symmetric. Cutting
-// a real session short commits the character on screen, which is visible and
-// correctable; letting a stuck one run swallows keystrokes silently. Ten
-// backstops are a hundred accent windows, far outside any session someone
-// actually holds a key through, and any key that reaches the gesture ends it
-// long before that anyway. Two kinds do not reach it: a pure modifier press
-// returns early without touching the gesture, and one whose code matches the
-// consumed leader even postpones the backstop on its way past, which is the
-// feeding this ceiling exists to bound.
-constexpr int kCyclingWatchdogCapFactor = 10;
-
-// The shortest window the slider offers must still leave a backstop that does
-// not feel twitchy. Asserted instead of clamped at runtime: a clamp would be
-// dead code, because the slider's own lower bound already decides this.
-static_assert(kDelayMin * kCyclingWatchdogFactor >= 500,
-              "shortest accent window leaves a twitchy cycling backstop");
-
 // Minimum-hold lower bound (ms). The accent window is [min, max]: a leader
 // that arrives before min has elapsed yields the plain character instead of
 // the accent. 0 reproduces the historic behavior (no lower bound), so it is

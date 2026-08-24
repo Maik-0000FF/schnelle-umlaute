@@ -51,28 +51,6 @@ public:
     std::unique_ptr<EventSourceTime> spaceCommitEvent_;
     bool pendingSpaceCommit_ = false;
 
-    // Backstop for the cycling phase, which has no timer of its own: the leader
-    // press cancels the accent window, and from then on only the input key's
-    // release ends the gesture. A compositor grab can swallow that release
-    // (KWin's window operations menu on Alt+Space, issue #147) without moving
-    // the focus, so no release and no FocusOut ever arrive and the gesture
-    // would stay live for the rest of the session. This timer ends it the way
-    // the release would have, by committing the variant on screen. Every step
-    // of the gesture re-arms it, so silence is what cuts cycling short, up to
-    // the ceiling in armCyclingWatchdog(), which nothing can push. Own slot:
-    // timeoutEvent_ carries the Alt deferred commit during the same phase.
-    std::unique_ptr<EventSourceTime> cyclingWatchdogEvent_;
-    // True only while the watchdog callback runs, and it guards exactly one
-    // thing: cancelCyclingWatchdog(). Destroying an EventSourceTime from inside
-    // its own callback is a use-after-free, and the callback commits through
-    // the shared path, which tears the gesture down and would cancel the timer.
-    // The guard makes that cancel a no-op; returning false from the callback
-    // disables the source, and the next arming replaces it. The arming itself
-    // is not guarded, and needs no guard: reaching it from inside the callback
-    // would take a key event dispatched synchronously from commitString(),
-    // which the single-threaded event loop does not do.
-    bool cyclingWatchdogFiring_ = false;
-
     // Track if input key is physically pressed
     bool inputKeyPressed_ = false;
     int waitingKeyCode_ = 0;
@@ -219,7 +197,6 @@ public:
     void resetCycling() {
         cyclingInput_.reset();
         cyclingIndex_ = 0;
-        cancelCyclingWatchdog();
     }
 
     void cancelTimeout() { timeoutEvent_.reset(); }
@@ -231,13 +208,6 @@ public:
     void cancelSpaceCommit() {
         spaceCommitEvent_.reset();
         pendingSpaceCommit_ = false;
-    }
-
-    // No-op while the watchdog is firing: see cyclingWatchdogFiring_.
-    void cancelCyclingWatchdog() {
-        if (cyclingWatchdogFiring_)
-            return;
-        cyclingWatchdogEvent_.reset();
     }
 
     // Milliseconds between a monotonic stamp and now. The one place the
