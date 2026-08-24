@@ -319,10 +319,15 @@ A correctly behaving field replaces the preedit with the commit, so the characte
 
 **Browser dependent:** The same field can double in one browser and work in another. For example, GitHub's fields double in Firefox but work in Chromium: Chromium keeps the preedit as a separate composition region that the commit replaces, while Firefox exposes the composition to the field's JavaScript, which double-applies it. Firefox's own native widgets (the URL bar) and plain HTML `<textarea>`/`<input>` elements are **not** affected, which confirms the addon and the browser's core composition handling are correct. The bug lives in the web field's own composition handling.
 
+**Cycling multiplies it:** the count is not fixed at two. Such a field applies every preedit state it is shown, so stepping through the variant picker leaves one character per step plus the committed one. Holding a key and tapping the leader twelve times can leave thirteen characters in the field. Same cause, more steps.
+
+**Not specific to this addon:** every input method that uses composition hits it in the same field, which is why it is tracked upstream on GitHub's side. See [community discussion #159962](https://github.com/orgs/community/discussions/159962), where the same behavior is reported for Chinese and Japanese input methods across Chrome, Edge, Firefox and Safari, and acknowledged by GitHub in September 2025.
+
 **Affected:** JavaScript-managed web fields that implement their own input handling. Native application fields, terminals, and plain HTML inputs are not affected.
 
 **Workaround:**
 - Switch to your base keyboard layout (<kbd>Ctrl</kbd> + <kbd>Space</kbd>) in the affected field, then switch back afterwards
+- Turn the preedit off while typing in the affected field: fcitx5's **Global Options → "Show Preedit In Application"**, or its **Toggle preedit** hotkey for a quick switch. Without a preedit there is nothing for the field to apply twice, and the addon's own overlay still shows the variant picker. Turn it back on afterwards: some applications need the preedit and handle text differently without it
 
 ## Web app doesn't react to a mapped character's keypress (auto-advance, shortcuts)
 
