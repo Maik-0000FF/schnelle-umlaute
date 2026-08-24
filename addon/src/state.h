@@ -192,6 +192,8 @@ public:
         altGestureSession_ = false;
     }
 
+    // The one teardown every end of a cycling phase runs through (commit,
+    // cancel, wipe), so the watchdog cannot outlive the gesture it guards.
     void resetCycling() {
         cyclingInput_.reset();
         cyclingIndex_ = 0;
@@ -208,13 +210,18 @@ public:
         pendingSpaceCommit_ = false;
     }
 
+    // Milliseconds between a monotonic stamp and now. The one place the
+    // microsecond clock is converted, so the two time predicates below cannot
+    // drift apart on the unit.
+    static uint64_t elapsedMsSince(uint64_t stampUsec) {
+        return (nowUsec() - stampUsec) / kMicrosecondsPerMillisecond;
+    }
+
     bool isTimeoutExpired(int effectiveDelay) const {
         if (!waitingKey_)
             return false;
-        uint64_t now_usec = nowUsec();
-        uint64_t elapsed_ms =
-            (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
-        return elapsed_ms > static_cast<uint64_t>(effectiveDelay);
+        return elapsedMsSince(startTimeUsec_) >
+               static_cast<uint64_t>(effectiveDelay);
     }
 
     // Lower bound of the accent window: true while the input key has been
@@ -224,10 +231,8 @@ public:
     bool isBeforeMinHold(int minHoldMs) const {
         if (!waitingKey_ || minHoldMs <= 0)
             return false;
-        uint64_t now_usec = nowUsec();
-        uint64_t elapsed_ms =
-            (now_usec - startTimeUsec_) / kMicrosecondsPerMillisecond;
-        return elapsed_ms < static_cast<uint64_t>(minHoldMs);
+        return elapsedMsSince(startTimeUsec_) <
+               static_cast<uint64_t>(minHoldMs);
     }
 
     static uint64_t nowUsec() {

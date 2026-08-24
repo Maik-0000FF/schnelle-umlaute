@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (167 tests)
+// Test Suite for Schnelle Umlaute (168 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -41,9 +41,11 @@
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
+// 167-168 Stale gesture        a swallowed input-key release no longer freezes cycling: a fresh press of the same key (new event time) ends the stale gesture and starts its own, while the held key's auto-repeat (frozen event time) leaves it cycling (issue #147)
 // clang-format on
 
 #include <unistd.h>
+#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -73,6 +75,9 @@
 #include <xkbcommon/xkbcommon.h>
 // The shipped classifier and kNoKeyCode, tested directly rather than copied.
 #include "src/hand_classifier.h"
+// The delay bounds and the cycling-watchdog constants, so the waits below are
+// derived from the engine's numbers instead of a second copy of them.
+#include "src/config.h"
 #include "src/synthetic_autorepeat.h"
 #include "testdir.h"
 #include "testfrontend_public.h"
@@ -841,6 +846,8 @@ static void scheduleDelayBoundaryTests(Instance *instance);
 static void scheduleTest111(Instance *instance);
 static void scheduleTest112(Instance *instance);
 static void scheduleTest113(Instance *instance);
+static void scheduleStaleGestureTests(Instance *instance);
+static void scheduleStaleGestureTest168(Instance *instance);
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -7274,9 +7281,7 @@ static void scheduleTest113(Instance *instance) {
                                 tf->call<ITestFrontend::destroyInputContext>(
                                     uuid151);
                                 FCITX_INFO() << "Test 151 PASSED";
-
-                                FCITX_INFO() << "=== All 167 tests PASSED ===";
-                                instance->exit();
+                                scheduleStaleGestureTests(instance);
                                 return false;
                             });
                         return false;
@@ -7284,6 +7289,125 @@ static void scheduleTest113(Instance *instance) {
                 return false;
             });
     });
+}
+
+// =============================================================================
+// STALE GESTURE TESTS (167-168): a cycling gesture whose input-key release
+// never arrived (issue #147). The release is the only thing that ends cycling,
+// so when a compositor grab swallows it, nothing else can. The way out is the
+// frontend event time: a platform freezes it across a whole auto-repeat burst,
+// so a press of the gesture's own key carrying a DIFFERENT time cannot be that
+// burst and proves the release was lost. Both tests drive the time explicitly
+// through sendKeyAtTime(), because the plain helper stamps time() == 0.
+// =============================================================================
+
+// The gesture's own press time, and the time a genuinely later press carries.
+// Any two different values do, the gap itself means nothing to the engine.
+constexpr int kStalePressTimeMs = 1000;
+constexpr int kStaleLeaderTimeMs = 1010;
+constexpr int kFreshPressTimeMs = 5000;
+
+// Space leader on a three-variant 'a', the setup both tests cycle with.
+static void configureStaleCycling(Instance *instance) {
+    configureWithDelay(instance, kDelayMin, kDelayMin, true, false, 0, 0);
+    setMappings(instance, {
+                              {"a", "\xc3\xa4,\xc3\xa0,\xc3\xa1"},
+                              {"o", "\xc3\xb6"},
+                          });
+}
+
+// =========================================================================
+// TEST 167: a fresh press of the gesture's own key ends a gesture whose
+// release was swallowed. KWin's window operations menu (Alt+Space) grabs the
+// keyboard without moving the focus, so neither the release nor a FocusOut ever
+// reaches the addon and the gesture stays live for the rest of the session,
+// swallowing every further press of that key. The fresh press carries a new
+// event time, which no repeat of the original press could, so it ends the old
+// gesture the way its release would have and then starts its own instead of
+// being eaten.
+// =========================================================================
+static void scheduleStaleGestureTests(Instance *instance) {
+    g_currentTest = 167;
+    FCITX_INFO() << "=== Test 167: a fresh press ends a gesture whose release "
+                    "was swallowed (#147) ===";
+    configureStaleCycling(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test167");
+
+    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false, kStalePressTimeMs);
+    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false,
+                  kStaleLeaderTimeMs);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+        << "Space must start cycling, got '" << getClientPreedit(instance)
+        << "'";
+
+    // The release never arrives: the grab took it. The user types the same key
+    // again, which is the first thing that can tell the addon anything.
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false, kFreshPressTimeMs);
+    FCITX_ASSERT(getClientPreedit(instance) == "a")
+        << "The fresh press must end the stale gesture and start its own, got '"
+        << getClientPreedit(instance) << "'";
+
+    // That new gesture is intact: its own release commits it, once.
+    tf->call<ITestFrontend::pushCommitExpectation>("a");
+    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, true,
+                  kFreshPressTimeMs + 100);
+    FCITX_ASSERT(getClientPreedit(instance).empty())
+        << "The release must commit and clear the preedit, got '"
+        << getClientPreedit(instance) << "'";
+
+    tf->call<ITestFrontend::destroyInputContext>(uuid);
+    FCITX_INFO() << "Test 167 PASSED";
+    scheduleStaleGestureTest168(instance);
+}
+
+// =========================================================================
+// TEST 168: the counter-pin to 167. Cycling is unbounded by design, and the
+// auto-repeat of the held key must not be mistaken for the fresh press above.
+// A repeat carries the event time of the press that started the burst, so it
+// changes nothing: the gesture stays live, the repeat is swallowed as before,
+// and the picker keeps stepping.
+// =========================================================================
+static void scheduleStaleGestureTest168(Instance *instance) {
+    g_currentTest = 168;
+    FCITX_INFO() << "=== Test 168: an auto-repeat must not end the gesture ===";
+    configureStaleCycling(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test168");
+
+    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false, kStalePressTimeMs);
+    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false,
+                  kStaleLeaderTimeMs);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+        << "Space must start cycling, got '" << getClientPreedit(instance)
+        << "'";
+
+    // The held key repeating: same code, same frozen time as its own press.
+    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false, kStalePressTimeMs);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+        << "A repeat must leave the picker where it is, got '"
+        << getClientPreedit(instance) << "'";
+
+    // And the gesture is still the same one: the next leader tap steps it.
+    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false,
+                  kStaleLeaderTimeMs + 10);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa0")
+        << "The gesture must still be cycling, got '"
+        << getClientPreedit(instance) << "'";
+
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa0");
+    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, true,
+                  kStalePressTimeMs + 200);
+    FCITX_ASSERT(getClientPreedit(instance).empty())
+        << "The release must commit and clear the preedit, got '"
+        << getClientPreedit(instance) << "'";
+
+    tf->call<ITestFrontend::destroyInputContext>(uuid);
+    FCITX_INFO() << "Test 168 PASSED";
+
+    FCITX_INFO() << "=== All 168 tests PASSED ===";
+    instance->exit();
 }
 
 int main() {

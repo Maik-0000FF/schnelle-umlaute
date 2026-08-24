@@ -42,7 +42,9 @@ constexpr uint32_t kMaxUnicodeCodepoint = 0x10FFFF;
 // =============================================================================
 // Key insight: Track whether input key is PHYSICALLY PRESSED
 // - Cycling only works while input key is held down
-// - No timer during cycling - cycle as long as you want
+// - Cycle as long as you want: every step postpones the backstop that ends a
+//   gesture whose release never arrives, bounded only by its ceiling
+//   (armCyclingWatchdog, issue #147)
 // - When input key is released, cycling ends
 // =============================================================================
 
@@ -165,6 +167,30 @@ public:
             state->heldRawCodes_.erase(rawCode);
         }
 
+        // A press of the gesture's own input key that cannot be that key's
+        // auto-repeat proves the release was swallowed (issue #147). The
+        // platform freezes the frontend event time across a whole repeat burst,
+        // so every repeat carries the timestamp of the press that started it,
+        // and only a genuinely new press carries a new one. heldRawCodes_
+        // cannot answer this: the lost release never erased the code, so the
+        // fresh press reads as a repeat there.
+        //
+        // Cycling only. The waiting phase has the accent window as its own
+        // upper bound, and inputKeyPressed_ keeps the Alt deferred commit's own
+        // 5 ms window out of this. A frontend that reports no event time at all
+        // leaves waitingKeyTime_ at 0 and simply never triggers here, which
+        // costs the detection but never fires it wrongly.
+        //
+        // The gesture ends the way its release would have ended it, by
+        // committing the variant on screen. The press itself is deliberately
+        // not consumed: it falls through and starts its own gesture, so the
+        // keystroke the user just made is not swallowed.
+        if (isPress && state->cyclingInput_ && state->inputKeyPressed_ &&
+            state->waitingKeyCode_ != 0 && rawCode == state->waitingKeyCode_ &&
+            state->waitingKeyTime_ != 0 &&
+            keyEvent.time() != state->waitingKeyTime_) {
+            commitCyclingValue(ic, state);
+        }
         // Get character from key
         uint32_t unicode = Key::keySymToUnicode(key.sym());
         std::string keyChar;
@@ -480,6 +506,9 @@ public:
             rawCode == state->waitingKeyCode_) {
             state->cancelTimeout();
             state->inputKeyPressed_ = true;
+            // The backstop needs no arming here: this key is the gesture's own,
+            // so the liveness re-arm at the top of the handler already ran for
+            // this very event.
             keyEvent.filterAndAccept();
             return;
         }
@@ -572,7 +601,7 @@ public:
                              leaderStep(key, rawCode) + n) %
                             n;
                         state->cyclingIndex_ = static_cast<size_t>(next);
-                        updateClientPreedit(ic,
+                        updateClientPreedit(ic, state,
                                             it->second[state->cyclingIndex_]);
                         overlayShow(ic, it->second,
                                     static_cast<int>(state->cyclingIndex_));
@@ -653,7 +682,7 @@ public:
                             state->altGestureSession_ = true;
 
                         // Update preedit with the starting variant
-                        updateClientPreedit(ic, it->second[startIdx]);
+                        updateClientPreedit(ic, state, it->second[startIdx]);
                         // Overlay is for choosing among variants; suppress it
                         // when there's nothing to cycle (single-output Alt
                         // still needs the cycling state above for the deferred
@@ -796,7 +825,7 @@ public:
             }
 
             // Set preedit text
-            updateClientPreedit(ic, keyChar);
+            updateClientPreedit(ic, state, keyChar);
 
             keyEvent.filterAndAccept();
             return;
@@ -874,7 +903,9 @@ public:
     void reset(const InputMethodEntry &, InputContextEvent &event) override {
         // Don't clear state if input key is still pressed!
         // Some apps (Chromium, Neovide) call reset() after every commit.
-        auto *state = event.inputContext()->propertyFor(&factory_);
+        auto *ic = event.inputContext();
+        auto *state = ic->propertyFor(&factory_);
+
         if (state->inputKeyPressed_) {
             return; // Keep all state intact
         }
@@ -886,7 +917,7 @@ public:
         // in the sub-millisecond window before the zero-delay space timer
         // (Chromium and Neovide fire reset() after every commit) drops the
         // trailing space (issue #90).
-        flushPendingSpaceCommit(event.inputContext(), state);
+        flushPendingSpaceCommit(ic, state);
 
         // A running commit-flash must survive the post-commit reset that
         // Chromium and Neovide fire, otherwise the confirmation overlay would
@@ -1402,7 +1433,10 @@ private:
         overlayClient_.applyEnabledTransition(*config_.overlay->enabled);
     }
 
-    void updateClientPreedit(InputContext *ic, const std::string &text) {
+    // Every gesture advance ends here: starting the waiting phase, starting to
+    // cycle, and each step to another variant all rewrite the preview.
+    void updateClientPreedit(InputContext *ic, SchnelleUmlauteState *state,
+                             const std::string &text) {
         Text preedit(text);
         preedit.setCursor(static_cast<int>(preedit.textLength()));
         ic->inputPanel().setClientPreedit(preedit);
@@ -1532,13 +1566,11 @@ private:
         // would keep the Alt-leader bypass armed with nothing live behind it,
         // so the next Alt+key application shortcut would be committed as text
         // while that Alt is still held (issue #147 class). The deferred-commit
-        // path does not come through here: it owns its own teardown, so the
         // KWin Wayland auto-repeat gap it guards is untouched.
         state->altGestureSession_ = false;
         overlayHide();
     }
 
-    // Intentionally no whitespace trimming: leading/trailing spaces in outputs
     // are valid (e.g. mapping a key to " " so terminal commands skip history).
     // Check for Ctrl/Alt/Super in key state. Shift is intentionally
     // excluded — it is needed for uppercase accent mappings (Shift+A → Ä).
@@ -1741,15 +1773,18 @@ private:
             return key2Left ? !inputLeft : inputLeft;
     }
 
-    // ASCII-only uppercase check — sufficient because input keys are
-    // physical keyboard keys which are always single ASCII bytes.
-    int getEffectiveDelay(const SchnelleUmlauteState *state) const {
-        if (!state->waitingKey_)
-            return *config_.delay->lowercase;
-        bool isUpper = state->waitingKey_->length() == 1 &&
-                       (*state->waitingKey_)[0] >= 'A' &&
-                       (*state->waitingKey_)[0] <= 'Z';
+    // The accent window one gesture key gets. A key of nullptr reads as
+    // lowercase: that is the window a gesture without a key yet would use.
+    // ASCII-only uppercase check, sufficient because input keys are physical
+    // keyboard keys which are always single ASCII bytes.
+    int delayForKey(const std::string *key) const {
+        const bool isUpper =
+            key && key->length() == 1 && (*key)[0] >= 'A' && (*key)[0] <= 'Z';
         return isUpper ? *config_.delay->uppercase : *config_.delay->lowercase;
+    }
+
+    int getEffectiveDelay(const SchnelleUmlauteState *state) const {
+        return delayForKey(state->waitingKey_ ? &*state->waitingKey_ : nullptr);
     }
 
     // Lower bound (minimum hold) of the accent window for the waiting key.
