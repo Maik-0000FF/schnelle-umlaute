@@ -53,8 +53,9 @@ constexpr int kCyclingWatchdogFactor = 10;
 // a real session short commits the character on screen, which is visible and
 // correctable; letting a stuck one run swallows keystrokes silently. Ten
 // backstops are a hundred accent windows, far outside any session someone
-// actually holds a key through, and any key other than the leader ends the
-// gesture long before it anyway.
+// actually holds a key through, and any key that reaches the gesture ends it
+// long before that anyway. Pure modifiers do not: they return early without
+// touching it, so a held Ctrl or Shift cannot shorten the wait.
 constexpr int kCyclingWatchdogCapFactor = 10;
 
 // The shortest window the slider offers must still leave a backstop that does

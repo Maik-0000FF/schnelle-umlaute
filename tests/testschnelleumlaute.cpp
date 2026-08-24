@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (172 tests)
+// Test Suite for Schnelle Umlaute (173 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -41,7 +41,7 @@
 // 157-158 Custom reverse       custom leader flagged reverse steps back + wraps, reverse-start lands at last variant
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
-// 167-172 Cycling watchdog     a swallowed input-key release no longer freezes cycling: the backstop commits the picked variant, every cycling step postpones it, a long pause neither loses nor doubles the character, Alt auto-repeat alone keeps the gesture alive, an uppercase gesture is measured against its own window, and the ceiling ends a gesture that feeds itself from the keys it swallows (issue #147)
+// 167-173 Cycling watchdog     a swallowed input-key release no longer freezes cycling: the backstop commits the picked variant, every cycling step postpones it, a long pause neither loses nor doubles the character, Alt auto-repeat alone keeps the gesture alive, an uppercase gesture is measured against its own window, and the ceiling ends a gesture that feeds itself from the keys it swallows (issue #147)
 // clang-format on
 
 #include <unistd.h>
@@ -212,6 +212,11 @@ constexpr int kWatchdogFeedCount = kWatchdogCapTicks + 2;
 // Up to here a feed must still find the gesture alive; past it the ceiling can
 // fire at any tick, so those feeds asserting nothing is not laxness.
 constexpr int kWatchdogLastLiveFeed = kWatchdogCapTicks - 2;
+
+// Test 173 sends nothing but the held key's own repeat, once per tick. Twice
+// the backstop, so a gesture that survives it cannot be one that simply has not
+// aged enough yet.
+constexpr int kInputRepeatCount = 2 * kWatchdogFireMs / kEventLoopTickMs;
 
 static_assert(kWatchdogLastLiveFeed * kEventLoopTickMs < kWatchdogCapMs,
               "the live assertions must sit below the ceiling");
@@ -946,6 +951,7 @@ static void scheduleWatchdogTest169(Instance *instance);
 static void scheduleWatchdogTest170(Instance *instance);
 static void scheduleWatchdogTest171(Instance *instance);
 static void scheduleWatchdogTest172(Instance *instance);
+static void scheduleWatchdogTest173(Instance *instance);
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -7390,7 +7396,7 @@ static void scheduleTest113(Instance *instance) {
 }
 
 // =============================================================================
-// CYCLING WATCHDOG TESTS (167-172): the backstop that ends a cycling gesture
+// CYCLING WATCHDOG TESTS (167-173): the backstop that ends a cycling gesture
 // whose input-key release never arrived (issue #147). Timer-chained instead of
 // dispatcher-scheduled with a blocking sleep: the watchdog runs on the very
 // event loop such a sleep would freeze, so these tests hand control back and
@@ -7407,10 +7413,12 @@ constexpr uint64_t kWatchdogWindowUsec =
 
 // One cycling step for the tests that keep a gesture ALIVE across the backstop:
 // three fifths of the firing point, so two steps outlast a whole window, which
-// is what those tests have to prove, while a single step still leaves two
-// fifths of the window as slack on a loaded machine. Derived from the firing
-// point rather than from kWatchdogWindowUsec, whose wait-it-out margin would
-// eat that slack.
+// is what those tests have to prove. The slack a single step leaves is not the
+// two fifths the arithmetic suggests: on the timer grid described at
+// kEventLoopTickMs both the step and the backstop land on the same tick, and
+// what keeps those tests honest is that the loop dispatches a tick by deadline,
+// so the earlier one runs first. Derived from the firing point rather than from
+// kWatchdogWindowUsec, whose wait-it-out margin would eat even that.
 constexpr uint64_t watchdogUsec(int ms) {
     return static_cast<uint64_t>(
         std::chrono::duration_cast<std::chrono::microseconds>(
@@ -7730,11 +7738,27 @@ static void feedStuckGesture(Instance *instance, ICUUID uuid,
                         << "The ceiling must end a self-feeding gesture, got '"
                         << getClientPreedit(instance) << "'";
 
+                    // The input key never went up, so its auto-repeat carries
+                    // on after the commit. It must not start a fresh gesture
+                    // and type the plain character on top of what the ceiling
+                    // just committed: the ceiling teardown keeps the key's
+                    // repeat suppression for exactly this. A leaked "o" would
+                    // reach the frontend as an unexpected commit.
+                    tf->call<ITestFrontend::sendKeyEvent>(
+                        uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
+                    FCITX_ASSERT(getClientPreedit(instance).empty())
+                        << "A repeat after the ceiling must not start a "
+                           "gesture, got '"
+                        << getClientPreedit(instance) << "'";
+                    tf->call<ITestFrontend::sendKeyEvent>(
+                        uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
+                    tf->call<ITestFrontend::sendKeyEvent>(
+                        uuid, Key(FcitxKey_Alt_L, KeyStates(), kCodeAltL),
+                        true);
+
                     tf->call<ITestFrontend::destroyInputContext>(uuid);
                     FCITX_INFO() << "Test 172 PASSED";
-
-                    FCITX_INFO() << "=== All 172 tests PASSED ===";
-                    instance->exit();
+                    scheduleWatchdogTest173(instance);
                 });
         });
 }
@@ -7760,6 +7784,72 @@ static void scheduleWatchdogTest172(Instance *instance) {
     // only thing that arrives is the key the gesture keeps eating.
     auto holder = std::make_shared<AltVerifyHolder>();
     feedStuckGesture(instance, uuid, holder, 0);
+}
+
+// =========================================================================
+// TEST 173: the gesture's own input key keeps the backstop alive. Cycling has
+// no visible progress to offer while the user simply holds the key, and the
+// platform repeats that key rather than the leader (the leader tap took the
+// repeat over only for as long as it was down). Those repeats are swallowed
+// further down and change nothing on screen, so unless they re-arm the backstop
+// it fires under a gesture the user is still holding, which for an Alt-led
+// session hands the next Alt+key to the application as a shortcut. Feeding
+// nothing but that key for twice the window proves the re-arm is there.
+// =========================================================================
+static void feedInputKeyRepeat(Instance *instance, ICUUID uuid,
+                               const std::shared_ptr<AltVerifyHolder> &holder,
+                               int sent) {
+    afterDelay(instance, holder, kWatchdogFeedUsec,
+               [instance, uuid, holder, sent]() {
+                   auto *tf = instance->addonManager().addon("testfrontend");
+                   FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+                       << "Repeat " << sent + 1
+                       << " must keep the gesture alive, got '"
+                       << getClientPreedit(instance) << "'";
+                   tf->call<ITestFrontend::sendKeyEvent>(
+                       uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+
+                   if (sent + 1 < kInputRepeatCount) {
+                       feedInputKeyRepeat(instance, uuid, holder, sent + 1);
+                       return;
+                   }
+
+                   // The release still owns the commit, and it is the only one.
+                   tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+                   tf->call<ITestFrontend::sendKeyEvent>(
+                       uuid, Key(FcitxKey_a, KeyStates(), kCodeA), true);
+                   FCITX_ASSERT(getClientPreedit(instance).empty())
+                       << "The release must commit and clear the preedit, got '"
+                       << getClientPreedit(instance) << "'";
+
+                   tf->call<ITestFrontend::destroyInputContext>(uuid);
+                   FCITX_INFO() << "Test 173 PASSED";
+
+                   FCITX_INFO() << "=== All 173 tests PASSED ===";
+                   instance->exit();
+               });
+}
+
+static void scheduleWatchdogTest173(Instance *instance) {
+    g_currentTest = 173;
+    FCITX_INFO() << "=== Test 173: the input key's own repeat keeps a gesture "
+                    "alive ===";
+    configureWatchdogCycling(instance);
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test173");
+
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "\xc3\xa4")
+        << "Space must start cycling, got '" << getClientPreedit(instance)
+        << "'";
+
+    // Nothing but the held key repeating from here on: no leader tap, so
+    // nothing rewrites the preview.
+    auto holder = std::make_shared<AltVerifyHolder>();
+    feedInputKeyRepeat(instance, uuid, holder, 0);
 }
 
 // =========================================================================

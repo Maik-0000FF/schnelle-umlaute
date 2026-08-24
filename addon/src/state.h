@@ -58,15 +58,19 @@ public:
     // the focus, so no release and no FocusOut ever arrive and the gesture
     // would stay live for the rest of the session. This timer ends it the way
     // the release would have, by committing the variant on screen. Every step
-    // of the gesture re-arms it, so cycling is only ever cut short by doing
-    // nothing at all. Own slot: timeoutEvent_ carries the Alt deferred commit
-    // during the same phase.
+    // of the gesture re-arms it, so silence is what cuts cycling short, up to
+    // the ceiling in armCyclingWatchdog(), which nothing can push. Own slot:
+    // timeoutEvent_ carries the Alt deferred commit during the same phase.
     std::unique_ptr<EventSourceTime> cyclingWatchdogEvent_;
-    // True only while the watchdog callback runs. Destroying an EventSourceTime
-    // from inside its own callback is a use-after-free, and the callback
-    // commits through the shared path, which tears the gesture down and would
-    // cancel the timer. The guard makes that cancel a no-op; returning false
-    // from the callback disables the source, and the next arming replaces it.
+    // True only while the watchdog callback runs, and it guards exactly one
+    // thing: cancelCyclingWatchdog(). Destroying an EventSourceTime from inside
+    // its own callback is a use-after-free, and the callback commits through
+    // the shared path, which tears the gesture down and would cancel the timer.
+    // The guard makes that cancel a no-op; returning false from the callback
+    // disables the source, and the next arming replaces it. The arming itself
+    // is not guarded, and needs no guard: reaching it from inside the callback
+    // would take a key event dispatched synchronously from commitString(),
+    // which the single-threaded event loop does not do.
     bool cyclingWatchdogFiring_ = false;
 
     // Track if input key is physically pressed

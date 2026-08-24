@@ -506,10 +506,9 @@ public:
             rawCode == state->waitingKeyCode_) {
             state->cancelTimeout();
             state->inputKeyPressed_ = true;
-            // Carrying the session across a repeat gap keeps the gesture going
-            // without rewriting the preview, so the backstop that
-            // updateClientPreedit() normally postpones must be postponed here.
-            armCyclingWatchdog(ic, state);
+            // The backstop needs no arming here: this key is the gesture's own,
+            // so the liveness re-arm at the top of the handler already ran for
+            // this very event.
             keyEvent.filterAndAccept();
             return;
         }
@@ -1435,9 +1434,10 @@ private:
     }
 
     // Every gesture advance ends here: starting the waiting phase, starting to
-    // cycle, and each step to another variant all rewrite the preview. That
-    // makes it the one choke point for re-arming the cycling watchdog, so no
-    // site can move a gesture on without postponing its backstop. Waiting is a
+    // cycle, and each step to another variant all rewrite the preview, and each
+    // of them re-arms the cycling backstop. It is not the only site that does
+    // (an event on the gesture's own keys re-arms it too, at the top of the key
+    // handler), but it is the one that covers every VISIBLE move. Waiting is a
     // no-op there: it has the accent window as its own upper bound.
     void updateClientPreedit(InputContext *ic, SchnelleUmlauteState *state,
                              const std::string &text) {
@@ -1618,39 +1618,45 @@ private:
         // due, and the event loop runs the timer on its next turn.
         const uint64_t target =
             std::max(now, std::min(now + backstop, ceiling));
+        // Which of the two limits this arming runs into decides what the
+        // teardown may assume about the input key, so it travels with the
+        // timer.
+        const bool ceilingFires = ceiling <= now + backstop;
 
         auto savedRef = ic->watch();
         state->cyclingWatchdogEvent_ = instance_->eventLoop().addTimeEvent(
             CLOCK_MONOTONIC, target, 0,
-            [this, state, savedRef](EventSourceTime *, uint64_t) {
+            [this, state, savedRef, ceilingFires](EventSourceTime *, uint64_t) {
                 // Safety: see scheduleTimeout, the single-threaded event loop
                 // guarantees state outlives savedRef.get() != nullptr.
                 auto *ctx = savedRef.get();
                 if (!ctx || !state->cyclingInput_)
                     return false;
-                // Two decisions about the state this leaves behind, taken
-                // together because they pull against each other.
+                // What the input key is doing depends on which limit fired, and
+                // the two answers are opposite, so the teardown splits here.
                 //
-                // No repeat suppression is armed for the input key, unlike the
-                // window-timeout commit. That arming assumes the key is still
-                // down, and the firing of this timer is the one moment the
-                // assumption is in doubt: if the release was swallowed the key
-                // is long up, and the arming would swallow its next real press.
-                // A swallowed keypress is worse than the duplicate it would
-                // prevent, so the arming stays out. Left unarmed, a repeat of a
-                // key that really is still down starts a fresh gesture and adds
-                // its plain character, and an unpaired key-up reaches the
-                // application, which ignores it for a character key.
+                // The backstop fires on silence. Silence means no auto-repeat
+                // arrived, which is the best evidence there is that the key is
+                // no longer down: its release was swallowed. So the code leaves
+                // the held set, because the release that would have erased it
+                // is exactly what went missing, and a stale entry makes the
+                // next press of that key read as auto-repeat, which is
+                // swallowed outright once another gesture is running. No repeat
+                // suppression is armed either, because it assumes a key that is
+                // down and would swallow that next real press, and a swallowed
+                // keypress weighs more than the duplicate it would prevent.
                 //
-                // The key's code does leave the held set, because the release
-                // that would have erased it is exactly what went missing. A
-                // stale entry makes the next press of that key read as
-                // auto-repeat: harmless on its own, but swallowed outright once
-                // another gesture is running (the repeat guard in the
-                // accent-key branch). Note that this is also why arming and
-                // erasing cannot be combined as a middle ground: the guard that
-                // an arming feeds needs the entry to still be there.
-                state->heldRawCodes_.erase(state->waitingKeyCode_);
+                // The ceiling fires on a gesture that was fed all the way to
+                // it, and only events on its own keys feed it, so the key is
+                // down and its repeat is still coming. Here the entry stays and
+                // the repeat suppression is armed: without it the next repeat
+                // starts a fresh gesture and types the plain character on top
+                // of the commit just made. Both halves are needed together, the
+                // guard the arming feeds is keyed on that entry.
+                if (ceilingFires)
+                    state->armCommittedKey(state->waitingKeyCode_, 0, 0);
+                else
+                    state->heldRawCodes_.erase(state->waitingKeyCode_);
                 state->cyclingWatchdogFiring_ = true;
                 commitCyclingValue(ctx, state);
                 state->cyclingWatchdogFiring_ = false;
