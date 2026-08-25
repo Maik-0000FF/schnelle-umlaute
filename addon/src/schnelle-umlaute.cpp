@@ -321,6 +321,12 @@ public:
                 // matches there and that path clears per window as before.
                 if (state->isSyntheticCommittedRelease(rawCode,
                                                        keyEvent.time())) {
+                    // This release IS the platform behaving that way, so mark
+                    // it here too. Only the waiting and cycling paths used to,
+                    // which left a burst that starts after the commit unable to
+                    // mark anything, and with it the stale-arming escape gated
+                    // off for the whole session.
+                    state->sawSyntheticRelease_ = true;
                     state->heldRawCodes_.insert(rawCode);
                     keyEvent.filterAndAccept();
                     return;
@@ -955,14 +961,19 @@ public:
         // Preserve the whole committed_ store across the wipe; the focus-change
         // path (deactivate/activate) keeps clearing everything. Self-guarding:
         // an empty store means nothing was armed (a release already cleared its
-        // entry via the committed-key release branch).
+        // entry via the committed-key release branch). The platform marker goes
+        // with it: it decides whether that arming can ever be recognised as
+        // stale, so wiping one without the other leaves the guard standing with
+        // no way out of it.
         auto heldCommitted = std::move(state->committed_);
+        const bool sawSynthetic = state->sawSyntheticRelease_;
 
         auto flash = std::move(state->overlayHideEvent_);
         state->clearAllState();
         for (const auto &armed : heldCommitted)
             state->heldRawCodes_.insert(armed.first);
         state->committed_ = std::move(heldCommitted);
+        state->sawSyntheticRelease_ = sawSynthetic;
         if (flash && overlayVisible_) {
             state->overlayHideEvent_ = std::move(flash);
             return;
@@ -1259,9 +1270,13 @@ private:
         // wipe too, so a still-held combo keeps its guard on a profile switch
         // (issue #92). Rarely armed on the switch combo, purely state-preserving.
         auto heldCommitted = std::move(st->committed_);
+        // Same pairing as in reset(): the marker decides whether the arming
+        // just preserved can ever be recognised as stale.
+        const bool sawSynthetic = st->sawSyntheticRelease_;
         wipeAllGestureState();
         st->heldRawCodes_ = std::move(heldKeys);
         st->committed_ = std::move(heldCommitted);
+        st->sawSyntheticRelease_ = sawSynthetic;
         profiles_.active.setValue(name);
         umlautMap_ = buildRuntimeMap();
         safeSaveAsIni(profiles_, std::string(schnelle_umlaute::kConfigSubdir) +

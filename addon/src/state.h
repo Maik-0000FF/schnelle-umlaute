@@ -94,10 +94,10 @@ public:
     // fresh gesture and typed the duplicate this exists to prevent. The values
     // are bundled so they always move together; a bare field pair drifts out of
     // sync across the arming, clear, reset-preserve and profile-switch sites.
-    // Coverage is uniform: full on
-    // X11 (press-only repeat) AND on synthetic release-press platforms
-    // (KWin/Wayland), where the frozen press timestamp lets the release branch
-    // keep the arming across the whole burst (issue #92 hole 2).
+    // Coverage is uniform: full on X11 (press-only repeat) AND on synthetic
+    // release-press platforms (KWin/Wayland), where the frozen press timestamp
+    // lets the release branch keep the arming across the whole burst (issue #92
+    // hole 2).
     //
     //  - key:       the raw keycode of the committed, still-held key. No entry
     //               means not armed.
@@ -175,9 +175,14 @@ public:
     // issue #147 uses for a frozen gesture. Without this the entry would sit
     // there for the rest of the focus session and eat every further press of
     // that key; a single slot used to be rid of it by accident, when the next
-    // commit overwrote it. Armings made with time 0 are excluded on purpose:
-    // the window-timeout path arms that way so its release clears it per
-    // window, and it carries no press time to compare against.
+    // commit overwrote it. An entry without a press time carries no evidence
+    // and is left alone, which is why the window-timeout site now stores its
+    // own instead of expressing its policy by leaving one out.
+    //
+    // The evidence only exists where auto-repeat is delivered as synthetic
+    // release-press pairs, so the caller gates this on sawSyntheticRelease_.
+    // On press-only auto-repeat every repeat carries the server's current
+    // time, and an advancing one proves nothing.
     bool isStaleCommittedArming(int code, int pressTime) const {
         auto it = committed_.find(code);
         if (it == committed_.end())
