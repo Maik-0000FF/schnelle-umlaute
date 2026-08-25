@@ -12,7 +12,6 @@
 #include "hand_classifier.h"
 #include "profile_paths.h"
 
-#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,15 +25,6 @@ constexpr int kDelayMin = 50;
 constexpr int kDelayMax = 2000;
 constexpr int kDelayStep = 10;
 constexpr int kDeferredCommitDelayMs = 5;
-
-// How long after one of our own commits an incoming client reset still counts
-// as that commit's acknowledgement rather than the client taking a live
-// composition over. The two arrive on the same signal and are told apart by
-// nothing but this distance: an acknowledgement is one IPC round (single-digit
-// milliseconds), while a click during a gesture follows a commit by a human
-// pause. Nothing fires on this, it only classifies an event that has already
-// arrived, so without a client reset the behavior is unchanged. See reset().
-constexpr uint64_t kCommitAckWindowUsec = 100'000;
 
 // Minimum-hold lower bound (ms). The accent window is [min, max]: a leader
 // that arrives before min has elapsed yields the plain character instead of
