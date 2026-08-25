@@ -78,27 +78,28 @@ public:
     // ordering guard before Space arrives.
     bool recentlyCommitted_ = false;
 
-    // Monotonic count of commits issued on this input context, and its value at
-    // the end of the last key event. Only the difference between the two is ever
-    // read, which answers "was this gesture born out of a commit?". A counter
-    // rather than a flag because recentlyCommitted_ above is consumed by the next
-    // press and so cannot carry the answer past the gesture's birth.
-    uint64_t commitSeq_ = 0;
-    uint64_t commitSeqAtLastEventEnd_ = 0;
-
-    // True when the live gesture was born out of a commit: one issued in the
-    // same key event, or one a timer issued since the previous event ended. Set
-    // at the one gesture-birth site, so every commit path counts by
-    // construction. Read only by reset(), which needs to tell a gesture the
-    // client has taken over (mouse click into the field) from one whose commit
-    // the client is merely acknowledging a round later.
+    // Deliberately NOT cleared in clearAllState(), which the plain reset path
+    // runs: an acknowledgement the client still owes must survive it, or the
+    // late one lands on an unrelated gesture. Only a focus change clears it,
+    // where nothing is owed to the context any more.
     //
-    // The horizon is one key event: a client that delays its acknowledgement
-    // past the NEXT press marks nothing, and a gesture born two events after
-    // the commit is treated as takeable. Erring the other way would be worse,
-    // since a wrong drop loses a character while a wrong keep only misses one
-    // detection, so nothing here is consumed by an arriving reset.
-    bool gestureFollowedCommit_ = false;
+    // Commits this context has issued whose client-side acknowledgement has not
+    // arrived yet. Applications that end a composition on a mouse click and
+    // applications that reset after every commit use the SAME signal, and
+    // nothing in it says which one it is, so reset() cannot resolve the
+    // ambiguity by inspection. It resolves it by accounting instead: while this
+    // stands above zero, an arriving reset is taken as the acknowledgement and
+    // consumed; only a reset with nothing outstanding is treated as the client
+    // taking a live composition over.
+    //
+    // The error this trades into is a missed detection, never a lost character,
+    // which is the direction that matters: dropping a gesture the client did
+    // not take over destroys the character, while keeping one it did take over
+    // only leaves the duplicate this fix exists to remove. A client that never
+    // acknowledges drains the counter one click at a time, and a click that
+    // beats its own acknowledgement is caught by the second reset, which the
+    // click reliably sends a few milliseconds behind the first.
+    int pendingCommitAcks_ = 0;
 
     // Cycling state (after first Space, while input key held)
     std::optional<std::string> cyclingInput_;
@@ -159,16 +160,14 @@ public:
         waitingKeyCode_ = 0;
         waitingKeyTime_ = 0;
         inputKeyPressed_ = false;
-        gestureFollowedCommit_ = false;
     }
 
     // Record a commit for the two markers that have to outlive it: the Space
-    // ordering guard, and the counter that tells reset() whether the gesture
-    // now live was born out of this commit. One place, so a new commit site
-    // cannot set one and forget the other.
+    // ordering guard, and the acknowledgement the client still owes for it. One
+    // place, so a new commit site cannot set one and forget the other.
     void noteCommit() {
         recentlyCommitted_ = true;
-        ++commitSeq_;
+        ++pendingCommitAcks_;
     }
 
     // Arm/clear the committed-key repeat suppression as one unit, so code, its
@@ -176,6 +175,11 @@ public:
     // time=0/startUsec=0 to opt a site out of synthetic-release keeping (the
     // window-timeout path), which then clears on the next release as before.
     void armCommittedKey(int code, int time, uint64_t startUsec) {
+        // A frontend that reports no keycode leaves nothing to key an entry on,
+        // and a zero entry would match every such press. Arming is a no-op
+        // there, as it was when a zero code meant "not armed".
+        if (code == 0)
+            return;
         committed_[code] = {time, startUsec};
     }
     // Arm committed-key suppression from the current waiting gesture's fields.
