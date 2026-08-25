@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "synthetic_autorepeat.h"
@@ -77,18 +78,26 @@ public:
     // ordering guard before Space arrives.
     bool recentlyCommitted_ = false;
 
-    // Monotonic count of commits issued on this input context. Only the
-    // difference across one key event is ever read, which answers "did a commit
-    // in this event give birth to the gesture that is now live?". A counter
-    // rather than a flag because recentlyCommitted_ above is consumed by the
-    // next press and so cannot carry the answer past the gesture's birth.
+    // Monotonic count of commits issued on this input context, and its value at
+    // the end of the last key event. Only the difference between the two is ever
+    // read, which answers "was this gesture born out of a commit?". A counter
+    // rather than a flag because recentlyCommitted_ above is consumed by the next
+    // press and so cannot carry the answer past the gesture's birth.
     uint64_t commitSeq_ = 0;
+    uint64_t commitSeqAtLastEventEnd_ = 0;
 
-    // True when the live gesture was born in the same key event as a commit.
-    // Set at the one gesture-birth site, so every commit path counts by
+    // True when the live gesture was born out of a commit: one issued in the
+    // same key event, or one a timer issued since the previous event ended. Set
+    // at the one gesture-birth site, so every commit path counts by
     // construction. Read only by reset(), which needs to tell a gesture the
     // client has taken over (mouse click into the field) from one whose commit
-    // the client is merely acknowledging a DBus round later.
+    // the client is merely acknowledging a round later.
+    //
+    // The horizon is one key event: a client that delays its acknowledgement
+    // past the NEXT press marks nothing, and a gesture born two events after
+    // the commit is treated as takeable. Erring the other way would be worse,
+    // since a wrong drop loses a character while a wrong keep only misses one
+    // detection, so nothing here is consumed by an arriving reset.
     bool gestureFollowedCommit_ = false;
 
     // Cycling state (after first Space, while input key held)
@@ -101,14 +110,19 @@ public:
     // Repeat-suppression arming for a held accent key after a single-output
     // commit: while the key stays physically down, its auto-repeat is consumed
     // instead of starting a fresh gesture that would duplicate the character
-    // (e.g. "üu"). The three values are bundled so they always move together;
-    // a bare field trio drifts out of sync across the arming, clear,
-    // reset-preserve and profile-switch sites. Coverage is now uniform: full on
+    // (e.g. "üu"). Keyed by raw keycode, because several mapped keys can be down
+    // at once and each needs its own guard: a single slot let the newest commit
+    // displace an older still-held key, whose next repeat then started a fresh
+    // gesture and typed the duplicate this exists to prevent. The values are
+    // bundled so they always move together; a bare field pair drifts out of sync
+    // across the arming, clear, reset-preserve and profile-switch sites.
+    // Coverage is uniform: full on
     // X11 (press-only repeat) AND on synthetic release-press platforms
     // (KWin/Wayland), where the frozen press timestamp lets the release branch
     // keep the arming across the whole burst (issue #92 hole 2).
     //
-    //  - code:      raw keycode of the committed, still-held key (0 == not armed).
+    //  - key:       the raw keycode of the committed, still-held key. No entry
+    //               means not armed.
     //  - time:      frozen frontend event time (KeyEvent::time(), ms) of its
     //               press. A synthetic KWin/Wayland auto-repeat release carries
     //               this exact time and must NOT drop the arming. The window-
@@ -119,11 +133,10 @@ public:
     //               reference for the synthetic-release predicate. Must not use
     //               the global startTimeUsec_, which a later gesture overwrites.
     struct CommittedKey {
-        int code = 0;
         int time = 0;
         uint64_t startUsec = 0;
     };
-    CommittedKey committed_;
+    std::unordered_map<int, CommittedKey> committed_;
 
     // Track consumed Alt/AltGr leader press to also consume the release.
     // Prevents compositor state confusion from an orphan modifier release
@@ -163,7 +176,7 @@ public:
     // time=0/startUsec=0 to opt a site out of synthetic-release keeping (the
     // window-timeout path), which then clears on the next release as before.
     void armCommittedKey(int code, int time, uint64_t startUsec) {
-        committed_ = {code, time, startUsec};
+        committed_[code] = {time, startUsec};
     }
     // Arm committed-key suppression from the current waiting gesture's fields.
     // Call BEFORE resetWaitingGesture()/commitPendingKey() clears them; carries
@@ -172,7 +185,10 @@ public:
     void armCommittedFromWaiting() {
         armCommittedKey(waitingKeyCode_, waitingKeyTime_, startTimeUsec_);
     }
-    void clearCommittedKey() { committed_ = {}; }
+    void clearCommittedKey(int code) { committed_.erase(code); }
+    bool isCommittedKey(int code) const {
+        return committed_.find(code) != committed_.end();
+    }
 
     // True once no gesture and no Alt-led session is live any more: the
     // state in which a still-armed consumedAltCode_ is either the awaited,
@@ -196,9 +212,12 @@ public:
         return isSyntheticAutoRepeatRelease(releaseTime, waitingKeyTime_,
                                             nowUsec() - startTimeUsec_);
     }
-    bool isSyntheticCommittedRelease(int releaseTime) const {
-        return isSyntheticAutoRepeatRelease(releaseTime, committed_.time,
-                                            nowUsec() - committed_.startUsec);
+    bool isSyntheticCommittedRelease(int code, int releaseTime) const {
+        auto it = committed_.find(code);
+        if (it == committed_.end())
+            return false;
+        return isSyntheticAutoRepeatRelease(releaseTime, it->second.time,
+                                           nowUsec() - it->second.startUsec);
     }
 
     void clearAllState() {
@@ -211,7 +230,7 @@ public:
         cancelSpaceCommit();
         resetCycling();
         heldRawCodes_.clear();
-        clearCommittedKey();
+        committed_.clear();
         consumedAltCode_ = 0;
         altGestureSession_ = false;
     }
