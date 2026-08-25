@@ -78,17 +78,6 @@ public:
     // ordering guard before Space arrives.
     bool recentlyCommitted_ = false;
 
-    // Monotonic time of the last commit this context issued, or 0 if none. Read
-    // only by reset(), to tell an acknowledgement of that commit from a client
-    // taking a live composition over: the two arrive on the same signal and are
-    // separated by nothing but this distance. See kCommitAckWindowUsec.
-    //
-    // A timestamp rather than a count of outstanding acknowledgements, because
-    // nothing obliges a client to answer each commit exactly once. Counting
-    // what is owed only works while that holds; a client that answers rarely
-    // runs the count up for good and takes the detection with it.
-    uint64_t lastCommitUsec_ = 0;
-
     // Cycling state (after first Space, while input key held)
     std::optional<std::string> cyclingInput_;
     size_t cyclingIndex_ = 0;
@@ -99,12 +88,12 @@ public:
     // Repeat-suppression arming for a held accent key after a single-output
     // commit: while the key stays physically down, its auto-repeat is consumed
     // instead of starting a fresh gesture that would duplicate the character
-    // (e.g. "üu"). Keyed by raw keycode, because several mapped keys can be down
-    // at once and each needs its own guard: a single slot let the newest commit
-    // displace an older still-held key, whose next repeat then started a fresh
-    // gesture and typed the duplicate this exists to prevent. The values are
-    // bundled so they always move together; a bare field pair drifts out of sync
-    // across the arming, clear, reset-preserve and profile-switch sites.
+    // (e.g. "üu"). Keyed by raw keycode, because several mapped keys can be
+    // down at once and each needs its own guard: a single slot let the newest
+    // commit displace an older still-held key, whose next repeat then started a
+    // fresh gesture and typed the duplicate this exists to prevent. The values
+    // are bundled so they always move together; a bare field pair drifts out of
+    // sync across the arming, clear, reset-preserve and profile-switch sites.
     // Coverage is uniform: full on
     // X11 (press-only repeat) AND on synthetic release-press platforms
     // (KWin/Wayland), where the frozen press timestamp lets the release branch
@@ -150,14 +139,6 @@ public:
         inputKeyPressed_ = false;
     }
 
-    // Record a commit for the two markers that outlive it: the Space ordering
-    // guard, and the moment reset() measures an incoming reset against. Reached
-    // only through commitText(), so a new commit site cannot forget it.
-    void noteCommit() {
-        recentlyCommitted_ = true;
-        lastCommitUsec_ = nowUsec();
-    }
-
     // Arm/clear the committed-key repeat suppression as one unit, so code, its
     // frozen press timestamp and its monotonic start never drift apart. Pass
     // time=0/startUsec=0 to opt a site out of synthetic-release keeping (the
@@ -178,6 +159,24 @@ public:
         armCommittedKey(waitingKeyCode_, waitingKeyTime_, startTimeUsec_);
     }
     void clearCommittedKey(int code) { committed_.erase(code); }
+
+    // A press of a committed, still-held key carrying a different frontend
+    // event time than the press that armed it cannot be its auto-repeat: the
+    // platform freezes the time across a whole burst. It therefore proves the
+    // release was swallowed and the arming outlived the hold, the same evidence
+    // issue #147 uses for a frozen gesture. Without this the entry would sit
+    // there for the rest of the focus session and eat every further press of
+    // that key; a single slot used to be rid of it by accident, when the next
+    // commit overwrote it. Armings made with time 0 are excluded on purpose:
+    // the window-timeout path arms that way so its release clears it per
+    // window, and it carries no press time to compare against.
+    bool isStaleCommittedArming(int code, int pressTime) const {
+        auto it = committed_.find(code);
+        if (it == committed_.end())
+            return false;
+        return it->second.time != 0 && pressTime != 0 &&
+               pressTime != it->second.time;
+    }
     bool isCommittedKey(int code) const {
         return committed_.find(code) != committed_.end();
     }

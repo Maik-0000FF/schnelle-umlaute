@@ -329,6 +329,16 @@ A correctly behaving field replaces the preedit with the commit, so the characte
 - Switch to your base keyboard layout (<kbd>Ctrl</kbd> + <kbd>Space</kbd>) in the affected field, then switch back afterwards
 - Turn the preedit off while typing in the affected field: fcitx5's **Global Options → "Show Preedit In Application"**, or its **Toggle preedit** hotkey for a quick switch. Without a preedit there is nothing for the field to apply twice, and the addon's own overlay still shows the variant picker. Turn it back on afterwards: some applications need the preedit and handle text differently without it
 
+## Duplicate character after clicking into a field mid-gesture
+
+**Symptom:** Hold a mapped key so the character is showing as preedit, then click somewhere with the mouse without releasing the key. The character can end up twice: once where it was being composed, once where you clicked. Confirmed in Chromium, Firefox, a Qt line edit and a GTK entry.
+
+**Cause:** The click makes the application end the composition on its own. It turns the preedit it was showing into real text at the old cursor position, and the addon is not told which of its clients did what. When the key is finally released, the addon commits the character as it always does, at the cursor position the click moved to.
+
+**Why it is not fixed:** the only thing the application sends on such a click is a plain reset, and it sends the same plain reset after every commit it receives. Nothing in it says which of the two it is. Telling them apart therefore means guessing, from a count of commits or from how closely the reset follows one, and both guesses were built and measured: each one turned the visible duplicate into a rarer failure where a character disappears while typing normally, with no way to tell why. A duplicate you can see and delete is the better of the two, so the addon leaves the reset alone.
+
+**Workaround:** release the key before clicking. The character is committed on release, so a click after that lands in a field with nothing in composition.
+
 ## Web app doesn't react to a mapped character's keypress (auto-advance, shortcuts)
 
 **Symptom:** In some web apps, an action that normally fires while you type does not trigger for mapped characters. A reported example is Memrise, whose auto-advance to the next question stops working when a correct answer contains a mapped letter, while answers with only unmapped letters advance as usual.
