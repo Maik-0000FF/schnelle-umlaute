@@ -1,4 +1,4 @@
-// Test Suite for Schnelle Umlaute (168 tests)
+// Test Suite for Schnelle Umlaute (174 tests)
 //
 // clang-format off
 //  1-11   Basic gestures       press/release, hold+Space, modifiers, sequences, uppercase, ordering guard
@@ -42,6 +42,7 @@
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
 // 167-168 Stale gesture        a swallowed input-key release no longer freezes cycling: a fresh press of the same key (new event time) ends the stale gesture and starts its own, while the held key's auto-repeat (frozen event time) leaves it cycling (issue #147)
+// 169-174 Per-key repeat guard  the suppression a single-output commit arms is keyed by raw keycode, so two mapped keys held together keep separate guards and a frontend without keycodes arms nothing; an arming whose release was swallowed is cleared by the first press carrying a new event time, but only where auto-repeat arrives as synthetic release-press pairs, since press-only repeat advances the time by itself; the window-timeout arming carries its own timestamp and states its keep-across-release policy in its own field; and the platform marker travels with the arming across every wipe that preserves it
 // clang-format on
 
 #include <unistd.h>
@@ -173,6 +174,10 @@ constexpr int kCodeSection = 21; // physical key for §
 constexpr auto kSyntheticReleaseTestHold =
     std::chrono::microseconds(kSyntheticReleaseMinElapsedUsec) +
     std::chrono::milliseconds(1);
+
+// Long enough for the accent window (kDelayMin) to run out and its timeout to
+// fire on the event loop, with room for the loop's own granularity.
+constexpr uint64_t kWindowLapseUsec = 300'000;
 
 // Helper: load mappings via setSubConfig (the path loadMappingsFromFile reads)
 static void
@@ -848,6 +853,12 @@ static void scheduleTest112(Instance *instance);
 static void scheduleTest113(Instance *instance);
 static void scheduleStaleGestureTests(Instance *instance);
 static void scheduleStaleGestureTest168(Instance *instance);
+static void schedulePerKeyGuardTest169(Instance *instance);
+static void schedulePerKeyGuardTest170(Instance *instance);
+static void schedulePerKeyGuardTest171(Instance *instance);
+static void schedulePerKeyGuardTest172(Instance *instance);
+static void schedulePerKeyGuardTest173(Instance *instance);
+static void schedulePerKeyGuardTest174(Instance *instance);
 
 void scheduleTests(Instance *instance) {
     // =========================================================================
@@ -7405,10 +7416,310 @@ static void scheduleStaleGestureTest168(Instance *instance) {
 
     tf->call<ITestFrontend::destroyInputContext>(uuid);
     FCITX_INFO() << "Test 168 PASSED";
+    schedulePerKeyGuardTest169(instance);
+}
 
-    FCITX_INFO() << "=== All 168 tests PASSED ===";
+// =============================================================================
+// PER-KEY REPEAT GUARD (169-174): the repeat suppression a single-output commit
+// arms is keyed by raw keycode. Several mapped keys can be physically down at
+// once, and one shared slot let the newest commit evict an older key's guard,
+// so that key's next repeat started a fresh gesture and typed a duplicate.
+// =============================================================================
+
+// TEST 169: two single-output keys held together. Each commit arms its own key,
+// and no eviction may let the first key's repeat through afterwards.
+static void schedulePerKeyGuardTest169(Instance *instance) {
+    g_currentTest = 169;
+    FCITX_INFO() << "=== Test 169: two held single-output keys keep separate "
+                    "repeat guards ===";
+    configureWithDelay(instance, kDelayMin, kDelayMin, true, false, 0, 0);
+    setMappings(instance, {
+                              {"o", "\xc3\xb6"},
+                              {"u", "\xc3\xbc"},
+                          });
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test169");
+
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, kStalePressTimeMs);
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false,
+                  kStaleLeaderTimeMs);
+
+    sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, kFreshPressTimeMs);
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xbc");
+    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false,
+                  kFreshPressTimeMs + 10);
+
+    // Both keys are still down. Neither repeat may start a gesture.
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, kStalePressTimeMs);
+    FCITX_ASSERT(getClientPreedit(instance).empty())
+        << "The first key's repeat must start nothing, got '"
+        << getClientPreedit(instance) << "'";
+    sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, kFreshPressTimeMs);
+    FCITX_ASSERT(getClientPreedit(instance).empty())
+        << "The second key's repeat must start nothing, got '"
+        << getClientPreedit(instance) << "'";
+
+    tf->call<ITestFrontend::destroyInputContext>(uuid);
+    FCITX_INFO() << "Test 169 PASSED";
+    schedulePerKeyGuardTest170(instance);
+}
+
+// TEST 170: a frontend that reports no keycode. A zero key is not a key:
+// arming one would match every later press from that frontend and swallow it
+// whole, which is what the old "0 means not armed" sentinel prevented. Such a
+// frontend reports no event time either, so the stale-arming escape below
+// cannot stand in for the sentinel here: it has nothing to compare.
+static void schedulePerKeyGuardTest170(Instance *instance) {
+    g_currentTest = 170;
+    FCITX_INFO() << "=== Test 170: a keycodeless frontend arms nothing ===";
+    configureWithDelay(instance, kDelayMin, kDelayMin, true, false, 0, 0);
+    setMappings(instance, {
+                              {"a", "\xc3\xa4"},
+                              {"o", "\xc3\xb6"},
+                          });
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test170");
+
+    // sendKeyEvent stamps neither a keycode nor an event time, which is exactly
+    // the frontend this guards against.
+    constexpr int kNoCode = 0;
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_a, KeyStates(), kNoCode), false);
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_o, KeyStates(), kNoCode), false);
+    FCITX_ASSERT(getClientPreedit(instance) == "o")
+        << "The next key must still start a gesture, got '"
+        << getClientPreedit(instance) << "'";
+
+    tf->call<ITestFrontend::pushCommitExpectation>("o");
+    tf->call<ITestFrontend::sendKeyEvent>(
+        uuid, Key(FcitxKey_o, KeyStates(), kNoCode), true);
+
+    tf->call<ITestFrontend::destroyInputContext>(uuid);
+    FCITX_INFO() << "Test 170 PASSED";
+    schedulePerKeyGuardTest171(instance);
+}
+
+// TEST 171: the price of keeping one entry per key, and the way out. A single
+// slot was rid of a stale arming by accident, when the next commit overwrote
+// it. Per key, an arming whose release a compositor grab swallowed would sit
+// there for the rest of the focus session and eat every further press of that
+// key. The press that proves it is the same evidence a frozen gesture is ended
+// by: a repeat carries its burst's timestamp, a genuinely new press cannot.
+//
+// Only on a platform that delivers repeat as synthetic release-press pairs, so
+// the test establishes that first, the way a real burst would.
+static void schedulePerKeyGuardTest171(Instance *instance) {
+    g_currentTest = 171;
+    FCITX_INFO() << "=== Test 171: a press past a swallowed release clears the "
+                    "stale arming ===";
+    configureWithDelay(instance, kDelayMin, kDelayMin, true, false, 0, 0);
+    setMappings(instance, {
+                              {"o", "\xc3\xb6"},
+                          });
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test171");
+
+    const int burstT = 6000; // frozen burst timestamp (ms), nonzero
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, burstT);
+
+    // One synthetic pair while the gesture is still waiting, the way a real
+    // burst arrives before the leader lands. This is what marks the platform.
+    std::this_thread::sleep_for(kSyntheticReleaseTestHold);
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, true, burstT);
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, burstT);
+    FCITX_ASSERT(getClientPreedit(instance) == "o")
+        << "The synthetic pair must leave the gesture waiting, got '"
+        << getClientPreedit(instance) << "'";
+
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false, burstT);
+    FCITX_ASSERT(getClientPreedit(instance).empty())
+        << "The leader must commit the single output, got '"
+        << getClientPreedit(instance) << "'";
+
+    // The post-commit reset those applications fire. It wipes the context and
+    // restores the arming, and the platform marker has to come back with it or
+    // the escape below is gated off for good.
+    auto *ic171 = instance->inputContextManager().findByUUID(uuid);
+    FCITX_ASSERT(ic171) << "IC must exist";
+    ic171->reset();
+
+    // Now the real release is swallowed by a grab and never arrives. The next
+    // press is genuine, carries a new time, and must work again.
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, burstT + 500);
+    FCITX_ASSERT(getClientPreedit(instance) == "o")
+        << "A fresh press must start its gesture, got '"
+        << getClientPreedit(instance) << "'";
+
+    tf->call<ITestFrontend::pushCommitExpectation>("o");
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, true, burstT + 600);
+
+    tf->call<ITestFrontend::destroyInputContext>(uuid);
+    FCITX_INFO() << "Test 171 PASSED";
+    schedulePerKeyGuardTest172(instance);
+}
+
+// TEST 172: the counter-pin to 171, and the platform it must not touch. Classic
+// X11 repeats a held key with presses alone, each stamped with the server's
+// current time, so an advancing timestamp is what every repeat looks like there
+// and proves nothing. Reading it as proof of a new press would drop the arming
+// on the first repeat and put the "üu" duplicate back.
+static void schedulePerKeyGuardTest172(Instance *instance) {
+    g_currentTest = 172;
+    FCITX_INFO() << "=== Test 172: press-only repeat with advancing times "
+                    "keeps the arming ===";
+    configureWithDelay(instance, kDelayMin, kDelayMin, true, false, 0, 0);
+    setMappings(instance, {
+                              {"u", "\xc3\xbc"},
+                          });
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test172");
+
+    // No synthetic pair anywhere in this context, so the platform marker stays
+    // clear, as it does on X11.
+    const int pressT = 7000;
+    sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, pressT);
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xbc");
+    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false, pressT);
+
+    // The held key repeats. Every one of these is a press with a later time,
+    // and none may start a gesture. No expectation is pushed, so a commit
+    // aborts.
+    for (int i = 1; i <= 3; ++i) {
+        sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false,
+                      pressT + i * 40);
+        FCITX_ASSERT(getClientPreedit(instance).empty())
+            << "Repeat " << i << " must start nothing, got '"
+            << getClientPreedit(instance) << "'";
+    }
+
+    // The genuine release clears the arming and commits nothing.
+    sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, pressT + 200);
+    FCITX_ASSERT(getClientPreedit(instance).empty())
+        << "The release must leave nothing behind, got '"
+        << getClientPreedit(instance) << "'";
+
+    tf->call<ITestFrontend::destroyInputContext>(uuid);
+    FCITX_INFO() << "Test 172 PASSED";
+    schedulePerKeyGuardTest173(instance);
+}
+
+// TEST 173: the other arming, and why the press time is carried even where a
+// synthetic release must not keep it. The window-timeout site arms so that the
+// trailing release is consumed rather than leaked, and that release clears it
+// again per window. Expressing "do not keep it" by storing a press time of 0
+// left the entry with no evidence of its own age, so a swallowed release
+// stranded the key for the rest of the focus session. The policy now sits in
+// its own field and the timestamp is kept.
+static void schedulePerKeyGuardTest173(Instance *instance) {
+    g_currentTest = 173;
+    FCITX_INFO() << "=== Test 173: a swallowed release cannot strand the "
+                    "window-timeout arming ===";
+    configureWithDelay(instance, kDelayMin, kDelayMin, true, false, 0, 0);
+    setMappings(instance, {
+                              {"u", "\xc3\xbc"},
+                          });
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test173");
+
+    const int burstT = 8000;
+    sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
+
+    // Mark the platform, which is what the window-timeout arming is gated on.
+    std::this_thread::sleep_for(kSyntheticReleaseTestHold);
+    sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true, burstT);
+    sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false, burstT);
+
+    // The accent window runs out with the key still held: the timeout commits
+    // the plain character and arms the trailing release away.
+    tf->call<ITestFrontend::pushCommitExpectation>("u");
+
+    struct TimerHolder {
+        std::unique_ptr<EventSourceTime> timer;
+    };
+    auto holder = std::make_shared<TimerHolder>();
+    holder->timer = instance->eventLoop().addTimeEvent(
+        CLOCK_MONOTONIC, nowUsec() + kWindowLapseUsec, 0,
+        [instance, uuid, holder, burstT](EventSourceTime *, uint64_t) {
+            auto *tf = instance->addonManager().addon("testfrontend");
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "The window must have committed and cleared, got '"
+                << getClientPreedit(instance) << "'";
+
+            // That trailing release is swallowed by a grab and never arrives.
+            // The next press is genuine and must work.
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, false,
+                          burstT + 800);
+            FCITX_ASSERT(getClientPreedit(instance) == "u")
+                << "A fresh press must start its gesture, got '"
+                << getClientPreedit(instance) << "'";
+
+            tf->call<ITestFrontend::pushCommitExpectation>("u");
+            sendKeyAtTime(instance, uuid, FcitxKey_u, kCodeU, true,
+                          burstT + 900);
+
+            tf->call<ITestFrontend::destroyInputContext>(uuid);
+            FCITX_INFO() << "Test 173 PASSED";
+            schedulePerKeyGuardTest174(instance);
+            return false;
+        });
+}
+
+
+// TEST 174: a repeat burst that only starts after the commit. The initial
+// auto-repeat delay is long enough that a leader often lands before the first
+// repeat does, so the first synthetic release a session ever sees can be the
+// one on the committed key. If only the waiting and cycling paths marked the
+// platform, such a session would never mark it, and the stale-arming escape
+// would stay gated off for as long as the focus lasts.
+static void schedulePerKeyGuardTest174(Instance *instance) {
+    g_currentTest = 174;
+    FCITX_INFO() << "=== Test 174: a burst starting after the commit marks the "
+                    "platform ===";
+    configureWithDelay(instance, kDelayMin, kDelayMin, true, false, 0, 0);
+    setMappings(instance, {
+                              {"o", "\xc3\xb6"},
+                          });
+    auto *tf = instance->addonManager().addon("testfrontend");
+    auto uuid = createAndActivate(instance, tf, "test174");
+
+    const int burstT = 9000;
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, burstT);
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false, burstT);
+
+    // The burst begins here, on the already committed key. The pair must be
+    // consumed and the arming must survive it (issue #92 hole 2).
+    std::this_thread::sleep_for(kSyntheticReleaseTestHold);
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, true, burstT);
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, burstT);
+    FCITX_ASSERT(getClientPreedit(instance).empty())
+        << "The synthetic pair must not restart a gesture, got '"
+        << getClientPreedit(instance) << "'";
+
+    // The real release is swallowed. The next press is genuine, and the escape
+    // can only see that if this session counts as marked.
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, burstT + 500);
+    FCITX_ASSERT(getClientPreedit(instance) == "o")
+        << "A fresh press must start its gesture, got '"
+        << getClientPreedit(instance) << "'";
+
+    tf->call<ITestFrontend::pushCommitExpectation>("o");
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, true, burstT + 600);
+
+    tf->call<ITestFrontend::destroyInputContext>(uuid);
+    FCITX_INFO() << "Test 174 PASSED";
+
+    FCITX_INFO() << "=== All 174 tests PASSED ===";
     instance->exit();
 }
+
 
 int main() {
     std::signal(SIGABRT, crashHandler);
