@@ -78,28 +78,16 @@ public:
     // ordering guard before Space arrives.
     bool recentlyCommitted_ = false;
 
-    // Deliberately NOT cleared in clearAllState(), which the plain reset path
-    // runs: an acknowledgement the client still owes must survive it, or the
-    // late one lands on an unrelated gesture. Only a focus change clears it,
-    // where nothing is owed to the context any more.
+    // Monotonic time of the last commit this context issued, or 0 if none. Read
+    // only by reset(), to tell an acknowledgement of that commit from a client
+    // taking a live composition over: the two arrive on the same signal and are
+    // separated by nothing but this distance. See kCommitAckWindowUsec.
     //
-    // Commits this context has issued whose client-side acknowledgement has not
-    // arrived yet. Applications that end a composition on a mouse click and
-    // applications that reset after every commit use the SAME signal, and
-    // nothing in it says which one it is, so reset() cannot resolve the
-    // ambiguity by inspection. It resolves it by accounting instead: while this
-    // stands above zero, an arriving reset is taken as the acknowledgement and
-    // consumed; only a reset with nothing outstanding is treated as the client
-    // taking a live composition over.
-    //
-    // The error this trades into is a missed detection, never a lost character,
-    // which is the direction that matters: dropping a gesture the client did
-    // not take over destroys the character, while keeping one it did take over
-    // only leaves the duplicate this fix exists to remove. A client that never
-    // acknowledges drains the counter one click at a time, and a click that
-    // beats its own acknowledgement is caught by the second reset, which the
-    // click reliably sends a few milliseconds behind the first.
-    int pendingCommitAcks_ = 0;
+    // A timestamp rather than a count of outstanding acknowledgements, because
+    // nothing obliges a client to answer each commit exactly once. Counting
+    // what is owed only works while that holds; a client that answers rarely
+    // runs the count up for good and takes the detection with it.
+    uint64_t lastCommitUsec_ = 0;
 
     // Cycling state (after first Space, while input key held)
     std::optional<std::string> cyclingInput_;
@@ -162,12 +150,12 @@ public:
         inputKeyPressed_ = false;
     }
 
-    // Record a commit for the two markers that have to outlive it: the Space
-    // ordering guard, and the acknowledgement the client still owes for it. One
-    // place, so a new commit site cannot set one and forget the other.
+    // Record a commit for the two markers that outlive it: the Space ordering
+    // guard, and the moment reset() measures an incoming reset against. Reached
+    // only through commitText(), so a new commit site cannot forget it.
     void noteCommit() {
         recentlyCommitted_ = true;
-        ++pendingCommitAcks_;
+        lastCommitUsec_ = nowUsec();
     }
 
     // Arm/clear the committed-key repeat suppression as one unit, so code, its
@@ -221,7 +209,7 @@ public:
         if (it == committed_.end())
             return false;
         return isSyntheticAutoRepeatRelease(releaseTime, it->second.time,
-                                           nowUsec() - it->second.startUsec);
+                                            nowUsec() - it->second.startUsec);
     }
 
     void clearAllState() {
