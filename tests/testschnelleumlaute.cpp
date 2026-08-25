@@ -42,7 +42,7 @@
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
 // 167-168 Stale gesture        a swallowed input-key release no longer freezes cycling: a fresh press of the same key (new event time) ends the stale gesture and starts its own, while the held key's auto-repeat (frozen event time) leaves it cycling (issue #147)
-// 169-181 Client-side commit    a client that ends a live composition itself (mouse click into the field) is not committed to twice: the reset drops the gesture without committing, in the cycling and the waiting phase, while a reset right after our own commit leaves the new gesture alone and a client without preedit capability gets a commit instead (issue #162), and neither hole the first attempt left: a gesture born out of a commit earlier in the same key event survives the reset, and the dropped gesture arms the repeat suppression even when the one slot was taken
+// 169-181 Client-side commit    a client that ends a live composition itself (mouse click into the field) is not committed to twice (issue #162): the reset drops the gesture without committing, in the cycling and the waiting phase, while a client without preedit capability gets a commit instead; a reset close behind one of our own commits is that commit's acknowledgement and leaves the gesture alone, one past the window is a takeover, and the window is per input context; the drop arms the repeat suppression for its own key without taking another held key's, which two single-output keys held together need as well; a frontend without keycodes arms nothing
 // clang-format on
 
 #include <unistd.h>
@@ -92,6 +92,12 @@ using namespace fcitx;
 // sanitizer-instrumented CI runners (ASan/UBSan) where 25ms was
 // occasionally tight.
 constexpr uint64_t kDeferredVerifyDelayUsec = 50'000; // 50ms
+
+// Long enough for a commit's acknowledgement window to lapse, so a reset after
+// this wait is measured as the click it stands for rather than as an answer to
+// that commit. Carries the same headroom over the addon's own bound that
+// kDeferredVerifyDelayUsec does.
+constexpr uint64_t kAckWindowLapseUsec = kCommitAckWindowUsec + 50'000;
 
 // Last test number entered. Updated at the top of each scheduled lambda so a
 // SIGABRT (FCITX_ASSERT failure) or SIGSEGV writes the most recently entered
@@ -7426,8 +7432,9 @@ static void scheduleStaleGestureTest168(Instance *instance) {
 // CLIENT-SIDE COMMIT TESTS (169-181): a client that ends a live composition on
 // its own (issue #162). It keeps the preedit as text, so the release that
 // follows must not put a second copy there. Two things decide what happens:
-// whether a commit of ours just started this gesture, and whether the client
-// can receive a preedit at all.
+// how closely the reset follows a commit of ours, which is all that separates a
+// takeover from an acknowledgement, and whether the client can receive a
+// preedit at all.
 // =========================================================================
 
 // TEST 169: the click itself. Cycling, the client resets, and from there the
@@ -7612,18 +7619,16 @@ static void scheduleClientCommitTest172(Instance *instance) {
     scheduleClientCommitTest173(instance);
 }
 
-// TEST 173: the second counter-pin, for the commits that happen BEFORE the
-// Space ordering guard at the top of the key handler. That guard clears its own
-// marker on every press, so a commit ahead of it loses the marker in the very
-// event that starts the next gesture. Here the stale-cycling commit of issue
-// #147 is that commit: the fresh press ends the frozen gesture, commits the
-// variant, and falls through to start its own. The client's reset for that
-// commit then arrives with the key down and the young gesture live, which is
-// the exact shape of a takeover and must still not be treated as one.
+// TEST 173: a commit and the gesture it gives birth to, in one key event. The
+// stale-cycling commit of issue #147 is that commit: the fresh press ends the
+// frozen gesture, commits the variant, and falls through to start its own. The
+// client's reset for that commit then arrives with the key down and the young
+// gesture live, which is the exact shape of a takeover and must still not be
+// treated as one.
 static void scheduleClientCommitTest173(Instance *instance) {
     g_currentTest = 173;
-    FCITX_INFO() << "=== Test 173: a gesture born out of a commit before the "
-                    "ordering guard survives the reset ===";
+    FCITX_INFO() << "=== Test 173: a commit and the gesture it starts in one "
+                    "event ===";
     configureStaleCycling(instance);
     auto *tf = instance->addonManager().addon("testfrontend");
     auto uuid = createAndActivate(instance, tf, "test173");
@@ -7671,6 +7676,9 @@ static void scheduleClientCommitTest173(Instance *instance) {
 // occupied. Leaving it unarmed costs exactly the duplicate this whole branch
 // exists to prevent: the client keeps its copy, and the held key's auto-repeat
 // starts a fresh gesture that types a second one.
+//
+// The click has to fall outside the acknowledgement window of that commit, or
+// it would be read as the answer to it, so this test lets real time pass.
 static void scheduleClientCommitTest174(Instance *instance) {
     g_currentTest = 174;
     FCITX_INFO() << "=== Test 174: the dropped gesture arms the repeat "
@@ -7692,44 +7700,54 @@ static void scheduleClientCommitTest174(Instance *instance) {
         << "The single-output commit must leave no preedit, got '"
         << getClientPreedit(instance) << "'";
 
-    // The client acknowledges that commit before anything else happens, so the
-    // click further down is a reset with nothing outstanding behind it.
-    ic->reset();
+    struct TimerHolder {
+        std::unique_ptr<EventSourceTime> timer;
+    };
+    auto holder = std::make_shared<TimerHolder>();
+    holder->timer = instance->eventLoop().addTimeEvent(
+        CLOCK_MONOTONIC, nowUsec() + kAckWindowLapseUsec, 0,
+        [instance, uuid, holder](EventSourceTime *, uint64_t) {
+            auto *tf = instance->addonManager().addon("testfrontend");
+            auto *ic = instance->inputContextManager().findByUUID(uuid);
+            FCITX_ASSERT(ic) << "IC must survive the wait";
 
-    // A second mapped key on top, while 'o' is still down.
-    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false, kFreshPressTimeMs);
-    FCITX_ASSERT(getClientPreedit(instance) == "a")
-        << "The second key must start its own gesture, got '"
-        << getClientPreedit(instance) << "'";
+            // A second mapped key on top, while 'o' is still down.
+            sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false,
+                          kFreshPressTimeMs);
+            FCITX_ASSERT(getClientPreedit(instance) == "a")
+                << "The second key must start its own gesture, got '"
+                << getClientPreedit(instance) << "'";
 
-    // The click. No expectation is pushed, so any commit aborts.
-    ic->reset();
-    FCITX_ASSERT(getClientPreedit(instance).empty())
-        << "The reset must clear the preedit, got '"
-        << getClientPreedit(instance) << "'";
+            // The click. No expectation is pushed, so any commit aborts.
+            ic->reset();
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "The reset must clear the preedit, got '"
+                << getClientPreedit(instance) << "'";
 
-    // 'a' is still down. Its auto-repeat carries the frozen press time and
-    // must find the slot armed for ITSELF, not for 'o'.
-    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false, kFreshPressTimeMs);
-    FCITX_ASSERT(getClientPreedit(instance).empty())
-        << "A repeat after the reset must start nothing, got '"
-        << getClientPreedit(instance) << "'";
+            // 'a' is still down. Its auto-repeat carries the frozen press time
+            // and must find the slot armed for ITSELF, not for 'o'.
+            sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false,
+                          kFreshPressTimeMs);
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "A repeat after the reset must start nothing, got '"
+                << getClientPreedit(instance) << "'";
 
-    tf->call<ITestFrontend::destroyInputContext>(uuid);
-    FCITX_INFO() << "Test 174 PASSED";
-    scheduleClientCommitTest175(instance);
+            tf->call<ITestFrontend::destroyInputContext>(uuid);
+            FCITX_INFO() << "Test 174 PASSED";
+            scheduleClientCommitTest175(instance);
+            return false;
+        });
 }
 
-// TEST 175: the other commit ahead of the ordering guard, and the reason the
-// commit count is taken at the very top of the handler. A char+space commit
-// defers its space to a zero-delay timer; a key arriving before that timer
-// gets to run flushes the space itself, at the first statement of the handler.
-// If the count were taken after that flush, the gesture this same event starts
-// would look older than the commit and the client's reset for it would drop it.
+// TEST 175: a commit that no explicit call site issues. A char+space commit
+// defers its space to a zero-delay timer; a key arriving before that timer gets
+// to run flushes the space itself, from the first statement of the handler. It
+// goes out through the same funnel as every other commit, so the window opens
+// for it too and the gesture that same key starts survives the answer to it.
 static void scheduleClientCommitTest175(Instance *instance) {
     g_currentTest = 175;
-    FCITX_INFO() << "=== Test 175: a gesture born after a flushed deferred "
-                    "space survives the reset ===";
+    FCITX_INFO() << "=== Test 175: a flushed deferred space opens the window "
+                    "like any commit ===";
     // Min-hold 200 ms, so an immediate Space commits the plain character and
     // defers its space instead of converting.
     configureWithDelay(instance, 2000, 2000, true, false, 200, 200);
@@ -7775,61 +7793,52 @@ static void scheduleClientCommitTest175(Instance *instance) {
     scheduleClientCommitTest176(instance);
 }
 
-// TEST 176: the commit that no key event contains at all. The deferred space
-// lands from its own timer, between two key events, so a count taken when this
-// event began would already include it and the gesture this event starts would
-// look older than the commit. Anchoring at the end of the previous event is
-// what keeps the client's acknowledgement from dropping that gesture.
+// TEST 176: the far edge of the acknowledgement window, and the counter-pin to
+// 171/173/175. Those show that a reset arriving right behind one of our commits
+// is that commit's answer; this one shows the window closes. Once it has, a
+// reset landing on a live gesture is the client taking it over, and the gesture
+// goes. Without an upper edge the branch would never fire for anyone who has
+// ever committed, which is the whole of issue #162.
 static void scheduleClientCommitTest176(Instance *instance) {
     g_currentTest = 176;
-    FCITX_INFO() << "=== Test 176: a gesture born after a timer commit "
-                    "survives the reset ===";
-    configureWithDelay(instance, 2000, 2000, true, false, 200, 200);
-    setMappings(instance, {
-                              {"a", "\xc3\xa4,\xc3\xa0"},
-                              {"o", "\xc3\xb6"},
-                          });
+    FCITX_INFO() << "=== Test 176: a reset past the window is a takeover ===";
+    configureStaleCycling(instance);
     auto *tf = instance->addonManager().addon("testfrontend");
     auto uuid = createAndActivate(instance, tf, "test176");
     auto *ic = instance->inputContextManager().findByUUID(uuid);
     FCITX_ASSERT(ic) << "IC must exist";
     ic->setCapabilityFlags(ic->capabilityFlags() | CapabilityFlag::Preedit);
 
-    tf->call<ITestFrontend::sendKeyEvent>(
-        uuid, Key(FcitxKey_a, KeyStates(), kCodeA), false);
-    tf->call<ITestFrontend::pushCommitExpectation>("a");
-    tf->call<ITestFrontend::pushCommitExpectation>(" ");
-    tf->call<ITestFrontend::sendKeyEvent>(
-        uuid, Key(FcitxKey_space, KeyStates(), kCodeSpace), false);
+    // Something to commit, so the window opens at all.
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, kStalePressTimeMs);
+    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
+    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false,
+                  kStaleLeaderTimeMs);
+    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, true,
+                  kStaleLeaderTimeMs + 50);
 
-    // Give the zero-delay timer its own event-loop turn, so the space is
-    // committed outside any key event, then carry on from there.
     struct TimerHolder {
         std::unique_ptr<EventSourceTime> timer;
     };
     auto holder = std::make_shared<TimerHolder>();
     holder->timer = instance->eventLoop().addTimeEvent(
-        CLOCK_MONOTONIC, nowUsec() + kDeferredVerifyDelayUsec, 0,
+        CLOCK_MONOTONIC, nowUsec() + kAckWindowLapseUsec, 0,
         [instance, uuid, holder](EventSourceTime *, uint64_t) {
             auto *tf = instance->addonManager().addon("testfrontend");
             auto *ic = instance->inputContextManager().findByUUID(uuid);
-            FCITX_ASSERT(ic) << "IC must survive the timer";
+            FCITX_ASSERT(ic) << "IC must survive the wait";
 
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(FcitxKey_o, KeyStates(), kCodeO), false);
-            FCITX_ASSERT(getClientPreedit(instance) == "o")
-                << "The key after the timer must start its own gesture, got '"
+            sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false,
+                          kFreshPressTimeMs);
+            FCITX_ASSERT(getClientPreedit(instance) == "a")
+                << "The key must start a gesture, got '"
                 << getClientPreedit(instance) << "'";
 
+            // No expectation is pushed, so a commit here aborts.
             ic->reset();
-            FCITX_ASSERT(getClientPreedit(instance) == "o")
-                << "The acknowledgement of the timer's commit must leave that "
-                   "gesture alone, got '"
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "A reset past the window must drop the gesture, got '"
                 << getClientPreedit(instance) << "'";
-
-            tf->call<ITestFrontend::pushCommitExpectation>("o");
-            tf->call<ITestFrontend::sendKeyEvent>(
-                uuid, Key(FcitxKey_o, KeyStates(), kCodeO), true);
 
             tf->call<ITestFrontend::destroyInputContext>(uuid);
             FCITX_INFO() << "Test 176 PASSED";
@@ -7843,7 +7852,7 @@ static void scheduleClientCommitTest176(Instance *instance) {
 // arms it while the key stays held; 'a' on top of that is the gesture the click
 // drops. With one shared slot the drop re-armed it for 'a' and 'o' lost its
 // guard, so the next repeat of the still-held 'o' started a fresh gesture and
-// typed a second character.
+// typed a second character. Same real wait as 174, for the same reason.
 static void scheduleClientCommitTest177(Instance *instance) {
     g_currentTest = 177;
     FCITX_INFO() << "=== Test 177: the drop keeps another held key's repeat "
@@ -7860,28 +7869,39 @@ static void scheduleClientCommitTest177(Instance *instance) {
     sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false,
                   kStaleLeaderTimeMs);
 
-    // The client acknowledges that commit before anything else happens, so the
-    // click further down is a reset with nothing outstanding behind it.
-    ic->reset();
+    struct TimerHolder {
+        std::unique_ptr<EventSourceTime> timer;
+    };
+    auto holder = std::make_shared<TimerHolder>();
+    holder->timer = instance->eventLoop().addTimeEvent(
+        CLOCK_MONOTONIC, nowUsec() + kAckWindowLapseUsec, 0,
+        [instance, uuid, holder](EventSourceTime *, uint64_t) {
+            auto *tf = instance->addonManager().addon("testfrontend");
+            auto *ic = instance->inputContextManager().findByUUID(uuid);
+            FCITX_ASSERT(ic) << "IC must survive the wait";
 
-    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false, kFreshPressTimeMs);
-    FCITX_ASSERT(getClientPreedit(instance) == "a")
-        << "The second key must start its own gesture, got '"
-        << getClientPreedit(instance) << "'";
+            sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false,
+                          kFreshPressTimeMs);
+            FCITX_ASSERT(getClientPreedit(instance) == "a")
+                << "The second key must start its own gesture, got '"
+                << getClientPreedit(instance) << "'";
 
-    // The click. No expectation is pushed, so any commit aborts.
-    ic->reset();
+            // The click. No expectation is pushed, so any commit aborts.
+            ic->reset();
 
-    // 'o' never came up. Its auto-repeat carries the frozen press time and
-    // must still find its own guard.
-    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, kStalePressTimeMs);
-    FCITX_ASSERT(getClientPreedit(instance).empty())
-        << "The displaced key's repeat must start nothing, got '"
-        << getClientPreedit(instance) << "'";
+            // 'o' never came up. Its auto-repeat carries the frozen press time
+            // and must still find its own guard.
+            sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false,
+                          kStalePressTimeMs);
+            FCITX_ASSERT(getClientPreedit(instance).empty())
+                << "The displaced key's repeat must start nothing, got '"
+                << getClientPreedit(instance) << "'";
 
-    tf->call<ITestFrontend::destroyInputContext>(uuid);
-    FCITX_INFO() << "Test 177 PASSED";
-    scheduleClientCommitTest178(instance);
+            tf->call<ITestFrontend::destroyInputContext>(uuid);
+            FCITX_INFO() << "Test 177 PASSED";
+            scheduleClientCommitTest178(instance);
+            return false;
+        });
 }
 
 // TEST 178: the same collision without any reset involved, which is where it
@@ -8016,61 +8036,48 @@ static void scheduleClientCommitTest180(Instance *instance) {
     scheduleClientCommitTest181(instance);
 }
 
-// TEST 181: two commits owed, one answered. The plain reset path wipes the
-// context's gesture state, and wiping the outstanding acknowledgements along
-// with it would leave the second one looking like a takeover of whatever
-// gesture is live by then. The ledger therefore outlives that wipe, and only a
-// focus change clears it, where nothing is owed to the context any more.
+// TEST 181: the window belongs to one input context, not to the addon. A commit
+// into one window must not make a reset in another look like its answer, or a
+// click in the second would be waved through for as long as typing continues in
+// the first. The state lives on the context property, and this holds it there.
 static void scheduleClientCommitTest181(Instance *instance) {
     g_currentTest = 181;
-    FCITX_INFO() << "=== Test 181: a second owed acknowledgement survives the "
-                    "plain reset path ===";
-    configureWithDelay(instance, kDelayMin, kDelayMin, true, false, 0, 0);
-    setMappings(instance, {
-                              {"a", "\xc3\xa4"},
-                              {"o", "\xc3\xb6"},
-                          });
+    FCITX_INFO() << "=== Test 181: the acknowledgement window is per context "
+                    "===";
+    configureStaleCycling(instance);
     auto *tf = instance->addonManager().addon("testfrontend");
-    auto uuid = createAndActivate(instance, tf, "test181");
-    auto *ic = instance->inputContextManager().findByUUID(uuid);
-    FCITX_ASSERT(ic) << "IC must exist";
-    ic->setCapabilityFlags(ic->capabilityFlags() | CapabilityFlag::Preedit);
 
-    // Two single-output commits, each key released before the next.
-    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false, kStalePressTimeMs);
+    // Context A commits, which opens its window.
+    auto uuidA = createAndActivate(instance, tf, "test181a");
+    sendKeyAtTime(instance, uuidA, FcitxKey_o, kCodeO, false,
+                  kStalePressTimeMs);
     tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xb6");
-    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false,
+    sendKeyAtTime(instance, uuidA, FcitxKey_space, kCodeSpace, false,
                   kStaleLeaderTimeMs);
-    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, true,
+    sendKeyAtTime(instance, uuidA, FcitxKey_o, kCodeO, true,
                   kStaleLeaderTimeMs + 50);
-    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, false, kFreshPressTimeMs);
-    tf->call<ITestFrontend::pushCommitExpectation>("\xc3\xa4");
-    sendKeyAtTime(instance, uuid, FcitxKey_space, kCodeSpace, false,
-                  kFreshPressTimeMs + 10);
-    sendKeyAtTime(instance, uuid, FcitxKey_a, kCodeA, true,
-                  kFreshPressTimeMs + 50);
 
-    // The first acknowledgement, with no key down: this takes the plain path
-    // and wipes the gesture state.
-    ic->reset();
+    // Context B has never committed. Its gesture must be dropped on a reset,
+    // however recently A committed.
+    auto uuidB = createAndActivate(instance, tf, "test181b");
+    auto *icB = instance->inputContextManager().findByUUID(uuidB);
+    FCITX_ASSERT(icB) << "IC must exist";
+    icB->setCapabilityFlags(icB->capabilityFlags() | CapabilityFlag::Preedit);
 
-    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, false,
-                  kFreshPressTimeMs + 100);
-    FCITX_ASSERT(getClientPreedit(instance) == "o")
-        << "The next key must start its own gesture, got '"
+    sendKeyAtTime(instance, uuidB, FcitxKey_a, kCodeA, false,
+                  kFreshPressTimeMs);
+    FCITX_ASSERT(getClientPreedit(instance) == "a")
+        << "The key must start a gesture, got '" << getClientPreedit(instance)
+        << "'";
+
+    // No expectation is pushed, so a commit here aborts.
+    icB->reset();
+    FCITX_ASSERT(getClientPreedit(instance).empty())
+        << "Another context's commit must not shield this gesture, got '"
         << getClientPreedit(instance) << "'";
 
-    // The second acknowledgement, still owed from before the wipe.
-    ic->reset();
-    FCITX_ASSERT(getClientPreedit(instance) == "o")
-        << "The still-owed acknowledgement must not destroy that gesture, got '"
-        << getClientPreedit(instance) << "'";
-
-    tf->call<ITestFrontend::pushCommitExpectation>("o");
-    sendKeyAtTime(instance, uuid, FcitxKey_o, kCodeO, true,
-                  kFreshPressTimeMs + 200);
-
-    tf->call<ITestFrontend::destroyInputContext>(uuid);
+    tf->call<ITestFrontend::destroyInputContext>(uuidB);
+    tf->call<ITestFrontend::destroyInputContext>(uuidA);
     FCITX_INFO() << "Test 181 PASSED";
 
     FCITX_INFO() << "=== All 181 tests PASSED ===";

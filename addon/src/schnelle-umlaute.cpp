@@ -275,7 +275,7 @@ public:
             state->recentlyCommitted_ = false;
             if (key.sym() == FcitxKey_space && !state->waitingKey_ &&
                 !hasModifiers(key)) {
-                ic->commitString(" ");
+                commitText(ic, state, " ");
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -319,7 +319,8 @@ public:
                 // .startUsec), mirroring the waiting-release branch's #73 check.
                 // The window-timeout arming leaves committed_.time == 0, so this
                 // never matches there and that path clears per window as before.
-                if (state->isSyntheticCommittedRelease(rawCode, keyEvent.time())) {
+                if (state->isSyntheticCommittedRelease(rawCode,
+                                                       keyEvent.time())) {
                     state->heldRawCodes_.insert(rawCode);
                     keyEvent.filterAndAccept();
                     return;
@@ -365,11 +366,10 @@ public:
                 if (it != umlautMap_.end() &&
                     state->cyclingIndex_ < it->second.size()) {
                     ic->inputPanel().reset();
-                    ic->commitString(it->second[state->cyclingIndex_]);
+                    commitText(ic, state, it->second[state->cyclingIndex_]);
                     recordUsage(*state->cyclingInput_,
                                 it->second[state->cyclingIndex_]);
                     ic->updatePreedit();
-                    state->noteCommit();
                 }
 
                 state->resetWaitingGesture();
@@ -612,10 +612,9 @@ public:
                         // commit behavior of non-Alt leaders with single
                         // output.
                         ic->inputPanel().reset();
-                        ic->commitString(it->second[0]);
+                        commitText(ic, state, it->second[0]);
                         recordUsage(*state->cyclingInput_, it->second[0]);
                         ic->updatePreedit();
-                        state->noteCommit();
                         // Arm auto-repeat suppression for the held input key.
                         // Without this, releasing Alt while the input key is
                         // still down would let the next repeat start a fresh
@@ -634,7 +633,7 @@ public:
                         if (!keyChar.empty() &&
                             (keyChar.size() > 1 ||
                              static_cast<unsigned char>(keyChar[0]) >= ' ')) {
-                            ic->commitString(keyChar);
+                            commitText(ic, state, keyChar);
                         }
                         keyEvent.filterAndAccept();
                         return;
@@ -722,7 +721,7 @@ public:
                             hideTriggerOverlay(state);
                         ic->inputPanel().reset();
                         ic->updatePreedit();
-                        ic->commitString(it->second[0]);
+                        commitText(ic, state, it->second[0]);
                         recordUsage(*state->waitingKey_, it->second[0]);
                         // Arm auto-repeat suppression for the still-held key.
                         // Suppresses on X11 and KWin/Wayland alike (issue #92
@@ -731,7 +730,6 @@ public:
                         // resetWaitingGesture() clears the waiting gesture.
                         state->armCommittedFromWaiting();
                         state->resetWaitingGesture();
-                        state->noteCommit();
                     }
 
                     // Defensive: the window timer is already guarded by
@@ -848,8 +846,7 @@ public:
         if (didAltBypass && !keyChar.empty() &&
             (keyChar.size() > 1 ||
              static_cast<unsigned char>(keyChar[0]) >= ' ')) {
-            ic->commitString(keyChar);
-            state->noteCommit();
+            commitText(ic, state, keyChar);
             keyEvent.filterAndAccept();
             return;
         }
@@ -868,7 +865,7 @@ public:
         flushPendingSpaceCommit(ic, state);
         state->clearAllState();
         state->recentlyCommitted_ = false;
-        state->pendingCommitAcks_ = 0;
+        state->lastCommitUsec_ = 0;
     }
 
     void deactivate(const InputMethodEntry &,
@@ -894,7 +891,7 @@ public:
 
         state->clearAllState();
         state->recentlyCommitted_ = false;
-        state->pendingCommitAcks_ = 0;
+        state->lastCommitUsec_ = 0;
         // Focus left this context: drop any visible overlay (cycling picker or
         // trigger preview) so it doesn't linger over another window.
         overlayHide();
@@ -908,15 +905,17 @@ public:
         // Some apps (Chromium, Neovide) call reset() after every commit.
         auto *ic = event.inputContext();
         auto *state = ic->propertyFor(&factory_);
-
-        // Book this reset against a commit still awaiting acknowledgement. The
-        // two things a reset can mean arrive on the same signal and look alike,
-        // so they are told apart by accounting rather than by inspection; see
-        // pendingCommitAcks_ for why the residual error is deliberately a
-        // missed detection and never a lost character.
-        const bool acknowledgesCommit = state->pendingCommitAcks_ > 0;
-        if (acknowledgesCommit)
-            --state->pendingCommitAcks_;
+        // A reset that follows one of our own commits closely enough is that
+        // commit's acknowledgement, and nothing else in the event says which of
+        // the two it is. The separation is real: an acknowledgement is one IPC
+        // round, while a click during a gesture follows a commit by a human
+        // pause. Erring inside the window costs a detection and leaves the
+        // duplicate; erring outside it would cost the character, which is why
+        // the window is generous. See kCommitAckWindowUsec.
+        const bool acknowledgesCommit =
+            state->lastCommitUsec_ != 0 &&
+            SchnelleUmlauteState::nowUsec() - state->lastCommitUsec_ <
+                kCommitAckWindowUsec;
 
         if (state->inputKeyPressed_) {
             // ... unless the client ended a live composition on its own, which
@@ -1239,7 +1238,7 @@ private:
             flushPendingSpaceCommit(c, s);
             s->clearAllState();
             s->recentlyCommitted_ = false;
-            s->pendingCommitAcks_ = 0;
+            s->lastCommitUsec_ = 0;
             c->inputPanel().reset();
             c->updatePreedit();
             return true;
@@ -1273,7 +1272,7 @@ private:
                 st->cyclingIndex_ < it->second.size()) {
                 ic->inputPanel().reset();
                 ic->updatePreedit();
-                ic->commitString(it->second[st->cyclingIndex_]);
+                commitText(ic, st, it->second[st->cyclingIndex_]);
                 recordUsage(*st->cyclingInput_, it->second[st->cyclingIndex_]);
             }
         } else if (st->waitingKey_) {
@@ -1520,11 +1519,11 @@ private:
                     if (it != umlautMap_.end() &&
                         state->cyclingIndex_ < it->second.size()) {
                         ctx->inputPanel().reset();
-                        ctx->commitString(it->second[state->cyclingIndex_]);
+                        commitText(ctx, state,
+                                   it->second[state->cyclingIndex_]);
                         recordUsage(*state->cyclingInput_,
                                     it->second[state->cyclingIndex_]);
                         ctx->updatePreedit();
-                        state->noteCommit();
                     }
                     state->resetCycling();
                     overlayHide();
@@ -1536,16 +1535,26 @@ private:
             });
     }
 
+    // The one place text leaves this addon. Every commit has to be noted (the
+    // Space ordering guard, and the moment reset() measures an incoming reset
+    // against), and the two used to be separate statements at a dozen call
+    // sites. Three of them had already drifted apart, each one a commit the
+    // client would answer with a reset nothing here expected.
+    void commitText(InputContext *ic, SchnelleUmlauteState *state,
+                    const std::string &text) {
+        ic->commitString(text);
+        state->noteCommit();
+    }
+
     void commitPendingKey(InputContext *ic, SchnelleUmlauteState *state) {
         if (!state->waitingKey_)
             return;
         hideTriggerOverlay(state);
         ic->inputPanel().reset();
-        ic->commitString(*state->waitingKey_);
+        commitText(ic, state, *state->waitingKey_);
         ic->updatePreedit();
         state->resetWaitingGesture();
         state->cancelTimeout();
-        state->noteCommit();
     }
 
     // Deliver the trailing space of a char+space commit in its own event-loop
@@ -1589,8 +1598,7 @@ private:
         if (!state->pendingSpaceCommit_)
             return;
         state->pendingSpaceCommit_ = false;
-        ic->commitString(" ");
-        state->noteCommit();
+        commitText(ic, state, " ");
     }
 
     void commitCyclingValue(InputContext *ic, SchnelleUmlauteState *state) {
@@ -1602,10 +1610,9 @@ private:
         if (it != umlautMap_.end() &&
             state->cyclingIndex_ < it->second.size()) {
             ic->inputPanel().reset();
-            ic->commitString(it->second[state->cyclingIndex_]);
+            commitText(ic, state, it->second[state->cyclingIndex_]);
             recordUsage(cyclingInput, it->second[state->cyclingIndex_]);
             ic->updatePreedit();
-            state->noteCommit();
         }
         state->resetWaitingGesture();
         state->resetCycling();
@@ -1884,9 +1891,8 @@ private:
 
                 if (state->waitingKey_ && *state->waitingKey_ == savedKey) {
                     ctx->inputPanel().reset();
-                    ctx->commitString(*state->waitingKey_);
+                    commitText(ctx, state, *state->waitingKey_);
                     ctx->updatePreedit();
-                    state->noteCommit();
                     // If the key is still physically held past the accent
                     // window, its auto-repeat keeps arriving after this commit.
                     // On a synthetic-release platform (Wayland) a trailing
