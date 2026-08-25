@@ -149,6 +149,12 @@ public:
 
         auto *state = ic->propertyFor(&factory_);
 
+        // Commit count as this event began. Only the difference across this one
+        // event is ever read, to tell a gesture born out of a commit from one
+        // the client can take over; see gestureFollowedCommit_. Taken before
+        // the pending-space flush below, which is itself one of those commits.
+        const uint64_t commitSeqAtEntry = state->commitSeq_;
+
         // Deliver a still-pending deferred space before this key is processed,
         // so its text can never land behind this key's output if the key event
         // wins the race against the zero-delay timer. See scheduleSpaceCommit().
@@ -370,7 +376,7 @@ public:
                     recordUsage(*state->cyclingInput_,
                                 it->second[state->cyclingIndex_]);
                     ic->updatePreedit();
-                    state->recentlyCommitted_ = true;
+                    state->noteCommit();
                 }
 
                 state->resetWaitingGesture();
@@ -616,7 +622,7 @@ public:
                         ic->commitString(it->second[0]);
                         recordUsage(*state->cyclingInput_, it->second[0]);
                         ic->updatePreedit();
-                        state->recentlyCommitted_ = true;
+                        state->noteCommit();
                         // Arm auto-repeat suppression for the held input key.
                         // Without this, releasing Alt while the input key is
                         // still down would let the next repeat start a fresh
@@ -732,7 +738,7 @@ public:
                         // resetWaitingGesture() clears the waiting gesture.
                         state->armCommittedFromWaiting();
                         state->resetWaitingGesture();
-                        state->recentlyCommitted_ = true;
+                        state->noteCommit();
                     }
 
                     // Defensive: the window timer is already guarded by
@@ -811,6 +817,15 @@ public:
             // carrying the same (frozen) timestamp can be recognised as a
             // synthetic auto-repeat and suppressed. See isSyntheticAutoRepeatRelease().
             state->waitingKeyTime_ = keyEvent.time();
+            // Mark a gesture that a commit in this very key event gave birth
+            // to. The client answers such a commit with a reset that lands
+            // while this gesture is live and the key still down, which is
+            // exactly the shape of a client takeover; see reset(). Commits
+            // before the ordering guard at the top of the handler (the flushed
+            // deferred space, the stale-cycling commit of issue #147) are
+            // included, which the guard's own marker cannot do since the press
+            // clears it.
+            state->gestureFollowedCommit_ = state->commitSeq_ != commitSeqAtEntry;
             state->inputKeyPressed_ = true;
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
@@ -851,7 +866,7 @@ public:
             (keyChar.size() > 1 ||
              static_cast<unsigned char>(keyChar[0]) >= ' ')) {
             ic->commitString(keyChar);
-            state->recentlyCommitted_ = true;
+            state->noteCommit();
             keyEvent.filterAndAccept();
             return;
         }
@@ -915,33 +930,35 @@ public:
             // the preedit as text at the old caret, so the release that follows
             // would put a second copy there.
             //
-            // recentlyCommitted_ is what separates that from the reset those
-            // applications fire after every commit. Committing does NOT leave
-            // the key released: the next mapped key commits the pending one and
-            // starts its own gesture in the same event, so the reset that
-            // follows finds the flag set again. It also finds this marker set,
-            // and a gesture that was just born out of a commit is not one the
-            // client has taken over. The marker is cleared by the next press,
-            // so a click that follows one costs a missed detection, never a
-            // character.
+            // What separates that from the reset those applications fire after
+            // every commit is whether the gesture is older than the commit.
+            // Committing does NOT leave the key released: several paths commit
+            // and start a new gesture in the same key event, and the client's
+            // reset for that commit arrives a DBus round later, with the key
+            // still down and the young gesture already live. A gesture born out
+            // of a commit is therefore never one the client has taken over.
+            // gestureFollowedCommit_ is a property of the gesture, not of the
+            // context, so it covers every commit path by construction instead
+            // of enumerating them. It costs the detection for a click that
+            // lands on such a gesture, never a character.
             //
             // Whether the character is dropped or committed depends on whether
-            // the client ever saw it. updatePreedit() returns without doing
-            // anything when the context has no preedit capability (the global
-            // "show preedit in application" off, XIM clients without preedit
-            // callbacks), so there the character lives only here and dropping
-            // it would lose it silently. With preedit the client already turned
-            // it into text, and committing would be the second copy.
+            // the client ever saw it. Every preedit-capable client measured
+            // (Chromium, Firefox, a Qt QLineEdit, a GTK entry) keeps its copy
+            // and turns it into text at the old caret, so committing here would
+            // be the second one. Without the capability updatePreedit() returns
+            // without doing anything, the character lives only here, and
+            // dropping it would lose it silently.
             //
             // Either way the held-key claim stays, since the key really is
             // still down: the committed-key suppression keeps its release
-            // swallowed and its auto-repeat from starting a fresh gesture. An
-            // arming that is already live belongs to another key and is left
-            // alone, it guards a duplicate this one does not.
+            // swallowed and its auto-repeat from starting a fresh gesture. It
+            // is armed unconditionally, like every other single-output commit
+            // site does; the one slot can only hold one key, and the key whose
+            // gesture was just dropped is the one about to repeat.
             if ((state->waitingKey_ || state->cyclingInput_) &&
-                !state->recentlyCommitted_) {
-                if (state->committed_.code == 0)
-                    state->armCommittedFromWaiting();
+                !state->gestureFollowedCommit_) {
+                state->armCommittedFromWaiting();
                 if (ic->capabilityFlags().test(CapabilityFlag::Preedit)) {
                     hideTriggerOverlay(state);
                     overlayHide();
@@ -1525,7 +1542,7 @@ private:
                         recordUsage(*state->cyclingInput_,
                                     it->second[state->cyclingIndex_]);
                         ctx->updatePreedit();
-                        state->recentlyCommitted_ = true;
+                        state->noteCommit();
                     }
                     state->resetCycling();
                     overlayHide();
@@ -1546,7 +1563,7 @@ private:
         ic->updatePreedit();
         state->resetWaitingGesture();
         state->cancelTimeout();
-        state->recentlyCommitted_ = true;
+        state->noteCommit();
     }
 
     // Deliver the trailing space of a char+space commit in its own event-loop
@@ -1591,7 +1608,7 @@ private:
             return;
         state->pendingSpaceCommit_ = false;
         ic->commitString(" ");
-        state->recentlyCommitted_ = true;
+        state->noteCommit();
     }
 
     void commitCyclingValue(InputContext *ic, SchnelleUmlauteState *state) {
@@ -1606,7 +1623,7 @@ private:
             ic->commitString(it->second[state->cyclingIndex_]);
             recordUsage(cyclingInput, it->second[state->cyclingIndex_]);
             ic->updatePreedit();
-            state->recentlyCommitted_ = true;
+            state->noteCommit();
         }
         state->resetWaitingGesture();
         state->resetCycling();
@@ -1887,7 +1904,7 @@ private:
                     ctx->inputPanel().reset();
                     ctx->commitString(*state->waitingKey_);
                     ctx->updatePreedit();
-                    state->recentlyCommitted_ = true;
+                    state->noteCommit();
                     // If the key is still physically held past the accent
                     // window, its auto-repeat keeps arriving after this commit.
                     // On a synthetic-release platform (Wayland) a trailing
