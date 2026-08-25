@@ -149,11 +149,20 @@ public:
 
         auto *state = ic->propertyFor(&factory_);
 
-        // Commit count as this event began. Only the difference across this one
-        // event is ever read, to tell a gesture born out of a commit from one
-        // the client can take over; see gestureFollowedCommit_. Taken before
-        // the pending-space flush below, which is itself one of those commits.
-        const uint64_t commitSeqAtEntry = state->commitSeq_;
+        // Commits issued since the PREVIOUS key event ended, which is what tells
+        // a gesture born out of a commit from one the client can take over; see
+        // gestureFollowedCommit_. Anchored at the end of the previous event
+        // rather than the start of this one, so a commit a timer issued in
+        // between (accent window, deferred space, deferred Alt cycling) counts
+        // for the gesture this event starts. The marker updates on every exit
+        // path, of which this handler has many.
+        const uint64_t commitSeqAtEntry = state->commitSeqAtLastEventEnd_;
+        struct EventEndMarker {
+            SchnelleUmlauteState *state;
+            ~EventEndMarker() {
+                state->commitSeqAtLastEventEnd_ = state->commitSeq_;
+            }
+        } eventEndMarker{state};
 
         // Deliver a still-pending deferred space before this key is processed,
         // so its text can never land behind this key's output if the key event
@@ -313,8 +322,7 @@ public:
 
             // Consume release of key that was committed via single-output.
             // The press was filterAndAccepted, so the release is an orphan.
-            if (state->committed_.code != 0 &&
-                rawCode == state->committed_.code) {
+            if (state->isCommittedKey(rawCode)) {
                 // On KWin/Wayland auto-repeat arrives as release-press pairs with
                 // a frozen event time. A synthetic release carries the committed
                 // key's press time, and must NOT drop the arming — otherwise the
@@ -326,13 +334,13 @@ public:
                 // .startUsec), mirroring the waiting-release branch's #73 check.
                 // The window-timeout arming leaves committed_.time == 0, so this
                 // never matches there and that path clears per window as before.
-                if (state->isSyntheticCommittedRelease(keyEvent.time())) {
+                if (state->isSyntheticCommittedRelease(rawCode, keyEvent.time())) {
                     state->heldRawCodes_.insert(rawCode);
                     keyEvent.filterAndAccept();
                     return;
                 }
                 // Genuine release (advanced or absent event time): clear it.
-                state->clearCommittedKey();
+                state->clearCommittedKey(rawCode);
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -800,8 +808,7 @@ public:
             // still be held, generating repeat events. Without this guard,
             // repeats start new unwanted gestures (e.g. 'u' + AltGr → "ü" then
             // repeat 'u' → "üu").
-            if (!isNewKeyPress && state->committed_.code != 0 &&
-                rawCode == state->committed_.code) {
+            if (!isNewKeyPress && state->isCommittedKey(rawCode)) {
                 keyEvent.filterAndAccept();
                 return;
             }
@@ -817,14 +824,14 @@ public:
             // carrying the same (frozen) timestamp can be recognised as a
             // synthetic auto-repeat and suppressed. See isSyntheticAutoRepeatRelease().
             state->waitingKeyTime_ = keyEvent.time();
-            // Mark a gesture that a commit in this very key event gave birth
-            // to. The client answers such a commit with a reset that lands
-            // while this gesture is live and the key still down, which is
-            // exactly the shape of a client takeover; see reset(). Commits
-            // before the ordering guard at the top of the handler (the flushed
-            // deferred space, the stale-cycling commit of issue #147) are
-            // included, which the guard's own marker cannot do since the press
-            // clears it.
+            // Mark a gesture that a commit gave birth to, whether in this key
+            // event or from a timer since the last one. The client answers such
+            // a commit with a reset that lands while this gesture is live and
+            // the key still down, which is exactly the shape of a client
+            // takeover; see reset(). Commits ahead of the ordering guard at the
+            // top of the handler (the flushed deferred space, the stale-cycling
+            // commit of issue #147) are included, which the guard's own marker
+            // cannot do since the press clears it.
             state->gestureFollowedCommit_ = state->commitSeq_ != commitSeqAtEntry;
             state->inputKeyPressed_ = true;
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
@@ -954,8 +961,8 @@ public:
             // still down: the committed-key suppression keeps its release
             // swallowed and its auto-repeat from starting a fresh gesture. It
             // is armed unconditionally, like every other single-output commit
-            // site does; the one slot can only hold one key, and the key whose
-            // gesture was just dropped is the one about to repeat.
+            // site does. The store holds one entry per key, so this cannot take
+            // the guard away from another key that is also still down.
             if ((state->waitingKey_ || state->cyclingInput_) &&
                 !state->gestureFollowedCommit_) {
                 state->armCommittedFromWaiting();
@@ -1000,18 +1007,17 @@ public:
         // Neovide fire after every commit lets the next auto-repeat re-enter as a
         // fresh press (isNewKeyPress == true, so the repeat guard below the arming
         // sites no longer matches) and start a duplicate gesture (issue #92).
-        // Preserve the whole committed_ bundle across the wipe; the focus-change
+        // Preserve the whole committed_ store across the wipe; the focus-change
         // path (deactivate/activate) keeps clearing everything. Self-guarding:
-        // code == 0 means nothing was armed (a release already cleared it via the
-        // committed-key release branch).
+        // an empty store means nothing was armed (a release already cleared its
+        // entry via the committed-key release branch).
         const auto heldCommitted = state->committed_;
 
         auto flash = std::move(state->overlayHideEvent_);
         state->clearAllState();
-        if (heldCommitted.code != 0) {
-            state->committed_ = heldCommitted;
-            state->heldRawCodes_.insert(heldCommitted.code);
-        }
+        state->committed_ = heldCommitted;
+        for (const auto &armed : heldCommitted)
+            state->heldRawCodes_.insert(armed.first);
         if (flash && overlayVisible_) {
             state->overlayHideEvent_ = std::move(flash);
             return;
@@ -1304,7 +1310,7 @@ private:
         // until real release.
         auto heldKeys = st->heldRawCodes_;
         // Symmetry with the heldRawCodes_ preserve above: keep the single-output
-        // repeat-suppression arming (the whole committed_ bundle) across the wipe
+        // repeat-suppression arming (the whole committed_ store) across the wipe
         // too, so a still-held combo doesn't lose its guard on a profile switch
         // (issue #92). Rarely armed on the switch combo, purely state-preserving.
         const auto heldCommitted = st->committed_;
