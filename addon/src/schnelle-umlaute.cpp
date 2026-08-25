@@ -149,21 +149,6 @@ public:
 
         auto *state = ic->propertyFor(&factory_);
 
-        // Commits issued since the PREVIOUS key event ended, which is what tells
-        // a gesture born out of a commit from one the client can take over; see
-        // gestureFollowedCommit_. Anchored at the end of the previous event
-        // rather than the start of this one, so a commit a timer issued in
-        // between (accent window, deferred space, deferred Alt cycling) counts
-        // for the gesture this event starts. The marker updates on every exit
-        // path, of which this handler has many.
-        const uint64_t commitSeqAtEntry = state->commitSeqAtLastEventEnd_;
-        struct EventEndMarker {
-            SchnelleUmlauteState *state;
-            ~EventEndMarker() {
-                state->commitSeqAtLastEventEnd_ = state->commitSeq_;
-            }
-        } eventEndMarker{state};
-
         // Deliver a still-pending deferred space before this key is processed,
         // so its text can never land behind this key's output if the key event
         // wins the race against the zero-delay timer. See scheduleSpaceCommit().
@@ -824,15 +809,6 @@ public:
             // carrying the same (frozen) timestamp can be recognised as a
             // synthetic auto-repeat and suppressed. See isSyntheticAutoRepeatRelease().
             state->waitingKeyTime_ = keyEvent.time();
-            // Mark a gesture that a commit gave birth to, whether in this key
-            // event or from a timer since the last one. The client answers such
-            // a commit with a reset that lands while this gesture is live and
-            // the key still down, which is exactly the shape of a client
-            // takeover; see reset(). Commits ahead of the ordering guard at the
-            // top of the handler (the flushed deferred space, the stale-cycling
-            // commit of issue #147) are included, which the guard's own marker
-            // cannot do since the press clears it.
-            state->gestureFollowedCommit_ = state->commitSeq_ != commitSeqAtEntry;
             state->inputKeyPressed_ = true;
             state->startTimeUsec_ = SchnelleUmlauteState::nowUsec();
 
@@ -892,6 +868,7 @@ public:
         flushPendingSpaceCommit(ic, state);
         state->clearAllState();
         state->recentlyCommitted_ = false;
+        state->pendingCommitAcks_ = 0;
     }
 
     void deactivate(const InputMethodEntry &,
@@ -917,6 +894,7 @@ public:
 
         state->clearAllState();
         state->recentlyCommitted_ = false;
+        state->pendingCommitAcks_ = 0;
         // Focus left this context: drop any visible overlay (cycling picker or
         // trigger preview) so it doesn't linger over another window.
         overlayHide();
@@ -931,23 +909,20 @@ public:
         auto *ic = event.inputContext();
         auto *state = ic->propertyFor(&factory_);
 
+        // Book this reset against a commit still awaiting acknowledgement. The
+        // two things a reset can mean arrive on the same signal and look alike,
+        // so they are told apart by accounting rather than by inspection; see
+        // pendingCommitAcks_ for why the residual error is deliberately a
+        // missed detection and never a lost character.
+        const bool acknowledgesCommit = state->pendingCommitAcks_ > 0;
+        if (acknowledgesCommit)
+            --state->pendingCommitAcks_;
+
         if (state->inputKeyPressed_) {
             // ... unless the client ended a live composition on its own, which
             // is what a mouse click into the field does (issue #162). It keeps
             // the preedit as text at the old caret, so the release that follows
             // would put a second copy there.
-            //
-            // What separates that from the reset those applications fire after
-            // every commit is whether the gesture is older than the commit.
-            // Committing does NOT leave the key released: several paths commit
-            // and start a new gesture in the same key event, and the client's
-            // reset for that commit arrives a DBus round later, with the key
-            // still down and the young gesture already live. A gesture born out
-            // of a commit is therefore never one the client has taken over.
-            // gestureFollowedCommit_ is a property of the gesture, not of the
-            // context, so it covers every commit path by construction instead
-            // of enumerating them. It costs the detection for a click that
-            // lands on such a gesture, never a character.
             //
             // Whether the character is dropped or committed depends on whether
             // the client ever saw it. Every preedit-capable client measured
@@ -963,8 +938,8 @@ public:
             // is armed unconditionally, like every other single-output commit
             // site does. The store holds one entry per key, so this cannot take
             // the guard away from another key that is also still down.
-            if ((state->waitingKey_ || state->cyclingInput_) &&
-                !state->gestureFollowedCommit_) {
+            if (!acknowledgesCommit &&
+                (state->waitingKey_ || state->cyclingInput_)) {
                 state->armCommittedFromWaiting();
                 if (ic->capabilityFlags().test(CapabilityFlag::Preedit)) {
                     hideTriggerOverlay(state);
@@ -1264,6 +1239,7 @@ private:
             flushPendingSpaceCommit(c, s);
             s->clearAllState();
             s->recentlyCommitted_ = false;
+            s->pendingCommitAcks_ = 0;
             c->inputPanel().reset();
             c->updatePreedit();
             return true;
