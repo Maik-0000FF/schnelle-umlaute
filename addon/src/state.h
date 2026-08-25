@@ -77,6 +77,20 @@ public:
     // ordering guard before Space arrives.
     bool recentlyCommitted_ = false;
 
+    // Monotonic count of commits issued on this input context. Only the
+    // difference across one key event is ever read, which answers "did a commit
+    // in this event give birth to the gesture that is now live?". A counter
+    // rather than a flag because recentlyCommitted_ above is consumed by the
+    // next press and so cannot carry the answer past the gesture's birth.
+    uint64_t commitSeq_ = 0;
+
+    // True when the live gesture was born in the same key event as a commit.
+    // Set at the one gesture-birth site, so every commit path counts by
+    // construction. Read only by reset(), which needs to tell a gesture the
+    // client has taken over (mouse click into the field) from one whose commit
+    // the client is merely acknowledging a DBus round later.
+    bool gestureFollowedCommit_ = false;
+
     // Cycling state (after first Space, while input key held)
     std::optional<std::string> cyclingInput_;
     size_t cyclingIndex_ = 0;
@@ -132,6 +146,16 @@ public:
         waitingKeyCode_ = 0;
         waitingKeyTime_ = 0;
         inputKeyPressed_ = false;
+        gestureFollowedCommit_ = false;
+    }
+
+    // Record a commit for the two markers that have to outlive it: the Space
+    // ordering guard, and the counter that tells reset() whether the gesture
+    // now live was born out of this commit. One place, so a new commit site
+    // cannot set one and forget the other.
+    void noteCommit() {
+        recentlyCommitted_ = true;
+        ++commitSeq_;
     }
 
     // Arm/clear the committed-key repeat suppression as one unit, so code, its
