@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "synthetic_autorepeat.h"
@@ -87,29 +88,39 @@ public:
     // Repeat-suppression arming for a held accent key after a single-output
     // commit: while the key stays physically down, its auto-repeat is consumed
     // instead of starting a fresh gesture that would duplicate the character
-    // (e.g. "üu"). The three values are bundled so they always move together;
-    // a bare field trio drifts out of sync across the arming, clear,
-    // reset-preserve and profile-switch sites. Coverage is now uniform: full on
-    // X11 (press-only repeat) AND on synthetic release-press platforms
-    // (KWin/Wayland), where the frozen press timestamp lets the release branch
-    // keep the arming across the whole burst (issue #92 hole 2).
+    // (e.g. "üu"). Keyed by raw keycode, because several mapped keys can be
+    // down at once and each needs its own guard: a single slot let the newest
+    // commit displace an older still-held key, whose next repeat then started a
+    // fresh gesture and typed the duplicate this exists to prevent. The values
+    // are bundled so they always move together; a bare field pair drifts out of
+    // sync across the arming, clear, reset-preserve and profile-switch sites.
+    // Coverage is uniform: full on X11 (press-only repeat) AND on synthetic
+    // release-press platforms (KWin/Wayland), where the frozen press timestamp
+    // lets the release branch keep the arming across the whole burst (issue #92
+    // hole 2).
     //
-    //  - code:      raw keycode of the committed, still-held key (0 == not armed).
+    //  - key:       the raw keycode of the committed, still-held key. No entry
+    //               means not armed.
     //  - time:      frozen frontend event time (KeyEvent::time(), ms) of its
     //               press. A synthetic KWin/Wayland auto-repeat release carries
-    //               this exact time and must NOT drop the arming. The window-
-    //               timeout arming leaves this 0 on purpose: a 0 press time never
-    //               equals a real release time, so its release clears the code
-    //               per window, keeping the intended one-char-per-window repeat.
+    //               this exact time, and a press carrying a different one
+    //               cannot belong to the same burst.
+    //  - keepAcrossSyntheticRelease: whether a synthetic release must leave the
+    //               arming standing. The single-output sites need that (issue
+    //               #92 hole 2); the window-timeout path does not, and its
+    //               release clears the code per window, keeping the intended
+    //               one-char-per-window repeat. This used to be expressed by
+    //               storing a press time of 0, which cost that entry the one
+    //               piece of evidence that could later show it went stale.
     //  - startUsec: monotonic press time of THIS committed gesture, the elapsed
     //               reference for the synthetic-release predicate. Must not use
     //               the global startTimeUsec_, which a later gesture overwrites.
     struct CommittedKey {
-        int code = 0;
         int time = 0;
         uint64_t startUsec = 0;
+        bool keepAcrossSyntheticRelease = false;
     };
-    CommittedKey committed_;
+    std::unordered_map<int, CommittedKey> committed_;
 
     // Track consumed Alt/AltGr leader press to also consume the release.
     // Prevents compositor state confusion from an orphan modifier release
@@ -136,19 +147,52 @@ public:
 
     // Arm/clear the committed-key repeat suppression as one unit, so code, its
     // frozen press timestamp and its monotonic start never drift apart. Pass
-    // time=0/startUsec=0 to opt a site out of synthetic-release keeping (the
-    // window-timeout path), which then clears on the next release as before.
-    void armCommittedKey(int code, int time, uint64_t startUsec) {
-        committed_ = {code, time, startUsec};
+    // keepAcrossSyntheticRelease=false to opt a site out of surviving a
+    // synthetic release (the window-timeout path), which then clears on the
+    // next release as before.
+    void armCommittedKey(int code, int time, uint64_t startUsec,
+                         bool keepAcrossSyntheticRelease) {
+        // A frontend that reports no keycode leaves nothing to key an entry on,
+        // and a zero entry would match every such press. Arming is a no-op
+        // there, as it was when a zero code meant "not armed".
+        if (code == 0)
+            return;
+        committed_[code] = {time, startUsec, keepAcrossSyntheticRelease};
     }
     // Arm committed-key suppression from the current waiting gesture's fields.
     // Call BEFORE resetWaitingGesture()/commitPendingKey() clears them; carries
     // the "capture waiting code/time/start together, in this order" invariant
     // that every single-output commit site shares (issue #92 hole 2).
     void armCommittedFromWaiting() {
-        armCommittedKey(waitingKeyCode_, waitingKeyTime_, startTimeUsec_);
+        armCommittedKey(waitingKeyCode_, waitingKeyTime_, startTimeUsec_, true);
     }
-    void clearCommittedKey() { committed_ = {}; }
+    void clearCommittedKey(int code) { committed_.erase(code); }
+
+    // A press of a committed, still-held key carrying a different frontend
+    // event time than the press that armed it cannot be its auto-repeat: the
+    // platform freezes the time across a whole burst. It therefore proves the
+    // release was swallowed and the arming outlived the hold, the same evidence
+    // issue #147 uses for a frozen gesture. Without this the entry would sit
+    // there for the rest of the focus session and eat every further press of
+    // that key; a single slot used to be rid of it by accident, when the next
+    // commit overwrote it. An entry without a press time carries no evidence
+    // and is left alone, which is why the window-timeout site now stores its
+    // own instead of expressing its policy by leaving one out.
+    //
+    // The evidence only exists where auto-repeat is delivered as synthetic
+    // release-press pairs, so the caller gates this on sawSyntheticRelease_.
+    // On press-only auto-repeat every repeat carries the server's current
+    // time, and an advancing one proves nothing.
+    bool isStaleCommittedArming(int code, int pressTime) const {
+        auto it = committed_.find(code);
+        if (it == committed_.end())
+            return false;
+        return it->second.time != 0 && pressTime != 0 &&
+               pressTime != it->second.time;
+    }
+    bool isCommittedKey(int code) const {
+        return committed_.find(code) != committed_.end();
+    }
 
     // True once no gesture and no Alt-led session is live any more: the
     // state in which a still-armed consumedAltCode_ is either the awaited,
@@ -172,9 +216,13 @@ public:
         return isSyntheticAutoRepeatRelease(releaseTime, waitingKeyTime_,
                                             nowUsec() - startTimeUsec_);
     }
-    bool isSyntheticCommittedRelease(int releaseTime) const {
-        return isSyntheticAutoRepeatRelease(releaseTime, committed_.time,
-                                            nowUsec() - committed_.startUsec);
+    bool isSyntheticCommittedRelease(int code, int releaseTime) const {
+        auto it = committed_.find(code);
+        if (it == committed_.end())
+            return false;
+        return it->second.keepAcrossSyntheticRelease &&
+               isSyntheticAutoRepeatRelease(releaseTime, it->second.time,
+                                            nowUsec() - it->second.startUsec);
     }
 
     void clearAllState() {
@@ -187,7 +235,7 @@ public:
         cancelSpaceCommit();
         resetCycling();
         heldRawCodes_.clear();
-        clearCommittedKey();
+        committed_.clear();
         consumedAltCode_ = 0;
         altGestureSession_ = false;
     }
