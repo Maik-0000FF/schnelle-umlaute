@@ -14,6 +14,8 @@
 #include <QTextStream>
 #include <QVariantMap>
 
+#include <utility>
+
 namespace {
 
 using schnelle_umlaute::kMappingsFile;
@@ -545,7 +547,7 @@ bool ProfileListModel::setSelectKey(int row, const QString &combo) {
         Q_EMIT errorOccurred(tr("Shortcut already in use"));
         return false;
     }
-    entries_[row].selectKey = c;
+    entries_[row].selectKey = std::move(c);
     auto idx = index(row);
     Q_EMIT dataChanged(idx, idx, {SelectKeyRole});
     save();
@@ -574,7 +576,7 @@ void ProfileListModel::setCycleNext(const QString &combo) {
         Q_EMIT errorOccurred(tr("Shortcut already in use"));
         return;
     }
-    cycleNext_ = c;
+    cycleNext_ = std::move(c);
     Q_EMIT cycleNextChanged();
     save();
 }
@@ -588,7 +590,7 @@ void ProfileListModel::setCyclePrev(const QString &combo) {
         Q_EMIT errorOccurred(tr("Shortcut already in use"));
         return;
     }
-    cyclePrev_ = c;
+    cyclePrev_ = std::move(c);
     Q_EMIT cyclePrevChanged();
     save();
 }
