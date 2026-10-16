@@ -43,19 +43,20 @@ KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) 
 
 ## Addon not showing in fcitx5-config-qt
 
-Check if all files are installed:
+Schnelle Umlaute is listed under **Multilingual**, which **Only Show Current Language** hides. In **Input Method**, uncheck it in the available list, or type "Schnelle" into the search box.
+
+If it is still missing, check if all files are installed:
 ```bash
 ls /usr/lib/fcitx5/schnelle-umlaute.so
 ls /usr/share/fcitx5/addon/schnelle-umlaute.conf
-ls /usr/share/fcitx5/addon/schnelle-umlaute.conf.in  # For GUI config options
 ls /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf  # This is important!
 ```
 
-If missing, reinstall:
+If missing, reinstall and fully restart fcitx5 (`fcitx5-remote -r` does not load new addons):
 ```bash
 cd addon/build
 sudo cmake --install .
-fcitx5-remote -r
+fcitx5 -r -d
 ```
 
 ## Configuration options not visible
@@ -63,10 +64,10 @@ fcitx5-remote -r
 If the addon appears in fcitx5-config-qt but the gear button doesn't open the editor, or the editor opens but lacks tabs:
 
 1. Verify the editor binary is installed: `which schnelle-umlaute-editor`
-2. Verify the addon's `[Editor] External=` entry: `grep -A1 '\[Editor\]' /usr/share/fcitx5/addon/schnelle-umlaute.conf.in`
+2. Verify the addon is marked configurable: `grep Configurable /usr/share/fcitx5/addon/schnelle-umlaute.conf` (should print `Configurable=True`)
 3. If missing, reinstall the addon:
    ```bash
-   cd addon && ./build.sh && cd build && sudo cmake --install . && fcitx5-remote -r
+   cd addon && ./build.sh && cd build && sudo cmake --install . && fcitx5 -r -d
    ```
 
 ## Works in terminal but not in other apps (Firefox, Kate, etc.)
@@ -162,7 +163,7 @@ echo "$GTK_IM_MODULE | $QT_IM_MODULE | $XMODIFIERS"   # → fcitx | fcitx | @im=
 
 **Fix:**
 1. Verify fcitx5 is running: `fcitx5-remote` (should print `1` or `2`)
-2. Manually reload: `fcitx5-remote -r`
+2. Manually reload: `busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 ReloadAddonConfig s schnelle-umlaute` (`fcitx5-remote -r` only reloads fcitx5's global config, not the addon's)
 3. If still stale, fully restart fcitx5: `fcitx5-remote -e && fcitx5 -d`
 
 ## Cycle overlay does not appear
@@ -196,7 +197,7 @@ If you can see "Schnelle Umlaute" in fcitx5-config-qt but cannot activate it, or
 
 2. **Restart Fcitx5:**
    ```bash
-   fcitx5-remote -r
+   fcitx5 -r -d
    ```
 
 3. **Activate addon:**
@@ -247,7 +248,7 @@ To share the input method state globally:
 1. Open Fcitx5 configuration: `fcitx5-config-qt`
 2. Go to **Global Options**
 3. Set **Share Input State** to **All**
-4. Restart Fcitx5: `fcitx5-remote -r`
+4. Reload the global config: `fcitx5-remote -r`
 
 ## WezTerm known issues
 

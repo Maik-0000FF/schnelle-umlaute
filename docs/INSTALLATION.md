@@ -259,8 +259,8 @@ If the build directory still exists, use the install manifest:
 ```bash
 cd addon/build
 sudo xargs rm -f < install_manifest.txt
-# Reload fcitx5 to unload the removed addon:
-fcitx5-remote -r
+# Restart fcitx5 to unload the removed addon:
+fcitx5 -r -d
 ```
 
 Otherwise, remove files manually. The addon library path depends on your distribution:
@@ -291,9 +291,12 @@ sudo rm /usr/share/dbus-1/services/de.schnelle_umlaute.Overlay.service
 # versions before 1.2.0, ignore "No such file or directory" otherwise):
 sudo rm /usr/lib/fcitx5/qt6/libschnelle-umlaute-config-editor.so 2>/dev/null
 
+# Legacy config descriptor (only present on installs from versions
+# before 1.2.2, ignore "No such file or directory" otherwise):
+sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf.in 2>/dev/null
+
 # Common data files (all distributions)
 sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf
-sudo rm /usr/share/fcitx5/addon/schnelle-umlaute.conf.in
 sudo rm /usr/share/fcitx5/addon/org.fcitx.Fcitx5.Addon.SchnelleUmlaute.metainfo.xml
 sudo rm /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf
 
@@ -302,6 +305,6 @@ rm ~/.config/fcitx5/conf/schnelle-umlaute.conf
 rm -r ~/.config/fcitx5/schnelle-umlaute/
 rm ~/.config/environment.d/fcitx5.conf
 
-# Reload fcitx5 to unload the removed addon:
-fcitx5-remote -r
+# Restart fcitx5 to unload the removed addon:
+fcitx5 -r -d
 ```
