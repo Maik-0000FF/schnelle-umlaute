@@ -42,7 +42,7 @@
 // 159     Keycode-only leader  a no-character navigation key (Home) works as a custom leader and cycles
 // 161-166 Alt stale state      shortcut abort and a superseding gesture both tear the Alt/AltGr session down (shortcuts keep working with Alt held), one-shot release eater, lost-release disarm, AltGr bypass still consumes input mid-session, level-3 AltGr with Mod5 input, arming survives in-session repeat (issue #147 class)
 // 167-168 Stale gesture        a swallowed input-key release no longer freezes cycling: a fresh press of the same key (new event time) ends the stale gesture and starts its own, while the held key's auto-repeat (frozen event time) leaves it cycling (issue #147)
-// 169-174 Per-key repeat guard  the suppression a single-output commit arms is keyed by raw keycode, so two mapped keys held together keep separate guards and a frontend without keycodes arms nothing; an arming whose release was swallowed is cleared by the first press carrying a new event time, but only where auto-repeat arrives as synthetic release-press pairs, since press-only repeat advances the time by itself; the window-timeout arming carries its own timestamp and states its keep-across-release policy in its own field; and the platform marker travels with the arming across every wipe that preserves it
+// 169-174 Per-key repeat guard  the suppression a single-output commit arms is keyed by raw keycode, so two mapped keys held together keep separate guards and a frontend without keycodes arms nothing; an arming whose release was swallowed is cleared by the first press carrying a new event time, but only where auto-repeat arrives as synthetic release-press pairs, since press-only repeat advances the time by itself; the window-timeout arming carries its own timestamp and states its keep-across-release policy in its own field; and the platform marker travels with the arming across the client reset
 // clang-format on
 
 #include <unistd.h>
@@ -7506,10 +7506,10 @@ static void schedulePerKeyGuardTest170(Instance *instance) {
 }
 
 // TEST 171: the price of keeping one entry per key, and the way out. A single
-// slot was rid of a stale arming by accident, when the next commit overwrote
-// it. Per key, an arming whose release a compositor grab swallowed would sit
-// there for the rest of the focus session and eat every further press of that
-// key. The press that proves it is the same evidence a frozen gesture is ended
+// slot was sometimes rid of a stale arming by accident, when another commit
+// overwrote it. Per key, an arming whose release a compositor grab swallowed
+// would eat the next press of that key, until that press's own release cleared
+// it. The press that proves it is the same evidence a frozen gesture is ended
 // by: a repeat carries its burst's timestamp, a genuinely new press cannot.
 //
 // Only on a platform that delivers repeat as synthetic release-press pairs, so
@@ -7614,8 +7614,8 @@ static void schedulePerKeyGuardTest172(Instance *instance) {
 // synthetic release must not keep it. The window-timeout site arms so that the
 // trailing release is consumed rather than leaked, and that release clears it
 // again per window. Expressing "do not keep it" by storing a press time of 0
-// left the entry with no evidence of its own age, so a swallowed release
-// stranded the key for the rest of the focus session. The policy now sits in
+// left the entry with no evidence of its own age, so after a swallowed release
+// the next press was eaten as a repeat. The policy now sits in
 // its own field and the timestamp is kept.
 static void schedulePerKeyGuardTest173(Instance *instance) {
     g_currentTest = 173;

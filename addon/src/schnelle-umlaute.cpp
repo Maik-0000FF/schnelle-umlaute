@@ -800,8 +800,9 @@ public:
             if (!isNewKeyPress && state->isCommittedKey(rawCode)) {
                 // ... unless this press proves the arming outlived the hold. A
                 // swallowed release leaves the code in heldRawCodes_, so a real
-                // new press reads as a repeat here and would be eaten for the
-                // rest of the session. Its event time gives it away.
+                // new press reads as a repeat here and would be eaten, until
+                // its own release clears the arming. Its event time gives it
+                // away.
                 //
                 // Only where the platform delivers auto-repeat as synthetic
                 // release-press pairs, which is the only place a repeat carries
@@ -810,8 +811,8 @@ public:
                 // advancing time proves nothing there and reading it as proof
                 // would drop the arming on the very first repeat and bring the
                 // duplicate back. Same gate as the window-timeout arming below,
-                // and the price is that a swallowed release still strands the
-                // key there, as it did before this store existed.
+                // and the price is that a swallowed release there still costs
+                // the next press, as it did before this store existed.
                 if (state->sawSyntheticRelease_ &&
                     state->isStaleCommittedArming(rawCode, keyEvent.time())) {
                     state->clearCommittedKey(rawCode);
@@ -1271,7 +1272,9 @@ private:
         // (issue #92). Rarely armed on the switch combo, purely state-preserving.
         auto heldCommitted = std::move(st->committed_);
         // Same pairing as in reset(): the marker decides whether the arming
-        // just preserved can ever be recognised as stale.
+        // just preserved can ever be recognised as stale. Mirrored for
+        // symmetry and not covered by a test: profiles only load from disk,
+        // which the test environment points nowhere.
         const bool sawSynthetic = st->sawSyntheticRelease_;
         wipeAllGestureState();
         st->heldRawCodes_ = std::move(heldKeys);

@@ -172,9 +172,9 @@ public:
     // event time than the press that armed it cannot be its auto-repeat: the
     // platform freezes the time across a whole burst. It therefore proves the
     // release was swallowed and the arming outlived the hold, the same evidence
-    // issue #147 uses for a frozen gesture. Without this the entry would sit
-    // there for the rest of the focus session and eat every further press of
-    // that key; a single slot used to be rid of it by accident, when the next
+    // issue #147 uses for a frozen gesture. Without this the next press of that
+    // key is eaten as a repeat, and only its own release clears the entry; a
+    // single slot was sometimes rid of it earlier by accident, when another
     // commit overwrote it. An entry without a press time carries no evidence
     // and is left alone, which is why the window-timeout site now stores its
     // own instead of expressing its policy by leaving one out.
