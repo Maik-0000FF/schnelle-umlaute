@@ -193,7 +193,7 @@ public:
     }
 
     // The one teardown every end of a cycling phase runs through (commit,
-    // cancel, wipe), so the watchdog cannot outlive the gesture it guards.
+    // cancel, wipe).
     void resetCycling() {
         cyclingInput_.reset();
         cyclingIndex_ = 0;

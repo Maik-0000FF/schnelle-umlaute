@@ -75,8 +75,8 @@
 #include <xkbcommon/xkbcommon.h>
 // The shipped classifier and kNoKeyCode, tested directly rather than copied.
 #include "src/hand_classifier.h"
-// The delay bounds and the cycling-watchdog constants, so the waits below are
-// derived from the engine's numbers instead of a second copy of them.
+// The delay bounds, so the waits below are derived from the engine's numbers
+// instead of a second copy of them.
 #include "src/config.h"
 #include "src/synthetic_autorepeat.h"
 #include "testdir.h"

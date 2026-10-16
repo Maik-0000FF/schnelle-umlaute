@@ -42,9 +42,7 @@ constexpr uint32_t kMaxUnicodeCodepoint = 0x10FFFF;
 // =============================================================================
 // Key insight: Track whether input key is PHYSICALLY PRESSED
 // - Cycling only works while input key is held down
-// - Cycle as long as you want: every step postpones the backstop that ends a
-//   gesture whose release never arrives, bounded only by its ceiling
-//   (armCyclingWatchdog, issue #147)
+// - No timer during cycling - cycle as long as you want
 // - When input key is released, cycling ends
 // =============================================================================
 
@@ -506,9 +504,6 @@ public:
             rawCode == state->waitingKeyCode_) {
             state->cancelTimeout();
             state->inputKeyPressed_ = true;
-            // The backstop needs no arming here: this key is the gesture's own,
-            // so the liveness re-arm at the top of the handler already ran for
-            // this very event.
             keyEvent.filterAndAccept();
             return;
         }
@@ -601,7 +596,7 @@ public:
                              leaderStep(key, rawCode) + n) %
                             n;
                         state->cyclingIndex_ = static_cast<size_t>(next);
-                        updateClientPreedit(ic, state,
+                        updateClientPreedit(ic,
                                             it->second[state->cyclingIndex_]);
                         overlayShow(ic, it->second,
                                     static_cast<int>(state->cyclingIndex_));
@@ -682,7 +677,7 @@ public:
                             state->altGestureSession_ = true;
 
                         // Update preedit with the starting variant
-                        updateClientPreedit(ic, state, it->second[startIdx]);
+                        updateClientPreedit(ic, it->second[startIdx]);
                         // Overlay is for choosing among variants; suppress it
                         // when there's nothing to cycle (single-output Alt
                         // still needs the cycling state above for the deferred
@@ -825,7 +820,7 @@ public:
             }
 
             // Set preedit text
-            updateClientPreedit(ic, state, keyChar);
+            updateClientPreedit(ic, keyChar);
 
             keyEvent.filterAndAccept();
             return;
@@ -1435,8 +1430,7 @@ private:
 
     // Every gesture advance ends here: starting the waiting phase, starting to
     // cycle, and each step to another variant all rewrite the preview.
-    void updateClientPreedit(InputContext *ic, SchnelleUmlauteState *state,
-                             const std::string &text) {
+    void updateClientPreedit(InputContext *ic, const std::string &text) {
         Text preedit(text);
         preedit.setCursor(static_cast<int>(preedit.textLength()));
         ic->inputPanel().setClientPreedit(preedit);
