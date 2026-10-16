@@ -38,7 +38,7 @@ namespace fcitx {
 constexpr uint32_t kMaxUnicodeCodepoint = 0x10FFFF;
 
 // =============================================================================
-// VelocityAccents-Style Implementation
+// Hold-and-Cycle Implementation
 // =============================================================================
 // Key insight: Track whether input key is PHYSICALLY PRESSED
 // - Cycling only works while input key is held down
