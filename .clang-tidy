@@ -3,6 +3,7 @@ Checks: >
   -*,
   bugprone-*,
   -bugprone-easily-swappable-parameters,
+  -bugprone-signed-bitwise,
   clang-analyzer-*,
   performance-*,
   -performance-no-int-to-ptr,

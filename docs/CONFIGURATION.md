@@ -7,7 +7,7 @@ All addon settings can be changed in two ways:
   - `~/.config/fcitx5/conf/schnelle-umlaute.conf`: theme, delays, leader keys, overlay, app filter (INI format)
   - `~/.config/fcitx5/schnelle-umlaute/mappings.txt`: character mappings (`Input=Output`, one per line)
 
-Saves through the editor are **applied live** via fcitx5's `Controller1.ReloadAddonConfig` DBus call, no restart needed. After a manual edit of the config files, reload with `fcitx5-remote -r`.
+Saves through the editor are **applied live** via fcitx5's `Controller1.ReloadAddonConfig` DBus call, no restart needed. After a manual edit of the config files, reload with `busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 ReloadAddonConfig s schnelle-umlaute` (`fcitx5-remote -r` does not reload addon configs).
 
 ## Contents
 

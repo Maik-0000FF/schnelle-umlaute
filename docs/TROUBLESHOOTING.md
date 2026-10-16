@@ -43,19 +43,20 @@ KWin tiling scripts (e.g. [MouseTiler](https://github.com/rxappdev/MouseTiler)) 
 
 ## Addon not showing in fcitx5-config-qt
 
-Check if all files are installed:
+Schnelle Umlaute is listed under **Multilingual**, which **Only Show Current Language** hides. In **Input Method**, uncheck it in the available list, or type "Schnelle" into the search box.
+
+If it is still missing, check if all files are installed:
 ```bash
 ls /usr/lib/fcitx5/schnelle-umlaute.so
 ls /usr/share/fcitx5/addon/schnelle-umlaute.conf
-ls /usr/share/fcitx5/addon/schnelle-umlaute.conf.in  # For GUI config options
 ls /usr/share/fcitx5/inputmethod/schnelle-umlaute.conf  # This is important!
 ```
 
-If missing, reinstall:
+If missing, reinstall and fully restart fcitx5 (`fcitx5-remote -r` does not load new addons):
 ```bash
 cd addon/build
 sudo cmake --install .
-fcitx5-remote -r
+fcitx5 -r -d
 ```
 
 ## Configuration options not visible
@@ -63,10 +64,10 @@ fcitx5-remote -r
 If the addon appears in fcitx5-config-qt but the gear button doesn't open the editor, or the editor opens but lacks tabs:
 
 1. Verify the editor binary is installed: `which schnelle-umlaute-editor`
-2. Verify the addon's `[Editor] External=` entry: `grep -A1 '\[Editor\]' /usr/share/fcitx5/addon/schnelle-umlaute.conf.in`
+2. Verify the addon is marked configurable: `grep Configurable /usr/share/fcitx5/addon/schnelle-umlaute.conf` (should print `Configurable=True`)
 3. If missing, reinstall the addon:
    ```bash
-   cd addon && ./build.sh && cd build && sudo cmake --install . && fcitx5-remote -r
+   cd addon && ./build.sh && cd build && sudo cmake --install . && fcitx5 -r -d
    ```
 
 ## Works in terminal but not in other apps (Firefox, Kate, etc.)
@@ -162,7 +163,7 @@ echo "$GTK_IM_MODULE | $QT_IM_MODULE | $XMODIFIERS"   # → fcitx | fcitx | @im=
 
 **Fix:**
 1. Verify fcitx5 is running: `fcitx5-remote` (should print `1` or `2`)
-2. Manually reload: `fcitx5-remote -r`
+2. Manually reload: `busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 ReloadAddonConfig s schnelle-umlaute` (`fcitx5-remote -r` only reloads fcitx5's global config, not the addon's)
 3. If still stale, fully restart fcitx5: `fcitx5-remote -e && fcitx5 -d`
 
 ## Cycle overlay does not appear
@@ -196,7 +197,7 @@ If you can see "Schnelle Umlaute" in fcitx5-config-qt but cannot activate it, or
 
 2. **Restart Fcitx5:**
    ```bash
-   fcitx5-remote -r
+   fcitx5 -r -d
    ```
 
 3. **Activate addon:**
@@ -247,7 +248,7 @@ To share the input method state globally:
 1. Open Fcitx5 configuration: `fcitx5-config-qt`
 2. Go to **Global Options**
 3. Set **Share Input State** to **All**
-4. Restart Fcitx5: `fcitx5-remote -r`
+4. Reload the global config: `fcitx5-remote -r`
 
 ## WezTerm known issues
 
@@ -319,10 +320,25 @@ A correctly behaving field replaces the preedit with the commit, so the characte
 
 **Browser dependent:** The same field can double in one browser and work in another. For example, GitHub's fields double in Firefox but work in Chromium: Chromium keeps the preedit as a separate composition region that the commit replaces, while Firefox exposes the composition to the field's JavaScript, which double-applies it. Firefox's own native widgets (the URL bar) and plain HTML `<textarea>`/`<input>` elements are **not** affected, which confirms the addon and the browser's core composition handling are correct. The bug lives in the web field's own composition handling.
 
+**Cycling multiplies it:** the count is not fixed at two. Such a field applies every preedit state it is shown, so stepping through the variant picker leaves one character per step plus the committed one. Holding a key and tapping the leader twelve times can leave thirteen characters in the field. Same cause, more steps.
+
+**Not specific to this addon:** every input method that uses composition hits it in the same field, which is why it is tracked upstream on GitHub's side. See [community discussion #159962](https://github.com/orgs/community/discussions/159962), where the same behavior is reported for Chinese and Japanese input methods across Chrome, Edge, Firefox and Safari, and acknowledged by GitHub in September 2025.
+
 **Affected:** JavaScript-managed web fields that implement their own input handling. Native application fields, terminals, and plain HTML inputs are not affected.
 
 **Workaround:**
 - Switch to your base keyboard layout (<kbd>Ctrl</kbd> + <kbd>Space</kbd>) in the affected field, then switch back afterwards
+- Turn the preedit off while typing in the affected field: fcitx5's **Global Options → "Show Preedit In Application"**, or its **Toggle preedit** hotkey for a quick switch. Without a preedit there is nothing for the field to apply twice, and the addon's own overlay still shows the variant picker. Turn it back on afterwards: some applications need the preedit and handle text differently without it
+
+## Duplicate character after clicking into a field mid-gesture
+
+**Symptom:** Hold a mapped key so the character is showing as preedit, then click somewhere with the mouse without releasing the key. The character can end up twice: once where it was being composed, once where you clicked. Confirmed in Chromium, Firefox, a Qt line edit and a GTK entry.
+
+**Cause:** The click makes the application end the composition on its own. It turns the preedit it was showing into real text at the old cursor position, and the addon is not told which of its clients did what. When the key is finally released, the addon commits the character as it always does, at the cursor position the click moved to.
+
+**Why it is not fixed:** the only thing the application sends on such a click is a plain reset, and it sends the same plain reset after every commit it receives. Nothing in it says which of the two it is. Telling them apart therefore means guessing, from a count of commits or from how closely the reset follows one, and both guesses were built and measured: each one turned the visible duplicate into a rarer failure where a character disappears while typing normally, with no way to tell why. A duplicate you can see and delete is the better of the two, so the addon leaves the reset alone.
+
+**Workaround:** release the key before clicking. The character is committed on release, so a click after that lands in a field with nothing in composition.
 
 ## Web app doesn't react to a mapped character's keypress (auto-advance, shortcuts)
 

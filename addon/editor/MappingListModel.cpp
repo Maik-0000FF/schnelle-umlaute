@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <set>
+#include <utility>
 
 namespace {
 
@@ -454,7 +455,7 @@ void MappingListModel::setProfileFile(const QString &file) {
         f = QLatin1String(schnelle_umlaute::kMappingsFile);
     if (f == profileFile_)
         return;
-    profileFile_ = f;
+    profileFile_ = std::move(f);
     Q_EMIT profileFileChanged();
     // Reload the model from the newly selected edit target. Wrapped in
     // begin/endResetModel so the QML view rebinds to the new rows. Whether the
