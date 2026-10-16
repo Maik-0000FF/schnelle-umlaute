@@ -1,5 +1,15 @@
 # Upgrading
 
+## Upgrading from v1.10.0 to v1.10.1
+
+No config or mapping migration. Pull / reinstall and restart fcitx5.
+
+### What changed
+
+- **Stuck gesture after a lost key release.** When a compositor grab swallowed the input key's release, the picker stayed open; the next press of that key now ends it.
+- **Two mapped keys held together.** Each held key keeps its own repeat guard, so the older one no longer types a duplicate.
+- **Troubleshooting.** Corrected the steps for an addon missing from `fcitx5-config-qt` and for reloading fcitx5, and documented the duplicate character after clicking into a field mid-gesture.
+
 ## Upgrading from v1.9.x to v1.10.0
 
 No config or mapping migration. Pull / reinstall and restart fcitx5. If you use the overlay, restart the `schnelle-umlaute-overlay` daemon (or toggle it off and on in the editor).
