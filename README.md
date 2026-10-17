@@ -150,7 +150,7 @@ All mappings are fully customizable, add French, Spanish, Emoji, Braille, or any
 
 ## Requirements
 
-- **Linux** with Fcitx5 (Arch, Ubuntu/Debian, Linux Mint, Fedora, openSUSE)
+- **Linux** with native Fcitx5 (Arch, Ubuntu/Debian, Linux Mint, Fedora, openSUSE); the Flatpak build of Fcitx5 is not supported
 - **CMake** and **extra-cmake-modules**
 - **GCC with C++20 support**
 
