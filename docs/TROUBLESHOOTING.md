@@ -59,6 +59,18 @@ sudo cmake --install .
 fcitx5 -r -d
 ```
 
+If the files are present but the addon is still missing, check which fcitx5 is running:
+```bash
+ps -o pid,args -C fcitx5
+flatpak list | grep -i fcitx
+```
+
+No native process but `org.fcitx.Fcitx5` in the Flatpak list means the Flatpak build of fcitx5 is running. It is sandboxed and only loads addons shipped as Flatpak extensions, so it never sees `/usr/lib/fcitx5`. `fcitx5 -r -d` then fails with "Unable to request dbus name". Schnelle Umlaute needs the native fcitx5:
+
+1. Install fcitx5 and `fcitx5-configtool` from your distribution, plus native replacements for any Flatpak fcitx5 addons you use (e.g. `fcitx5-chinese-addons`, `fcitx5-hangul`, `fcitx5-mozc`).
+2. Remove the Flatpak build (`flatpak uninstall org.fcitx.Fcitx5` and its `org.fcitx.Fcitx5.Addon.*` extensions) and delete `~/.config/autostart/org.fcitx.Fcitx5.desktop` if it exists.
+3. Log out and back in, then confirm `ps -o pid,args -C fcitx5` lists `/usr/bin/fcitx5`.
+
 ## Configuration options not visible
 
 If the addon appears in fcitx5-config-qt but the gear button doesn't open the editor, or the editor opens but lacks tabs:
